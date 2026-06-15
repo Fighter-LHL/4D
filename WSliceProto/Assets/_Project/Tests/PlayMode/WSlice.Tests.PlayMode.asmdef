@@ -1,0 +1,23 @@
+{
+    "name": "WSlice.Tests.PlayMode",
+    "rootNamespace": "WSlice.Tests",
+    "references": [
+        "WSlice.Core",
+        "WSlice.Entities",
+        "WSlice.Level",
+        "WSlice.Player",
+        "WSlice.UI",
+        "Unity.TextMeshPro",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

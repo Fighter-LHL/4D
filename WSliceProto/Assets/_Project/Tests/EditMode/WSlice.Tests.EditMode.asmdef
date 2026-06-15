@@ -1,0 +1,21 @@
+{
+    "name": "WSlice.Tests.EditMode",
+    "rootNamespace": "WSlice.Tests.EditMode",
+    "references": [
+        "WSlice.Core",
+        "WSlice.Level",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

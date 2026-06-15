@@ -1,0 +1,23 @@
+{
+    "name": "WSlice.Editor",
+    "rootNamespace": "WSlice",
+    "references": [
+        "WSlice.Core",
+        "WSlice.Level",
+        "WSlice.Entities",
+        "WSlice.Player",
+        "WSlice.UI",
+        "Unity.TextMeshPro",
+        "Unity.UGUI",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

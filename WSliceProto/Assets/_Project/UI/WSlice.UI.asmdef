@@ -1,0 +1,20 @@
+{
+    "name": "WSlice.UI",
+    "rootNamespace": "WSlice",
+    "references": [
+        "WSlice.Core",
+        "WSlice.Level",
+        "WSlice.Player",
+        "Unity.TextMeshPro",
+        "Unity.UGUI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

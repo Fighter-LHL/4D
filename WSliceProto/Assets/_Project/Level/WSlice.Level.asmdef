@@ -1,0 +1,14 @@
+{
+    "name": "WSlice.Level",
+    "rootNamespace": "WSlice",
+    "references": ["WSlice.Core", "WSlice.Entities"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
