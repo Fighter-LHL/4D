@@ -30,6 +30,7 @@ namespace WSlice.Level
 
             ValidateSnapPoints(definition, errors, warnings);
             var nodeIds = ValidateNodes(definition, errors);
+            ValidateGoalNode(definition, nodeIds, errors, warnings);
             ValidateEdges(definition, nodeIds, errors, warnings);
 
             return new LevelDefinitionValidationResult(errors.AsReadOnly(), warnings.AsReadOnly());
@@ -78,6 +79,22 @@ namespace WSlice.Level
             }
 
             return nodeIds;
+        }
+
+        private static void ValidateGoalNode(
+            LevelDefinition definition,
+            HashSet<string> nodeIds,
+            List<string> errors,
+            List<string> warnings)
+        {
+            if (string.IsNullOrWhiteSpace(definition.GoalNodeId))
+            {
+                warnings.Add("GoalNodeId is empty; level completion will not trigger.");
+                return;
+            }
+
+            if (!nodeIds.Contains(definition.GoalNodeId))
+                errors.Add($"Goal node '{definition.GoalNodeId}' is not defined in Nodes.");
         }
 
         private static void ValidateEdges(

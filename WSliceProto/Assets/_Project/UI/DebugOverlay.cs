@@ -12,18 +12,18 @@ namespace WSlice.UI
         [SerializeField] private TextMeshProUGUI label;
         [SerializeField] private WState wState;
         [SerializeField] private LevelRuntimeController level;
+        [SerializeField] private LevelSessionController session;
         [SerializeField] private PlayerCharacter character;
         [SerializeField] private MovementController movement;
         [SerializeField] private PlayerInputRouter inputRouter;
-
-        [SerializeField] private string goalNodeId = "FlowerTop";
-
-        private bool _levelComplete;
 
         private void Start()
         {
             if (level == null)
                 level = FindFirstObjectByType<LevelRuntimeController>();
+
+            if (session == null)
+                session = FindFirstObjectByType<LevelSessionController>();
 
             if (wState == null && level != null)
                 wState = level.WState;
@@ -46,15 +46,10 @@ namespace WSlice.UI
             label.text = BuildDebugText(state);
         }
 
-        private void LateUpdate()
-        {
-            if (!_levelComplete && character != null && character.CurrentNodeId == goalNodeId)
-                _levelComplete = true;
-        }
-
         private string BuildDebugText(HUDState state)
         {
             var builder = new StringBuilder();
+            builder.AppendLine($"Session: {session?.State ?? LevelSessionState.NotStarted}");
             builder.AppendLine($"CurrentW: {state.CurrentW:F2}");
             builder.AppendLine($"TargetW: {state.TargetW:F2}");
             builder.AppendLine($"CurrentNode: {character?.CurrentNodeId}");
@@ -90,7 +85,7 @@ namespace WSlice.UI
             if (state.LastFailureReason != PlayerActionFailureReason.None)
                 builder.AppendLine($"LastFailure: {state.LastFailureReason} - {state.LastFailureMessage}");
 
-            if (_levelComplete)
+            if (session != null && session.State == LevelSessionState.Completed)
                 builder.AppendLine().Append("Level Complete!");
 
             return builder.ToString();

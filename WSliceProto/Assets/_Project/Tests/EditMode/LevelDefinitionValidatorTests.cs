@@ -96,9 +96,22 @@ namespace WSlice.Tests.EditMode
             Assert.That(result.Warnings, Does.Contain("Edge A->B walkable range is reversed; runtime normalizes it."));
         }
 
+        [Test]
+        public void Validate_RejectsMissingGoalNode()
+        {
+            var def = CreateValidDefinition();
+            def.GoalNodeId = "Missing";
+
+            var result = LevelDefinitionValidator.Validate(def);
+
+            Assert.That(result.IsValid, Is.False);
+            Assert.That(result.Errors, Does.Contain("Goal node 'Missing' is not defined in Nodes."));
+        }
+
         private static LevelDefinition CreateValidDefinition()
         {
             var def = ScriptableObject.CreateInstance<LevelDefinition>();
+            def.GoalNodeId = "B";
             def.SnapPoints.Add(0f);
             def.SnapPoints.Add(0.55f);
             def.Nodes.Add(new LevelNode { Id = "A", WorldPosition = Vector3.zero });

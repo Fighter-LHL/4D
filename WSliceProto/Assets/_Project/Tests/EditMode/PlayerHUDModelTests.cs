@@ -11,7 +11,7 @@ namespace WSlice.Tests.EditMode
         {
             var hud = CreateHud(PlayerActionFailureReason.None, string.Empty, willBreak: false);
 
-            var state = PlayerHUDModel.Build(hud, "Outside", "FlowerTop");
+            var state = PlayerHUDModel.Build(hud, isLevelComplete: false);
 
             Assert.That(state.PrimaryText, Is.EqualTo("Find a W that opens the path."));
             Assert.That(state.ShowFailure, Is.False);
@@ -24,7 +24,7 @@ namespace WSlice.Tests.EditMode
         {
             var hud = CreateHud(PlayerActionFailureReason.NoPathAtCurrentW, "No path is available at current W.", willBreak: false);
 
-            var state = PlayerHUDModel.Build(hud, "Outside", "FlowerTop");
+            var state = PlayerHUDModel.Build(hud, isLevelComplete: false);
 
             Assert.That(state.ShowFailure, Is.True);
             Assert.That(state.FailureText, Is.EqualTo("No path at this W. Shift W and try again."));
@@ -40,7 +40,7 @@ namespace WSlice.Tests.EditMode
                 willBreak: false,
                 routeHint: routeHint);
 
-            var state = PlayerHUDModel.Build(hud, "Outside", "FlowerTop");
+            var state = PlayerHUDModel.Build(hud, isLevelComplete: false);
 
             Assert.That(state.ShowFailure, Is.True);
             Assert.That(state.FailureText, Is.EqualTo("No path at this W."));
@@ -53,7 +53,7 @@ namespace WSlice.Tests.EditMode
         {
             var hud = CreateHud(PlayerActionFailureReason.MissingCamera, "Camera is not available.", willBreak: false);
 
-            var state = PlayerHUDModel.Build(hud, "Outside", "FlowerTop");
+            var state = PlayerHUDModel.Build(hud, isLevelComplete: false);
 
             Assert.That(state.ShowFailure, Is.True);
             Assert.That(state.FailureText, Is.EqualTo("Input setup issue: camera missing."));
@@ -64,18 +64,18 @@ namespace WSlice.Tests.EditMode
         {
             var hud = CreateHud(PlayerActionFailureReason.None, string.Empty, willBreak: true);
 
-            var state = PlayerHUDModel.Build(hud, "Outside", "FlowerTop");
+            var state = PlayerHUDModel.Build(hud, isLevelComplete: false);
 
             Assert.That(state.ShowWarning, Is.True);
             Assert.That(state.WarningText, Is.EqualTo("Changing W now will break the current move."));
         }
 
         [Test]
-        public void Build_AtGoal_ShowsComplete()
+        public void Build_WhenLevelComplete_ShowsComplete()
         {
             var hud = CreateHud(PlayerActionFailureReason.None, string.Empty, willBreak: false);
 
-            var state = PlayerHUDModel.Build(hud, "FlowerTop", "FlowerTop");
+            var state = PlayerHUDModel.Build(hud, isLevelComplete: true);
 
             Assert.That(state.IsComplete, Is.True);
             Assert.That(state.PrimaryText, Is.EqualTo("Level Complete!"));
