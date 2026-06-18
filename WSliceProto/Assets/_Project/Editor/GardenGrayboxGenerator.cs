@@ -51,6 +51,8 @@ namespace WSlice.Editor
             errors += RequireObject("PlayerInput", typeof(PlayerInputRouter), typeof(TapMoveInput));
             errors += RequireObject("Canvas", typeof(Canvas));
             errors += RequireObject("WDialSlider", typeof(Slider), typeof(WDialView));
+            errors += RequireObject("WDialTrack", typeof(RectTransform), typeof(WDialTrackView));
+            errors += RequireObject("PlayerHUDText", typeof(TextMeshProUGUI), typeof(PlayerHUDView));
             errors += RequireObject("DebugText", typeof(TextMeshProUGUI), typeof(DebugOverlay));
 
             var levelRuntime = GameObject.Find("LevelRuntime")?.GetComponent<LevelRuntimeController>();
@@ -58,6 +60,23 @@ namespace WSlice.Editor
             {
                 Debug.LogError("LevelRuntimeController or its Definition is not assigned");
                 errors++;
+            }
+            else
+            {
+                var validation = LevelDefinitionValidator.Validate(levelRuntime.Definition);
+                foreach (string error in validation.Errors)
+                {
+                    Debug.LogError(error);
+                    errors++;
+                }
+
+                foreach (string warning in validation.Warnings)
+                {
+                    Debug.LogWarning(warning);
+                    warnings++;
+                }
+
+                errors += ValidateSceneNodeMirrors(levelRuntime.Definition);
             }
 
             var playerInput = GameObject.Find("PlayerInput")?.GetComponent<PlayerInputRouter>();
@@ -78,6 +97,33 @@ namespace WSlice.Editor
                 Debug.Log("GardenGraybox validation passed.");
             else
                 Debug.LogWarning($"GardenGraybox validation finished with {errors} error(s) and {warnings} warning(s).");
+        }
+
+        [MenuItem("WSlice/Sync Garden Node Mirrors From LevelDefinition")]
+        public static void SyncGardenNodeMirrorsFromLevelDefinition()
+        {
+            var levelDef = AssetDatabase.LoadAssetAtPath<LevelDefinition>("Assets/_Project/Level/Definitions/GardenLevel.asset");
+            if (levelDef == null)
+            {
+                Debug.LogError("GardenLevel.asset not found. Cannot sync scene node mirrors.");
+                return;
+            }
+
+            string scenePath = "Assets/_Project/Level/Scenes/GardenGraybox.unity";
+            Scene scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+
+            Undo.IncrementCurrentGroup();
+            int undoGroup = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName("Sync Garden Node Mirrors");
+
+            var nodesParent = FindOrCreate("Nodes");
+            Undo.RecordObject(nodesParent.transform, "Sync Garden Node Mirrors");
+            nodesParent.transform.position = Vector3.zero;
+            SyncSceneNodeMirrors(levelDef, nodesParent.transform);
+
+            EditorSceneManager.SaveScene(scene);
+            Undo.CollapseUndoOperations(undoGroup);
+            Debug.Log("Garden node mirrors synced from LevelDefinition.");
         }
 
         private static int RequireObject(string name, params System.Type[] expectedComponents)
@@ -102,6 +148,59 @@ namespace WSlice.Editor
             return 0;
         }
 
+        private static int ValidateSceneNodeMirrors(LevelDefinition definition)
+        {
+            int errors = 0;
+            if (definition == null) return 1;
+
+            var nodesRoot = GameObject.Find("Nodes");
+            if (nodesRoot == null)
+            {
+                Debug.LogError("Nodes root is missing; scene node mirrors cannot be validated.");
+                return 1;
+            }
+
+            foreach (var node in definition.Nodes)
+            {
+                if (node == null || string.IsNullOrEmpty(node.Id)) continue;
+
+                string mirrorName = SceneNodeMirrorName(node.Id);
+                var mirror = GameObject.Find(mirrorName);
+                if (mirror == null)
+                {
+                    Debug.LogError($"Scene node mirror '{mirrorName}' is missing for LevelDefinition node '{node.Id}'.");
+                    errors++;
+                    continue;
+                }
+
+                if (mirror.transform.parent != nodesRoot.transform)
+                {
+                    Debug.LogError($"Scene node mirror '{mirrorName}' must be a direct child of Nodes.");
+                    errors++;
+                }
+
+                float distance = Vector3.Distance(mirror.transform.position, node.WorldPosition);
+                if (distance > 0.001f)
+                {
+                    Debug.LogError($"Scene node mirror '{mirrorName}' is out of sync with LevelDefinition node '{node.Id}'. Scene={mirror.transform.position}, Definition={node.WorldPosition}");
+                    errors++;
+                }
+            }
+
+            for (int i = 0; i < nodesRoot.transform.childCount; i++)
+            {
+                var child = nodesRoot.transform.GetChild(i);
+                if (IsDefinedSceneNodeMirror(definition, child.name)) continue;
+
+                Debug.LogError($"Scene node mirror '{child.name}' is not defined in LevelDefinition and should be removed or renamed.");
+                errors++;
+            }
+
+            return errors;
+        }
+
+        private static string SceneNodeMirrorName(string nodeId) => $"{nodeId}Node";
+
         private static bool IsConstant(AnimationCurve curve, float value)
         {
             if (curve == null || curve.length == 0) return false;
@@ -119,6 +218,12 @@ namespace WSlice.Editor
                 public const float DialWidth = 300f;
                 public const float DialHeight = 40f;
                 public const float DialBottomMargin = 60f;
+                public const float DialTrackHeight = 36f;
+                public const float DialTrackBottomMargin = 104f;
+
+                public const float PlayerHUDWidth = 560f;
+                public const float PlayerHUDHeight = 110f;
+                public const float PlayerHUDTopMargin = 26f;
 
                 public const float DebugWidth = 220f;
                 public const float DebugHeight = 110f;
@@ -180,6 +285,7 @@ namespace WSlice.Editor
             var wallAEntity = wallA.GetComponent<SliceEntity>() ?? wallA.AddComponent<SliceEntity>();
             wallAEntity.profile = wallProfile;
             wallAEntity.presenter = wallA.GetComponent<ScalePresenter>() ?? wallA.AddComponent<ScalePresenter>();
+            CaptureSliceBases(wallA);
 
             var wallGap = FindOrCreatePrimitive("GardenWall_GapSegment", PrimitiveType.Cube);
             wallGap.transform.position = new Vector3(0f, 1f, -2f);
@@ -212,20 +318,7 @@ namespace WSlice.Editor
 
             var nodesParent = FindOrCreate("Nodes");
             nodesParent.transform.position = Vector3.zero;
-
-            GameObject CreateNode(string name, Vector3 pos)
-            {
-                var node = FindOrCreate(name);
-                node.transform.SetParent(nodesParent.transform);
-                node.transform.localPosition = pos;
-                return node;
-            }
-
-            CreateNode("OutsideNode", new Vector3(0f, 0f, -4f));
-            CreateNode("GapNode", new Vector3(0f, 0f, -2f));
-            CreateNode("InsideGardenNode", new Vector3(0f, 0f, 0f));
-            CreateNode("FlowerBaseNode", new Vector3(2f, 0f, 0f));
-            CreateNode("FlowerTopNode", new Vector3(2f, 1.5f, 0f));
+            SyncSceneNodeMirrors(levelDef, nodesParent.transform);
 
             var input = FindOrCreate("PlayerInput", typeof(PlayerInputRouter), typeof(TapMoveInput));
             var router = input.GetComponent<PlayerInputRouter>();
@@ -272,7 +365,58 @@ namespace WSlice.Editor
             var dialView = sliderObj.GetComponent<WDialView>() ?? sliderObj.AddComponent<WDialView>();
             var dialSo = new SerializedObject(dialView);
             dialSo.FindProperty("slider").objectReferenceValue = slider;
+            dialSo.FindProperty("inputRouter").objectReferenceValue = router;
             dialSo.ApplyModifiedProperties();
+
+            var dialTrackObj = FindOrCreate("WDialTrack", typeof(RectTransform), typeof(Image), typeof(WDialTrackView));
+            dialTrackObj.transform.SetParent(canvas.transform, false);
+            var dialTrackImage = dialTrackObj.GetComponent<Image>();
+            dialTrackImage.color = new Color(0f, 0f, 0f, 0.28f);
+            dialTrackImage.raycastTarget = false;
+
+            var dialTrackRect = dialTrackObj.GetComponent<RectTransform>();
+            dialTrackRect.anchorMin = new Vector2(0.5f, 0f);
+            dialTrackRect.anchorMax = new Vector2(0.5f, 0f);
+            dialTrackRect.pivot = new Vector2(0.5f, 0.5f);
+            dialTrackRect.anchoredPosition = new Vector2(0f, GardenLayout.UI.DialTrackBottomMargin);
+            dialTrackRect.sizeDelta = new Vector2(GardenLayout.UI.DialWidth, GardenLayout.UI.DialTrackHeight);
+
+            var dialTrackView = dialTrackObj.GetComponent<WDialTrackView>() ?? dialTrackObj.AddComponent<WDialTrackView>();
+            var dialTrackSo = new SerializedObject(dialTrackView);
+            dialTrackSo.FindProperty("trackRoot").objectReferenceValue = dialTrackRect;
+            dialTrackSo.FindProperty("level").objectReferenceValue = levelCtrl;
+            dialTrackSo.FindProperty("movement").objectReferenceValue = movement;
+            dialTrackSo.FindProperty("inputRouter").objectReferenceValue = router;
+            dialTrackSo.FindProperty("character").objectReferenceValue = playerChar;
+            dialTrackSo.ApplyModifiedProperties();
+
+            var playerHUDObj = FindOrCreate("PlayerHUDText", typeof(RectTransform), typeof(TextMeshProUGUI), typeof(PlayerHUDView));
+            playerHUDObj.transform.SetParent(canvas.transform, false);
+            var playerHUDText = playerHUDObj.GetComponent<TextMeshProUGUI>();
+            playerHUDText.fontSize = 22f;
+            playerHUDText.enableAutoSizing = true;
+            playerHUDText.fontSizeMin = 14f;
+            playerHUDText.fontSizeMax = 22f;
+            playerHUDText.alignment = TextAlignmentOptions.Top;
+            playerHUDText.color = Color.white;
+            playerHUDText.text = "Find a W that opens the path.";
+
+            var playerHUDRect = playerHUDObj.GetComponent<RectTransform>();
+            playerHUDRect.anchorMin = new Vector2(0.5f, 1f);
+            playerHUDRect.anchorMax = new Vector2(0.5f, 1f);
+            playerHUDRect.pivot = new Vector2(0.5f, 1f);
+            playerHUDRect.anchoredPosition = new Vector2(0f, -GardenLayout.UI.PlayerHUDTopMargin);
+            playerHUDRect.sizeDelta = new Vector2(GardenLayout.UI.PlayerHUDWidth, GardenLayout.UI.PlayerHUDHeight);
+
+            var playerHUDView = playerHUDObj.GetComponent<PlayerHUDView>() ?? playerHUDObj.AddComponent<PlayerHUDView>();
+            var playerHUDSo = new SerializedObject(playerHUDView);
+            playerHUDSo.FindProperty("label").objectReferenceValue = playerHUDText;
+            playerHUDSo.FindProperty("level").objectReferenceValue = levelCtrl;
+            playerHUDSo.FindProperty("movement").objectReferenceValue = movement;
+            playerHUDSo.FindProperty("inputRouter").objectReferenceValue = router;
+            playerHUDSo.FindProperty("character").objectReferenceValue = playerChar;
+            playerHUDSo.FindProperty("goalNodeId").stringValue = "FlowerTop";
+            playerHUDSo.ApplyModifiedProperties();
 
             var debugObj = FindOrCreate("DebugText", typeof(RectTransform), typeof(TextMeshProUGUI));
             debugObj.transform.SetParent(canvas.transform, false);
@@ -291,6 +435,10 @@ namespace WSlice.Editor
 
             var debugSo = new SerializedObject(debugOverlay);
             debugSo.FindProperty("label").objectReferenceValue = debugText;
+            debugSo.FindProperty("level").objectReferenceValue = levelCtrl;
+            debugSo.FindProperty("character").objectReferenceValue = playerChar;
+            debugSo.FindProperty("movement").objectReferenceValue = movement;
+            debugSo.FindProperty("inputRouter").objectReferenceValue = router;
             debugSo.ApplyModifiedProperties();
 
             EditorSceneManager.SaveScene(scene);
@@ -356,6 +504,42 @@ namespace WSlice.Editor
             return go;
         }
 
+        private static void SyncSceneNodeMirrors(LevelDefinition definition, Transform nodesParent)
+        {
+            if (definition == null || nodesParent == null) return;
+
+            foreach (var node in definition.Nodes)
+            {
+                if (node == null || string.IsNullOrEmpty(node.Id)) continue;
+
+                var mirror = FindOrCreate(SceneNodeMirrorName(node.Id));
+                Undo.RecordObject(mirror.transform, "Sync Scene Node Mirror");
+                mirror.transform.SetParent(nodesParent, false);
+                mirror.transform.position = node.WorldPosition;
+                EditorUtility.SetDirty(mirror);
+            }
+
+            for (int i = nodesParent.childCount - 1; i >= 0; i--)
+            {
+                var child = nodesParent.GetChild(i);
+                if (IsDefinedSceneNodeMirror(definition, child.name)) continue;
+                Undo.DestroyObjectImmediate(child.gameObject);
+            }
+        }
+
+        private static bool IsDefinedSceneNodeMirror(LevelDefinition definition, string mirrorName)
+        {
+            if (definition == null || string.IsNullOrEmpty(mirrorName)) return false;
+
+            foreach (var node in definition.Nodes)
+            {
+                if (node == null || string.IsNullOrEmpty(node.Id)) continue;
+                if (mirrorName == SceneNodeMirrorName(node.Id)) return true;
+            }
+
+            return false;
+        }
+
         private static void SetupStairCube(GameObject go, SliceProfile profile)
         {
             SetupSliceEntityWithPresenters(go, profile);
@@ -368,6 +552,17 @@ namespace WSlice.Editor
             entity.presenter = go.GetComponent<ScalePresenter>() ?? go.AddComponent<ScalePresenter>();
             if (!go.TryGetComponent<FadePresenter>(out _))
                 go.AddComponent<FadePresenter>();
+
+            CaptureSliceBases(go);
+        }
+
+        private static void CaptureSliceBases(GameObject go)
+        {
+            var entity = go.GetComponent<SliceEntity>();
+            entity?.CaptureBasePose();
+
+            foreach (var scalePresenter in go.GetComponents<ScalePresenter>())
+                scalePresenter.CaptureBaseScale();
         }
 
         private static void SetupSliderVisuals(GameObject sliderObj, Slider slider)

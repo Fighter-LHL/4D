@@ -56,6 +56,62 @@ namespace WSlice.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator MovingCharacterKeepsCurrentNodeUntilSegmentArrives()
+        {
+            var level = Object.FindFirstObjectByType<LevelRuntimeController>();
+            var movement = Object.FindFirstObjectByType<MovementController>();
+            var character = Object.FindFirstObjectByType<PlayerCharacter>();
+
+            level.WState.Force(0.55f);
+            yield return null;
+
+            movement.RequestMove(new Vector3(0f, 0f, 0f));
+            yield return null;
+
+            Assert.That(movement.IsMoving, Is.True);
+            Assert.That(character.CurrentNodeId, Is.EqualTo("Outside"));
+        }
+
+        [UnityTest]
+        public IEnumerator MovingCharacterStopsWhenCurrentEdgeCloses()
+        {
+            var level = Object.FindFirstObjectByType<LevelRuntimeController>();
+            var movement = Object.FindFirstObjectByType<MovementController>();
+            var character = Object.FindFirstObjectByType<PlayerCharacter>();
+
+            level.WState.Force(0.55f);
+            yield return null;
+
+            movement.RequestMove(new Vector3(0f, 0f, 0f));
+            yield return null;
+
+            level.WState.Force(0f);
+            yield return WaitForMovement(movement);
+
+            Assert.That(character.CurrentNodeId, Is.EqualTo("Outside"));
+            Assert.That(Vector3.Distance(character.transform.position, level.Graph.GetNode("Outside").WorldPosition), Is.LessThan(0.001f));
+        }
+
+        [UnityTest]
+        public IEnumerator MovingCharacterContinuesWhenCurrentEdgeRemainsOpen()
+        {
+            var level = Object.FindFirstObjectByType<LevelRuntimeController>();
+            var movement = Object.FindFirstObjectByType<MovementController>();
+            var character = Object.FindFirstObjectByType<PlayerCharacter>();
+
+            level.WState.Force(0.55f);
+            yield return null;
+
+            movement.RequestMove(new Vector3(0f, 0f, 0f));
+            yield return null;
+
+            level.WState.Force(0.56f);
+            yield return WaitForMovement(movement);
+
+            Assert.That(character.CurrentNodeId, Is.EqualTo("InsideGarden"));
+        }
+
+        [UnityTest]
         public IEnumerator StairPathOpensAtHighW()
         {
             var level = Object.FindFirstObjectByType<LevelRuntimeController>();
@@ -72,6 +128,7 @@ namespace WSlice.Tests.PlayMode
             yield return WaitForMovement(movement);
 
             Assert.That(character.CurrentNodeId, Is.EqualTo("FlowerTop"));
+            Assert.That(Vector3.Distance(character.transform.position, level.Graph.GetNode("FlowerTop").WorldPosition), Is.LessThan(0.001f));
         }
 
         [UnityTest]

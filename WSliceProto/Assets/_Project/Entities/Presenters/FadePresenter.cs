@@ -16,7 +16,10 @@ namespace WSlice.Entities
 
         public override void Apply(float visibility, float solidity, float glow, float w)
         {
+            if (targetRenderer == null) targetRenderer = GetComponent<Renderer>();
             if (targetRenderer == null) return;
+            _block ??= new MaterialPropertyBlock();
+
             targetRenderer.GetPropertyBlock(_block);
             _block.SetFloat(AlphaId, visibility);
             targetRenderer.SetPropertyBlock(_block);

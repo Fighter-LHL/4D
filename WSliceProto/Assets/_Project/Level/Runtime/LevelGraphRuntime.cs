@@ -12,6 +12,7 @@ namespace WSlice.Level
         public IReadOnlyDictionary<string, LevelNode> Nodes => _nodes;
         public IReadOnlyList<LevelEdge> Edges => _edges;
 
+        public LevelGraphRuntime() { }
         public LevelGraphRuntime(LevelDefinition definition) => Load(definition);
 
         public void Load(LevelDefinition definition)

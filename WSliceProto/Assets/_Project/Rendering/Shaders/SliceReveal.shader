@@ -34,6 +34,8 @@ Shader "WSlice/SliceReveal"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
+            float _GlobalW;
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
@@ -51,7 +53,6 @@ Shader "WSlice/SliceReveal"
                 float _ObjectWThickness;
                 float _RevealSoftness;
                 float4 _EdgeGlow;
-                float _GlobalW;
             CBUFFER_END
 
             Varyings vert(Attributes input)

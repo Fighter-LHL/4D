@@ -1,7 +1,9 @@
+using System.Text;
 using TMPro;
 using UnityEngine;
 using WSlice.Core;
 using WSlice.Level;
+using WSlice.Player;
 
 namespace WSlice.UI
 {
@@ -10,7 +12,9 @@ namespace WSlice.UI
         [SerializeField] private TextMeshProUGUI label;
         [SerializeField] private WState wState;
         [SerializeField] private LevelRuntimeController level;
-        [SerializeField] private Player.PlayerCharacter character;
+        [SerializeField] private PlayerCharacter character;
+        [SerializeField] private MovementController movement;
+        [SerializeField] private PlayerInputRouter inputRouter;
 
         [SerializeField] private string goalNodeId = "FlowerTop";
 
@@ -25,29 +29,71 @@ namespace WSlice.UI
                 wState = level.WState;
 
             if (character == null)
-                character = FindFirstObjectByType<Player.PlayerCharacter>();
+                character = FindFirstObjectByType<PlayerCharacter>();
+
+            if (movement == null)
+                movement = FindFirstObjectByType<MovementController>();
+
+            if (inputRouter == null)
+                inputRouter = FindFirstObjectByType<PlayerInputRouter>();
         }
 
         private void Update()
         {
             if (label == null || wState == null || level == null) return;
 
-            int edgeCount = 0;
-            foreach (var _ in level.Graph.GetAvailableEdges(wState.CurrentW))
-                edgeCount++;
-
-            label.text =
-                $"CurrentW: {wState.CurrentW:F2}\n" +
-                $"TargetW: {wState.TargetW:F2}\n" +
-                $"CurrentNode: {character?.CurrentNodeId}\n" +
-                $"AvailableEdges: {edgeCount}" +
-                (_levelComplete ? "\n\nLevel Complete!" : string.Empty);
+            HUDState state = WDialModel.Build(level, movement, inputRouter, character);
+            label.text = BuildDebugText(state);
         }
 
         private void LateUpdate()
         {
             if (!_levelComplete && character != null && character.CurrentNodeId == goalNodeId)
                 _levelComplete = true;
+        }
+
+        private string BuildDebugText(HUDState state)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine($"CurrentW: {state.CurrentW:F2}");
+            builder.AppendLine($"TargetW: {state.TargetW:F2}");
+            builder.AppendLine($"CurrentNode: {character?.CurrentNodeId}");
+            builder.Append("SnapPoints: ");
+            if (state.SnapPoints.Count == 0)
+            {
+                builder.AppendLine("-");
+            }
+            else
+            {
+                for (int i = 0; i < state.SnapPoints.Count; i++)
+                {
+                    if (i > 0) builder.Append(", ");
+                    builder.Append(state.SnapPoints[i].ToString("F2"));
+                }
+                builder.AppendLine();
+            }
+
+            builder.AppendLine($"AvailableEdges: {state.AvailableEdges.Count}");
+            foreach (var edge in state.AvailableEdges)
+            {
+                builder.AppendLine($"- {edge.FromNodeId}->{edge.ToNodeId} [{edge.MinW:F2}-{edge.MaxW:F2}]");
+            }
+
+            builder.AppendLine($"MoveWillBreak: {(state.ActiveMoveWillBreakAtTargetW ? "Yes" : "No")}");
+            if (state.HasRouteHint)
+            {
+                builder.AppendLine(
+                    $"RouteHint: {state.RouteHint.FromNodeId}->{state.RouteHint.ToNodeId} "
+                    + $"[{state.RouteHint.MinW:F2}-{state.RouteHint.MaxW:F2}] target {state.RouteHint.TargetNodeId}");
+            }
+
+            if (state.LastFailureReason != PlayerActionFailureReason.None)
+                builder.AppendLine($"LastFailure: {state.LastFailureReason} - {state.LastFailureMessage}");
+
+            if (_levelComplete)
+                builder.AppendLine().Append("Level Complete!");
+
+            return builder.ToString();
         }
     }
 }

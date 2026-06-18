@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.TestTools.Utils;
 using NUnit.Framework;
 using WSlice.Level;
 
@@ -15,6 +16,40 @@ namespace WSlice.Tests.PlayMode
             var op = SceneManager.LoadSceneAsync("GardenGraybox", LoadSceneMode.Single);
             while (!op.isDone) yield return null;
             yield return null; // wait for Awake
+        }
+
+        [UnityTest]
+        public IEnumerator InitialWIsAppliedWhenSceneLoads()
+        {
+            var level = Object.FindFirstObjectByType<LevelRuntimeController>();
+            var gap = GameObject.Find("GardenWall_GapSegment");
+            var stair = GameObject.Find("HiddenStair/Stair_1");
+            var wall = GameObject.Find("GardenWall_A");
+
+            Assert.That(level, Is.Not.Null);
+            Assert.That(gap, Is.Not.Null);
+            Assert.That(stair, Is.Not.Null);
+            Assert.That(wall, Is.Not.Null);
+            Assert.That(level.WState.CurrentW, Is.EqualTo(0f).Within(0.0001f));
+            Assert.That(gap.transform.localScale.sqrMagnitude, Is.LessThan(0.01f));
+            Assert.That(stair.transform.localScale.sqrMagnitude, Is.LessThan(0.01f));
+            Assert.That(wall.transform.localScale, Is.EqualTo(new Vector3(4f, 2f, 0.5f)).Using(Vector3ComparerWithEqualsOperator.Instance));
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator WallPreservesDesignedScaleAcrossWChanges()
+        {
+            var level = Object.FindFirstObjectByType<LevelRuntimeController>();
+            var wall = GameObject.Find("GardenWall_A");
+
+            Assert.That(level, Is.Not.Null);
+            Assert.That(wall, Is.Not.Null);
+
+            level.WState.Force(0.55f);
+            yield return null;
+
+            Assert.That(wall.transform.localScale, Is.EqualTo(new Vector3(4f, 2f, 0.5f)).Using(Vector3ComparerWithEqualsOperator.Instance));
         }
 
         [UnityTest]
