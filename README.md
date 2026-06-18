@@ -2,7 +2,7 @@
 
 Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0,1]` 控制物体显隐、路径可达性与交互反馈。
 
-**当前阶段：** Prototype v0.1 — 机制闭环已出现，第一关 Garden graybox 可跑，产品闭环（关卡生命周期、重开、多关）尚未完成。
+**当前阶段：** Prototype v0.2 — 三关 demo（Garden / Platform / Gate）、选关与下一关流程、macOS standalone 构建。
 
 ## 快速开始
 
@@ -37,7 +37,17 @@ WSliceProto/
 
 ### 4. 手动试玩
 
-进入 Play Mode，打开 `GardenGraybox` 场景，按 [`PlayModeSmokeTest.md`](WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md) 走一遍。
+进入 Play Mode，从 `LevelSelect` 或单关场景开始，按 [`PlayModeSmokeTest.md`](WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md) 走一遍。
+
+### 5. macOS 构建
+
+启动场景为 `LevelSelect`（Build Settings 第一项）。也可在 Editor 菜单使用 `WSlice → Build/macOS Standalone`。
+
+```bash
+chmod +x scripts/build-macos.sh   # 首次
+./scripts/build-macos.sh
+open WSliceProto/builds/macos/W-Slice.app
+```
 
 ## 仓库结构
 
@@ -45,7 +55,8 @@ WSliceProto/
 4D/
 ├── README.md                 ← 本文件（仓库入口）
 ├── scripts/
-│   └── validate-local.sh     ← 本地 compile + validate 脚本
+│   ├── validate-local.sh     ← 本地 compile + validate 脚本
+│   └── build-macos.sh        ← macOS standalone 构建
 └── WSliceProto/              ← Unity 工程根目录
     ├── README.md             ← 模块说明与设计原则
     ├── Validation.md         ← 验证清单与已知限制
@@ -59,15 +70,15 @@ WSliceProto/
 - 切片实体：`SliceProfile` + Presenter（Fade/Scale/Shader）
 - 玩家：tap 移动、W dial、W-aware movement retry
 - HUD：`HUDState` / `WDialModel`、路线提示、失败原因文案、`WDialTrack` 色带
-- 编辑器：`GardenGrayboxGenerator`、Gizmos、Preview 窗口
+- 编辑器：灰盒生成器、`GrayboxVisual` 统一材质、Gizmos、Preview 窗口
+- 三关 demo：`LevelSelect` → Garden / Platform / Gate，完成可 **N** 下一关、**R** 重开
+- macOS 构建：`./scripts/build-macos.sh` → `WSliceProto/builds/macos/W-Slice.app`
 - 测试：EditMode + PlayMode 套件（需在 Editor 或有效 license 下运行）
 
 ## 已知限制
 
 - **无 CI**：GitHub Actions 未配置；测试结果需本地或 PR 中手动记录
 - **batchmode 测试不稳定**：`-runTests` 有时退出 0 但不产出 XML（见 Validation.md）
-- **多关流程**：`LevelCatalog` + `LevelSelect` 选关；关卡内完成可按 **N** 进入下一关、**R** 重开
-- **无发布流程**：尚未配置 standalone build
 
 ## 后续规划
 
@@ -82,6 +93,7 @@ WSliceProto/
 7. `feat/second-level-offset-platform` — 第二关
 8. `feat/level-flow-select` — 关卡目录、选关场景、完成后的下一关（N 键）
 9. `feat/phase-d-gate-interactable` — W 门控机关、第三关多段 W 谜题、移动中断失败态
+10. `feat/phase-e-macos-build-visual` — macOS standalone 构建 + 灰盒视觉统一
 
 完整评估与阶段说明见团队内部 roadmap 文档。
 

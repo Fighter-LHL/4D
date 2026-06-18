@@ -31,6 +31,7 @@ namespace WSlice.Editor
             var bridgeProfile = PlatformProfileFactory.EnsureBridgeProfile();
             var sceneResult = PlatformSceneBuilder.Build(levelDef, bridgeProfile);
             GardenUIBuilder.Build(sceneResult);
+            GrayboxGeneratePipeline.FinalizeGeneratedScene();
 
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.Refresh();

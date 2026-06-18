@@ -29,6 +29,7 @@ namespace WSlice.Editor
             Undo.SetCurrentGroupName("Generate Level Select Scene");
 
             BuildScene(catalog);
+            GrayboxGeneratePipeline.FinalizeGeneratedScene();
 
             UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene);
             AssetDatabase.Refresh();

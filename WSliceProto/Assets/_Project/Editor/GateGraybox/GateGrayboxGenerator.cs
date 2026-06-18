@@ -30,6 +30,7 @@ namespace WSlice.Editor
             var leverProfile = GateProfileFactory.EnsureLeverProfile();
             var sceneResult = GateSceneBuilder.Build(levelDef, leverProfile);
             GardenUIBuilder.Build(sceneResult);
+            GrayboxGeneratePipeline.FinalizeGeneratedScene();
 
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.Refresh();

@@ -59,6 +59,7 @@ namespace WSlice.Editor
             var profiles = GardenProfileFactory.EnsureGardenProfiles();
             var sceneResult = GardenSceneBuilder.Build(levelDef, profiles);
             GardenUIBuilder.Build(sceneResult);
+            GrayboxGeneratePipeline.FinalizeGeneratedScene();
 
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.Refresh();
