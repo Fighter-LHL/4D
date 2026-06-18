@@ -68,6 +68,10 @@ run_unity "L1 Validate Garden Graybox" \
   -executeMethod WSlice.Editor.GardenGrayboxGenerator.Validate \
   -quit -batchmode -nographics
 
+run_unity "L1 Validate Platform Graybox" \
+  -executeMethod WSlice.Editor.PlatformGrayboxGenerator.Validate \
+  -quit -batchmode -nographics
+
 if [[ "$RUN_TESTS" == true ]]; then
   run_unity "L2 EditMode tests" \
     -runTests -testPlatform EditMode \
