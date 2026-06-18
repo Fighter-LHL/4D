@@ -33,7 +33,10 @@ namespace WSlice.EditorTools
             float w = previewW;
             foreach (var entity in FindObjectsByType<SliceEntity>(FindObjectsSortMode.None))
             {
+                Undo.RecordObject(entity, "Preview W Slice");
+                Undo.RecordObject(entity.transform, "Preview W Slice");
                 entity.ApplyW(w);
+                EditorUtility.SetDirty(entity);
             }
         }
     }

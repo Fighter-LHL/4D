@@ -1,30 +1,50 @@
+using UnityEditor;
 using UnityEngine;
 using WSlice.Level;
 
 namespace WSlice.EditorTools
 {
-    public sealed class LevelGraphGizmos : MonoBehaviour
+    public static class LevelGraphGizmos
     {
-        [SerializeField] private LevelDefinition definition;
-        [SerializeField] private float currentW;
+        private const float NodeRadius = 0.2f;
+        private const float MissingNodeRadius = 0.12f;
 
-        private void OnDrawGizmos()
+        [DrawGizmo(GizmoType.Selected | GizmoType.NonSelected)]
+        private static void DrawLevelRuntimeGraph(LevelRuntimeController controller, GizmoType gizmoType)
         {
-            if (definition == null) return;
+            if (controller == null || controller.Definition == null) return;
 
-            Gizmos.color = Color.yellow;
+            float w = controller.WState != null
+                ? controller.WState.CurrentW
+                : controller.Definition.InitialW;
+
+            DrawDefinitionGraph(controller.Definition, w);
+        }
+
+        private static void DrawDefinitionGraph(LevelDefinition definition, float w)
+        {
             foreach (var node in definition.Nodes)
             {
-                Gizmos.DrawSphere(node.WorldPosition, 0.2f);
+                if (node == null || string.IsNullOrEmpty(node.Id)) continue;
+
+                Gizmos.color = Color.yellow;
+                Gizmos.DrawSphere(node.WorldPosition, NodeRadius);
             }
 
             foreach (var edge in definition.Edges)
             {
-                var from = definition.Nodes.Find(n => n.Id == edge.FromNodeId);
-                var to = definition.Nodes.Find(n => n.Id == edge.ToNodeId);
-                if (from == null || to == null) continue;
+                if (edge == null) continue;
 
-                bool active = edge.WalkableRange.Contains(currentW);
+                var from = FindDefinitionNode(definition, edge.FromNodeId);
+                var to = FindDefinitionNode(definition, edge.ToNodeId);
+
+                if (from == null || to == null)
+                {
+                    DrawMissingEdgeEndpoint(definition, edge);
+                    continue;
+                }
+
+                bool active = edge.WalkableRange.Contains(w);
                 Gizmos.color = active ? Color.green : Color.red;
 
                 if (active)
@@ -37,6 +57,29 @@ namespace WSlice.EditorTools
                     Gizmos.DrawLine(from.WorldPosition, mid);
                 }
             }
+        }
+
+        private static LevelNode FindDefinitionNode(LevelDefinition definition, string nodeId)
+        {
+            if (definition == null || string.IsNullOrEmpty(nodeId)) return null;
+
+            foreach (var node in definition.Nodes)
+            {
+                if (node != null && node.Id == nodeId)
+                    return node;
+            }
+
+            return null;
+        }
+
+        private static void DrawMissingEdgeEndpoint(LevelDefinition definition, LevelEdge edge)
+        {
+            var from = FindDefinitionNode(definition, edge.FromNodeId);
+            var to = FindDefinitionNode(definition, edge.ToNodeId);
+
+            Gizmos.color = Color.magenta;
+            if (from != null) Gizmos.DrawWireSphere(from.WorldPosition, MissingNodeRadius);
+            if (to != null) Gizmos.DrawWireSphere(to.WorldPosition, MissingNodeRadius);
         }
     }
 }

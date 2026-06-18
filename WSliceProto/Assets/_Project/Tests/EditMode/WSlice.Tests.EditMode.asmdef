@@ -4,6 +4,8 @@
     "references": [
         "WSlice.Core",
         "WSlice.Level",
+        "WSlice.Player",
+        "WSlice.UI",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

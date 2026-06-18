@@ -1,10 +1,10 @@
 # 手动测试指南
 
-由于当前环境无法运行 Unity batchmode，所有单元测试需要在 Unity Editor 中手动执行。
+当前环境可以用 Unity batchmode 做脚本编译和灰盒校验；`-runTests` 有时会退出 0 但不产出 XML。遇到这种情况时，用 Unity Editor Test Runner 手动执行 EditMode/PlayMode。
 
 ## Edit Mode 测试
 
-1. 打开 Unity Editor，加载项目：`/Users/lvhanlin/Documents/4D/WSliceProto/.worktrees/feat-w-slice`。
+1. 打开 Unity Editor，加载项目：`/Users/lvhanlin/Documents/4D/WSliceProto`。
 2. 打开 Test Runner 窗口：`Window -> General -> Test Runner`。
 3. 切换到 `Edit Mode` 标签。
 4. 点击 `Run All`。
@@ -12,40 +12,53 @@
 ### 预期通过的测试
 
 - `WRangeTests`
-  - `Contains_Inside_ReturnsTrue`
-  - `Contains_OutsideLow_ReturnsFalse`
-  - `Contains_OutsideHigh_ReturnsFalse`
-  - `DistanceTo_Inside_IsZero`
-  - `DistanceTo_Below_ReturnsGap`
-  - `DistanceTo_Above_ReturnsGap`
 - `WConditionTests`
-  - `Evaluate_InsideActiveRange_ReturnsTrue`
-  - `Evaluate_InvertedInside_ReturnsFalse`
 - `WStateTests`
-  - `SetTarget_ClampsAboveOne`
-  - `SetTarget_ClampsBelowZero`
-  - `Tick_MovesCurrentWAndFiresEvent`
-  - `Force_SetsBothAndFiresEvent`
 - `WSnapResolverTests`
-  - `Resolve_WithinSnapRadius_SnapsDown`
-  - `Resolve_OutsideSnapRadius_KeepsRaw`
-  - `Resolve_EmptySnaps_ReturnsRaw`
 - `LevelGraphRuntimeTests`
-  - `CanMove_WhenWalkable_ReturnsTrue`
-  - `CanMove_WhenNotWalkable_ReturnsFalse`
-  - `FindPath_TwoHopsButFirstBlocked_ReturnsEmpty`
-  - `FindPath_WhenBothEdgesWalkable_ReturnsFullPath`
+- `WDialModelTests`
+- `PlayerHUDModelTests`
+- `WDialTrackModelTests`
+- `LevelDefinitionValidatorTests`
 
-## 命令行方式（需要有效许可证）
+## Play Mode 测试
 
-如果本机已激活 Unity 许可证，可在终端运行：
+1. 打开 Unity Editor，加载项目：`/Users/lvhanlin/Documents/4D/WSliceProto`。
+2. 打开 Test Runner，切换到 `Play Mode`。
+3. 点击 `Run All`。
+
+### 预期通过的测试
+
+- `GardenGrayboxBehaviorTests`
+- `GardenGrayboxMovementTests`
+- `SliceEntityPlayModeTests`
+- `WDialViewPlayModeTests`
+
+## 命令行方式
 
 ```bash
 /Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath /Users/lvhanlin/Documents/4D/WSliceProto/.worktrees/feat-w-slice \
+  -projectPath /Users/lvhanlin/Documents/4D/WSliceProto \
   -runTests -testPlatform EditMode \
   -testResults editmode-results.xml \
   -quit -batchmode
 ```
 
-Expected: `test-run result="Passed"`。
+Expected: `test-run result="Passed"` and an XML file. If no XML is produced, run the same suite in the Unity Editor Test Runner.
+
+```bash
+/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
+  -projectPath /Users/lvhanlin/Documents/4D/WSliceProto \
+  -quit -batchmode -nographics
+```
+
+Expected: `Tundra build success`。
+
+```bash
+/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
+  -projectPath /Users/lvhanlin/Documents/4D/WSliceProto \
+  -executeMethod WSlice.Editor.GardenGrayboxGenerator.Validate \
+  -quit -batchmode -nographics
+```
+
+Expected: `GardenGraybox validation passed.`。

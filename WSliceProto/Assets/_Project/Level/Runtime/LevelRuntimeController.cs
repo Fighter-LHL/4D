@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using WSlice.Core;
 using WSlice.Entities;
@@ -9,6 +10,9 @@ namespace WSlice.Level
         [SerializeField] private LevelDefinition definition;
         [SerializeField] private float wSmoothing = 2f;
 
+        private SliceEntity[] sliceEntities = Array.Empty<SliceEntity>();
+        private bool sliceEntityCacheReady;
+
         public WState WState { get; private set; }
         public LevelGraphRuntime Graph { get; private set; }
         public LevelDefinition Definition => definition;
@@ -16,9 +20,15 @@ namespace WSlice.Level
         private void Awake()
         {
             WState = new WState();
-            Graph = new LevelGraphRuntime(definition);
-            if (definition != null) WState.Force(definition.InitialW);
+            Graph = definition != null ? new LevelGraphRuntime(definition) : new LevelGraphRuntime();
+            RefreshSliceEntityCache();
+
             WState.OnWChanged += ApplyWToAllSliceEntities;
+
+            if (definition != null)
+                WState.Force(definition.InitialW);
+            else
+                ApplyWToAllSliceEntities(WState.CurrentW);
         }
 
         private void OnDestroy()
@@ -32,12 +42,28 @@ namespace WSlice.Level
             WState.Tick(Time.deltaTime, wSmoothing);
         }
 
+        public void RefreshSliceEntityCache()
+        {
+            sliceEntities = FindObjectsByType<SliceEntity>(FindObjectsSortMode.None);
+            foreach (var entity in sliceEntities)
+            {
+                if (entity != null)
+                    entity.RefreshRuntimeCache();
+            }
+            sliceEntityCacheReady = true;
+        }
+
         public void ApplyWToAllSliceEntities(float w)
         {
             Shader.SetGlobalFloat("_GlobalW", w);
-            foreach (var entity in FindObjectsByType<SliceEntity>(FindObjectsSortMode.None))
+
+            if (!sliceEntityCacheReady)
+                RefreshSliceEntityCache();
+
+            foreach (var entity in sliceEntities)
             {
-                entity.ApplyW(w);
+                if (entity != null)
+                    entity.ApplyW(w);
             }
         }
     }

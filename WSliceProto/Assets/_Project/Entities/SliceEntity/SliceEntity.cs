@@ -9,29 +9,52 @@ namespace WSlice.Entities
         public SlicePresenter presenter;
         public Collider[] colliders;
 
-        private Vector3 _basePosition;
+        [SerializeField, HideInInspector] private Vector3 baseLocalPosition;
+        [SerializeField, HideInInspector] private bool hasBaseLocalPosition;
+
+        private SlicePresenter[] cachedPresenters;
 
         private void Awake()
         {
-            _basePosition = transform.localPosition;
-            if (colliders == null || colliders.Length == 0)
-                colliders = GetComponentsInChildren<Collider>(true);
+            EnsureBasePose();
+            EnsureColliders();
+            EnsurePresenters();
+        }
+
+        private void OnValidate()
+        {
+            if (!Application.isPlaying)
+                EnsureBasePose();
+        }
+
+        public void CaptureBasePose()
+        {
+            baseLocalPosition = transform.localPosition;
+            hasBaseLocalPosition = true;
+        }
+
+        public void RefreshRuntimeCache()
+        {
+            colliders = GetComponentsInChildren<Collider>(true);
+            cachedPresenters = GetComponents<SlicePresenter>();
         }
 
         public void ApplyW(float w)
         {
             if (profile == null) return;
 
+            EnsureBasePose();
+            EnsureColliders();
+            EnsurePresenters();
+
             float visibility = profile.VisibilityCurve.Evaluate(w);
             float solidity = profile.SolidityCurve.Evaluate(w);
             float glow = profile.GlowCurve.Evaluate(w);
 
-            presenter?.Apply(visibility, solidity, glow, w);
-
-            foreach (var extraPresenter in GetComponents<SlicePresenter>())
+            foreach (var slicePresenter in cachedPresenters)
             {
-                if (extraPresenter != null && extraPresenter != presenter)
-                    extraPresenter.Apply(visibility, solidity, glow, w);
+                if (slicePresenter != null)
+                    slicePresenter.Apply(visibility, solidity, glow, w);
             }
 
             bool solid = profile.SolidRange.Contains(w);
@@ -41,7 +64,25 @@ namespace WSlice.Entities
             }
 
             Vector3 offset = Vector3.Lerp(profile.PositionOffsetAtW0, profile.PositionOffsetAtW1, w);
-            transform.localPosition = _basePosition + offset;
+            transform.localPosition = baseLocalPosition + offset;
+        }
+
+        private void EnsureBasePose()
+        {
+            if (hasBaseLocalPosition) return;
+            CaptureBasePose();
+        }
+
+        private void EnsureColliders()
+        {
+            if (colliders != null && colliders.Length > 0) return;
+            colliders = GetComponentsInChildren<Collider>(true);
+        }
+
+        private void EnsurePresenters()
+        {
+            if (cachedPresenters != null && cachedPresenters.Length > 0) return;
+            cachedPresenters = GetComponents<SlicePresenter>();
         }
     }
 }
