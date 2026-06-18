@@ -108,10 +108,23 @@ namespace WSlice.Tests.EditMode
             Assert.That(result.Errors, Does.Contain("Goal node 'Missing' is not defined in Nodes."));
         }
 
+        [Test]
+        public void Validate_RejectsMissingStartNode()
+        {
+            var def = CreateValidDefinition();
+            def.StartNodeId = "Missing";
+
+            var result = LevelDefinitionValidator.Validate(def);
+
+            Assert.That(result.IsValid, Is.False);
+            Assert.That(result.Errors, Does.Contain("Start node 'Missing' is not defined in Nodes."));
+        }
+
         private static LevelDefinition CreateValidDefinition()
         {
             var def = ScriptableObject.CreateInstance<LevelDefinition>();
             def.GoalNodeId = "B";
+            def.StartNodeId = "A";
             def.SnapPoints.Add(0f);
             def.SnapPoints.Add(0.55f);
             def.Nodes.Add(new LevelNode { Id = "A", WorldPosition = Vector3.zero });

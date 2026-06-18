@@ -15,6 +15,7 @@ namespace WSlice.Level
         public LevelSessionState State => _session != null ? _session.State : LevelSessionState.NotStarted;
 
         public event Action<LevelSessionState> StateChanged;
+        public event Action ObjectiveReached;
 
         private void Awake()
         {
@@ -40,11 +41,40 @@ namespace WSlice.Level
             if (_session == null || _objective == null || levelController == null)
                 return;
 
+            if (_session.State != LevelSessionState.Playing)
+                return;
+
             string goalNodeId = levelController.Definition != null
                 ? levelController.Definition.GoalNodeId
                 : string.Empty;
 
             _session.TickObjective(_objective.CurrentNodeId, goalNodeId);
+        }
+
+        public bool RequestRestart()
+        {
+            if (_session == null || !LevelRestartRules.CanRequestRestart(_session.State))
+                return false;
+
+            _session.BeginRestart();
+            ApplyRestartHandlers();
+            _session.CompleteRestart();
+            return true;
+        }
+
+        private void ApplyRestartHandlers()
+        {
+            if (levelController != null)
+                levelController.ResetToInitialState();
+
+            var definition = levelController != null ? levelController.Definition : null;
+            var graph = levelController != null ? levelController.Graph : null;
+
+            foreach (var behaviour in FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None))
+            {
+                if (behaviour is ILevelRestartHandler handler)
+                    handler.ApplyLevelRestart(definition, graph);
+            }
         }
 
         private void ResolveReferences()
@@ -75,6 +105,9 @@ namespace WSlice.Level
 
         private void HandleSessionStateChanged(LevelSessionState state)
         {
+            if (state == LevelSessionState.Completed)
+                ObjectiveReached?.Invoke();
+
             StateChanged?.Invoke(state);
         }
     }

@@ -86,6 +86,22 @@ namespace WSlice.Player
             return PlayerActionResult.Success();
         }
 
+        public void StopMovement()
+        {
+            CancelMoveRoutineOnly();
+            _hasLastTarget = false;
+            _hasLastTargetNode = false;
+        }
+
+        public void ResetToNode(string nodeId)
+        {
+            StopMovement();
+            if (levelController == null || levelController.Graph == null)
+                return;
+
+            SnapCharacterToNode(levelController.Graph, nodeId);
+        }
+
         private string FindNearestNode(Vector3 pos, LevelGraphRuntime graph)
         {
             string best = null;
