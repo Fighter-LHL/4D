@@ -17,6 +17,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/_Project/Level/Scenes/PlatformGraybox.unity
     guid: 1e43eeca1c48444849247caa932bcdf5
+  - enabled: 1
+    path: Assets/_Project/Level/Scenes/GateGraybox.unity
+    guid: 4bd830de39a504be1b138881bc63f64d
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

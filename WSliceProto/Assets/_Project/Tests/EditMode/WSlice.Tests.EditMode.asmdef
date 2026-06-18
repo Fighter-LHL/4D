@@ -3,6 +3,7 @@
     "rootNamespace": "WSlice.Tests.EditMode",
     "references": [
         "WSlice.Core",
+        "WSlice.Entities",
         "WSlice.Level",
         "WSlice.Player",
         "WSlice.UI",

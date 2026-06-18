@@ -30,8 +30,9 @@ namespace WSlice.UI
 
             HUDState hud = WDialModel.Build(level, movement, inputRouter, character);
             bool isComplete = session != null && session.State == LevelSessionState.Completed;
+            bool isFailed = session != null && session.State == LevelSessionState.Failed;
             bool hasNextLevel = isComplete && flow != null && flow.HasNextLevelInCatalog;
-            LastState = PlayerHUDModel.Build(hud, isComplete, hasNextLevel);
+            LastState = PlayerHUDModel.Build(hud, isComplete, hasNextLevel, isFailed);
             Render(LastState);
         }
 

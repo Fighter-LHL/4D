@@ -63,9 +63,24 @@ namespace WSlice.Player
                 return Record(PlayerActionResult.Failure(PlayerActionFailureReason.MissingMovement));
 
             Ray ray = gameCamera.ScreenPointToRay(screenPosition);
-            if (Physics.Raycast(ray, out RaycastHit hit, 100f, groundMask))
+            var hits = Physics.RaycastAll(ray, 100f, groundMask);
+            System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+            foreach (var hit in hits)
             {
-                var command = new MoveCommand(hit.point);
+                var interactable = hit.collider.GetComponentInParent<IWorldInteractable>();
+                if (interactable == null)
+                    continue;
+
+                if (interactable.TryInteract(CurrentW))
+                    return Record(PlayerActionResult.Success());
+
+                return Record(PlayerActionResult.Failure(PlayerActionFailureReason.NotInteractiveAtCurrentW));
+            }
+
+            if (hits.Length > 0)
+            {
+                var command = new MoveCommand(hits[0].point);
                 return Record(movement.RequestMove(command.TargetWorldPosition));
             }
 

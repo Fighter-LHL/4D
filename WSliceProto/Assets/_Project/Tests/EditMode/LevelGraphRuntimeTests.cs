@@ -62,5 +62,17 @@ namespace WSlice.Tests.EditMode
             Assert.AreEqual("B", path[1].Id);
             Assert.AreEqual("C", path[2].Id);
         }
+
+        [Test]
+        public void SetEdgeWalkableRange_UnlocksPreviouslyBlockedEdge()
+        {
+            var graph = new LevelGraphRuntime(CreateThreeNodeDef());
+            Assert.IsFalse(graph.CanMove("B", "C", 0.45f));
+
+            Assert.That(
+                graph.SetEdgeWalkableRange("B", "C", new WRange { Min = 0.3f, Max = 0.5f }),
+                Is.True);
+            Assert.IsTrue(graph.CanMove("B", "C", 0.45f));
+        }
     }
 }

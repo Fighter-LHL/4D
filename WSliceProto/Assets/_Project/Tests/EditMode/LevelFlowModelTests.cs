@@ -18,11 +18,22 @@ namespace WSlice.Tests.EditMode
         }
 
         [Test]
+        public void TryGetNext_Platform_ReturnsGate()
+        {
+            var catalog = CreateCatalog();
+
+            Assert.That(
+                LevelFlowModel.TryGetNext(catalog, "Platform_01", out LevelCatalogEntry next),
+                Is.True);
+            Assert.That(next.LevelId, Is.EqualTo("Gate_03"));
+        }
+
+        [Test]
         public void TryGetNext_LastLevel_ReturnsFalse()
         {
             var catalog = CreateCatalog();
 
-            Assert.That(LevelFlowModel.TryGetNext(catalog, "Platform_01", out _), Is.False);
+            Assert.That(LevelFlowModel.TryGetNext(catalog, "Gate_03", out _), Is.False);
         }
 
         [Test]
@@ -47,6 +58,12 @@ namespace WSlice.Tests.EditMode
                 LevelId = "Platform_01",
                 DisplayName = "偏移平台",
                 SceneName = "PlatformGraybox"
+            });
+            catalog.Entries.Add(new LevelCatalogEntry
+            {
+                LevelId = "Gate_03",
+                DisplayName = "机关门",
+                SceneName = "GateGraybox"
             });
             return catalog;
         }

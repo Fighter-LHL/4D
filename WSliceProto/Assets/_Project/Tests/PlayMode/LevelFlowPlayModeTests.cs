@@ -22,9 +22,21 @@ namespace WSlice.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator PlatformScene_IsLastLevelInCatalog()
+        public IEnumerator PlatformScene_HasNextLevelInCatalog()
         {
             var op = SceneManager.LoadSceneAsync("PlatformGraybox", LoadSceneMode.Single);
+            while (!op.isDone) yield return null;
+            yield return null;
+
+            var flow = Object.FindFirstObjectByType<LevelFlowController>();
+            Assert.That(flow, Is.Not.Null);
+            Assert.That(flow.HasNextLevelInCatalog, Is.True);
+        }
+
+        [UnityTest]
+        public IEnumerator GateScene_IsLastLevelInCatalog()
+        {
+            var op = SceneManager.LoadSceneAsync("GateGraybox", LoadSceneMode.Single);
             while (!op.isDone) yield return null;
             yield return null;
 

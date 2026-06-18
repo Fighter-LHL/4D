@@ -11,7 +11,8 @@ namespace WSlice.Player
         MissingCurrentNode,
         NoNearestNode,
         NoPathAtCurrentW,
-        LevelNotPlaying
+        LevelNotPlaying,
+        NotInteractiveAtCurrentW
     }
 
     public readonly struct PlayerActionResult
@@ -49,6 +50,7 @@ namespace WSlice.Player
                 PlayerActionFailureReason.NoNearestNode => "No nearby graph node was found.",
                 PlayerActionFailureReason.NoPathAtCurrentW => "No path is available at current W.",
                 PlayerActionFailureReason.LevelNotPlaying => "Level is not accepting input.",
+                PlayerActionFailureReason.NotInteractiveAtCurrentW => "Not interactive at this W.",
                 _ => string.Empty
             };
         }
