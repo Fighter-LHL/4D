@@ -81,6 +81,7 @@ WSliceProto/
 6. `feat/level-definition-inspector` — 关卡资产 Inspector
 7. `feat/second-level-offset-platform` — 第二关
 8. `feat/level-flow-select` — 关卡目录、选关场景、完成后的下一关（N 键）
+9. `feat/phase-d-gate-interactable` — W 门控机关、第三关多段 W 谜题、移动中断失败态
 
 完整评估与阶段说明见团队内部 roadmap 文档。
 

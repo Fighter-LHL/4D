@@ -19,3 +19,6 @@ MonoBehaviour:
   - LevelId: Platform_01
     DisplayName: 偏移平台
     SceneName: PlatformGraybox
+  - LevelId: Gate_03
+    DisplayName: 机关门
+    SceneName: GateGraybox

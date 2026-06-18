@@ -8,11 +8,26 @@ namespace WSlice.UI
         private const string DefaultPrimaryText = "Find a W that opens the path.";
         private const string BreakWarningText = "Changing W now will break the current move.";
         private const string CompleteText = "Level Complete!";
+        private const string FailedText = "Move interrupted!";
         private const string NextLevelHintText = "Press N for next level. R to restart.";
         private const string AllLevelsCompleteHintText = "All levels complete! Press R to restart.";
+        private const string RestartAfterFailHintText = "Press R to retry.";
 
-        public static PlayerHUDState Build(HUDState hud, bool isLevelComplete, bool hasNextLevel = false)
+        public static PlayerHUDState Build(HUDState hud, bool isLevelComplete, bool hasNextLevel = false, bool isLevelFailed = false)
         {
+            if (isLevelFailed)
+            {
+                return new PlayerHUDState(
+                    FailedText,
+                    string.Empty,
+                    string.Empty,
+                    false,
+                    false,
+                    false,
+                    RestartAfterFailHintText,
+                    true);
+            }
+
             bool isComplete = isLevelComplete;
             bool showWarning = hud != null && hud.ActiveMoveWillBreakAtTargetW && !isComplete;
             bool showFailure = hud != null
@@ -66,6 +81,8 @@ namespace WSlice.UI
                     return hasRouteHint
                         ? "No path at this W."
                         : "No path at this W. Shift W and try again.";
+                case PlayerActionFailureReason.NotInteractiveAtCurrentW:
+                    return "Not interactive at this W. Shift W and try again.";
                 case PlayerActionFailureReason.LevelNotPlaying:
                     return "Level is complete. Press R to restart.";
                 default:

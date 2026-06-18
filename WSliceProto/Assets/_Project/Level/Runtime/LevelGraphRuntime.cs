@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using WSlice.Core;
 
 namespace WSlice.Level
 {
@@ -110,6 +111,24 @@ namespace WSlice.Level
         {
             _nodes.TryGetValue(id, out var node);
             return node;
+        }
+
+        public bool SetEdgeWalkableRange(string fromNodeId, string toNodeId, WRange walkableRange)
+        {
+            if (string.IsNullOrEmpty(fromNodeId) || string.IsNullOrEmpty(toNodeId))
+                return false;
+
+            for (int i = 0; i < _edges.Count; i++)
+            {
+                var edge = _edges[i];
+                if (edge.FromNodeId == fromNodeId && edge.ToNodeId == toNodeId)
+                {
+                    edge.WalkableRange = walkableRange;
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

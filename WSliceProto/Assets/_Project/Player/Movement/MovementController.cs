@@ -12,6 +12,8 @@ namespace WSlice.Player
         [SerializeField] private LevelRuntimeController levelController;
         [SerializeField] private float moveSpeed = 3f;
         [SerializeField] private float arrivalThreshold = 0.05f;
+        [SerializeField] private bool failSessionOnSegmentBreak;
+        [SerializeField] private LevelSessionController session;
 
         private Coroutine _moveRoutine;
         private bool _isMoving;
@@ -35,6 +37,12 @@ namespace WSlice.Player
         public Vector3 LastTargetWorldPosition => _lastTargetWorldPosition;
         public bool HasLastTargetNode => _hasLastTargetNode;
         public string LastTargetNodeId => _lastTargetNodeId;
+
+        private void Awake()
+        {
+            if (session == null)
+                session = FindFirstObjectByType<LevelSessionController>();
+        }
 
         private void OnEnable()
         {
@@ -177,6 +185,9 @@ namespace WSlice.Player
                 return true;
 
             SnapCharacterToNode(graph, fromId);
+            if (failSessionOnSegmentBreak && session != null)
+                session.NotifySegmentBreakHazard();
+
             return false;
         }
 

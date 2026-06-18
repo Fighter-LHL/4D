@@ -62,6 +62,14 @@ namespace WSlice.Level
             return true;
         }
 
+        public void NotifySegmentBreakHazard()
+        {
+            if (_session == null || _session.State != LevelSessionState.Playing)
+                return;
+
+            _session.MarkFailed();
+        }
+
         private void ApplyRestartHandlers()
         {
             if (levelController != null)
