@@ -48,6 +48,7 @@ namespace WSlice.Editor
             errors += RequireObject("Flower", typeof(CapsuleCollider));
             errors += RequireObject("Nodes", null);
             errors += RequireObject("LevelRuntime", typeof(LevelRuntimeController), typeof(LevelSessionController));
+            errors += RequireObject("PathPreview", typeof(LevelPathPreviewRenderer));
             errors += RequireObject("PlayerInput", typeof(PlayerInputRouter), typeof(TapMoveInput), typeof(LevelRestartInput));
             errors += RequireObject("Canvas", typeof(Canvas));
             errors += RequireObject("WDialSlider", typeof(Slider), typeof(WDialView));
@@ -293,6 +294,13 @@ namespace WSlice.Editor
             sessionSo = new SerializedObject(sessionCtrl);
             sessionSo.FindProperty("objectiveSource").objectReferenceValue = playerChar;
             sessionSo.ApplyModifiedProperties();
+
+            var pathPreview = FindOrCreate("PathPreview", typeof(LevelPathPreviewRenderer));
+            var pathPreviewRenderer = pathPreview.GetComponent<LevelPathPreviewRenderer>();
+            var pathPreviewSo = new SerializedObject(pathPreviewRenderer);
+            pathPreviewSo.FindProperty("levelController").objectReferenceValue = levelCtrl;
+            pathPreviewSo.FindProperty("yOffset").floatValue = 0.08f;
+            pathPreviewSo.ApplyModifiedProperties();
 
             var wallA = FindOrCreatePrimitive("GardenWall_A", PrimitiveType.Cube);
             wallA.transform.position = new Vector3(0f, 1f, 0f);
