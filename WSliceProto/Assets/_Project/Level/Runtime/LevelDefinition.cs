@@ -9,6 +9,7 @@ namespace WSlice.Level
         public string LevelId;
         public string DisplayName;
         public string GoalNodeId;
+        public string StartNodeId;
 
         [Range(0f, 1f)] public float InitialW;
 

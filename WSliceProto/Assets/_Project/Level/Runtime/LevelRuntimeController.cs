@@ -42,6 +42,14 @@ namespace WSlice.Level
             WState.Tick(Time.deltaTime, wSmoothing);
         }
 
+        public void ResetToInitialState()
+        {
+            if (definition == null || WState == null)
+                return;
+
+            WState.Force(definition.InitialW);
+        }
+
         public void RefreshSliceEntityCache()
         {
             sliceEntities = FindObjectsByType<SliceEntity>(FindObjectsSortMode.None);

@@ -15,6 +15,7 @@ MonoBehaviour:
   LevelId: Garden_01
   DisplayName: 封闭花园
   GoalNodeId: FlowerTop
+  StartNodeId: Outside
   InitialW: 0
   SnapPoints:
   - 0

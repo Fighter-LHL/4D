@@ -9,6 +9,7 @@ namespace WSlice.Player
         [SerializeField] private Camera gameCamera;
         [SerializeField] private LayerMask groundMask;
         [SerializeField] private LevelRuntimeController levelController;
+        [SerializeField] private LevelSessionController session;
         [SerializeField] private MovementController movement;
         [SerializeField] private float snapRadius = 0.03f;
 
@@ -19,6 +20,14 @@ namespace WSlice.Player
         private void Awake()
         {
             if (gameCamera == null) gameCamera = Camera.main;
+
+            if (session == null)
+                session = FindFirstObjectByType<LevelSessionController>();
+        }
+
+        public void ClearLastAction()
+        {
+            LastActionResult = PlayerActionResult.Success();
         }
 
         public PlayerActionResult SetWDial(float normalizedW)
@@ -28,6 +37,9 @@ namespace WSlice.Player
 
         public PlayerActionResult Execute(SetWCommand command)
         {
+            if (!CanAcceptGameplayInput())
+                return Record(PlayerActionResult.Failure(PlayerActionFailureReason.LevelNotPlaying));
+
             if (WState == null)
                 return Record(PlayerActionResult.Failure(PlayerActionFailureReason.MissingWState));
 
@@ -41,6 +53,9 @@ namespace WSlice.Player
 
         public PlayerActionResult OnTap(Vector2 screenPosition)
         {
+            if (!CanAcceptGameplayInput())
+                return Record(PlayerActionResult.Failure(PlayerActionFailureReason.LevelNotPlaying));
+
             if (gameCamera == null)
                 return Record(PlayerActionResult.Failure(PlayerActionFailureReason.MissingCamera));
 
@@ -55,6 +70,11 @@ namespace WSlice.Player
             }
 
             return Record(PlayerActionResult.Failure(PlayerActionFailureReason.NoGroundHit));
+        }
+
+        private bool CanAcceptGameplayInput()
+        {
+            return session == null || session.State == LevelSessionState.Playing;
         }
 
         private PlayerActionResult Record(PlayerActionResult result)

@@ -41,14 +41,14 @@ namespace WSlice.Editor
             errors += RequireObject("Main Camera", typeof(Camera));
             errors += RequireObject("Directional Light", typeof(Light));
             errors += RequireObject("Ground", typeof(MeshCollider));
-            errors += RequireObject("Player", typeof(PlayerCharacter), typeof(MovementController));
+            errors += RequireObject("Player", typeof(PlayerCharacter), typeof(MovementController), typeof(LevelPlayerReset));
             errors += RequireObject("GardenWall_A", typeof(SliceEntity));
             errors += RequireObject("GardenWall_GapSegment", typeof(SliceEntity));
             errors += RequireObject("HiddenStair", null);
             errors += RequireObject("Flower", typeof(CapsuleCollider));
             errors += RequireObject("Nodes", null);
             errors += RequireObject("LevelRuntime", typeof(LevelRuntimeController), typeof(LevelSessionController));
-            errors += RequireObject("PlayerInput", typeof(PlayerInputRouter), typeof(TapMoveInput));
+            errors += RequireObject("PlayerInput", typeof(PlayerInputRouter), typeof(TapMoveInput), typeof(LevelRestartInput));
             errors += RequireObject("Canvas", typeof(Canvas));
             errors += RequireObject("WDialSlider", typeof(Slider), typeof(WDialView));
             errors += RequireObject("WDialTrack", typeof(RectTransform), typeof(WDialTrackView));
@@ -277,12 +277,18 @@ namespace WSlice.Editor
             var playerChar = player.GetComponent<PlayerCharacter>() ?? player.AddComponent<PlayerCharacter>();
             playerChar.CurrentNodeId = "Outside";
             var movement = player.GetComponent<MovementController>() ?? player.AddComponent<MovementController>();
+            var playerReset = player.GetComponent<LevelPlayerReset>() ?? player.AddComponent<LevelPlayerReset>();
             var moveSo = new SerializedObject(movement);
             moveSo.FindProperty("character").objectReferenceValue = playerChar;
             moveSo.FindProperty("levelController").objectReferenceValue = levelCtrl;
             moveSo.FindProperty("moveSpeed").floatValue = 3f;
             moveSo.FindProperty("arrivalThreshold").floatValue = 0.05f;
             moveSo.ApplyModifiedProperties();
+
+            var playerResetSo = new SerializedObject(playerReset);
+            playerResetSo.FindProperty("character").objectReferenceValue = playerChar;
+            playerResetSo.FindProperty("movement").objectReferenceValue = movement;
+            playerResetSo.ApplyModifiedProperties();
 
             sessionSo = new SerializedObject(sessionCtrl);
             sessionSo.FindProperty("objectiveSource").objectReferenceValue = playerChar;
@@ -329,15 +335,25 @@ namespace WSlice.Editor
             nodesParent.transform.position = Vector3.zero;
             SyncSceneNodeMirrors(levelDef, nodesParent.transform);
 
-            var input = FindOrCreate("PlayerInput", typeof(PlayerInputRouter), typeof(TapMoveInput));
+            var input = FindOrCreate("PlayerInput", typeof(PlayerInputRouter), typeof(TapMoveInput), typeof(LevelRestartInput));
             var router = input.GetComponent<PlayerInputRouter>();
+            var restartInput = input.GetComponent<LevelRestartInput>() ?? input.AddComponent<LevelRestartInput>();
             var routerSo = new SerializedObject(router);
             routerSo.FindProperty("gameCamera").objectReferenceValue = cameraObj.GetComponent<Camera>();
             routerSo.FindProperty("groundMask").intValue = LayerMask.GetMask("Default");
             routerSo.FindProperty("levelController").objectReferenceValue = levelCtrl;
+            routerSo.FindProperty("session").objectReferenceValue = sessionCtrl;
             routerSo.FindProperty("movement").objectReferenceValue = movement;
             routerSo.FindProperty("snapRadius").floatValue = 0.03f;
             routerSo.ApplyModifiedProperties();
+
+            var restartInputSo = new SerializedObject(restartInput);
+            restartInputSo.FindProperty("session").objectReferenceValue = sessionCtrl;
+            restartInputSo.ApplyModifiedProperties();
+
+            var playerResetSoAfterRouter = new SerializedObject(playerReset);
+            playerResetSoAfterRouter.FindProperty("inputRouter").objectReferenceValue = router;
+            playerResetSoAfterRouter.ApplyModifiedProperties();
 
             var tapMove = input.GetComponent<TapMoveInput>() ?? input.AddComponent<TapMoveInput>();
             var tapSo = new SerializedObject(tapMove);

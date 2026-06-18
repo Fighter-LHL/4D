@@ -10,7 +10,8 @@ namespace WSlice.Player
         MissingCharacterOrLevel,
         MissingCurrentNode,
         NoNearestNode,
-        NoPathAtCurrentW
+        NoPathAtCurrentW,
+        LevelNotPlaying
     }
 
     public readonly struct PlayerActionResult
@@ -47,6 +48,7 @@ namespace WSlice.Player
                 PlayerActionFailureReason.MissingCurrentNode => "Character has no current node.",
                 PlayerActionFailureReason.NoNearestNode => "No nearby graph node was found.",
                 PlayerActionFailureReason.NoPathAtCurrentW => "No path is available at current W.",
+                PlayerActionFailureReason.LevelNotPlaying => "Level is not accepting input.",
                 _ => string.Empty
             };
         }

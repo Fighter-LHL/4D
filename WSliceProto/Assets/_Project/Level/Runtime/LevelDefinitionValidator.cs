@@ -31,6 +31,7 @@ namespace WSlice.Level
             ValidateSnapPoints(definition, errors, warnings);
             var nodeIds = ValidateNodes(definition, errors);
             ValidateGoalNode(definition, nodeIds, errors, warnings);
+            ValidateStartNode(definition, nodeIds, errors, warnings);
             ValidateEdges(definition, nodeIds, errors, warnings);
 
             return new LevelDefinitionValidationResult(errors.AsReadOnly(), warnings.AsReadOnly());
@@ -95,6 +96,22 @@ namespace WSlice.Level
 
             if (!nodeIds.Contains(definition.GoalNodeId))
                 errors.Add($"Goal node '{definition.GoalNodeId}' is not defined in Nodes.");
+        }
+
+        private static void ValidateStartNode(
+            LevelDefinition definition,
+            HashSet<string> nodeIds,
+            List<string> errors,
+            List<string> warnings)
+        {
+            if (string.IsNullOrWhiteSpace(definition.StartNodeId))
+            {
+                warnings.Add("StartNodeId is empty; level restart will not reset player position.");
+                return;
+            }
+
+            if (!nodeIds.Contains(definition.StartNodeId))
+                errors.Add($"Start node '{definition.StartNodeId}' is not defined in Nodes.");
         }
 
         private static void ValidateEdges(

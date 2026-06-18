@@ -8,6 +8,7 @@ namespace WSlice.UI
         private const string DefaultPrimaryText = "Find a W that opens the path.";
         private const string BreakWarningText = "Changing W now will break the current move.";
         private const string CompleteText = "Level Complete!";
+        private const string RestartHintText = "Press R to restart.";
 
         public static PlayerHUDState Build(HUDState hud, bool isLevelComplete)
         {
@@ -16,18 +17,30 @@ namespace WSlice.UI
             bool showFailure = hud != null
                 && hud.LastFailureReason != PlayerActionFailureReason.None
                 && !isComplete;
-            bool showHint = showFailure
+            bool showHint = !isComplete
+                && showFailure
                 && hud.LastFailureReason == PlayerActionFailureReason.NoPathAtCurrentW
                 && hud.HasRouteHint;
+            bool showRestartHint = isComplete;
 
             string primary = isComplete ? CompleteText : DefaultPrimaryText;
             string warning = showWarning ? BreakWarningText : string.Empty;
             string failure = showFailure
-                ? BuildFailureText(hud.LastFailureReason, hud.LastFailureMessage, showHint)
+                ? BuildFailureText(hud.LastFailureReason, hud.LastFailureMessage, hud.HasRouteHint)
                 : string.Empty;
-            string hint = showHint ? BuildHintText(hud.RouteHint) : string.Empty;
+            string hint = isComplete
+                ? RestartHintText
+                : (showHint ? BuildHintText(hud.RouteHint) : string.Empty);
 
-            return new PlayerHUDState(primary, warning, failure, showWarning, showFailure, isComplete, hint, showHint);
+            return new PlayerHUDState(
+                primary,
+                warning,
+                failure,
+                showWarning,
+                showFailure,
+                isComplete,
+                hint,
+                showHint || showRestartHint);
         }
 
         private static string BuildFailureText(PlayerActionFailureReason reason, string fallback, bool hasRouteHint)
@@ -52,6 +65,8 @@ namespace WSlice.UI
                     return hasRouteHint
                         ? "No path at this W."
                         : "No path at this W. Shift W and try again.";
+                case PlayerActionFailureReason.LevelNotPlaying:
+                    return "Level is complete. Press R to restart.";
                 default:
                     return string.IsNullOrEmpty(fallback) ? "Action failed." : fallback;
             }

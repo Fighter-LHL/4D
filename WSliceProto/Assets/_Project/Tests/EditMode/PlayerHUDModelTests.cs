@@ -79,6 +79,19 @@ namespace WSlice.Tests.EditMode
 
             Assert.That(state.IsComplete, Is.True);
             Assert.That(state.PrimaryText, Is.EqualTo("Level Complete!"));
+            Assert.That(state.ShowHint, Is.True);
+            Assert.That(state.HintText, Is.EqualTo("Press R to restart."));
+        }
+
+        [Test]
+        public void Build_LevelNotPlayingFailure_ShowsRestartPrompt()
+        {
+            var hud = CreateHud(PlayerActionFailureReason.LevelNotPlaying, string.Empty, willBreak: false);
+
+            var state = PlayerHUDModel.Build(hud, isLevelComplete: false);
+
+            Assert.That(state.ShowFailure, Is.True);
+            Assert.That(state.FailureText, Is.EqualTo("Level is complete. Press R to restart."));
         }
 
         private static HUDState CreateHud(

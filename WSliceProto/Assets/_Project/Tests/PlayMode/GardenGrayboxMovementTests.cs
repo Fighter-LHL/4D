@@ -165,6 +165,66 @@ namespace WSlice.Tests.PlayMode
             Assert.That(debugText.text, Does.Contain("Level Complete!"));
         }
 
+        [UnityTest]
+        public IEnumerator ObjectiveReached_FiresWhenSessionCompletes()
+        {
+            var session = Object.FindFirstObjectByType<LevelSessionController>();
+            var character = Object.FindFirstObjectByType<PlayerCharacter>();
+            bool objectiveReached = false;
+            session.ObjectiveReached += () => objectiveReached = true;
+
+            character.CurrentNodeId = "FlowerTop";
+            yield return null;
+
+            Assert.That(objectiveReached, Is.True);
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Completed));
+        }
+
+        [UnityTest]
+        public IEnumerator CompletedLevel_BlocksGameplayInput()
+        {
+            var session = Object.FindFirstObjectByType<LevelSessionController>();
+            var character = Object.FindFirstObjectByType<PlayerCharacter>();
+            var router = Object.FindFirstObjectByType<PlayerInputRouter>();
+
+            character.CurrentNodeId = "FlowerTop";
+            yield return null;
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Completed));
+
+            var tapResult = router.OnTap(new Vector2(Screen.width * 0.5f, Screen.height * 0.5f));
+            Assert.That(tapResult.Succeeded, Is.False);
+            Assert.That(tapResult.Reason, Is.EqualTo(PlayerActionFailureReason.LevelNotPlaying));
+
+            var dialResult = router.SetWDial(0.5f);
+            Assert.That(dialResult.Succeeded, Is.False);
+            Assert.That(dialResult.Reason, Is.EqualTo(PlayerActionFailureReason.LevelNotPlaying));
+        }
+
+        [UnityTest]
+        public IEnumerator RestartAfterComplete_ReturnsToStartNodeAndInitialW()
+        {
+            var level = Object.FindFirstObjectByType<LevelRuntimeController>();
+            var session = Object.FindFirstObjectByType<LevelSessionController>();
+            var character = Object.FindFirstObjectByType<PlayerCharacter>();
+
+            level.WState.Force(0.85f);
+            character.CurrentNodeId = "FlowerTop";
+            character.transform.position = level.Graph.GetNode("FlowerTop").WorldPosition;
+            yield return null;
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Completed));
+
+            Assert.That(session.RequestRestart(), Is.True);
+            yield return null;
+
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
+            Assert.That(character.CurrentNodeId, Is.EqualTo("Outside"));
+            Assert.That(level.WState.CurrentW, Is.EqualTo(0f).Within(0.001f));
+            Assert.That(level.WState.TargetW, Is.EqualTo(0f).Within(0.001f));
+            Assert.That(
+                Vector3.Distance(character.transform.position, level.Graph.GetNode("Outside").WorldPosition),
+                Is.LessThan(0.001f));
+        }
+
         private static IEnumerator WaitForMovement(MovementController movement, float timeoutSeconds = 5f)
         {
             float elapsed = 0f;
