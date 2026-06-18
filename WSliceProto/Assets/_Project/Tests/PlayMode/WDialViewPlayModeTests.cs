@@ -175,6 +175,7 @@ namespace WSlice.Tests.PlayMode
 
             character.CurrentNodeId = "FlowerTop";
             yield return null;
+            yield return null;
 
             Assert.That(playerHud.LastState.IsComplete, Is.True);
             Assert.That(playerHud.LastState.PrimaryText, Is.EqualTo("Level Complete!"));

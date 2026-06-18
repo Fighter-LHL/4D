@@ -117,6 +117,7 @@ namespace WSlice.Tests.PlayMode
             var level = Object.FindFirstObjectByType<LevelRuntimeController>();
             var movement = Object.FindFirstObjectByType<MovementController>();
             var character = Object.FindFirstObjectByType<PlayerCharacter>();
+            var session = Object.FindFirstObjectByType<LevelSessionController>();
 
             character.CurrentNodeId = "FlowerBase";
             character.transform.position = new Vector3(2f, 0f, 0f);
@@ -129,13 +130,30 @@ namespace WSlice.Tests.PlayMode
 
             Assert.That(character.CurrentNodeId, Is.EqualTo("FlowerTop"));
             Assert.That(Vector3.Distance(character.transform.position, level.Graph.GetNode("FlowerTop").WorldPosition), Is.LessThan(0.001f));
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Completed));
         }
 
         [UnityTest]
-        public IEnumerator DebugOverlayShowsCompleteAtFlowerTop()
+        public IEnumerator SessionCompletesWhenPlayerReachesGoal()
         {
+            var session = Object.FindFirstObjectByType<LevelSessionController>();
+            var character = Object.FindFirstObjectByType<PlayerCharacter>();
+            Assert.That(session, Is.Not.Null);
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
+
+            character.CurrentNodeId = "FlowerTop";
+            yield return null;
+
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Completed));
+        }
+
+        [UnityTest]
+        public IEnumerator DebugOverlayShowsCompleteWhenSessionCompleted()
+        {
+            var session = Object.FindFirstObjectByType<LevelSessionController>();
             var character = Object.FindFirstObjectByType<PlayerCharacter>();
             var debugText = GameObject.Find("DebugText")?.GetComponent<TextMeshProUGUI>();
+            Assert.That(session, Is.Not.Null);
             Assert.That(character, Is.Not.Null);
             Assert.That(debugText, Is.Not.Null);
 
@@ -143,6 +161,7 @@ namespace WSlice.Tests.PlayMode
             yield return null;
             yield return null;
 
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Completed));
             Assert.That(debugText.text, Does.Contain("Level Complete!"));
         }
 

@@ -10,10 +10,10 @@ namespace WSlice.UI
     {
         [SerializeField] private TextMeshProUGUI label;
         [SerializeField] private LevelRuntimeController level;
+        [SerializeField] private LevelSessionController session;
         [SerializeField] private MovementController movement;
         [SerializeField] private PlayerInputRouter inputRouter;
         [SerializeField] private PlayerCharacter character;
-        [SerializeField] private string goalNodeId = "FlowerTop";
 
         public PlayerHUDState LastState { get; private set; } =
             new PlayerHUDState("Find a W that opens the path.", string.Empty, string.Empty, false, false, false);
@@ -28,7 +28,8 @@ namespace WSlice.UI
             ResolveReferences();
 
             HUDState hud = WDialModel.Build(level, movement, inputRouter, character);
-            LastState = PlayerHUDModel.Build(hud, character != null ? character.CurrentNodeId : string.Empty, goalNodeId);
+            bool isComplete = session != null && session.State == LevelSessionState.Completed;
+            LastState = PlayerHUDModel.Build(hud, isComplete);
             Render(LastState);
         }
 
@@ -39,6 +40,9 @@ namespace WSlice.UI
 
             if (level == null)
                 level = FindFirstObjectByType<LevelRuntimeController>();
+
+            if (session == null)
+                session = FindFirstObjectByType<LevelSessionController>();
 
             if (movement == null)
                 movement = FindFirstObjectByType<MovementController>();

@@ -9,9 +9,9 @@ namespace WSlice.UI
         private const string BreakWarningText = "Changing W now will break the current move.";
         private const string CompleteText = "Level Complete!";
 
-        public static PlayerHUDState Build(HUDState hud, string currentNodeId, string goalNodeId)
+        public static PlayerHUDState Build(HUDState hud, bool isLevelComplete)
         {
-            bool isComplete = !string.IsNullOrEmpty(goalNodeId) && currentNodeId == goalNodeId;
+            bool isComplete = isLevelComplete;
             bool showWarning = hud != null && hud.ActiveMoveWillBreakAtTargetW && !isComplete;
             bool showFailure = hud != null
                 && hud.LastFailureReason != PlayerActionFailureReason.None

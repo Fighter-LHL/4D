@@ -47,7 +47,7 @@ namespace WSlice.Editor
             errors += RequireObject("HiddenStair", null);
             errors += RequireObject("Flower", typeof(CapsuleCollider));
             errors += RequireObject("Nodes", null);
-            errors += RequireObject("LevelRuntime", typeof(LevelRuntimeController));
+            errors += RequireObject("LevelRuntime", typeof(LevelRuntimeController), typeof(LevelSessionController));
             errors += RequireObject("PlayerInput", typeof(PlayerInputRouter), typeof(TapMoveInput));
             errors += RequireObject("Canvas", typeof(Canvas));
             errors += RequireObject("WDialSlider", typeof(Slider), typeof(WDialView));
@@ -260,12 +260,17 @@ namespace WSlice.Editor
             var ground = FindOrCreatePrimitive("Ground", PrimitiveType.Plane);
             ground.transform.localScale = new Vector3(GardenLayout.GroundScaleXZ, 1f, GardenLayout.GroundScaleXZ);
 
-            var levelRuntime = FindOrCreate("LevelRuntime", typeof(LevelRuntimeController));
+            var levelRuntime = FindOrCreate("LevelRuntime", typeof(LevelRuntimeController), typeof(LevelSessionController));
             var levelCtrl = levelRuntime.GetComponent<LevelRuntimeController>();
+            var sessionCtrl = levelRuntime.GetComponent<LevelSessionController>() ?? levelRuntime.AddComponent<LevelSessionController>();
             var levelSo = new SerializedObject(levelCtrl);
             levelSo.FindProperty("definition").objectReferenceValue = levelDef;
             levelSo.FindProperty("wSmoothing").floatValue = 2f;
             levelSo.ApplyModifiedProperties();
+
+            var sessionSo = new SerializedObject(sessionCtrl);
+            sessionSo.FindProperty("levelController").objectReferenceValue = levelCtrl;
+            sessionSo.ApplyModifiedProperties();
 
             var player = FindOrCreatePrimitive("Player", PrimitiveType.Capsule);
             player.transform.position = new Vector3(0f, 0f, -4f);
@@ -278,6 +283,10 @@ namespace WSlice.Editor
             moveSo.FindProperty("moveSpeed").floatValue = 3f;
             moveSo.FindProperty("arrivalThreshold").floatValue = 0.05f;
             moveSo.ApplyModifiedProperties();
+
+            sessionSo = new SerializedObject(sessionCtrl);
+            sessionSo.FindProperty("objectiveSource").objectReferenceValue = playerChar;
+            sessionSo.ApplyModifiedProperties();
 
             var wallA = FindOrCreatePrimitive("GardenWall_A", PrimitiveType.Cube);
             wallA.transform.position = new Vector3(0f, 1f, 0f);
@@ -412,10 +421,10 @@ namespace WSlice.Editor
             var playerHUDSo = new SerializedObject(playerHUDView);
             playerHUDSo.FindProperty("label").objectReferenceValue = playerHUDText;
             playerHUDSo.FindProperty("level").objectReferenceValue = levelCtrl;
+            playerHUDSo.FindProperty("session").objectReferenceValue = sessionCtrl;
             playerHUDSo.FindProperty("movement").objectReferenceValue = movement;
             playerHUDSo.FindProperty("inputRouter").objectReferenceValue = router;
             playerHUDSo.FindProperty("character").objectReferenceValue = playerChar;
-            playerHUDSo.FindProperty("goalNodeId").stringValue = "FlowerTop";
             playerHUDSo.ApplyModifiedProperties();
 
             var debugObj = FindOrCreate("DebugText", typeof(RectTransform), typeof(TextMeshProUGUI));
@@ -436,6 +445,7 @@ namespace WSlice.Editor
             var debugSo = new SerializedObject(debugOverlay);
             debugSo.FindProperty("label").objectReferenceValue = debugText;
             debugSo.FindProperty("level").objectReferenceValue = levelCtrl;
+            debugSo.FindProperty("session").objectReferenceValue = sessionCtrl;
             debugSo.FindProperty("character").objectReferenceValue = playerChar;
             debugSo.FindProperty("movement").objectReferenceValue = movement;
             debugSo.FindProperty("inputRouter").objectReferenceValue = router;
