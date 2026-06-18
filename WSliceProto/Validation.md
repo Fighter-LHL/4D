@@ -162,9 +162,29 @@ Editor：`Test Runner → Play Mode → Run All`
 
 ---
 
-## 当前能力边界（v0.1）
+---
 
-- 有：W 机制、Garden_01 灰盒、HUD/WDial 语义反馈、移动失败与路线提示
-- 无：关卡完成状态机、重开、下一关、CI、standalone build
+## L5 — macOS Standalone 构建
 
-下一里程碑：完整 playable loop（到达目标 → Completed → Restart）。
+仓库根目录：
+
+```bash
+./scripts/build-macos.sh
+```
+
+或 Editor：`WSlice → Build/macOS Standalone`
+
+**预期：** 生成 `WSliceProto/builds/macos/W-Slice.app`，日志含 `macOS build succeeded`，退出码 `0`。
+
+启动场景为 Build Settings 中启用的第一项（`LevelSelect`）。
+
+环境变量 `WSLICE_BUILD_OUTPUT` 可覆盖输出路径。
+
+---
+
+## 当前能力边界（v0.2）
+
+- 有：三关 demo、选关/下一关、W 门控机关、HUD/WDial、macOS standalone 构建、统一灰盒材质
+- 无：CI、Windows/Linux 构建、正式美术与音效
+
+下一里程碑：CI 与发布 tag（`v0.2-wslice-demo`）。
