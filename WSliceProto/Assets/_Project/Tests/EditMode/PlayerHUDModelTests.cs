@@ -80,7 +80,17 @@ namespace WSlice.Tests.EditMode
             Assert.That(state.IsComplete, Is.True);
             Assert.That(state.PrimaryText, Is.EqualTo("Level Complete!"));
             Assert.That(state.ShowHint, Is.True);
-            Assert.That(state.HintText, Is.EqualTo("Press R to restart."));
+            Assert.That(state.HintText, Is.EqualTo("All levels complete! Press R to restart."));
+        }
+
+        [Test]
+        public void Build_WhenLevelCompleteWithNext_ShowsNextLevelHint()
+        {
+            var hud = CreateHud(PlayerActionFailureReason.None, string.Empty, willBreak: false);
+
+            var state = PlayerHUDModel.Build(hud, isLevelComplete: true, hasNextLevel: true);
+
+            Assert.That(state.HintText, Is.EqualTo("Press N for next level. R to restart."));
         }
 
         [Test]

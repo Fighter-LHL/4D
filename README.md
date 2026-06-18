@@ -66,7 +66,7 @@ WSliceProto/
 
 - **无 CI**：GitHub Actions 未配置；测试结果需本地或 PR 中手动记录
 - **batchmode 测试不稳定**：`-runTests` 有时退出 0 但不产出 XML（见 Validation.md）
-- **单关内容**：主要围绕 `GardenLevel.asset`，尚无完整关卡生命周期（完成/重开/下一关）
+- **多关流程**：`LevelCatalog` + `LevelSelect` 选关；关卡内完成可按 **N** 进入下一关、**R** 重开
 - **无发布流程**：尚未配置 standalone build
 
 ## 后续规划
@@ -80,6 +80,7 @@ WSliceProto/
 5. `refactor/garden-generator-builders` — 拆分生成器
 6. `feat/level-definition-inspector` — 关卡资产 Inspector
 7. `feat/second-level-offset-platform` — 第二关
+8. `feat/level-flow-select` — 关卡目录、选关场景、完成后的下一关（N 键）
 
 完整评估与阶段说明见团队内部 roadmap 文档。
 

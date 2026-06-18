@@ -121,6 +121,7 @@ namespace WSlice.Editor
             playerHUDSo.FindProperty("movement").objectReferenceValue = scene.Movement;
             playerHUDSo.FindProperty("inputRouter").objectReferenceValue = scene.InputRouter;
             playerHUDSo.FindProperty("character").objectReferenceValue = scene.PlayerCharacter;
+            playerHUDSo.FindProperty("flow").objectReferenceValue = scene.LevelFlow;
             playerHUDSo.ApplyModifiedProperties();
         }
 

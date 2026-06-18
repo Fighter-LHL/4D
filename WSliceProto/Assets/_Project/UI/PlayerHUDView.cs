@@ -11,6 +11,7 @@ namespace WSlice.UI
         [SerializeField] private TextMeshProUGUI label;
         [SerializeField] private LevelRuntimeController level;
         [SerializeField] private LevelSessionController session;
+        [SerializeField] private LevelFlowController flow;
         [SerializeField] private MovementController movement;
         [SerializeField] private PlayerInputRouter inputRouter;
         [SerializeField] private PlayerCharacter character;
@@ -29,7 +30,8 @@ namespace WSlice.UI
 
             HUDState hud = WDialModel.Build(level, movement, inputRouter, character);
             bool isComplete = session != null && session.State == LevelSessionState.Completed;
-            LastState = PlayerHUDModel.Build(hud, isComplete);
+            bool hasNextLevel = isComplete && flow != null && flow.HasNextLevelInCatalog;
+            LastState = PlayerHUDModel.Build(hud, isComplete, hasNextLevel);
             Render(LastState);
         }
 
@@ -52,6 +54,9 @@ namespace WSlice.UI
 
             if (character == null)
                 character = FindFirstObjectByType<PlayerCharacter>();
+
+            if (flow == null)
+                flow = FindFirstObjectByType<LevelFlowController>();
         }
 
         private void Render(PlayerHUDState state)

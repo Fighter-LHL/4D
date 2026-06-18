@@ -20,7 +20,8 @@ namespace WSlice.Editor
             var levelRuntime = GardenEditorUtilities.FindOrCreate(
                 "LevelRuntime",
                 typeof(LevelRuntimeController),
-                typeof(LevelSessionController));
+                typeof(LevelSessionController),
+                typeof(LevelFlowController));
             var levelController = levelRuntime.GetComponent<LevelRuntimeController>();
             var sessionController = levelRuntime.GetComponent<LevelSessionController>()
                 ?? levelRuntime.AddComponent<LevelSessionController>();
@@ -100,6 +101,14 @@ namespace WSlice.Editor
             tapSo.FindProperty("router").objectReferenceValue = inputRouter;
             tapSo.ApplyModifiedProperties();
 
+            var levelFlow = GrayboxLevelFlowWiring.WireLevelFlow(
+                levelRuntime,
+                levelController,
+                sessionController,
+                input,
+                inputRouter,
+                playerReset);
+
             return new GardenSceneBuilder.SceneBuildResult
             {
                 GameCamera = cameraObj.GetComponent<Camera>(),
@@ -108,7 +117,8 @@ namespace WSlice.Editor
                 PlayerCharacter = playerCharacter,
                 Movement = movement,
                 PlayerReset = playerReset,
-                InputRouter = inputRouter
+                InputRouter = inputRouter,
+                LevelFlow = levelFlow
             };
         }
 
