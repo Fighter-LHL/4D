@@ -13,8 +13,9 @@
 ## Part 0 — LevelSelect
 
 1. 进入 Play Mode（或启动 macOS build）。
-2. 应看到三个关卡按钮：封闭花园 / 偏移平台 / 机关门。
-3. 点击各按钮应加载 `GardenGraybox` / `PlatformGraybox` / `GateGraybox`。
+2. 应看到标题 **W-Slice Demo**、副标题、左下 **v0.3-dev**、右下 **Quit**。
+3. 三个关卡按钮显示中文名 + 英文教学主题（如 gaps / platform / interact）。
+4. 点击各按钮应加载 `GardenGraybox` / `PlatformGraybox` / `GateGraybox`。
 
 ---
 

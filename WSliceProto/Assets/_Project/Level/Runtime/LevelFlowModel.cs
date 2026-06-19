@@ -8,6 +8,7 @@ namespace WSlice.Level
     {
         public string LevelId;
         public string DisplayName;
+        public string ThemeHint;
         public string SceneName;
     }
 

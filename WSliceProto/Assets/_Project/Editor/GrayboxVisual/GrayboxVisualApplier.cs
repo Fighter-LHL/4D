@@ -89,13 +89,25 @@ namespace WSlice.Editor
             if (title != null && title.TryGetComponent<TextMeshProUGUI>(out var titleText))
                 titleText.color = new Color(0.92f, 0.94f, 0.98f, 1f);
 
+            var subtitle = GameObject.Find("Subtitle");
+            if (subtitle != null && subtitle.TryGetComponent<TextMeshProUGUI>(out var subtitleText))
+                subtitleText.color = new Color(0.78f, 0.84f, 0.92f, 1f);
+
+            var version = GameObject.Find("VersionLabel");
+            if (version != null && version.TryGetComponent<TextMeshProUGUI>(out var versionText))
+                versionText.color = new Color(0.65f, 0.72f, 0.82f, 1f);
+
             foreach (var button in Object.FindObjectsByType<Button>(FindObjectsSortMode.None))
             {
-                if (!button.name.StartsWith("LevelButton_"))
+                if (button.name.StartsWith("LevelButton_"))
+                {
+                    if (button.TryGetComponent<Image>(out var image))
+                        image.color = GrayboxVisualPalette.UiAccent;
                     continue;
+                }
 
-                if (button.TryGetComponent<Image>(out var image))
-                    image.color = GrayboxVisualPalette.UiAccent;
+                if (button.name == "QuitButton" && button.TryGetComponent<Image>(out var quitImage))
+                    quitImage.color = new Color(0.18f, 0.2f, 0.24f, 0.95f);
             }
         }
 
