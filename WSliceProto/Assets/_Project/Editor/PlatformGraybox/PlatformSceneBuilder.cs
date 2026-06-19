@@ -109,6 +109,8 @@ namespace WSlice.Editor
                 inputRouter,
                 playerReset);
 
+            GrayboxTutorialWiring.Wire(levelRuntime, levelController, sessionController, movement);
+
             return new GardenSceneBuilder.SceneBuildResult
             {
                 GameCamera = cameraObj.GetComponent<Camera>(),
