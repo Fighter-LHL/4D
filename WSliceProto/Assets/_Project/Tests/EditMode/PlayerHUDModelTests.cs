@@ -104,6 +104,20 @@ namespace WSlice.Tests.EditMode
             Assert.That(state.FailureText, Is.EqualTo("Level is complete. Press R to restart."));
         }
 
+        [Test]
+        public void Build_NotInteractiveAtCurrentW_UsesCustomHintMessage()
+        {
+            var hud = CreateHud(
+                PlayerActionFailureReason.NotInteractiveAtCurrentW,
+                "Lever works at W 0.45-0.65.",
+                willBreak: false);
+
+            var state = PlayerHUDModel.Build(hud, isLevelComplete: false);
+
+            Assert.That(state.ShowFailure, Is.True);
+            Assert.That(state.FailureText, Is.EqualTo("Lever works at W 0.45-0.65."));
+        }
+
         private static HUDState CreateHud(
             PlayerActionFailureReason reason,
             string message,

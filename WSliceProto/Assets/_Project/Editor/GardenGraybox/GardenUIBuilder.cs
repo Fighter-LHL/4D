@@ -50,8 +50,8 @@ namespace WSlice.Editor
             sliderRect.anchorMin = new Vector2(0.5f, 0f);
             sliderRect.anchorMax = new Vector2(0.5f, 0f);
             sliderRect.pivot = new Vector2(0.5f, 0.5f);
-            sliderRect.anchoredPosition = new Vector2(0f, GardenGrayboxRecipe.UI.DialBottomMargin);
-            sliderRect.sizeDelta = new Vector2(GardenGrayboxRecipe.UI.DialWidth, GardenGrayboxRecipe.UI.DialHeight);
+            sliderRect.anchoredPosition = new Vector2(0f, GrayboxLevelRecipe.UI.DialBottomMargin);
+            sliderRect.sizeDelta = new Vector2(GrayboxLevelRecipe.UI.DialWidth, GrayboxLevelRecipe.UI.DialHeight);
             SetupSliderVisuals(sliderObj, slider);
 
             var dialView = sliderObj.GetComponent<WDialView>() ?? sliderObj.AddComponent<WDialView>();
@@ -77,8 +77,8 @@ namespace WSlice.Editor
             dialTrackRect.anchorMin = new Vector2(0.5f, 0f);
             dialTrackRect.anchorMax = new Vector2(0.5f, 0f);
             dialTrackRect.pivot = new Vector2(0.5f, 0.5f);
-            dialTrackRect.anchoredPosition = new Vector2(0f, GardenGrayboxRecipe.UI.DialTrackBottomMargin);
-            dialTrackRect.sizeDelta = new Vector2(GardenGrayboxRecipe.UI.DialWidth, GardenGrayboxRecipe.UI.DialTrackHeight);
+            dialTrackRect.anchoredPosition = new Vector2(0f, GrayboxLevelRecipe.UI.DialTrackBottomMargin);
+            dialTrackRect.sizeDelta = new Vector2(GrayboxLevelRecipe.UI.DialWidth, GrayboxLevelRecipe.UI.DialTrackHeight);
 
             var dialTrackView = dialTrackObj.GetComponent<WDialTrackView>() ?? dialTrackObj.AddComponent<WDialTrackView>();
             var dialTrackSo = new SerializedObject(dialTrackView);
@@ -111,8 +111,8 @@ namespace WSlice.Editor
             playerHUDRect.anchorMin = new Vector2(0.5f, 1f);
             playerHUDRect.anchorMax = new Vector2(0.5f, 1f);
             playerHUDRect.pivot = new Vector2(0.5f, 1f);
-            playerHUDRect.anchoredPosition = new Vector2(0f, -GardenGrayboxRecipe.UI.PlayerHUDTopMargin);
-            playerHUDRect.sizeDelta = new Vector2(GardenGrayboxRecipe.UI.PlayerHUDWidth, GardenGrayboxRecipe.UI.PlayerHUDHeight);
+            playerHUDRect.anchoredPosition = new Vector2(0f, -GrayboxLevelRecipe.UI.PlayerHUDTopMargin);
+            playerHUDRect.sizeDelta = new Vector2(GrayboxLevelRecipe.UI.PlayerHUDWidth, GrayboxLevelRecipe.UI.PlayerHUDHeight);
 
             var playerHUDView = playerHUDObj.GetComponent<PlayerHUDView>() ?? playerHUDObj.AddComponent<PlayerHUDView>();
             var playerHUDSo = new SerializedObject(playerHUDView);
@@ -155,8 +155,8 @@ namespace WSlice.Editor
                 new Vector2(0.5f, 0.5f));
             var panelRect = panel.GetComponent<RectTransform>();
             panelRect.sizeDelta = new Vector2(
-                GardenGrayboxRecipe.UI.OutcomePanelWidth,
-                GardenGrayboxRecipe.UI.OutcomePanelHeight);
+                GrayboxLevelRecipe.UI.OutcomePanelWidth,
+                GrayboxLevelRecipe.UI.OutcomePanelHeight);
 
             var titleObj = new GameObject("Title", typeof(RectTransform), typeof(TextMeshProUGUI));
             titleObj.transform.SetParent(panel.transform, false);
@@ -171,7 +171,7 @@ namespace WSlice.Editor
             titleRect.anchorMax = new Vector2(0.5f, 1f);
             titleRect.pivot = new Vector2(0.5f, 1f);
             titleRect.anchoredPosition = new Vector2(0f, -24f);
-            titleRect.sizeDelta = new Vector2(GardenGrayboxRecipe.UI.OutcomePanelWidth - 40f, 48f);
+            titleRect.sizeDelta = new Vector2(GrayboxLevelRecipe.UI.OutcomePanelWidth - 40f, 48f);
 
             var buttonRow = CreateUIRect(
                 "Buttons",
@@ -180,9 +180,9 @@ namespace WSlice.Editor
                 new Vector2(0.5f, 0f),
                 new Vector2(0.5f, 0f));
             buttonRow.sizeDelta = new Vector2(
-                GardenGrayboxRecipe.UI.OutcomePanelWidth - 40f,
-                GardenGrayboxRecipe.UI.OutcomeButtonHeight * 3f
-                    + GardenGrayboxRecipe.UI.OutcomeButtonSpacing * 2f);
+                GrayboxLevelRecipe.UI.OutcomePanelWidth - 40f,
+                GrayboxLevelRecipe.UI.OutcomeButtonHeight * 3f
+                    + GrayboxLevelRecipe.UI.OutcomeButtonSpacing * 2f);
             buttonRow.anchoredPosition = new Vector2(0f, 28f);
 
             var nextButton = CreateOverlayButton(buttonRow, "NextButton", "Next");
@@ -220,8 +220,8 @@ namespace WSlice.Editor
 
             var buttonRect = buttonObj.GetComponent<RectTransform>();
             buttonRect.sizeDelta = new Vector2(
-                GardenGrayboxRecipe.UI.OutcomeButtonWidth,
-                GardenGrayboxRecipe.UI.OutcomeButtonHeight);
+                GrayboxLevelRecipe.UI.OutcomeButtonWidth,
+                GrayboxLevelRecipe.UI.OutcomeButtonHeight);
 
             var labelObj = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
             labelObj.transform.SetParent(buttonObj.transform, false);
@@ -249,7 +249,7 @@ namespace WSlice.Editor
             rect.anchorMin = new Vector2(0.5f, 0f);
             rect.anchorMax = new Vector2(0.5f, 0f);
             rect.pivot = new Vector2(0.5f, 0f);
-            float y = index * (GardenGrayboxRecipe.UI.OutcomeButtonHeight + GardenGrayboxRecipe.UI.OutcomeButtonSpacing);
+            float y = index * (GrayboxLevelRecipe.UI.OutcomeButtonHeight + GrayboxLevelRecipe.UI.OutcomeButtonSpacing);
             rect.anchoredPosition = new Vector2(0f, y);
         }
 
@@ -267,8 +267,8 @@ namespace WSlice.Editor
             debugRect.anchorMin = new Vector2(0f, 1f);
             debugRect.anchorMax = new Vector2(0f, 1f);
             debugRect.pivot = new Vector2(0f, 1f);
-            debugRect.anchoredPosition = new Vector2(GardenGrayboxRecipe.UI.DebugLeftMargin, -GardenGrayboxRecipe.UI.DebugTopMargin);
-            debugRect.sizeDelta = new Vector2(GardenGrayboxRecipe.UI.DebugWidth, GardenGrayboxRecipe.UI.DebugHeight);
+            debugRect.anchoredPosition = new Vector2(GrayboxLevelRecipe.UI.DebugLeftMargin, -GrayboxLevelRecipe.UI.DebugTopMargin);
+            debugRect.sizeDelta = new Vector2(GrayboxLevelRecipe.UI.DebugWidth, GrayboxLevelRecipe.UI.DebugHeight);
 
             var debugSo = new SerializedObject(debugOverlay);
             debugSo.FindProperty("label").objectReferenceValue = debugText;

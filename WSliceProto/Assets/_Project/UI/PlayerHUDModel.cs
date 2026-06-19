@@ -82,7 +82,9 @@ namespace WSlice.UI
                         ? "No path at this W."
                         : "No path at this W. Shift W and try again.";
                 case PlayerActionFailureReason.NotInteractiveAtCurrentW:
-                    return "Not interactive at this W. Shift W and try again.";
+                    return string.IsNullOrEmpty(fallback)
+                        ? "Not interactive at this W. Shift W and try again."
+                        : fallback;
                 case PlayerActionFailureReason.LevelNotPlaying:
                     return "Level is complete. Press R to restart.";
                 default:

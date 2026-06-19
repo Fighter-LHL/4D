@@ -28,7 +28,7 @@ namespace WSlice.Editor
 
             var levelSo = new SerializedObject(levelController);
             levelSo.FindProperty("definition").objectReferenceValue = levelDefinition;
-            levelSo.FindProperty("wSmoothing").floatValue = GardenGrayboxRecipe.WSmoothing;
+            levelSo.FindProperty("wSmoothing").floatValue = GrayboxLevelRecipe.WSmoothing;
             levelSo.ApplyModifiedProperties();
 
             var sessionSo = new SerializedObject(sessionController);
@@ -46,8 +46,8 @@ namespace WSlice.Editor
             var moveSo = new SerializedObject(movement);
             moveSo.FindProperty("character").objectReferenceValue = playerCharacter;
             moveSo.FindProperty("levelController").objectReferenceValue = levelController;
-            moveSo.FindProperty("moveSpeed").floatValue = GardenGrayboxRecipe.MoveSpeed;
-            moveSo.FindProperty("arrivalThreshold").floatValue = GardenGrayboxRecipe.ArrivalThreshold;
+            moveSo.FindProperty("moveSpeed").floatValue = GrayboxLevelRecipe.MoveSpeed;
+            moveSo.FindProperty("arrivalThreshold").floatValue = GrayboxLevelRecipe.ArrivalThreshold;
             moveSo.ApplyModifiedProperties();
 
             var playerResetSo = new SerializedObject(playerReset);
@@ -62,7 +62,7 @@ namespace WSlice.Editor
             var pathPreview = GardenEditorUtilities.FindOrCreate("PathPreview", typeof(LevelPathPreviewRenderer));
             var pathPreviewSo = new SerializedObject(pathPreview.GetComponent<LevelPathPreviewRenderer>());
             pathPreviewSo.FindProperty("levelController").objectReferenceValue = levelController;
-            pathPreviewSo.FindProperty("yOffset").floatValue = GardenGrayboxRecipe.PathPreviewYOffset;
+            pathPreviewSo.FindProperty("yOffset").floatValue = GrayboxLevelRecipe.PathPreviewYOffset;
             pathPreviewSo.ApplyModifiedProperties();
 
             BuildWorldGeometry(bridgeProfile);
@@ -85,7 +85,7 @@ namespace WSlice.Editor
             routerSo.FindProperty("levelController").objectReferenceValue = levelController;
             routerSo.FindProperty("session").objectReferenceValue = sessionController;
             routerSo.FindProperty("movement").objectReferenceValue = movement;
-            routerSo.FindProperty("snapRadius").floatValue = GardenGrayboxRecipe.SnapRadius;
+            routerSo.FindProperty("snapRadius").floatValue = GrayboxLevelRecipe.SnapRadius;
             routerSo.ApplyModifiedProperties();
 
             var restartInputSo = new SerializedObject(restartInput);
@@ -108,6 +108,8 @@ namespace WSlice.Editor
                 input,
                 inputRouter,
                 playerReset);
+
+            GrayboxGraphMutationWiring.Wire(levelRuntime, levelController);
 
             return new GardenSceneBuilder.SceneBuildResult
             {

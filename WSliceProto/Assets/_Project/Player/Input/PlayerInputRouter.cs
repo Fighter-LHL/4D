@@ -75,7 +75,9 @@ namespace WSlice.Player
                 if (interactable.TryInteract(CurrentW))
                     return Record(PlayerActionResult.Success());
 
-                return Record(PlayerActionResult.Failure(PlayerActionFailureReason.NotInteractiveAtCurrentW));
+                return Record(PlayerActionResult.Failure(
+                    PlayerActionFailureReason.NotInteractiveAtCurrentW,
+                    interactable.GetNotInteractiveHint()));
             }
 
             if (hits.Length > 0)

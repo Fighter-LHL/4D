@@ -8,9 +8,17 @@ namespace WSlice.Level
     {
         [SerializeField] private SliceEntity sliceEntity;
         [SerializeField] private LevelRuntimeController levelController;
-        [SerializeField] private string fromNodeId = "GateRoom";
-        [SerializeField] private string toNodeId = "Goal";
-        [SerializeField] private WRange unlockedWalkableRange = new() { Min = 0.30f, Max = 0.55f };
+        [SerializeField] private LevelGraphMutationController mutationController;
+        [SerializeField] private WInteractableProfile interactableProfile = new()
+        {
+            DisplayName = "Lever",
+            UnlockAction = new GraphEdgeUnlockAction
+            {
+                FromNodeId = "GateRoom",
+                ToNodeId = "Goal",
+                WalkableRange = new WRange { Min = 0.30f, Max = 0.55f }
+            }
+        };
         [SerializeField] private Transform leverVisual;
         [SerializeField] private float activatedLocalRotationZ = -55f;
 
@@ -27,6 +35,9 @@ namespace WSlice.Level
             if (levelController == null)
                 levelController = FindFirstObjectByType<LevelRuntimeController>();
 
+            if (mutationController == null)
+                mutationController = FindFirstObjectByType<LevelGraphMutationController>();
+
             if (leverVisual == null)
                 leverVisual = transform;
 
@@ -41,24 +52,25 @@ namespace WSlice.Level
             if (!SliceInteractionModel.CanInteract(sliceEntity, currentW))
                 return false;
 
-            if (levelController == null || levelController.Graph == null)
+            if (mutationController == null || levelController == null)
                 return false;
 
             _activated = true;
-            levelController.Graph.SetEdgeWalkableRange(fromNodeId, toNodeId, unlockedWalkableRange);
+            mutationController.ApplyUnlock(interactableProfile.UnlockAction);
             ApplyActivatedVisual();
             return true;
+        }
+
+        public string GetNotInteractiveHint()
+        {
+            SliceProfile profile = sliceEntity != null ? sliceEntity.profile : null;
+            return WInteractableProfileModel.BuildNotInteractiveHint(interactableProfile, profile);
         }
 
         public void ApplyLevelRestart(LevelDefinition definition, LevelGraphRuntime graph)
         {
             _activated = false;
             ResetVisual();
-
-            if (definition == null || graph == null)
-                return;
-
-            graph.Load(definition);
         }
 
         private void ApplyActivatedVisual()
