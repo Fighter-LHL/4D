@@ -225,6 +225,33 @@ namespace WSlice.Tests.PlayMode
                 Is.LessThan(0.001f));
         }
 
+        [UnityTest]
+        public IEnumerator RestartWhilePlaying_StopsMovementAndResetsStart()
+        {
+            var level = Object.FindFirstObjectByType<LevelRuntimeController>();
+            var session = Object.FindFirstObjectByType<LevelSessionController>();
+            var movement = Object.FindFirstObjectByType<MovementController>();
+            var character = Object.FindFirstObjectByType<PlayerCharacter>();
+            var router = Object.FindFirstObjectByType<PlayerInputRouter>();
+
+            level.WState.Force(0.55f);
+            yield return null;
+
+            movement.RequestMove(level.Graph.GetNode("InsideGarden").WorldPosition);
+            yield return null;
+            Assert.That(movement.IsMoving, Is.True);
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
+
+            Assert.That(session.RequestRestart(), Is.True);
+            yield return null;
+
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
+            Assert.That(movement.IsMoving, Is.False);
+            Assert.That(character.CurrentNodeId, Is.EqualTo("Outside"));
+            Assert.That(level.WState.CurrentW, Is.EqualTo(0f).Within(0.001f));
+            Assert.That(router.LastActionResult.Reason, Is.EqualTo(PlayerActionFailureReason.None));
+        }
+
         private static IEnumerator WaitForMovement(MovementController movement, float timeoutSeconds = 5f)
         {
             float elapsed = 0f;

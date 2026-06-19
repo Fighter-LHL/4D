@@ -17,6 +17,7 @@ MonoBehaviour:
   GoalNodeId: FlowerTop
   StartNodeId: Outside
   InitialW: 0
+  TutorialHint: Drag W to reveal gaps and stairs, then tap the ground to move.
   SnapPoints:
   - 0
   - 0.35

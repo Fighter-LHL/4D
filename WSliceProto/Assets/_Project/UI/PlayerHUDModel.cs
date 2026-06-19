@@ -13,7 +13,13 @@ namespace WSlice.UI
         private const string AllLevelsCompleteHintText = "All levels complete! Press R to restart.";
         private const string RestartAfterFailHintText = "Press R to retry.";
 
-        public static PlayerHUDState Build(HUDState hud, bool isLevelComplete, bool hasNextLevel = false, bool isLevelFailed = false)
+        public static PlayerHUDState Build(
+            HUDState hud,
+            bool isLevelComplete,
+            bool hasNextLevel = false,
+            bool isLevelFailed = false,
+            bool showTutorial = false,
+            string tutorialHint = null)
         {
             if (isLevelFailed)
             {
@@ -39,7 +45,6 @@ namespace WSlice.UI
                 && hud.HasRouteHint;
             bool showRestartHint = isComplete;
 
-            string primary = isComplete ? CompleteText : DefaultPrimaryText;
             string warning = showWarning ? BreakWarningText : string.Empty;
             string failure = showFailure
                 ? BuildFailureText(hud.LastFailureReason, hud.LastFailureMessage, hud.HasRouteHint)
@@ -47,6 +52,12 @@ namespace WSlice.UI
             string hint = isComplete
                 ? BuildCompleteHint(hasNextLevel)
                 : (showHint ? BuildHintText(hud.RouteHint) : string.Empty);
+
+            string primary = DefaultPrimaryText;
+            if (isComplete)
+                primary = CompleteText;
+            else if (showTutorial && !string.IsNullOrWhiteSpace(tutorialHint) && !showWarning && !showFailure)
+                primary = tutorialHint;
 
             return new PlayerHUDState(
                 primary,

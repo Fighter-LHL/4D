@@ -13,8 +13,9 @@
 ## Part 0 — LevelSelect
 
 1. 进入 Play Mode（或启动 macOS build）。
-2. 应看到三个关卡按钮：封闭花园 / 偏移平台 / 机关门。
-3. 点击各按钮应加载 `GardenGraybox` / `PlatformGraybox` / `GateGraybox`。
+2. 应看到标题 **W-Slice Demo**、副标题、左下 **v0.3-dev**、右下 **Quit**。
+3. 三个关卡按钮显示中文名 + 英文教学主题（如 gaps / platform / interact）。
+4. 点击各按钮应加载 `GardenGraybox` / `PlatformGraybox` / `GateGraybox`。
 
 ---
 
@@ -97,7 +98,7 @@ open WSliceProto/builds/macos/W-Slice.app
 | 键 | 作用 |
 |---|---|
 | **N** | Completed 后加载下一关 |
-| **R** | Completed / Failed 后重开当前关（Playing 中无效） |
+| **R** | Playing / Completed / Failed 后重开当前关 |
 
 ---
 
@@ -106,6 +107,6 @@ open WSliceProto/builds/macos/W-Slice.app
 - **角色不动：** 检查 `PlayerCharacter.CurrentNodeId` 与 ground Collider。
 - **缺口/平台/门不显现：** 运行对应 Generate + Validate；检查 SliceProfile 与 W 区间。
 - **Gate lever 无反应：** 确认 W 在 interactable 有效区间（约 0.45–0.55）。
-- **按 R 无反应：** 当前为 v0.2 设计——仅 Completed/Failed 可重开。
+- **按 R 无反应：** 确认 session 不是 NotStarted / Restarting；Playing / Completed / Failed 均可重开。
 
 Legacy Garden 单关详细引用检查见历史 commit；日常验证以 Generate/Validate 菜单为准。

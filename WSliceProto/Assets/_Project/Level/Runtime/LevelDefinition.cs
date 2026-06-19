@@ -13,6 +13,8 @@ namespace WSlice.Level
 
         [Range(0f, 1f)] public float InitialW;
 
+        [TextArea(2, 4)] public string TutorialHint;
+
         public List<float> SnapPoints = new();
         public List<LevelNode> Nodes = new();
         public List<LevelEdge> Edges = new();

@@ -141,7 +141,7 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 应输出到同一路径。
 
 ---
 
-## 已知行为（v0.2）
+## 已知行为（v0.3）
 
-- **R** 重开仅在 **Completed** 或 **Failed** 状态下生效；Playing 中按 R 无反应（v0.3 计划改进）
+- **R** 重开在 **Playing / Completed / Failed** 状态下均可用；重开会停止移动、重置 W 与关卡图状态
 - Gate 关：未在正确 W 点击 lever 时 HUD 显示 `NotInteractiveAtCurrentW`

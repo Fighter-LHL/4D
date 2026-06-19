@@ -89,5 +89,18 @@ namespace WSlice.Tests.EditMode
             session.CompleteRestart();
             Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
         }
+
+        [Test]
+        public void RestartFlow_PlayingToPlaying()
+        {
+            var session = new LevelSession();
+            session.Begin();
+
+            session.BeginRestart();
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Restarting));
+
+            session.CompleteRestart();
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
+        }
     }
 }

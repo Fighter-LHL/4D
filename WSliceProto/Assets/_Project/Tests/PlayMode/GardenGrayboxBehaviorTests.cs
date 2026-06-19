@@ -5,6 +5,7 @@ using UnityEngine.TestTools;
 using UnityEngine.TestTools.Utils;
 using NUnit.Framework;
 using WSlice.Level;
+using WSlice.UI;
 
 namespace WSlice.Tests.PlayMode
 {
@@ -99,6 +100,25 @@ namespace WSlice.Tests.PlayMode
             level.WState.Force(0f);
             yield return null;
             Assert.That(wall.transform.localScale.sqrMagnitude, Is.GreaterThan(0.5f), "Wall should remain visible at w=0");
+        }
+
+        [UnityTest]
+        public IEnumerator TutorialHintShowsUntilWChanges()
+        {
+            var hud = Object.FindFirstObjectByType<PlayerHUDView>();
+            var level = Object.FindFirstObjectByType<LevelRuntimeController>();
+
+            Assert.That(hud, Is.Not.Null);
+            Assert.That(level, Is.Not.Null);
+            yield return null;
+
+            Assert.That(hud.LastState.PrimaryText, Does.Contain("gaps"));
+
+            level.WState.SetTarget(0.55f);
+            yield return null;
+            yield return null;
+
+            Assert.That(hud.LastState.PrimaryText, Is.EqualTo("Find a W that opens the path."));
         }
     }
 }
