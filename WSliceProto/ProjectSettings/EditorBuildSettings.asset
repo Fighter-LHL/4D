@@ -20,6 +20,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/_Project/Level/Scenes/GateGraybox.unity
     guid: 4bd830de39a504be1b138881bc63f64d
+  - enabled: 1
+    path: Assets/_Project/Level/Scenes/ChambersGraybox.unity
+    guid: 6deb91855d16b4e22a462db3a5b93eff
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

@@ -1,0 +1,54 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1b2c3d4e5f611111111111111111111, type: 3}
+  m_Name: ChambersLevel
+  m_EditorClassIdentifier: 
+  LevelId: Chambers_04
+  DisplayName: 连环密室
+  GoalNodeId: Goal
+  StartNodeId: Lobby
+  InitialW: 0
+  TutorialHint: Each corridor opens at a different W. Shift W as you advance room by room.
+  SnapPoints:
+  - 0
+  - 0.35
+  - 0.55
+  - 0.65
+  - 1
+  Nodes:
+  - Id: Lobby
+    WorldPosition: {x: 0, y: 0, z: 0}
+  - Id: ChamberA
+    WorldPosition: {x: 4, y: 0, z: 0}
+  - Id: ChamberB
+    WorldPosition: {x: 8, y: 0, z: 0}
+  - Id: Goal
+    WorldPosition: {x: 12, y: 0, z: 0}
+  Edges:
+  - FromNodeId: Lobby
+    ToNodeId: ChamberA
+    WalkableRange:
+      Min: 0
+      Max: 0.35
+    Bidirectional: 1
+  - FromNodeId: ChamberA
+    ToNodeId: ChamberB
+    WalkableRange:
+      Min: 0.35
+      Max: 0.65
+    Bidirectional: 1
+  - FromNodeId: ChamberB
+    ToNodeId: Goal
+    WalkableRange:
+      Min: 0.65
+      Max: 1
+    Bidirectional: 1

@@ -25,3 +25,7 @@ MonoBehaviour:
     DisplayName: 机关门
     ThemeHint: Interact at mid-W; shifting W mid-move is risky
     SceneName: GateGraybox
+  - LevelId: Chambers_04
+    DisplayName: 连环密室
+    ThemeHint: Shift W in sequence to open each corridor
+    SceneName: ChambersGraybox
