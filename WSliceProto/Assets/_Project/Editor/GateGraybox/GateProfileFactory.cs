@@ -15,7 +15,7 @@ namespace WSlice.Editor
 
         private static SliceProfile CreateOrLoadProfile(string assetName, Action<SliceProfile> configure)
         {
-            string dir = GateGrayboxRecipe.ProfileDirectory;
+            string dir = GrayboxLevelRecipe.ProfileDirectory;
             if (!AssetDatabase.IsValidFolder(dir))
             {
                 string parent = System.IO.Path.GetDirectoryName(dir).Replace('\\', '/');

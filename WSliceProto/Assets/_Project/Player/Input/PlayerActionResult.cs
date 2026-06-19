@@ -37,6 +37,13 @@ namespace WSlice.Player
             return new PlayerActionResult(reason, DefaultMessage(reason));
         }
 
+        public static PlayerActionResult Failure(PlayerActionFailureReason reason, string message)
+        {
+            return new PlayerActionResult(
+                reason,
+                string.IsNullOrWhiteSpace(message) ? DefaultMessage(reason) : message);
+        }
+
         private static string DefaultMessage(PlayerActionFailureReason reason)
         {
             return reason switch

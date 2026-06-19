@@ -19,9 +19,9 @@ namespace WSlice.Editor
         public static int ValidateGardenProfiles()
         {
             int errors = 0;
-            var wallProfile = AssetDatabase.LoadAssetAtPath<SliceProfile>($"{GardenGrayboxRecipe.ProfileDirectory}/WallProfile.asset");
-            var gapProfile = AssetDatabase.LoadAssetAtPath<SliceProfile>($"{GardenGrayboxRecipe.ProfileDirectory}/GapProfile.asset");
-            var stairProfile = AssetDatabase.LoadAssetAtPath<SliceProfile>($"{GardenGrayboxRecipe.ProfileDirectory}/StairProfile.asset");
+            var wallProfile = AssetDatabase.LoadAssetAtPath<SliceProfile>($"{GrayboxLevelRecipe.ProfileDirectory}/WallProfile.asset");
+            var gapProfile = AssetDatabase.LoadAssetAtPath<SliceProfile>($"{GrayboxLevelRecipe.ProfileDirectory}/GapProfile.asset");
+            var stairProfile = AssetDatabase.LoadAssetAtPath<SliceProfile>($"{GrayboxLevelRecipe.ProfileDirectory}/StairProfile.asset");
 
             if (wallProfile == null) { Debug.LogError("WallProfile.asset missing"); errors++; }
             else if (!GardenEditorUtilities.IsConstant(wallProfile.VisibilityCurve, 1f))
@@ -49,7 +49,7 @@ namespace WSlice.Editor
 
         private static SliceProfile CreateOrLoadProfile(string assetName, Action<SliceProfile> configure)
         {
-            string dir = GardenGrayboxRecipe.ProfileDirectory;
+            string dir = GrayboxLevelRecipe.ProfileDirectory;
             if (!AssetDatabase.IsValidFolder(dir))
             {
                 string parent = System.IO.Path.GetDirectoryName(dir).Replace('\\', '/');

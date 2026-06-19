@@ -28,7 +28,7 @@ namespace WSlice.Editor
 
             var levelSo = new SerializedObject(levelController);
             levelSo.FindProperty("definition").objectReferenceValue = levelDefinition;
-            levelSo.FindProperty("wSmoothing").floatValue = GardenGrayboxRecipe.WSmoothing;
+            levelSo.FindProperty("wSmoothing").floatValue = GrayboxLevelRecipe.WSmoothing;
             levelSo.ApplyModifiedProperties();
 
             var sessionSo = new SerializedObject(sessionController);
@@ -46,8 +46,8 @@ namespace WSlice.Editor
             var moveSo = new SerializedObject(movement);
             moveSo.FindProperty("character").objectReferenceValue = playerCharacter;
             moveSo.FindProperty("levelController").objectReferenceValue = levelController;
-            moveSo.FindProperty("moveSpeed").floatValue = GardenGrayboxRecipe.MoveSpeed;
-            moveSo.FindProperty("arrivalThreshold").floatValue = GardenGrayboxRecipe.ArrivalThreshold;
+            moveSo.FindProperty("moveSpeed").floatValue = GrayboxLevelRecipe.MoveSpeed;
+            moveSo.FindProperty("arrivalThreshold").floatValue = GrayboxLevelRecipe.ArrivalThreshold;
             moveSo.FindProperty("failSessionOnSegmentBreak").boolValue = true;
             moveSo.FindProperty("session").objectReferenceValue = sessionController;
             moveSo.ApplyModifiedProperties();
@@ -64,7 +64,7 @@ namespace WSlice.Editor
             var pathPreview = GardenEditorUtilities.FindOrCreate("PathPreview", typeof(LevelPathPreviewRenderer));
             var pathPreviewSo = new SerializedObject(pathPreview.GetComponent<LevelPathPreviewRenderer>());
             pathPreviewSo.FindProperty("levelController").objectReferenceValue = levelController;
-            pathPreviewSo.FindProperty("yOffset").floatValue = GardenGrayboxRecipe.PathPreviewYOffset;
+            pathPreviewSo.FindProperty("yOffset").floatValue = GrayboxLevelRecipe.PathPreviewYOffset;
             pathPreviewSo.ApplyModifiedProperties();
 
             BuildWorldGeometry(leverProfile, levelController);
@@ -88,7 +88,7 @@ namespace WSlice.Editor
             routerSo.FindProperty("levelController").objectReferenceValue = levelController;
             routerSo.FindProperty("session").objectReferenceValue = sessionController;
             routerSo.FindProperty("movement").objectReferenceValue = movement;
-            routerSo.FindProperty("snapRadius").floatValue = GardenGrayboxRecipe.SnapRadius;
+            routerSo.FindProperty("snapRadius").floatValue = GrayboxLevelRecipe.SnapRadius;
             routerSo.ApplyModifiedProperties();
 
             var restartInputSo = new SerializedObject(restartInput);
@@ -129,6 +129,10 @@ namespace WSlice.Editor
 
         private static void BuildWorldGeometry(SliceProfile leverProfile, LevelRuntimeController levelController)
         {
+            var mutationController = GrayboxGraphMutationWiring.Wire(
+                levelController.gameObject,
+                levelController);
+
             var entryMarker = GardenEditorUtilities.FindOrCreatePrimitive("EntryMarker", PrimitiveType.Cube);
             entryMarker.transform.position = new Vector3(0f, 0.5f, 0f);
             entryMarker.transform.localScale = new Vector3(1.5f, 1f, 1.5f);
@@ -158,9 +162,16 @@ namespace WSlice.Editor
             var leverSo = new SerializedObject(gateLever);
             leverSo.FindProperty("sliceEntity").objectReferenceValue = leverEntity;
             leverSo.FindProperty("levelController").objectReferenceValue = levelController;
-            leverSo.FindProperty("fromNodeId").stringValue = "GateRoom";
-            leverSo.FindProperty("toNodeId").stringValue = "Goal";
+            leverSo.FindProperty("mutationController").objectReferenceValue = mutationController;
             leverSo.FindProperty("leverVisual").objectReferenceValue = lever.transform;
+
+            var profile = leverSo.FindProperty("interactableProfile");
+            profile.FindPropertyRelative("DisplayName").stringValue = "Lever";
+            var unlockAction = profile.FindPropertyRelative("UnlockAction");
+            unlockAction.FindPropertyRelative("FromNodeId").stringValue = "GateRoom";
+            unlockAction.FindPropertyRelative("ToNodeId").stringValue = "Goal";
+            unlockAction.FindPropertyRelative("WalkableRange").FindPropertyRelative("Min").floatValue = 0.30f;
+            unlockAction.FindPropertyRelative("WalkableRange").FindPropertyRelative("Max").floatValue = 0.55f;
             leverSo.ApplyModifiedProperties();
         }
     }
