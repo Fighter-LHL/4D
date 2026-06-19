@@ -81,7 +81,7 @@ open WSliceProto/builds/macos/W-Slice.app
 - 玩家：tap 移动、W dial、W-aware movement retry
 - 世界交互：`IWorldInteractable`、`SliceInteractionModel`、W 门控 tap 交互
 - HUD：`HUDState` / `WDialModel`、路线提示、失败原因文案、`WDialTrack` 色带
-- 关卡流转：`LevelCatalog`、`LevelSelect` 选关、完成后 **N** 下一关、**R** 重开（仅 Completed / Failed）
+- 关卡流转：`LevelCatalog`、`LevelSelect` 选关、完成后 **N** 下一关、**R** 重开（Playing / Completed / Failed）
 - 三关 demo：Garden（缺口/楼梯）→ Platform（W-offset 平台）→ Gate（拉杆解锁 + 移动中断失败）
 - 编辑器：三关 graybox 生成器、`GrayboxVisual` 统一材质、Gizmos、Preview 窗口
 - macOS 构建：`./scripts/build-macos.sh` 或 Editor 菜单 → `WSliceProto/builds/macos/W-Slice.app`
@@ -91,7 +91,6 @@ open WSliceProto/builds/macos/W-Slice.app
 
 - **无 CI**：GitHub Actions 未配置；测试结果需本地或 PR 中手动记录
 - **batchmode 测试不稳定**：`-runTests` 有时退出 0 但不产出 XML（见 Validation.md）
-- **重开限制**：**R** 仅在 Completed / Failed 状态下生效（Playing 中按 R 无效）
 - **无正式美术/音效**：灰盒 demo，URP Lit 统一材质
 - **仅 macOS 构建**：无 Windows / Linux standalone、无签名公证
 

@@ -222,6 +222,6 @@ Build Settings 启用场景顺序：
 ## 当前能力边界（v0.2）
 
 - 有：三关 demo、选关/下一关、W 门控机关、HUD/WDial、macOS standalone 构建、统一灰盒材质
-- 无：CI、Windows/Linux 构建、正式美术与音效、Playing 状态下重开
+- 无：CI、Windows/Linux 构建、正式美术与音效
 
-下一里程碑：v0.3 demo polish（overlay UI、教学提示、Playing restart）。Release tag：`v0.2-wslice-demo`（见 [`docs/releases/v0.2-wslice-demo.md`](../docs/releases/v0.2-wslice-demo.md)）。
+下一里程碑：v0.3 demo polish（教学提示、LevelSelect 首页）。Release tag：`v0.2-wslice-demo`（见 [`docs/releases/v0.2-wslice-demo.md`](../docs/releases/v0.2-wslice-demo.md)）。
