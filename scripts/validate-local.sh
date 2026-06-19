@@ -76,6 +76,10 @@ run_unity "L1 Validate Gate Graybox" \
   -executeMethod WSlice.Editor.GateGrayboxGenerator.Validate \
   -quit -batchmode -nographics
 
+run_unity "L1 Validate Chambers Graybox" \
+  -executeMethod WSlice.Editor.ChambersGrayboxGenerator.Validate \
+  -quit -batchmode -nographics
+
 run_unity "L1 Validate Level Catalog" \
   -executeMethod WSlice.Editor.LevelCatalogValidatorRunner.Validate \
   -quit -batchmode -nographics

@@ -1,0 +1,160 @@
+using UnityEditor;
+using UnityEngine;
+using WSlice.Level;
+using WSlice.Player;
+
+namespace WSlice.Editor
+{
+    public static class ChambersSceneBuilder
+    {
+        public static GardenSceneBuilder.SceneBuildResult Build(LevelDefinition levelDefinition)
+        {
+            var cameraObj = GardenEditorUtilities.FindOrCreate("Main Camera", typeof(Camera));
+            cameraObj.transform.position = new Vector3(6f, 5f, -8f);
+            cameraObj.transform.rotation = Quaternion.Euler(35f, 0f, 0f);
+
+            var ground = GardenEditorUtilities.FindOrCreatePrimitive("Ground", PrimitiveType.Plane);
+            ground.transform.localScale = new Vector3(
+                ChambersGrayboxRecipe.GroundScaleXZ,
+                1f,
+                ChambersGrayboxRecipe.GroundScaleXZ);
+
+            var levelRuntime = GardenEditorUtilities.FindOrCreate(
+                "LevelRuntime",
+                typeof(LevelRuntimeController),
+                typeof(LevelSessionController),
+                typeof(LevelFlowController));
+            var levelController = levelRuntime.GetComponent<LevelRuntimeController>();
+            var sessionController = levelRuntime.GetComponent<LevelSessionController>()
+                ?? levelRuntime.AddComponent<LevelSessionController>();
+
+            var levelSo = new SerializedObject(levelController);
+            levelSo.FindProperty("definition").objectReferenceValue = levelDefinition;
+            levelSo.FindProperty("wSmoothing").floatValue = GrayboxLevelRecipe.WSmoothing;
+            levelSo.ApplyModifiedProperties();
+
+            var sessionSo = new SerializedObject(sessionController);
+            sessionSo.FindProperty("levelController").objectReferenceValue = levelController;
+            sessionSo.ApplyModifiedProperties();
+
+            var player = GardenEditorUtilities.FindOrCreatePrimitive("Player", PrimitiveType.Capsule);
+            player.transform.position = ChambersGrayboxRecipe.PlayerStartPosition;
+            var playerCharacter = player.GetComponent<PlayerCharacter>() ?? player.AddComponent<PlayerCharacter>();
+            playerCharacter.CurrentNodeId = ChambersGrayboxRecipe.PlayerStartNodeId;
+
+            var movement = player.GetComponent<MovementController>() ?? player.AddComponent<MovementController>();
+            var playerReset = player.GetComponent<LevelPlayerReset>() ?? player.AddComponent<LevelPlayerReset>();
+
+            var moveSo = new SerializedObject(movement);
+            moveSo.FindProperty("character").objectReferenceValue = playerCharacter;
+            moveSo.FindProperty("levelController").objectReferenceValue = levelController;
+            moveSo.FindProperty("moveSpeed").floatValue = GrayboxLevelRecipe.MoveSpeed;
+            moveSo.FindProperty("arrivalThreshold").floatValue = GrayboxLevelRecipe.ArrivalThreshold;
+            moveSo.ApplyModifiedProperties();
+
+            var playerResetSo = new SerializedObject(playerReset);
+            playerResetSo.FindProperty("character").objectReferenceValue = playerCharacter;
+            playerResetSo.FindProperty("movement").objectReferenceValue = movement;
+            playerResetSo.ApplyModifiedProperties();
+
+            sessionSo = new SerializedObject(sessionController);
+            sessionSo.FindProperty("objectiveSource").objectReferenceValue = playerCharacter;
+            sessionSo.ApplyModifiedProperties();
+
+            var pathPreview = GardenEditorUtilities.FindOrCreate("PathPreview", typeof(LevelPathPreviewRenderer));
+            var pathPreviewSo = new SerializedObject(pathPreview.GetComponent<LevelPathPreviewRenderer>());
+            pathPreviewSo.FindProperty("levelController").objectReferenceValue = levelController;
+            pathPreviewSo.FindProperty("yOffset").floatValue = GrayboxLevelRecipe.PathPreviewYOffset;
+            pathPreviewSo.ApplyModifiedProperties();
+
+            BuildWorldGeometry();
+
+            var nodesParent = GardenEditorUtilities.FindOrCreate("Nodes");
+            nodesParent.transform.position = Vector3.zero;
+            LevelNodeMirrorSync.SyncSceneNodeMirrors(levelDefinition, nodesParent.transform);
+
+            var input = GardenEditorUtilities.FindOrCreate(
+                "PlayerInput",
+                typeof(PlayerInputRouter),
+                typeof(TapMoveInput),
+                typeof(LevelRestartInput),
+                typeof(LevelNextInput));
+            var inputRouter = input.GetComponent<PlayerInputRouter>();
+            var restartInput = input.GetComponent<LevelRestartInput>() ?? input.AddComponent<LevelRestartInput>();
+
+            var routerSo = new SerializedObject(inputRouter);
+            routerSo.FindProperty("gameCamera").objectReferenceValue = cameraObj.GetComponent<Camera>();
+            routerSo.FindProperty("groundMask").intValue = LayerMask.GetMask("Default");
+            routerSo.FindProperty("levelController").objectReferenceValue = levelController;
+            routerSo.FindProperty("session").objectReferenceValue = sessionController;
+            routerSo.FindProperty("movement").objectReferenceValue = movement;
+            routerSo.FindProperty("snapRadius").floatValue = GrayboxLevelRecipe.SnapRadius;
+            routerSo.ApplyModifiedProperties();
+
+            var restartInputSo = new SerializedObject(restartInput);
+            restartInputSo.FindProperty("session").objectReferenceValue = sessionController;
+            restartInputSo.ApplyModifiedProperties();
+
+            playerResetSo = new SerializedObject(playerReset);
+            playerResetSo.FindProperty("inputRouter").objectReferenceValue = inputRouter;
+            playerResetSo.ApplyModifiedProperties();
+
+            var tapMove = input.GetComponent<TapMoveInput>() ?? input.AddComponent<TapMoveInput>();
+            var tapSo = new SerializedObject(tapMove);
+            tapSo.FindProperty("router").objectReferenceValue = inputRouter;
+            tapSo.ApplyModifiedProperties();
+
+            var levelFlow = GrayboxLevelFlowWiring.WireLevelFlow(
+                levelRuntime,
+                levelController,
+                sessionController,
+                input,
+                inputRouter,
+                playerReset);
+
+            GrayboxGraphMutationWiring.Wire(levelRuntime, levelController);
+            GrayboxTutorialWiring.Wire(levelRuntime, levelController, sessionController, movement);
+
+            return new GardenSceneBuilder.SceneBuildResult
+            {
+                GameCamera = cameraObj.GetComponent<Camera>(),
+                LevelController = levelController,
+                SessionController = sessionController,
+                PlayerCharacter = playerCharacter,
+                Movement = movement,
+                PlayerReset = playerReset,
+                InputRouter = inputRouter,
+                LevelFlow = levelFlow
+            };
+        }
+
+        private static void BuildWorldGeometry()
+        {
+            CreateRoomMarker("LobbyMarker", new Vector3(0f, 0.5f, 0f), new Vector3(1.5f, 1f, 1.5f));
+            CreateRoomMarker("ChamberAMarker", new Vector3(4f, 0.5f, 0f), new Vector3(1.5f, 1f, 1.5f));
+            CreateRoomMarker("ChamberBMarker", new Vector3(8f, 0.5f, 0f), new Vector3(1.5f, 1f, 1.5f));
+
+            var goalMarker = GardenEditorUtilities.FindOrCreatePrimitive("GoalMarker", PrimitiveType.Cylinder);
+            goalMarker.transform.position = new Vector3(12f, 0.75f, 0f);
+            goalMarker.transform.localScale = new Vector3(0.6f, 0.75f, 0.6f);
+
+            CreateDivider("Divider_LobbyA", new Vector3(2f, 1f, 0f));
+            CreateDivider("Divider_AB", new Vector3(6f, 1f, 0f));
+            CreateDivider("Divider_BGoal", new Vector3(10f, 1f, 0f));
+        }
+
+        private static void CreateRoomMarker(string name, Vector3 position, Vector3 scale)
+        {
+            var marker = GardenEditorUtilities.FindOrCreatePrimitive(name, PrimitiveType.Cube);
+            marker.transform.position = position;
+            marker.transform.localScale = scale;
+        }
+
+        private static void CreateDivider(string name, Vector3 position)
+        {
+            var divider = GardenEditorUtilities.FindOrCreatePrimitive(name, PrimitiveType.Cube);
+            divider.transform.position = position;
+            divider.transform.localScale = new Vector3(0.25f, 2f, 2.5f);
+        }
+    }
+}
