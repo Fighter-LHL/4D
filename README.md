@@ -2,7 +2,7 @@
 
 Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0,1]` 控制物体显隐、路径可达性与交互反馈。
 
-**当前阶段：** Prototype v0.2 — 三关 demo（Garden / Platform / Gate）、选关与下一关流程、macOS standalone 构建。
+**当前阶段：** Prototype v0.3 — 三关 demo polish（overlay、Playing 重开、教学提示、LevelSelect 首页）+ authoring hardening（LevelCatalog 校验、graph mutation、interactable profile）。
 
 ## 快速开始
 
@@ -12,7 +12,7 @@ Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0
 | 项目路径 | [`WSliceProto/`](WSliceProto/) |
 | 启动场景 | `LevelSelect`（Build Settings 第一项） |
 | 关卡顺序 | Garden_01 → Platform_01 → Gate_03 |
-| Baseline | `main` @ `c3a90b0`（v0.2 release hardening 锚点） |
+| Baseline | `main` @ `d6fbea1`（v0.3 release 锚点） |
 
 ### 1. 打开项目
 
@@ -27,8 +27,9 @@ WSliceProto/
 
 1. `WSlice → Generate Garden / Platform / Gate Graybox` — 生成或刷新对应场景
 2. `WSlice → Validate Garden / Platform / Gate Graybox` — 校验资产与场景引用
+3. `WSlice → Validate Level Catalog` — 校验 catalog 与 Build Settings
 
-或一键脚本（L0 + 三关 L1）：
+或一键脚本（L0 + 三关 L1 + catalog）：
 
 ```bash
 ./scripts/validate-local.sh
@@ -42,7 +43,7 @@ WSliceProto/
 
 ### 4. 手动试玩
 
-进入 Play Mode，从 `LevelSelect` 开始，按 [`PlayModeSmokeTest.md`](WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md) 走三关 demo 流程。
+进入 Play Mode，从 `LevelSelect` demo 首页开始，按 [`PlayModeSmokeTest.md`](WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md) 走三关 demo 流程。
 
 ### 5. macOS 构建
 
@@ -72,20 +73,21 @@ open WSliceProto/builds/macos/W-Slice.app
     └── Assets/_Project/      ← 游戏代码（Core/Level/Entities/Player/UI/Editor）
 ```
 
-## 已实现能力（v0.2）
+## 已实现能力（v0.3）
 
 - W 轴核心：`WState`、`WRange`、`WSnapResolver`、平滑插值与 snap
 - 关卡图：`LevelDefinition` + BFS 路径 + W 门控边
 - 关卡生命周期：`LevelSessionState`（NotStarted / Playing / Completed / Failed / Restarting）
 - 切片实体：`SliceProfile` + Presenter（Fade/Scale/Shader）
 - 玩家：tap 移动、W dial、W-aware movement retry
-- 世界交互：`IWorldInteractable`、`SliceInteractionModel`、W 门控 tap 交互
-- HUD：`HUDState` / `WDialModel`、路线提示、失败原因文案、`WDialTrack` 色带
-- 关卡流转：`LevelCatalog`、`LevelSelect` 选关、完成后 **N** 下一关、**R** 重开（Playing / Completed / Failed）
-- 三关 demo：Garden（缺口/楼梯）→ Platform（W-offset 平台）→ Gate（拉杆解锁 + 移动中断失败）
-- 编辑器：三关 graybox 生成器、`GrayboxVisual` 统一材质、Gizmos、Preview 窗口
-- macOS 构建：`./scripts/build-macos.sh` 或 Editor 菜单 → `WSliceProto/builds/macos/W-Slice.app`
-- 测试：EditMode + PlayMode 套件（需在 Editor 或有效 license 下运行）
+- 世界交互：`IWorldInteractable`、`WInteractableProfile`、`SliceInteractionModel`、W 区间 HUD hint
+- Graph mutation：`LevelGraphMutationController` + restart 回滚（Gate 拉杆）
+- HUD / UI：路线提示、教学提示、`LevelOutcomeOverlay`（Next / Retry / Level Select）
+- 关卡流转：`LevelCatalog`、`LevelSelect` demo 首页、**N** 下一关、**R** 重开（Playing / Completed / Failed）
+- 三关 demo：Garden → Platform → Gate
+- Authoring：`LevelCatalogValidator`、`GrayboxLevelRecipe`、三关 graybox 生成器
+- macOS 构建：`./scripts/build-macos.sh` → `WSliceProto/builds/macos/W-Slice.app`
+- 测试：EditMode + PlayMode 套件
 
 ## 已知限制
 
@@ -93,19 +95,20 @@ open WSliceProto/builds/macos/W-Slice.app
 - **batchmode 测试不稳定**：`-runTests` 有时退出 0 但不产出 XML（见 Validation.md）
 - **无正式美术/音效**：灰盒 demo，URP Lit 统一材质
 - **仅 macOS 构建**：无 Windows / Linux standalone、无签名公证
+- **仍为三关**：第四关 multi-room 在 v0.3+ content expansion 中
 
 ## 后续规划（v0.3+）
 
-1. **Demo polish** — 完成/失败 overlay UI、Playing 状态下可重开、每关教学提示、LevelSelect 首页
-2. **Authoring hardening** — `LevelCatalog` 校验器、graph mutation 规范化、interactable profile 化、graybox recipe
-3. **Content expansion** — 第四关 multi-room W sequence、第五关 hazard platform（框架稳定后再加）
+1. **Content expansion** — 第四关 multi-room W sequence（Chambers_04）、第五关 hazard platform
+2. **CI** — GitHub Actions（可选）
 
-Release checklist 见 [`docs/releases/v0.2-wslice-demo.md`](docs/releases/v0.2-wslice-demo.md)。
+Release checklist 见 [`docs/releases/v0.3-wslice-demo.md`](docs/releases/v0.3-wslice-demo.md)。
 
 ## 文档索引
 
 - [WSliceProto/README.md](WSliceProto/README.md) — 模块与设计原则
 - [WSliceProto/Validation.md](WSliceProto/Validation.md) — 验证命令与 PR 测试记录规范
-- [docs/releases/v0.2-wslice-demo.md](docs/releases/v0.2-wslice-demo.md) — v0.2 release checklist
+- [docs/releases/v0.3-wslice-demo.md](docs/releases/v0.3-wslice-demo.md) — v0.3 release checklist
+- [docs/releases/v0.2-wslice-demo.md](docs/releases/v0.2-wslice-demo.md) — v0.2 release checklist（历史）
 - [ManualTesting.md](WSliceProto/Assets/_Project/Tests/ManualTesting.md) — Edit/Play Mode 测试列表
 - [PlayModeSmokeTest.md](WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md) — 三关 demo 手动冒烟清单

@@ -1,4 +1,4 @@
-# Play Mode Smoke Test — v0.2 三关 Demo
+# Play Mode Smoke Test — v0.3 三关 Demo
 
 验证 **LevelSelect → Garden → Platform → Gate** 完整 demo 流程。单关细节以 Garden 为最完整示例；Platform / Gate 侧重各自机制。
 
@@ -13,7 +13,7 @@
 ## Part 0 — LevelSelect
 
 1. 进入 Play Mode（或启动 macOS build）。
-2. 应看到标题 **W-Slice Demo**、副标题、左下 **v0.3-dev**、右下 **Quit**。
+2. 应看到标题 **W-Slice Demo**、副标题、左下 **v0.3.0**、右下 **Quit**。
 3. 三个关卡按钮显示中文名 + 英文教学主题（如 gaps / platform / interact）。
 4. 点击各按钮应加载 `GardenGraybox` / `PlatformGraybox` / `GateGraybox`。
 
@@ -88,12 +88,12 @@ open WSliceProto/builds/macos/W-Slice.app
 1. 启动后首先进入 LevelSelect。
 2. 走一遍 Part 0–3 的核心路径（至少每关能加载并完成一次）。
 3. 检查 `WSliceProto/builds/macos/build-info.json`：
-   - `bundleVersion`: `0.2.0`
+   - `bundleVersion`: `0.3.0`
    - `enabledScenes` 含 LevelSelect、Garden、Platform、Gate
 
 ---
 
-## 快捷键（v0.2）
+## 快捷键（v0.3）
 
 | 键 | 作用 |
 |---|---|

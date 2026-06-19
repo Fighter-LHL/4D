@@ -1,6 +1,6 @@
 # 手动测试指南
 
-**版本：** Prototype v0.2 — 三关 demo + LevelSelect + macOS build
+**版本：** Prototype v0.3 — 三关 demo + LevelSelect 首页 + overlay/教学/Playing 重开
 
 当前环境可以用 Unity batchmode 做脚本编译和三关 graybox 校验；`-runTests` 有时会退出 0 但不产出 XML。遇到这种情况时，用 Unity Editor Test Runner 手动执行 EditMode/PlayMode。
 
@@ -134,7 +134,7 @@ open WSliceProto/builds/macos/W-Slice.app
 **预期：**
 
 - 输出 `WSliceProto/builds/macos/W-Slice.app`
-- 同目录 `build-info.json` 含 version `0.2.0` 与四个启用场景
+- 同目录 `build-info.json` 含 version `0.3.0` 与四个启用场景
 - 启动后进入 LevelSelect，三关按钮可加载对应关卡
 
 Editor 菜单 `WSlice → Build/macOS Standalone` 应输出到同一路径。
