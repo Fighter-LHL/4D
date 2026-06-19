@@ -56,9 +56,14 @@ export WSLICE_BUILD_OUTPUT="$OUTPUT"
   -quit -batchmode -nographics \
   -logFile -
 
+MANIFEST="$(dirname "$OUTPUT")/build-info.json"
+
 if [[ -d "$OUTPUT" ]]; then
   echo ""
   echo "OK: Built $OUTPUT"
+  if [[ -f "$MANIFEST" ]]; then
+    echo "Manifest: $MANIFEST"
+  fi
   echo "Run: open \"$OUTPUT\""
 else
   echo "ERROR: Build output not found at $OUTPUT" >&2
