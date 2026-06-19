@@ -30,6 +30,12 @@ namespace WSlice.Editor
             public const float DebugHeight = 110f;
             public const float DebugLeftMargin = 20f;
             public const float DebugTopMargin = 20f;
+
+            public const float OutcomePanelWidth = 420f;
+            public const float OutcomePanelHeight = 240f;
+            public const float OutcomeButtonWidth = 160f;
+            public const float OutcomeButtonHeight = 44f;
+            public const float OutcomeButtonSpacing = 12f;
         }
     }
 }

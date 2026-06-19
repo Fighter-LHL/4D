@@ -36,6 +36,11 @@ namespace WSlice.Level
             return LoadScene(entry.SceneName);
         }
 
+        public bool TryLoadLevelSelect()
+        {
+            return LoadScene(LevelCatalogPaths.LevelSelectSceneName);
+        }
+
         private static bool LoadScene(string sceneName)
         {
             if (string.IsNullOrEmpty(sceneName))

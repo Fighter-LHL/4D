@@ -22,6 +22,7 @@ namespace WSlice.Editor
             BuildWDialSlider(canvas.transform, scene);
             BuildWDialTrack(canvas.transform, scene);
             BuildPlayerHud(canvas.transform, scene);
+            BuildLevelOutcomeOverlay(canvas.transform, scene);
             BuildDebugOverlay(canvas.transform, scene);
         }
 
@@ -123,6 +124,133 @@ namespace WSlice.Editor
             playerHUDSo.FindProperty("character").objectReferenceValue = scene.PlayerCharacter;
             playerHUDSo.FindProperty("flow").objectReferenceValue = scene.LevelFlow;
             playerHUDSo.ApplyModifiedProperties();
+        }
+
+        private static void BuildLevelOutcomeOverlay(Transform canvas, GardenSceneBuilder.SceneBuildResult scene)
+        {
+            var overlayRoot = GardenEditorUtilities.FindOrCreate(
+                "LevelOutcomeOverlay",
+                typeof(RectTransform),
+                typeof(Image),
+                typeof(LevelOutcomeOverlayView));
+            overlayRoot.transform.SetParent(canvas, false);
+            overlayRoot.SetActive(false);
+
+            var backdrop = overlayRoot.GetComponent<Image>();
+            backdrop.color = new Color(0f, 0f, 0f, 0.62f);
+            backdrop.raycastTarget = true;
+
+            var overlayRect = overlayRoot.GetComponent<RectTransform>();
+            overlayRect.anchorMin = Vector2.zero;
+            overlayRect.anchorMax = Vector2.one;
+            overlayRect.offsetMin = Vector2.zero;
+            overlayRect.offsetMax = Vector2.zero;
+
+            var panel = CreateUIImage(
+                "Panel",
+                overlayRoot.transform,
+                new Color(0.12f, 0.12f, 0.12f, 0.95f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f));
+            var panelRect = panel.GetComponent<RectTransform>();
+            panelRect.sizeDelta = new Vector2(
+                GardenGrayboxRecipe.UI.OutcomePanelWidth,
+                GardenGrayboxRecipe.UI.OutcomePanelHeight);
+
+            var titleObj = new GameObject("Title", typeof(RectTransform), typeof(TextMeshProUGUI));
+            titleObj.transform.SetParent(panel.transform, false);
+            Undo.RegisterCreatedObjectUndo(titleObj, "Create Outcome Title");
+            var titleText = titleObj.GetComponent<TextMeshProUGUI>();
+            titleText.text = "Level Complete";
+            titleText.fontSize = 28f;
+            titleText.alignment = TextAlignmentOptions.Center;
+            titleText.color = Color.white;
+            var titleRect = titleObj.GetComponent<RectTransform>();
+            titleRect.anchorMin = new Vector2(0.5f, 1f);
+            titleRect.anchorMax = new Vector2(0.5f, 1f);
+            titleRect.pivot = new Vector2(0.5f, 1f);
+            titleRect.anchoredPosition = new Vector2(0f, -24f);
+            titleRect.sizeDelta = new Vector2(GardenGrayboxRecipe.UI.OutcomePanelWidth - 40f, 48f);
+
+            var buttonRow = CreateUIRect(
+                "Buttons",
+                panel.transform,
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f));
+            buttonRow.sizeDelta = new Vector2(
+                GardenGrayboxRecipe.UI.OutcomePanelWidth - 40f,
+                GardenGrayboxRecipe.UI.OutcomeButtonHeight * 3f
+                    + GardenGrayboxRecipe.UI.OutcomeButtonSpacing * 2f);
+            buttonRow.anchoredPosition = new Vector2(0f, 28f);
+
+            var nextButton = CreateOverlayButton(buttonRow, "NextButton", "Next");
+            var restartButton = CreateOverlayButton(buttonRow, "RestartButton", "Restart");
+            var levelSelectButton = CreateOverlayButton(buttonRow, "LevelSelectButton", "Level Select");
+
+            PositionOverlayButton(nextButton, 0);
+            PositionOverlayButton(restartButton, 1);
+            PositionOverlayButton(levelSelectButton, 2);
+
+            var overlayView = overlayRoot.GetComponent<LevelOutcomeOverlayView>()
+                ?? overlayRoot.AddComponent<LevelOutcomeOverlayView>();
+            var overlaySo = new SerializedObject(overlayView);
+            overlaySo.FindProperty("panelRoot").objectReferenceValue = overlayRoot;
+            overlaySo.FindProperty("titleLabel").objectReferenceValue = titleText;
+            overlaySo.FindProperty("nextButton").objectReferenceValue = nextButton;
+            overlaySo.FindProperty("restartButton").objectReferenceValue = restartButton;
+            overlaySo.FindProperty("levelSelectButton").objectReferenceValue = levelSelectButton;
+            overlaySo.FindProperty("session").objectReferenceValue = scene.SessionController;
+            overlaySo.FindProperty("flow").objectReferenceValue = scene.LevelFlow;
+            overlaySo.ApplyModifiedProperties();
+        }
+
+        private static Button CreateOverlayButton(RectTransform parent, string name, string label)
+        {
+            var buttonObj = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+            buttonObj.transform.SetParent(parent, false);
+            Undo.RegisterCreatedObjectUndo(buttonObj, "Create " + name);
+
+            var image = buttonObj.GetComponent<Image>();
+            image.color = new Color(0.24f, 0.24f, 0.24f, 1f);
+
+            var button = buttonObj.GetComponent<Button>();
+            button.targetGraphic = image;
+
+            var buttonRect = buttonObj.GetComponent<RectTransform>();
+            buttonRect.sizeDelta = new Vector2(
+                GardenGrayboxRecipe.UI.OutcomeButtonWidth,
+                GardenGrayboxRecipe.UI.OutcomeButtonHeight);
+
+            var labelObj = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+            labelObj.transform.SetParent(buttonObj.transform, false);
+            Undo.RegisterCreatedObjectUndo(labelObj, "Create " + name + " Label");
+            var labelText = labelObj.GetComponent<TextMeshProUGUI>();
+            labelText.text = label;
+            labelText.fontSize = 20f;
+            labelText.alignment = TextAlignmentOptions.Center;
+            labelText.color = Color.white;
+            var labelRect = labelObj.GetComponent<RectTransform>();
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = Vector2.zero;
+            labelRect.offsetMax = Vector2.zero;
+
+            return button;
+        }
+
+        private static void PositionOverlayButton(Button button, int index)
+        {
+            if (button == null)
+                return;
+
+            var rect = button.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0f);
+            rect.anchorMax = new Vector2(0.5f, 0f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            float y = index * (GardenGrayboxRecipe.UI.OutcomeButtonHeight + GardenGrayboxRecipe.UI.OutcomeButtonSpacing);
+            rect.anchoredPosition = new Vector2(0f, y);
         }
 
         private static void BuildDebugOverlay(Transform canvas, GardenSceneBuilder.SceneBuildResult scene)
