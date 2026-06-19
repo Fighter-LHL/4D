@@ -1,10 +1,10 @@
 # W-Slice 本地验证清单
 
-本文档把 compile、Garden graybox 校验、自动化测试、手动冒烟分层说明，便于新开发者 clone 后按同一流程验证。
+本文档把 compile、三关 graybox 校验、自动化测试、手动冒烟、macOS 构建分层说明，便于新开发者 clone 后按同一流程验证。
 
 **Unity 版本：** `6000.0.77f1`（见 `ProjectSettings/ProjectVersion.txt`）
 
-**Baseline commit：** `e0e88ab`（PR #1: HUD state protocol 合并后）
+**Baseline commit：** `c3a90b0`（v0.2 — PR #11 合并后）
 
 ---
 
@@ -13,10 +13,11 @@
 | 层级 | 做什么 | 必须通过？ |
 |---|---|---|
 | L0 Compile | batchmode 打开项目并编译脚本 | 是 |
-| L1 Validate | `WSlice.Validate Garden Graybox` | 是 |
+| L1 Validate | 三关 graybox validate（Garden / Platform / Gate） | 是 |
 | L2 EditMode | 纯逻辑单元测试 | 是（有 license 时） |
-| L3 PlayMode | Garden 场景集成测试 | 是（有 license 时） |
-| L4 Smoke | 手动 Play Mode 试玩 | 发布前建议 |
+| L3 PlayMode | 三关 + LevelFlow 集成测试 | 是（有 license 时） |
+| L4 Smoke | 手动 Play Mode 三关 demo 试玩 | 发布前建议 |
+| L5 Build | macOS standalone 构建 | 发布前建议 |
 
 ---
 
@@ -28,7 +29,7 @@
 ./scripts/validate-local.sh
 ```
 
-默认执行 **L0 + L1**。加 `--tests` 尝试 **L2 + L3**（需要有效 Unity license 且 batchmode 测试可用）。
+默认执行 **L0 + L1**（含三关 validate）。加 `--tests` 尝试 **L2 + L3**（需要有效 Unity license 且 batchmode 测试可用）。
 
 环境变量：
 
@@ -43,32 +44,61 @@
 
 ```bash
 /Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath "$(pwd)" \
+  -projectPath WSliceProto \
   -quit -batchmode -nographics \
   -logFile -
 ```
+
+（从仓库根目录执行；`-projectPath` 也可写绝对路径。）
 
 **预期：** 日志含 `Tundra build success`，退出码 `0`。
 
 ---
 
-## L1 — Garden Graybox 校验
+## L1 — Graybox 校验（三关）
 
-Editor 菜单：`WSlice → Validate Garden Graybox`
+`validate-local.sh` 依次执行以下三项。也可单独在 Editor 菜单或 batchmode 运行。
 
-或 batchmode：
+### Garden
+
+Editor：`WSlice → Validate Garden Graybox`
 
 ```bash
 /Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath "$(pwd)" \
+  -projectPath WSliceProto \
   -executeMethod WSlice.Editor.GardenGrayboxGenerator.Validate \
-  -quit -batchmode -nographics \
-  -logFile -
+  -quit -batchmode -nographics -logFile -
 ```
 
-**预期：** 日志含 `GardenGraybox validation passed.`，退出码 `0`。
+**预期：** `GardenGraybox validation passed.`
 
-校验内容：SliceProfile 资产、场景对象引用、`LevelRuntime` / `PlayerInput` / HUD / WDial 组件等。
+### Platform
+
+Editor：`WSlice → Validate Platform Graybox`
+
+```bash
+/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
+  -projectPath WSliceProto \
+  -executeMethod WSlice.Editor.PlatformGrayboxGenerator.Validate \
+  -quit -batchmode -nographics -logFile -
+```
+
+**预期：** `PlatformGraybox validation passed.`
+
+### Gate
+
+Editor：`WSlice → Validate Gate Graybox`
+
+```bash
+/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
+  -projectPath WSliceProto \
+  -executeMethod WSlice.Editor.GateGrayboxGenerator.Validate \
+  -quit -batchmode -nographics -logFile -
+```
+
+**预期：** `GateGraybox validation passed.`
+
+校验内容：SliceProfile 资产、场景对象引用、`LevelRuntime` / `LevelSession` / `LevelFlow` / `PlayerInput` / HUD / WDial / interactable 组件等。
 
 ---
 
@@ -80,18 +110,18 @@ Editor：`Window → General → Test Runner → Edit Mode → Run All`
 
 ```bash
 /Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath "$(pwd)" \
+  -projectPath WSliceProto \
   -runTests -testPlatform EditMode \
-  -testResults TestResults/editmode-results.xml \
-  -quit -batchmode -nographics \
-  -logFile -
+  -testResults WSliceProto/TestResults/editmode-results.xml \
+  -quit -batchmode -nographics -logFile -
 ```
 
 **预期套件：**
 
-- `WRangeTests`, `WConditionTests`, `WStateTests`, `WSnapResolverTests`
-- `LevelGraphRuntimeTests`, `LevelDefinitionValidatorTests`
-- `WDialModelTests`, `PlayerHUDModelTests`, `WDialTrackModelTests`
+- Core: `WRangeTests`, `WConditionTests`, `WStateTests`, `WSnapResolverTests`
+- Level: `LevelGraphRuntimeTests`, `LevelDefinitionValidatorTests`, `LevelSessionTests`, `LevelRestartRulesTests`, `LevelFlowModelTests`, `LevelPathPreviewModelTests`, `LevelDefinitionInspectorModelTests`, `LevelNodeMirrorNamingTests`
+- Interaction: `SliceInteractionModelTests`
+- UI: `WDialModelTests`, `PlayerHUDModelTests`, `WDialTrackModelTests`
 
 **已知问题：** 部分环境 `-runTests` 退出 `0` 但不生成 XML。若 XML 缺失，必须在 Unity Editor Test Runner 中手动 Run All 并记录结果。
 
@@ -105,62 +135,30 @@ Editor：`Test Runner → Play Mode → Run All`
 
 ```bash
 /Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath "$(pwd)" \
+  -projectPath WSliceProto \
   -runTests -testPlatform PlayMode \
-  -testResults TestResults/playmode-results.xml \
-  -quit -batchmode -nographics \
-  -logFile -
+  -testResults WSliceProto/TestResults/playmode-results.xml \
+  -quit -batchmode -nographics -logFile -
 ```
 
 **预期套件：**
 
-- `GardenGrayboxBehaviorTests`
-- `GardenGrayboxMovementTests`
-- `SliceEntityPlayModeTests`
-- `WDialViewPlayModeTests`
+- Garden: `GardenGrayboxBehaviorTests`, `GardenGrayboxMovementTests`
+- Platform: `PlatformGrayboxTests`
+- Gate: `GateGrayboxTests`
+- Flow: `LevelFlowPlayModeTests`
+- Entities/UI: `SliceEntityPlayModeTests`, `WDialViewPlayModeTests`, `LevelPathPreviewPlayModeTests`
 
 ---
 
 ## L4 — 手动冒烟
 
-按 [`Assets/_Project/Tests/PlayModeSmokeTest.md`](Assets/_Project/Tests/PlayModeSmokeTest.md)：
+按 [`Assets/_Project/Tests/PlayModeSmokeTest.md`](Assets/_Project/Tests/PlayModeSmokeTest.md) 完整走一遍：
 
-1. 打开 `GardenGraybox` 场景，进入 Play Mode
-2. W=0：墙可见，缺口/楼梯不可见，Outside→Gap 不可走
-3. W≈0.55：缺口出现，可进入花园
-4. W≈0.85：楼梯出现，可上到 `FlowerTop`
-5. HUD 显示路线提示 / 失败原因；WDialTrack 色带与边区间一致
-
----
-
-## PR 测试记录规范
-
-每个改动 WSlice 代码的 PR，body 中应包含：
-
-```markdown
-## Test plan
-
-- Unity: 6000.0.77f1
-- L0 Compile: Pass / Fail / Not run
-- L1 Validate Garden Graybox: Pass / Fail / Not run
-- L2 EditMode: Pass / Fail / Not run (N/N tests) — Editor manual if batchmode skipped
-- L3 PlayMode: Pass / Fail / Not run (N/N tests)
-- L4 Smoke: Pass / Fail / Not run
-```
-
-不要求把 XML 提交进仓库，但必须写清实际执行方式（batchmode 或 Editor 手动）。
-
----
-
-## 生成场景（开发用）
-
-修改生成器或关卡数据后：
-
-1. `WSlice → Generate Garden Graybox`
-2. `WSlice → Validate Garden Graybox`
-3. 重新跑 L2/L3 或至少 L4
-
----
+1. **LevelSelect** — 三关按钮加载正确场景
+2. **Garden_01** — W 门控缺口/楼梯、目标到达、Completed 后 **N** 进 Platform
+3. **Platform_01** — W-offset 平台、West→East 边 W 区间通行
+4. **Gate_03** — 拉杆 interactable、GateRoom→Goal 解锁、移动中断 Failed、**R** 重开
 
 ---
 
@@ -174,17 +172,56 @@ Editor：`Test Runner → Play Mode → Run All`
 
 或 Editor：`WSlice → Build/macOS Standalone`
 
-**预期：** 生成 `WSliceProto/builds/macos/W-Slice.app`，日志含 `macOS build succeeded`，退出码 `0`。
+**输出路径（统一）：** `WSliceProto/builds/macos/W-Slice.app`
 
-启动场景为 Build Settings 中启用的第一项（`LevelSelect`）。
+**Manifest：** `WSliceProto/builds/macos/build-info.json`（version、Unity 版本、enabled scenes、build time、output path）
 
-环境变量 `WSLICE_BUILD_OUTPUT` 可覆盖输出路径。
+**预期：** 日志含 `macOS build succeeded`，退出码 `0`。启动后首先进入 `LevelSelect`。
+
+Build Settings 启用场景顺序：
+
+1. `LevelSelect`
+2. `GardenGraybox`
+3. `PlatformGraybox`
+4. `GateGraybox`
+
+环境变量 `WSLICE_BUILD_OUTPUT` 可覆盖输出 `.app` 路径（manifest 写入同目录）。
+
+---
+
+## PR 测试记录规范
+
+每个改动 WSlice 代码的 PR，body 中应包含：
+
+```markdown
+## Test plan
+
+- Unity: 6000.0.77f1
+- L0 Compile: Pass / Fail / Not run
+- L1 Validate (Garden / Platform / Gate): Pass / Fail / Not run
+- L2 EditMode: Pass / Fail / Not run (N/N tests) — Editor manual if batchmode skipped
+- L3 PlayMode: Pass / Fail / Not run (N/N tests)
+- L4 Smoke: Pass / Fail / Not run
+- L5 macOS Build: Pass / Fail / Not run
+```
+
+不要求把 XML 提交进仓库，但必须写清实际执行方式（batchmode 或 Editor 手动）。
+
+---
+
+## 生成场景（开发用）
+
+修改生成器或关卡数据后：
+
+1. `WSlice → Generate <Level> Graybox`
+2. `WSlice → Validate <Level> Graybox`
+3. 重新跑 L2/L3 或至少 L4
 
 ---
 
 ## 当前能力边界（v0.2）
 
 - 有：三关 demo、选关/下一关、W 门控机关、HUD/WDial、macOS standalone 构建、统一灰盒材质
-- 无：CI、Windows/Linux 构建、正式美术与音效
+- 无：CI、Windows/Linux 构建、正式美术与音效、Playing 状态下重开
 
-下一里程碑：CI 与发布 tag（`v0.2-wslice-demo`）。
+下一里程碑：v0.3 demo polish（overlay UI、教学提示、Playing restart）。Release tag：`v0.2-wslice-demo`（见 [`docs/releases/v0.2-wslice-demo.md`](../docs/releases/v0.2-wslice-demo.md)）。

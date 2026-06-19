@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -8,7 +9,7 @@ namespace WSlice.Editor
 {
     public static class WSliceBuildPlayer
     {
-        public const string DefaultMacOutput = "builds/macos/W-Slice.app";
+        public const string DefaultMacOutputRelative = "builds/macos/W-Slice.app";
 
         [MenuItem("WSlice/Build/macOS Standalone")]
         public static void BuildMacOSMenu()
@@ -53,18 +54,40 @@ namespace WSlice.Editor
                 return;
             }
 
+            WriteBuildInfo(outputPath, scenes);
             Debug.Log($"macOS build succeeded: {outputPath}");
         }
 
         private static string ResolveOutputPath()
         {
-            string env = System.Environment.GetEnvironmentVariable("WSLICE_BUILD_OUTPUT");
+            string env = Environment.GetEnvironmentVariable("WSLICE_BUILD_OUTPUT");
             if (!string.IsNullOrWhiteSpace(env))
                 return env;
 
             string projectRoot = Path.GetDirectoryName(Application.dataPath) ?? string.Empty;
-            string repoRoot = Path.GetDirectoryName(projectRoot) ?? projectRoot;
-            return Path.Combine(repoRoot, "builds", "macos", "W-Slice.app");
+            return Path.Combine(projectRoot, DefaultMacOutputRelative);
+        }
+
+        private static void WriteBuildInfo(string outputPath, string[] enabledScenes)
+        {
+            string outputDirectory = Path.GetDirectoryName(outputPath);
+            if (string.IsNullOrEmpty(outputDirectory))
+                return;
+
+            var info = new BuildInfoManifest
+            {
+                version = PlayerSettings.bundleVersion,
+                productName = PlayerSettings.productName,
+                unityVersion = Application.unityVersion,
+                buildTimeUtc = DateTime.UtcNow.ToString("o"),
+                outputPath = outputPath,
+                enabledScenes = enabledScenes
+            };
+
+            string manifestPath = Path.Combine(outputDirectory, "build-info.json");
+            string json = JsonUtility.ToJson(info, true);
+            File.WriteAllText(manifestPath, json);
+            Debug.Log($"Wrote build manifest: {manifestPath}");
         }
 
         private static void LogBuildSummary(BuildReport report)
@@ -77,6 +100,17 @@ namespace WSlice.Editor
                 + $"target={report.summary.platform} | "
                 + $"size={report.summary.totalSize} bytes | "
                 + $"time={report.summary.totalTime}");
+        }
+
+        [Serializable]
+        private class BuildInfoManifest
+        {
+            public string version;
+            public string productName;
+            public string unityVersion;
+            public string buildTimeUtc;
+            public string outputPath;
+            public string[] enabledScenes;
         }
     }
 }

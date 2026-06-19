@@ -1,64 +1,147 @@
 # 手动测试指南
 
-当前环境可以用 Unity batchmode 做脚本编译和灰盒校验；`-runTests` 有时会退出 0 但不产出 XML。遇到这种情况时，用 Unity Editor Test Runner 手动执行 EditMode/PlayMode。
+**版本：** Prototype v0.2 — 三关 demo + LevelSelect + macOS build
+
+当前环境可以用 Unity batchmode 做脚本编译和三关 graybox 校验；`-runTests` 有时会退出 0 但不产出 XML。遇到这种情况时，用 Unity Editor Test Runner 手动执行 EditMode/PlayMode。
+
+项目路径：仓库内 `WSliceProto/`（用 Unity Hub 打开该目录）。
+
+---
+
+## L1 — Graybox 校验（batchmode）
+
+从仓库根目录：
+
+```bash
+./scripts/validate-local.sh
+```
+
+或单独执行：
+
+```bash
+UNITY=/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity
+PROJECT=WSliceProto
+
+$UNITY -projectPath $PROJECT -executeMethod WSlice.Editor.GardenGrayboxGenerator.Validate -quit -batchmode -nographics
+$UNITY -projectPath $PROJECT -executeMethod WSlice.Editor.PlatformGrayboxGenerator.Validate -quit -batchmode -nographics
+$UNITY -projectPath $PROJECT -executeMethod WSlice.Editor.GateGrayboxGenerator.Validate -quit -batchmode -nographics
+```
+
+**预期：** 各关日志含 `<Level>Graybox validation passed.`
+
+---
 
 ## Edit Mode 测试
 
-1. 打开 Unity Editor，加载项目：`/Users/lvhanlin/Documents/4D/WSliceProto`。
-2. 打开 Test Runner 窗口：`Window -> General -> Test Runner`。
-3. 切换到 `Edit Mode` 标签。
-4. 点击 `Run All`。
+1. 打开 Unity Editor，加载 `WSliceProto/`。
+2. `Window → General → Test Runner` → **Edit Mode** → **Run All**。
 
 ### 预期通过的测试
 
-- `WRangeTests`
-- `WConditionTests`
-- `WStateTests`
-- `WSnapResolverTests`
-- `LevelGraphRuntimeTests`
-- `WDialModelTests`
-- `PlayerHUDModelTests`
-- `WDialTrackModelTests`
-- `LevelDefinitionValidatorTests`
+**Core**
+
+- `WRangeTests`, `WConditionTests`, `WStateTests`, `WSnapResolverTests`
+
+**Level**
+
+- `LevelGraphRuntimeTests`, `LevelDefinitionValidatorTests`
+- `LevelSessionTests`, `LevelRestartRulesTests`, `LevelFlowModelTests`
+- `LevelPathPreviewModelTests`, `LevelDefinitionInspectorModelTests`, `LevelNodeMirrorNamingTests`
+
+**Interaction**
+
+- `SliceInteractionModelTests`
+
+**UI**
+
+- `WDialModelTests`, `PlayerHUDModelTests`, `WDialTrackModelTests`
+
+---
 
 ## Play Mode 测试
 
-1. 打开 Unity Editor，加载项目：`/Users/lvhanlin/Documents/4D/WSliceProto`。
-2. 打开 Test Runner，切换到 `Play Mode`。
-3. 点击 `Run All`。
+1. 打开 Unity Editor，加载 `WSliceProto/`。
+2. Test Runner → **Play Mode** → **Run All**。
 
 ### 预期通过的测试
 
-- `GardenGrayboxBehaviorTests`
-- `GardenGrayboxMovementTests`
-- `SliceEntityPlayModeTests`
-- `WDialViewPlayModeTests`
+**Garden**
 
-## 命令行方式
+- `GardenGrayboxBehaviorTests`, `GardenGrayboxMovementTests`
+
+**Platform**
+
+- `PlatformGrayboxTests`
+
+**Gate**
+
+- `GateGrayboxTests`
+
+**Flow**
+
+- `LevelFlowPlayModeTests`
+
+**Entities / UI**
+
+- `SliceEntityPlayModeTests`, `WDialViewPlayModeTests`, `LevelPathPreviewPlayModeTests`
+
+---
+
+## 命令行测试（可选）
 
 ```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath /Users/lvhanlin/Documents/4D/WSliceProto \
+UNITY=/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity
+PROJECT=WSliceProto
+
+# L0 Compile
+$UNITY -projectPath $PROJECT -quit -batchmode -nographics
+# Expected: Tundra build success
+
+# L2 EditMode
+$UNITY -projectPath $PROJECT \
   -runTests -testPlatform EditMode \
-  -testResults editmode-results.xml \
-  -quit -batchmode
-```
+  -testResults $PROJECT/TestResults/editmode-results.xml \
+  -quit -batchmode -nographics
 
-Expected: `test-run result="Passed"` and an XML file. If no XML is produced, run the same suite in the Unity Editor Test Runner.
-
-```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath /Users/lvhanlin/Documents/4D/WSliceProto \
+# L3 PlayMode
+$UNITY -projectPath $PROJECT \
+  -runTests -testPlatform PlayMode \
+  -testResults $PROJECT/TestResults/playmode-results.xml \
   -quit -batchmode -nographics
 ```
 
-Expected: `Tundra build success`。
+若 XML 未生成，在 Editor Test Runner 中手动 Run All 并记录结果。
+
+---
+
+## L4 — 手动冒烟（三关 demo）
+
+完整步骤见 [`PlayModeSmokeTest.md`](PlayModeSmokeTest.md)。摘要：
+
+1. 打开 `LevelSelect` 或从 macOS build 启动
+2. 依次验证 Garden → Platform → Gate（**N** 下一关）
+3. Gate 关验证拉杆交互、移动中断 Failed、**R** 重开
+
+---
+
+## L5 — macOS 构建
 
 ```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath /Users/lvhanlin/Documents/4D/WSliceProto \
-  -executeMethod WSlice.Editor.GardenGrayboxGenerator.Validate \
-  -quit -batchmode -nographics
+./scripts/build-macos.sh
+open WSliceProto/builds/macos/W-Slice.app
 ```
 
-Expected: `GardenGraybox validation passed.`。
+**预期：**
+
+- 输出 `WSliceProto/builds/macos/W-Slice.app`
+- 同目录 `build-info.json` 含 version `0.2.0` 与四个启用场景
+- 启动后进入 LevelSelect，三关按钮可加载对应关卡
+
+Editor 菜单 `WSlice → Build/macOS Standalone` 应输出到同一路径。
+
+---
+
+## 已知行为（v0.2）
+
+- **R** 重开仅在 **Completed** 或 **Failed** 状态下生效；Playing 中按 R 无反应（v0.3 计划改进）
+- Gate 关：未在正确 W 点击 lever 时 HUD 显示 `NotInteractiveAtCurrentW`
