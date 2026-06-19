@@ -4,7 +4,7 @@
 
 **Unity 版本：** `6000.0.77f1`（见 `ProjectSettings/ProjectVersion.txt`）
 
-**Baseline commit：** `c3a90b0`（v0.2 — PR #11 合并后）
+**Baseline commit：** `d6fbea1`（v0.3 — PR #16 合并后）
 
 ---
 
@@ -132,8 +132,8 @@ Editor：`Window → General → Test Runner → Edit Mode → Run All`
 **预期套件：**
 
 - Core: `WRangeTests`, `WConditionTests`, `WStateTests`, `WSnapResolverTests`
-- Level: `LevelGraphRuntimeTests`, `LevelDefinitionValidatorTests`, `LevelCatalogValidatorTests`, `LevelSessionTests`, `LevelRestartRulesTests`, `LevelFlowModelTests`, `LevelPathPreviewModelTests`, `LevelDefinitionInspectorModelTests`, `LevelNodeMirrorNamingTests`
-- Interaction: `SliceInteractionModelTests`
+- Level: `LevelGraphRuntimeTests`, `LevelDefinitionValidatorTests`, `LevelCatalogValidatorTests`, `LevelSessionTests`, `LevelRestartRulesTests`, `LevelFlowModelTests`, `GraphMutationModelTests`, `LevelGraphMutationControllerTests`, `LevelPathPreviewModelTests`, `LevelDefinitionInspectorModelTests`, `LevelNodeMirrorNamingTests`, `LevelTutorialDismissRulesTests`, `LevelSelectButtonModelTests`
+- Interaction: `SliceInteractionModelTests`, `WInteractableProfileModelTests`
 - UI: `WDialModelTests`, `PlayerHUDModelTests`, `WDialTrackModelTests`
 
 **已知问题：** 部分环境 `-runTests` 退出 `0` 但不生成 XML。若 XML 缺失，必须在 Unity Editor Test Runner 中手动 Run All 并记录结果。
@@ -159,7 +159,7 @@ Editor：`Test Runner → Play Mode → Run All`
 - Garden: `GardenGrayboxBehaviorTests`, `GardenGrayboxMovementTests`
 - Platform: `PlatformGrayboxTests`
 - Gate: `GateGrayboxTests`
-- Flow: `LevelFlowPlayModeTests`
+- Flow: `LevelFlowPlayModeTests`, `LevelSelectPlayModeTests`
 - Entities/UI: `SliceEntityPlayModeTests`, `WDialViewPlayModeTests`, `LevelPathPreviewPlayModeTests`
 
 ---
@@ -168,10 +168,10 @@ Editor：`Test Runner → Play Mode → Run All`
 
 按 [`Assets/_Project/Tests/PlayModeSmokeTest.md`](Assets/_Project/Tests/PlayModeSmokeTest.md) 完整走一遍：
 
-1. **LevelSelect** — 三关按钮加载正确场景
-2. **Garden_01** — W 门控缺口/楼梯、目标到达、Completed 后 **N** 进 Platform
+1. **LevelSelect** — demo 首页（标题、版本、Quit）、三关按钮
+2. **Garden_01** — 教学提示、W 门控缺口/楼梯、Playing **R** 重开、Completed overlay/**N**
 3. **Platform_01** — W-offset 平台、West→East 边 W 区间通行
-4. **Gate_03** — 拉杆 interactable、GateRoom→Goal 解锁、移动中断 Failed、**R** 重开
+4. **Gate_03** — 拉杆 interactable hint、GateRoom→Goal 解锁、移动中断 Failed、overlay/**R**
 
 ---
 
@@ -232,9 +232,9 @@ Build Settings 启用场景顺序：
 
 ---
 
-## 当前能力边界（v0.2）
+## 当前能力边界（v0.3）
 
-- 有：三关 demo、选关/下一关、W 门控机关、HUD/WDial、macOS standalone 构建、统一灰盒材质
-- 无：CI、Windows/Linux 构建、正式美术与音效
+- 有：三关 demo、LevelSelect 首页、overlay/教学/Playing 重开、W 门控机关、LevelCatalog 校验、graph mutation、macOS 构建
+- 无：CI、第四关+、Windows/Linux 构建、正式美术与音效
 
-下一里程碑：v0.3 demo polish（教学提示、LevelSelect 首页）。Release tag：`v0.2-wslice-demo`（见 [`docs/releases/v0.2-wslice-demo.md`](../docs/releases/v0.2-wslice-demo.md)）。
+Release tag：`v0.3-wslice-demo`（见 [`docs/releases/v0.3-wslice-demo.md`](../docs/releases/v0.3-wslice-demo.md)）。v0.2 见 [`v0.2-wslice-demo.md`](../docs/releases/v0.2-wslice-demo.md)。

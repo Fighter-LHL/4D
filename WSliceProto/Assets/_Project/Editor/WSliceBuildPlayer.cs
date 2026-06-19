@@ -25,7 +25,7 @@ namespace WSlice.Editor
                 Directory.CreateDirectory(outputDirectory);
 
             PlayerSettings.productName = "W-Slice Demo";
-            PlayerSettings.bundleVersion = "0.2.0";
+            PlayerSettings.bundleVersion = "0.3.0";
 
             string[] scenes = EditorBuildSettings.scenes
                 .Where(scene => scene.enabled)
