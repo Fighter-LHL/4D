@@ -11,7 +11,7 @@ Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0
 | Unity 版本 | **6000.0.77f1**（Unity 6 LTS） |
 | 项目路径 | [`WSliceProto/`](WSliceProto/) |
 | 启动场景 | `LevelSelect`（Build Settings 第一项） |
-| 关卡顺序 | Garden_01 → Platform_01 → Gate_03 → Chambers_04 |
+| 关卡顺序 | Garden_01 → Platform_01 → Gate_03 → Chambers_04 → Hazard_05 |
 | Baseline | `main` @ `d6fbea1`（v0.3 release 锚点） |
 
 ### 1. 打开项目
@@ -95,11 +95,12 @@ open WSliceProto/builds/macos/W-Slice.app
 - **batchmode 测试不稳定**：`-runTests` 有时退出 0 但不产出 XML（见 Validation.md）
 - **无正式美术/音效**：灰盒 demo，URP Lit 统一材质
 - **仅 macOS 构建**：无 Windows / Linux standalone、无签名公证
-- **仍为四关灰盒** — 第五关 hazard platform 待做
+- **五关 demo** — Hazard_05 为当前最后一关；无存档与 CI
 
 ## 后续规划（v0.3+）
 
-1. **Content expansion** — 第四关 multi-room W sequence（Chambers_04）、第五关 hazard platform
+1. **Content expansion** — ~~Chambers_04~~、~~Hazard_05~~ ✅；后续可扩展关卡或 hazard 变体
+2. **CI** — GitHub Actions（可选）
 2. **CI** — GitHub Actions（可选）
 
 Release checklist 见 [`docs/releases/v0.3-wslice-demo.md`](docs/releases/v0.3-wslice-demo.md)。

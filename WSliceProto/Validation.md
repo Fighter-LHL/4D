@@ -111,6 +111,19 @@ Editor：`WSlice → Validate Chambers Graybox`
 
 **预期：** `ChambersGraybox validation passed.`
 
+### Hazard
+
+Editor：`WSlice → Validate Hazard Graybox`
+
+```bash
+/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
+  -projectPath WSliceProto \
+  -executeMethod WSlice.Editor.HazardGrayboxGenerator.Validate \
+  -quit -batchmode -nographics -logFile -
+```
+
+**预期：** `HazardGraybox validation passed.`
+
 ### Level Catalog
 
 Editor：`WSlice → Validate Level Catalog`
@@ -173,6 +186,7 @@ Editor：`Test Runner → Play Mode → Run All`
 - Platform: `PlatformGrayboxTests`
 - Gate: `GateGrayboxTests`
 - Chambers: `ChambersGrayboxTests`
+- Hazard: `HazardGrayboxTests`
 - Flow: `LevelFlowPlayModeTests`, `LevelSelectPlayModeTests`
 - Entities/UI: `SliceEntityPlayModeTests`, `WDialViewPlayModeTests`, `LevelPathPreviewPlayModeTests`
 
@@ -212,6 +226,7 @@ Build Settings 启用场景顺序：
 3. `PlatformGraybox`
 4. `GateGraybox`
 5. `ChambersGraybox`
+6. `HazardGraybox`
 
 环境变量 `WSLICE_BUILD_OUTPUT` 可覆盖输出 `.app` 路径（manifest 写入同目录）。
 

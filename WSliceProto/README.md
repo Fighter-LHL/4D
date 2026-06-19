@@ -62,6 +62,7 @@ Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `p
 | Platform_01 | `WSlice → Generate Platform Graybox` | `WSlice → Validate Platform Graybox` |
 | Gate_03 | `WSlice → Generate Gate Graybox` | `WSlice → Validate Gate Graybox` |
 | Chambers_04 | `WSlice → Generate Chambers Graybox` | `WSlice → Validate Chambers Graybox` |
+| Hazard_05 | `WSlice → Generate Hazard Graybox` | `WSlice → Validate Hazard Graybox` |
 | Catalog | — | `WSlice → Validate Level Catalog` |
 
 手动冒烟：[`Assets/_Project/Tests/PlayModeSmokeTest.md`](Assets/_Project/Tests/PlayModeSmokeTest.md)
@@ -96,6 +97,6 @@ Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `p
 
 ## 下一步（v0.3+ content expansion）
 
-1. ~~第四关 **Chambers_04** — multi-room W sequence~~ ✅
-2. 第五关 hazard platform
+1. ~~第四关 **Chambers_04**~~ ✅
+2. ~~第五关 **Hazard_05**~~ ✅（hazard platform + segment-break fail）
 3. CI（可选）

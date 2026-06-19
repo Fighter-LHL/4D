@@ -29,3 +29,7 @@ MonoBehaviour:
     DisplayName: 连环密室
     ThemeHint: Shift W in sequence to open each corridor
     SceneName: ChambersGraybox
+  - LevelId: Hazard_05
+    DisplayName: 危险平台
+    ThemeHint: Align W to cross; shifting W mid-move fails
+    SceneName: HazardGraybox
