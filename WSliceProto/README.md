@@ -101,5 +101,5 @@ Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `p
 1. 完成/失败 overlay UI 面板（可点击 Next / Retry / Level Select）
 2. Playing 状态下允许 **R** 重开
 3. 每关开局教学提示
-4. LevelSelect 升级为 demo 首页（标题、关卡主题、Quit）
+4. LevelSelect 升级为 demo 首页（标题、关卡主题、Quit、版本号）
 5. `LevelCatalog` 校验器与 graybox recipe 化（authoring hardening）

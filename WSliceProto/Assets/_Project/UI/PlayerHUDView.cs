@@ -15,6 +15,7 @@ namespace WSlice.UI
         [SerializeField] private MovementController movement;
         [SerializeField] private PlayerInputRouter inputRouter;
         [SerializeField] private PlayerCharacter character;
+        [SerializeField] private LevelTutorialController tutorial;
 
         public PlayerHUDState LastState { get; private set; } =
             new PlayerHUDState("Find a W that opens the path.", string.Empty, string.Empty, false, false, false);
@@ -32,7 +33,15 @@ namespace WSlice.UI
             bool isComplete = session != null && session.State == LevelSessionState.Completed;
             bool isFailed = session != null && session.State == LevelSessionState.Failed;
             bool hasNextLevel = isComplete && flow != null && flow.HasNextLevelInCatalog;
-            LastState = PlayerHUDModel.Build(hud, isComplete, hasNextLevel, isFailed);
+            bool showTutorial = tutorial != null && tutorial.IsActive;
+            string tutorialHint = tutorial != null ? tutorial.HintText : string.Empty;
+            LastState = PlayerHUDModel.Build(
+                hud,
+                isComplete,
+                hasNextLevel,
+                isFailed,
+                showTutorial,
+                tutorialHint);
             Render(LastState);
         }
 
@@ -58,6 +67,9 @@ namespace WSlice.UI
 
             if (flow == null)
                 flow = FindFirstObjectByType<LevelFlowController>();
+
+            if (tutorial == null)
+                tutorial = FindFirstObjectByType<LevelTutorialController>();
         }
 
         private void Render(PlayerHUDState state)

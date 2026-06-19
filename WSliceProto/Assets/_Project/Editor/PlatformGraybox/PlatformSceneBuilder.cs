@@ -110,6 +110,7 @@ namespace WSlice.Editor
                 playerReset);
 
             GrayboxGraphMutationWiring.Wire(levelRuntime, levelController);
+            GrayboxTutorialWiring.Wire(levelRuntime, levelController, sessionController, movement);
 
             return new GardenSceneBuilder.SceneBuildResult
             {

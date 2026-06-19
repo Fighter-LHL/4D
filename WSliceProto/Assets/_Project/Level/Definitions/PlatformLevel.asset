@@ -17,6 +17,7 @@ MonoBehaviour:
   GoalNodeId: East
   StartNodeId: West
   InitialW: 0
+  TutorialHint: Raise W to lift the platform. Cross West->East when the path opens.
   SnapPoints:
   - 0
   - 0.55

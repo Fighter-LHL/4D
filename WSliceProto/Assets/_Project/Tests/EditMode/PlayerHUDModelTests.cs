@@ -118,6 +118,35 @@ namespace WSlice.Tests.EditMode
             Assert.That(state.FailureText, Is.EqualTo("Lever works at W 0.45-0.65."));
         }
 
+        [Test]
+        public void Build_ShowsTutorialHintWhenActive()
+        {
+            var hud = CreateHud(PlayerActionFailureReason.None, string.Empty, willBreak: false);
+
+            var state = PlayerHUDModel.Build(
+                hud,
+                isLevelComplete: false,
+                showTutorial: true,
+                tutorialHint: "Drag W to reveal gaps.");
+
+            Assert.That(state.PrimaryText, Is.EqualTo("Drag W to reveal gaps."));
+        }
+
+        [Test]
+        public void Build_TutorialYieldsToFailureHint()
+        {
+            var hud = CreateHud(PlayerActionFailureReason.NoPathAtCurrentW, "No path.", willBreak: false);
+
+            var state = PlayerHUDModel.Build(
+                hud,
+                isLevelComplete: false,
+                showTutorial: true,
+                tutorialHint: "Drag W to reveal gaps.");
+
+            Assert.That(state.PrimaryText, Is.EqualTo("Find a W that opens the path."));
+            Assert.That(state.ShowFailure, Is.True);
+        }
+
         private static HUDState CreateHud(
             PlayerActionFailureReason reason,
             string message,

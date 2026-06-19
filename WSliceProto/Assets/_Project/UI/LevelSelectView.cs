@@ -19,5 +19,10 @@ namespace WSlice.UI
             if (!string.IsNullOrEmpty(entry.SceneName))
                 SceneManager.LoadScene(entry.SceneName);
         }
+
+        public void QuitDemo()
+        {
+            Application.Quit();
+        }
     }
 }

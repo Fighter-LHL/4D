@@ -4,7 +4,9 @@ namespace WSlice.Level
     {
         public static bool CanRequestRestart(LevelSessionState state)
         {
-            return state == LevelSessionState.Completed || state == LevelSessionState.Failed;
+            return state == LevelSessionState.Playing
+                || state == LevelSessionState.Completed
+                || state == LevelSessionState.Failed;
         }
     }
 }

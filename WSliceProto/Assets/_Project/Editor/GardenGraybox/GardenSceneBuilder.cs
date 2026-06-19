@@ -113,7 +113,7 @@ namespace WSlice.Editor
             tapSo.FindProperty("router").objectReferenceValue = inputRouter;
             tapSo.ApplyModifiedProperties();
 
-            var levelFlow =             GrayboxLevelFlowWiring.WireLevelFlow(
+            var levelFlow = GrayboxLevelFlowWiring.WireLevelFlow(
                 levelRuntime,
                 levelController,
                 sessionController,
@@ -122,6 +122,7 @@ namespace WSlice.Editor
                 playerReset);
 
             GrayboxGraphMutationWiring.Wire(levelRuntime, levelController);
+            GrayboxTutorialWiring.Wire(levelRuntime, levelController, sessionController, movement);
 
             return new SceneBuildResult
             {

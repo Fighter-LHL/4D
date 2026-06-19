@@ -38,7 +38,9 @@ namespace WSlice.Level
 
         public void BeginRestart()
         {
-            if (State != LevelSessionState.Completed && State != LevelSessionState.Failed)
+            if (State != LevelSessionState.Playing
+                && State != LevelSessionState.Completed
+                && State != LevelSessionState.Failed)
                 return;
 
             SetState(LevelSessionState.Restarting);
