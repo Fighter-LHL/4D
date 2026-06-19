@@ -13,7 +13,7 @@
 | 层级 | 做什么 | 必须通过？ |
 |---|---|---|
 | L0 Compile | batchmode 打开项目并编译脚本 | 是 |
-| L1 Validate | 三关 graybox validate（Garden / Platform / Gate） | 是 |
+| L1 Validate | 三关 graybox validate + Level Catalog validate | 是 |
 | L2 EditMode | 纯逻辑单元测试 | 是（有 license 时） |
 | L3 PlayMode | 三关 + LevelFlow 集成测试 | 是（有 license 时） |
 | L4 Smoke | 手动 Play Mode 三关 demo 试玩 | 发布前建议 |
@@ -98,7 +98,20 @@ Editor：`WSlice → Validate Gate Graybox`
 
 **预期：** `GateGraybox validation passed.`
 
-校验内容：SliceProfile 资产、场景对象引用、`LevelRuntime` / `LevelSession` / `LevelFlow` / `PlayerInput` / HUD / WDial / interactable 组件等。
+### Level Catalog
+
+Editor：`WSlice → Validate Level Catalog`
+
+```bash
+/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
+  -projectPath WSliceProto \
+  -executeMethod WSlice.Editor.LevelCatalogValidatorRunner.Validate \
+  -quit -batchmode -nographics -logFile -
+```
+
+**预期：** `LevelCatalog validation passed.`
+
+校验内容：LevelId 唯一、SceneName 非空、LevelDefinition 与 catalog 一致、Build Settings 第一项为 LevelSelect、catalog 场景均已启用。
 
 ---
 
@@ -119,7 +132,7 @@ Editor：`Window → General → Test Runner → Edit Mode → Run All`
 **预期套件：**
 
 - Core: `WRangeTests`, `WConditionTests`, `WStateTests`, `WSnapResolverTests`
-- Level: `LevelGraphRuntimeTests`, `LevelDefinitionValidatorTests`, `LevelSessionTests`, `LevelRestartRulesTests`, `LevelFlowModelTests`, `LevelPathPreviewModelTests`, `LevelDefinitionInspectorModelTests`, `LevelNodeMirrorNamingTests`
+- Level: `LevelGraphRuntimeTests`, `LevelDefinitionValidatorTests`, `LevelCatalogValidatorTests`, `LevelSessionTests`, `LevelRestartRulesTests`, `LevelFlowModelTests`, `LevelPathPreviewModelTests`, `LevelDefinitionInspectorModelTests`, `LevelNodeMirrorNamingTests`
 - Interaction: `SliceInteractionModelTests`
 - UI: `WDialModelTests`, `PlayerHUDModelTests`, `WDialTrackModelTests`
 
@@ -198,7 +211,7 @@ Build Settings 启用场景顺序：
 
 - Unity: 6000.0.77f1
 - L0 Compile: Pass / Fail / Not run
-- L1 Validate (Garden / Platform / Gate): Pass / Fail / Not run
+- L1 Validate (Garden / Platform / Gate / Catalog): Pass / Fail / Not run
 - L2 EditMode: Pass / Fail / Not run (N/N tests) — Editor manual if batchmode skipped
 - L3 PlayMode: Pass / Fail / Not run (N/N tests)
 - L4 Smoke: Pass / Fail / Not run

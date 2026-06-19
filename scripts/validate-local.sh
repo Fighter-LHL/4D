@@ -76,6 +76,10 @@ run_unity "L1 Validate Gate Graybox" \
   -executeMethod WSlice.Editor.GateGrayboxGenerator.Validate \
   -quit -batchmode -nographics
 
+run_unity "L1 Validate Level Catalog" \
+  -executeMethod WSlice.Editor.LevelCatalogValidatorRunner.Validate \
+  -quit -batchmode -nographics
+
 if [[ "$RUN_TESTS" == true ]]; then
   run_unity "L2 EditMode tests" \
     -runTests -testPlatform EditMode \
