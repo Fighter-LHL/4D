@@ -26,14 +26,14 @@ namespace WSlice.Level
             foreach (var node in definition.Nodes)
             {
                 if (string.IsNullOrEmpty(node.Id)) continue;
-                _nodes[node.Id] = node;
+                _nodes[node.Id] = CloneNode(node);
             }
 
             foreach (var edge in definition.Edges)
             {
                 if (string.IsNullOrEmpty(edge.FromNodeId) || string.IsNullOrEmpty(edge.ToNodeId)) continue;
                 if (!_nodes.ContainsKey(edge.FromNodeId) || !_nodes.ContainsKey(edge.ToNodeId)) continue;
-                _edges.Add(edge);
+                _edges.Add(CloneEdge(edge));
             }
         }
 
@@ -121,7 +121,11 @@ namespace WSlice.Level
             for (int i = 0; i < _edges.Count; i++)
             {
                 var edge = _edges[i];
-                if (edge.FromNodeId == fromNodeId && edge.ToNodeId == toNodeId)
+                bool connects = edge.FromNodeId == fromNodeId && edge.ToNodeId == toNodeId;
+                if (edge.Bidirectional)
+                    connects |= edge.FromNodeId == toNodeId && edge.ToNodeId == fromNodeId;
+
+                if (connects)
                 {
                     edge.WalkableRange = walkableRange;
                     return true;
@@ -129,6 +133,26 @@ namespace WSlice.Level
             }
 
             return false;
+        }
+
+        private static LevelNode CloneNode(LevelNode node)
+        {
+            return new LevelNode
+            {
+                Id = node.Id,
+                WorldPosition = node.WorldPosition
+            };
+        }
+
+        private static LevelEdge CloneEdge(LevelEdge edge)
+        {
+            return new LevelEdge
+            {
+                FromNodeId = edge.FromNodeId,
+                ToNodeId = edge.ToNodeId,
+                WalkableRange = edge.WalkableRange,
+                Bidirectional = edge.Bidirectional
+            };
         }
     }
 }

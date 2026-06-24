@@ -75,6 +75,7 @@ namespace WSlice.Tests.EditMode
         {
             var def = CreateGateLikeDef();
             var graph = new LevelGraphRuntime(def);
+            var originalMax = def.Edges[1].WalkableRange.Max;
 
             GraphMutationModel.TryApplyUnlock(graph, new GraphEdgeUnlockAction
             {
@@ -83,9 +84,28 @@ namespace WSlice.Tests.EditMode
                 WalkableRange = new WRange { Min = 0.30f, Max = 0.55f }
             });
             Assert.IsTrue(graph.CanMove("GateRoom", "Goal", 0.45f));
+            Assert.That(def.Edges[1].WalkableRange.Max, Is.EqualTo(originalMax));
 
             GraphMutationModel.ResetToDefinition(graph, def);
             Assert.IsFalse(graph.CanMove("GateRoom", "Goal", 0.45f));
+        }
+
+        [Test]
+        public void TryApplyUnlock_DoesNotMutateDefinition()
+        {
+            var def = CreateGateLikeDef();
+            var graph = new LevelGraphRuntime(def);
+            var original = def.Edges[1].WalkableRange;
+
+            GraphMutationModel.TryApplyUnlock(graph, new GraphEdgeUnlockAction
+            {
+                FromNodeId = "GateRoom",
+                ToNodeId = "Goal",
+                WalkableRange = new WRange { Min = 0.30f, Max = 0.55f }
+            });
+
+            Assert.That(def.Edges[1].WalkableRange.Min, Is.EqualTo(original.Min));
+            Assert.That(def.Edges[1].WalkableRange.Max, Is.EqualTo(original.Max));
         }
     }
 }

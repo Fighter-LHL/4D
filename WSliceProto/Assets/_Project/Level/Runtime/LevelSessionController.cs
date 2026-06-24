@@ -72,17 +72,10 @@ namespace WSlice.Level
 
         private void ApplyRestartHandlers()
         {
-            if (levelController != null)
-                levelController.ResetToInitialState();
-
             var definition = levelController != null ? levelController.Definition : null;
             var graph = levelController != null ? levelController.Graph : null;
 
-            foreach (var behaviour in FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None))
-            {
-                if (behaviour is ILevelRestartHandler handler)
-                    handler.ApplyLevelRestart(definition, graph);
-            }
+            LevelRestartPipeline.Apply(definition, graph, levelController);
         }
 
         private void ResolveReferences()

@@ -2,7 +2,7 @@
 
 基于 Unity 6000.0 LTS + URP 的“隐藏维度切片”解谜原型。关卡作者通过 `w ∈ [0,1]` 定义物体显隐与路径可达性，运行时负责平滑插值与交互。
 
-**阶段：** Prototype v0.3 — demo polish + authoring hardening（三关 playable demo）。
+**阶段：** Prototype v0.3.x — 五关 playable demo + authoring hardening。
 
 仓库入口说明见 [`../README.md`](../README.md)。本地验证见 [`Validation.md`](Validation.md)。Release checklist 见 [`../docs/releases/v0.3-wslice-demo.md`](../docs/releases/v0.3-wslice-demo.md)。
 
@@ -28,7 +28,7 @@
 
 ```bash
 # 从仓库根目录
-./scripts/validate-local.sh          # L0 + L1（三关 + catalog）
+./scripts/validate-local.sh          # L0 + L1（五关 graybox + catalog）
 ./scripts/validate-local.sh --tests  # 额外尝试 L2/L3 batchmode 测试
 ```
 
@@ -85,18 +85,20 @@ Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `p
 - `w` 是唯一真相源。所有显隐、通行、交互都从 `WState.CurrentW` 推导。
 - 核心逻辑尽量是纯 C#，MonoBehaviour 仅做挂接与表现。
 - 关卡可通行关系用手工节点图表达，清晰可控。
-- Graph 运行时变更通过 `LevelGraphMutationController` 追踪，restart 可回滚。
+- Graph 运行时变更通过 `LevelGraphMutationController` 追踪，restart 经 `LevelRestartPipeline` 有序回滚（Graph → W → Player → Interactables → UI）。
 
-## 当前能力（v0.3）
+## 当前能力（v0.3.x）
 
-- 三关 graybox demo + `LevelSelect` demo 首页（标题、主题 hint、Quit、版本号）
+- 五关 graybox demo + `LevelSelect` demo 首页（标题、主题 hint、Quit、版本号）
 - 完成/失败 overlay、Playing **R** 重开、开局教学提示
 - W 门控边、W-offset 平台、profile 化拉杆 interactable + graph mutation
 - `LevelCatalogValidator` + `GrayboxLevelRecipe`
 - macOS standalone 构建 + 统一灰盒 URP Lit 材质
 
-## 下一步（v0.3+ content expansion）
+## 下一步（v0.3+ foundation）
 
 1. ~~第四关 **Chambers_04**~~ ✅
 2. ~~第五关 **Hazard_05**~~ ✅（hazard platform + segment-break fail）
-3. CI（可选）
+3. ~~Graph runtime deep-copy + restart pipeline~~ ✅
+4. Objective/condition 系统（crystal、flag、multi-step unlock）
+5. CI — GitHub Actions L0/L1（需配置 Unity license secrets）
