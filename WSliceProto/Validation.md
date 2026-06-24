@@ -1,6 +1,6 @@
 # W-Slice 本地验证清单
 
-本文档把 compile、三关 graybox 校验、自动化测试、手动冒烟、macOS 构建分层说明，便于新开发者 clone 后按同一流程验证。
+本文档把 compile、五关 graybox 校验、自动化测试、手动冒烟、macOS 构建分层说明，便于新开发者 clone 后按同一流程验证。
 
 **Unity 版本：** `6000.0.77f1`（见 `ProjectSettings/ProjectVersion.txt`）
 
@@ -13,10 +13,10 @@
 | 层级 | 做什么 | 必须通过？ |
 |---|---|---|
 | L0 Compile | batchmode 打开项目并编译脚本 | 是 |
-| L1 Validate | 三关 graybox validate + Level Catalog validate | 是 |
+| L1 Validate | 五关 graybox validate + Level Catalog validate | 是 |
 | L2 EditMode | 纯逻辑单元测试 | 是（有 license 时） |
-| L3 PlayMode | 三关 + LevelFlow 集成测试 | 是（有 license 时） |
-| L4 Smoke | 手动 Play Mode 三关 demo 试玩 | 发布前建议 |
+| L3 PlayMode | 五关 + LevelFlow 集成测试 | 是（有 license 时） |
+| L4 Smoke | 手动 Play Mode 五关 demo 试玩 | 发布前建议 |
 | L5 Build | macOS standalone 构建 | 发布前建议 |
 
 ---
@@ -29,7 +29,7 @@
 ./scripts/validate-local.sh
 ```
 
-默认执行 **L0 + L1**（含三关 validate）。加 `--tests` 尝试 **L2 + L3**（需要有效 Unity license 且 batchmode 测试可用）。
+默认执行 **L0 + L1**（含五关 validate + catalog）。加 `--tests` 尝试 **L2 + L3**（需要有效 Unity license 且 batchmode 测试可用）。
 
 环境变量：
 
@@ -196,10 +196,12 @@ Editor：`Test Runner → Play Mode → Run All`
 
 按 [`Assets/_Project/Tests/PlayModeSmokeTest.md`](Assets/_Project/Tests/PlayModeSmokeTest.md) 完整走一遍：
 
-1. **LevelSelect** — demo 首页（标题、版本、Quit）、三关按钮
+1. **LevelSelect** — demo 首页（标题、版本、Quit）、五关按钮
 2. **Garden_01** — 教学提示、W 门控缺口/楼梯、Playing **R** 重开、Completed overlay/**N**
 3. **Platform_01** — W-offset 平台、West→East 边 W 区间通行
 4. **Gate_03** — 拉杆 interactable hint、GateRoom→Goal 解锁、移动中断 Failed、overlay/**R**
+5. **Chambers_04** — 多房间 W 序列解谜
+6. **Hazard_05** — hazard platform、移动中降 W → Failed、**R** 重开
 
 ---
 
@@ -241,7 +243,7 @@ Build Settings 启用场景顺序：
 
 - Unity: 6000.0.77f1
 - L0 Compile: Pass / Fail / Not run
-- L1 Validate (Garden / Platform / Gate / Catalog): Pass / Fail / Not run
+- L1 Validate (Garden / Platform / Gate / Chambers / Hazard / Catalog): Pass / Fail / Not run
 - L2 EditMode: Pass / Fail / Not run (N/N tests) — Editor manual if batchmode skipped
 - L3 PlayMode: Pass / Fail / Not run (N/N tests)
 - L4 Smoke: Pass / Fail / Not run
@@ -262,9 +264,9 @@ Build Settings 启用场景顺序：
 
 ---
 
-## 当前能力边界（v0.3）
+## 当前能力边界（v0.3.x）
 
-- 有：三关 demo、LevelSelect 首页、overlay/教学/Playing 重开、W 门控机关、LevelCatalog 校验、graph mutation、macOS 构建
-- 无：CI、第四关+、Windows/Linux 构建、正式美术与音效
+- 有：五关 demo、LevelSelect 首页、overlay/教学/Playing 重开、W 门控机关、LevelCatalog 校验、graph mutation（runtime deep-copy）、有序 restart pipeline、macOS 构建
+- 无：已配置 secrets 前的 CI 自动跑通、objective/condition 系统、Windows/Linux 构建、正式美术与音效
 
 Release tag：`v0.3-wslice-demo`（见 [`docs/releases/v0.3-wslice-demo.md`](../docs/releases/v0.3-wslice-demo.md)）。v0.2 见 [`v0.2-wslice-demo.md`](../docs/releases/v0.2-wslice-demo.md)。

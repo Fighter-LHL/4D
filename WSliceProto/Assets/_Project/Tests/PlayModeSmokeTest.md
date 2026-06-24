@@ -1,10 +1,10 @@
-# Play Mode Smoke Test — v0.3 四关 Demo
+# Play Mode Smoke Test — v0.3.x 五关 Demo
 
 验证 **LevelSelect → Garden → Platform → Gate → Chambers → Hazard** 完整 demo 流程。
 
 ## 准备
 
-1. 运行 `./scripts/validate-local.sh`（或 Editor 菜单 Validate 四关 graybox + catalog）。
+1. 运行 `./scripts/validate-local.sh`（或 Editor 菜单 Validate 五关 graybox + catalog）。
 2. 确认 Build Settings 启用顺序：`LevelSelect` → 五关 graybox（Garden / Platform / Gate / Chambers / Hazard）。
 3. 打开 `Assets/_Project/Level/Scenes/LevelSelect.unity`（或任意单关场景）。
 

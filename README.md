@@ -2,7 +2,7 @@
 
 Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0,1]` 控制物体显隐、路径可达性与交互反馈。
 
-**当前阶段：** Prototype v0.3 — 三关 demo polish（overlay、Playing 重开、教学提示、LevelSelect 首页）+ authoring hardening（LevelCatalog 校验、graph mutation、interactable profile）。
+**当前阶段：** Prototype v0.3.x — 五关 demo（Garden → Platform → Gate → Chambers → Hazard）+ LevelSelect 首页 + overlay/教学/Playing 重开 + authoring hardening。
 
 ## 快速开始
 
@@ -25,11 +25,11 @@ WSliceProto/
 
 在 Unity Editor 菜单：
 
-1. `WSlice → Generate Garden / Platform / Gate Graybox` — 生成或刷新对应场景
-2. `WSlice → Validate Garden / Platform / Gate Graybox` — 校验资产与场景引用
+1. `WSlice → Generate Garden / Platform / Gate / Chambers / Hazard Graybox` — 生成或刷新对应场景
+2. `WSlice → Validate Garden / Platform / Gate / Chambers / Hazard Graybox` — 校验资产与场景引用
 3. `WSlice → Validate Level Catalog` — 校验 catalog 与 Build Settings
 
-或一键脚本（L0 + 三关 L1 + catalog）：
+或一键脚本（L0 + 五关 L1 + catalog）：
 
 ```bash
 ./scripts/validate-local.sh
@@ -43,7 +43,7 @@ WSliceProto/
 
 ### 4. 手动试玩
 
-进入 Play Mode，从 `LevelSelect` demo 首页开始，按 [`PlayModeSmokeTest.md`](WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md) 走三关 demo 流程。
+进入 Play Mode，从 `LevelSelect` demo 首页开始，按 [`PlayModeSmokeTest.md`](WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md) 走五关 demo 流程。
 
 ### 5. macOS 构建
 
@@ -84,14 +84,14 @@ open WSliceProto/builds/macos/W-Slice.app
 - Graph mutation：`LevelGraphMutationController` + restart 回滚（Gate 拉杆）
 - HUD / UI：路线提示、教学提示、`LevelOutcomeOverlay`（Next / Retry / Level Select）
 - 关卡流转：`LevelCatalog`、`LevelSelect` demo 首页、**N** 下一关、**R** 重开（Playing / Completed / Failed）
-- 三关 demo：Garden → Platform → Gate
-- Authoring：`LevelCatalogValidator`、`GrayboxLevelRecipe`、三关 graybox 生成器
+- 五关 demo：Garden → Platform → Gate → Chambers → Hazard
+- Authoring：`LevelCatalogValidator`、`GrayboxLevelRecipe`、五关 graybox 生成器
 - macOS 构建：`./scripts/build-macos.sh` → `WSliceProto/builds/macos/W-Slice.app`
 - 测试：EditMode + PlayMode 套件
 
 ## 已知限制
 
-- **无 CI**：GitHub Actions 未配置；测试结果需本地或 PR 中手动记录
+- **CI（可选）** — GitHub Actions 已提供 L0/L1 workflow；需在 repo secrets 配置 `UNITY_LICENSE` 等（见 `.github/workflows/wslice-validate.yml`）
 - **batchmode 测试不稳定**：`-runTests` 有时退出 0 但不产出 XML（见 Validation.md）
 - **无正式美术/音效**：灰盒 demo，URP Lit 统一材质
 - **仅 macOS 构建**：无 Windows / Linux standalone、无签名公证
@@ -99,9 +99,8 @@ open WSliceProto/builds/macos/W-Slice.app
 
 ## 后续规划（v0.3+）
 
-1. **Content expansion** — ~~Chambers_04~~、~~Hazard_05~~ ✅；后续可扩展关卡或 hazard 变体
-2. **CI** — GitHub Actions（可选）
-2. **CI** — GitHub Actions（可选）
+1. **Foundation** — objective/condition 系统、W 语义产品决策（W-Slice vs 4D grid）
+2. **CI secrets** — 配置 Unity license 以启用 GitHub Actions L0/L1
 
 Release checklist 见 [`docs/releases/v0.3-wslice-demo.md`](docs/releases/v0.3-wslice-demo.md)。
 
@@ -112,4 +111,4 @@ Release checklist 见 [`docs/releases/v0.3-wslice-demo.md`](docs/releases/v0.3-w
 - [docs/releases/v0.3-wslice-demo.md](docs/releases/v0.3-wslice-demo.md) — v0.3 release checklist
 - [docs/releases/v0.2-wslice-demo.md](docs/releases/v0.2-wslice-demo.md) — v0.2 release checklist（历史）
 - [ManualTesting.md](WSliceProto/Assets/_Project/Tests/ManualTesting.md) — Edit/Play Mode 测试列表
-- [PlayModeSmokeTest.md](WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md) — 三关 demo 手动冒烟清单
+- [PlayModeSmokeTest.md](WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md) — 五关 demo 手动冒烟清单

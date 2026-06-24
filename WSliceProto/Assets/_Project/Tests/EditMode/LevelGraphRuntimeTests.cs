@@ -74,5 +74,31 @@ namespace WSlice.Tests.EditMode
                 Is.True);
             Assert.IsTrue(graph.CanMove("B", "C", 0.45f));
         }
+
+        [Test]
+        public void Load_DoesNotShareDefinitionEdgeReferences()
+        {
+            var def = CreateThreeNodeDef();
+            var originalMax = def.Edges[1].WalkableRange.Max;
+
+            var graph = new LevelGraphRuntime(def);
+            Assert.That(
+                graph.SetEdgeWalkableRange("B", "C", new WRange { Min = 0.3f, Max = 0.5f }),
+                Is.True);
+
+            Assert.That(def.Edges[1].WalkableRange.Max, Is.EqualTo(originalMax));
+        }
+
+        [Test]
+        public void SetEdgeWalkableRange_MatchesBidirectionalReverse()
+        {
+            var def = CreateThreeNodeDef();
+            var graph = new LevelGraphRuntime(def);
+
+            Assert.That(
+                graph.SetEdgeWalkableRange("C", "B", new WRange { Min = 0.3f, Max = 0.5f }),
+                Is.True);
+            Assert.IsTrue(graph.CanMove("B", "C", 0.45f));
+        }
     }
 }

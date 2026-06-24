@@ -1,0 +1,114 @@
+name: W-Slice Validate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'WSliceProto/**'
+      - 'scripts/**'
+      - '.github/workflows/wslice-validate.yml'
+  pull_request:
+    paths:
+      - 'WSliceProto/**'
+      - 'scripts/**'
+      - '.github/workflows/wslice-validate.yml'
+
+jobs:
+  l0-l1:
+    name: L0 Compile + L1 Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: ${{ secrets.UNITY_LICENSE != '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: L0 Compile
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: WSliceProto
+          unityVersion: 6000.0.77f1
+          customParameters: -quit -batchmode -nographics
+
+      - name: L1 Validate Garden Graybox
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: WSliceProto
+          unityVersion: 6000.0.77f1
+          customParameters: -executeMethod WSlice.Editor.GardenGrayboxGenerator.Validate -quit -batchmode -nographics
+
+      - name: L1 Validate Platform Graybox
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: WSliceProto
+          unityVersion: 6000.0.77f1
+          customParameters: -executeMethod WSlice.Editor.PlatformGrayboxGenerator.Validate -quit -batchmode -nographics
+
+      - name: L1 Validate Gate Graybox
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: WSliceProto
+          unityVersion: 6000.0.77f1
+          customParameters: -executeMethod WSlice.Editor.GateGrayboxGenerator.Validate -quit -batchmode -nographics
+
+      - name: L1 Validate Chambers Graybox
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: WSliceProto
+          unityVersion: 6000.0.77f1
+          customParameters: -executeMethod WSlice.Editor.ChambersGrayboxGenerator.Validate -quit -batchmode -nographics
+
+      - name: L1 Validate Hazard Graybox
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: WSliceProto
+          unityVersion: 6000.0.77f1
+          customParameters: -executeMethod WSlice.Editor.HazardGrayboxGenerator.Validate -quit -batchmode -nographics
+
+      - name: L1 Validate Level Catalog
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: WSliceProto
+          unityVersion: 6000.0.77f1
+          customParameters: -executeMethod WSlice.Editor.LevelCatalogValidatorRunner.Validate -quit -batchmode -nographics
+
+  ci-skipped-notice:
+    name: CI Skipped (no Unity license)
+    runs-on: ubuntu-latest
+    if: ${{ secrets.UNITY_LICENSE == '' }}
+    steps:
+      - name: Notice
+        run: |
+          echo "W-Slice CI skipped: configure UNITY_LICENSE, UNITY_EMAIL, and UNITY_PASSWORD repo secrets."
+          echo "Local validation: ./scripts/validate-local.sh"
