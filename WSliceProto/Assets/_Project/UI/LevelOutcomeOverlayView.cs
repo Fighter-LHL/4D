@@ -163,7 +163,13 @@ namespace WSlice.UI
                 // This view lives on panelRoot in generated scenes. Disabling that
                 // object also disables Update, so a hidden overlay could never reopen.
                 if (panelVisibility == null || panelVisibility.gameObject != panelRoot)
-                    panelVisibility = panelRoot.GetComponent<CanvasGroup>() ?? panelRoot.AddComponent<CanvasGroup>();
+                {
+                    panelVisibility = panelRoot.GetComponent<CanvasGroup>();
+                    // Unity's missing/destroyed component wrappers can be CLR-non-null
+                    // in the Editor. Use Unity's null check rather than ?? here.
+                    if (panelVisibility == null)
+                        panelVisibility = panelRoot.AddComponent<CanvasGroup>();
+                }
 
                 bool visible = state.Mode != LevelOutcomeOverlayMode.Hidden;
                 panelVisibility.alpha = visible ? 1f : 0f;

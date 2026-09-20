@@ -29,7 +29,9 @@ namespace WSlice.UI
             var canvas = selectView.GetComponentInParent<Canvas>();
             if (canvas != null)
             {
-                var scaler = canvas.GetComponent<CanvasScaler>() ?? canvas.gameObject.AddComponent<CanvasScaler>();
+                var scaler = canvas.GetComponent<CanvasScaler>();
+                if (scaler == null)
+                    scaler = canvas.gameObject.AddComponent<CanvasScaler>();
                 scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
                 scaler.referenceResolution = new Vector2(1280f, 720f);
                 scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
@@ -77,7 +79,9 @@ namespace WSlice.UI
                 yield return null;
             }
 
-            var grid = panel.GetComponent<GridLayoutGroup>() ?? panel.gameObject.AddComponent<GridLayoutGroup>();
+            var grid = panel.GetComponent<GridLayoutGroup>();
+            if (grid == null)
+                grid = panel.gameObject.AddComponent<GridLayoutGroup>();
             grid.cellSize = new Vector2(280f, 80f);
             grid.spacing = new Vector2(16f, 16f);
             grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
