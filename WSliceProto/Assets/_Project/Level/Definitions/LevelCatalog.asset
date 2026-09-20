@@ -13,9 +13,13 @@ MonoBehaviour:
   m_Name: LevelCatalog
   m_EditorClassIdentifier: 
   Entries:
+  - LevelId: Courtyard_01
+    DisplayName: 回响庭院
+    ThemeHint: 观察空间，让机关留下回响
+    SceneName: CourtyardSlice
   - LevelId: Garden_01
     DisplayName: 封闭花园
-    ThemeHint: Adjust W to find gaps and stairs
+    ThemeHint: Adjust W to reveal the gap and ramp
     SceneName: GardenGraybox
   - LevelId: Platform_01
     DisplayName: 偏移平台

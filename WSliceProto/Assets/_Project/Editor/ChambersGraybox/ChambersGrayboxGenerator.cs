@@ -69,6 +69,9 @@ namespace WSlice.Editor
                 errors += RequireObject("LevelRuntime", typeof(LevelRuntimeController), typeof(LevelSessionController));
                 errors += RequireObject("PathPreview", typeof(LevelPathPreviewRenderer));
                 errors += RequireObject("GoalMarker");
+                errors += RequireObject("Divider_LobbyA", typeof(GraphPassageBarrier));
+                errors += RequireObject("Divider_AB", typeof(GraphPassageBarrier));
+                errors += RequireObject("Divider_BGoal", typeof(GraphPassageBarrier));
             }
 
             if (errors == 0)

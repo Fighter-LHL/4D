@@ -43,6 +43,19 @@ namespace WSlice.Tests.EditMode
             Assert.That(edge.FromPosition, Is.EqualTo(node.WorldPosition + new Vector3(0f, 0.1f, 0f)));
         }
 
+        [Test]
+        public void Build_LockedEdge_StaysClosedInsideItsWRange()
+        {
+            var graph = CreateGardenGraph();
+            graph.Edges[0].IsLocked = true;
+
+            var visuals = LevelPathPreviewModel.Build(graph, 0.55f);
+
+            Assert.That(TryFindEdge(visuals, "Outside", "Gap", out var edge), Is.True);
+            Assert.That(edge.IsOpenAtCurrentW, Is.False);
+            Assert.That(edge.LineEndPosition, Is.Not.EqualTo(edge.ToPosition));
+        }
+
         private static bool TryFindEdge(
             System.Collections.Generic.IReadOnlyList<PathEdgeVisual> visuals,
             string fromNodeId,

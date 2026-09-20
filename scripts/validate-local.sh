@@ -1,26 +1,23 @@
 #!/usr/bin/env bash
-# Local validation for WSliceProto (L0 compile + L1 Garden validate; optional L2/L3 tests).
+# Evidence-backed validation. Test Runner owns shutdown during -runTests.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT="${PROJECT_PATH:-$ROOT/WSliceProto}"
 UNITY="${UNITY_PATH:-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity}"
+PYTHON="${PYTHON_PATH:-python3}"
 RUN_TESTS=false
 
 usage() {
-  cat <<'EOF'
-Usage: validate-local.sh [OPTIONS]
+  cat <<'USAGE'
+Usage: validate-local.sh [--tests]
 
-Runs W-Slice local validation from the repository root.
-
-Options:
-  --tests    Also run EditMode and PlayMode batchmode tests (requires Unity license)
-  -h, --help Show this help
-
-Environment:
-  UNITY_PATH    Path to Unity executable
-  PROJECT_PATH  Path to WSliceProto (default: <repo>/WSliceProto)
-EOF
+Default: compile + validate all six levels and catalog, with a checked receipt.
+--tests: also require fresh, complete EditMode and PlayMode NUnit XML.
+Environment: UNITY_PATH, PROJECT_PATH, PYTHON_PATH (default python3).
+Artifacts: <project>/TestResults/run-<UTC timestamp>-<unique suffix>/
+Missing Unity/license/results is not a pass. No credentials are requested.
+USAGE
 }
 
 while [[ $# -gt 0 ]]; do
@@ -32,88 +29,79 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ ! -x "$UNITY" ]]; then
-  echo "ERROR: Unity not found at: $UNITY" >&2
-  echo "Set UNITY_PATH to your Unity 6000.0.77f1 executable." >&2
+  echo "NOT RUN: Unity executable unavailable: $UNITY" >&2
+  echo "Set UNITY_PATH to an installed Unity 6000.0.77f1 executable." >&2
   exit 1
 fi
-
 if [[ ! -f "$PROJECT/ProjectSettings/ProjectVersion.txt" ]]; then
   echo "ERROR: Not a Unity project: $PROJECT" >&2
   exit 1
 fi
+command -v "$PYTHON" >/dev/null
+PROJECT="$(cd "$PROJECT" && pwd)"
+mkdir -p "$PROJECT/TestResults"
+RESULTS="$(mktemp -d "$PROJECT/TestResults/run-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")"
+
+finish() {
+  local status=$?
+  if [[ "$status" -ne 0 ]]; then
+    echo "FAIL / UNCONFIRMED: validation did not complete successfully (exit $status)." >&2
+    echo "Evidence retained: $RESULTS" >&2
+  fi
+}
+trap finish EXIT
+
+"$PYTHON" - "$RESULTS/invocation.json" "$ROOT" "$RUN_TESTS" <<'PY'
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+import subprocess
+import sys
+revision = subprocess.run(['git', '-C', sys.argv[2], 'rev-parse', 'HEAD'], capture_output=True, text=True)
+status = subprocess.run(['git', '-C', sys.argv[2], 'status', '--porcelain'], capture_output=True, text=True)
+Path(sys.argv[1]).write_text(json.dumps({
+    'startedUtc': datetime.now(timezone.utc).isoformat(),
+    'revision': revision.stdout.strip(), 'workingTreeDirty': bool(status.stdout.strip()),
+    'testsRequested': sys.argv[3] == 'true'
+}, indent=2))
+PY
+
+echo "W-Slice evidence directory: $RESULTS"
 
 run_unity() {
-  local label="$1"
-  shift
-  echo ""
-  echo "=== $label ==="
-  if "$UNITY" -projectPath "$PROJECT" "$@" -logFile -; then
-    echo "OK: $label"
+  local label="$1" log="$2"
+  shift 2
+  echo "RUNNING: $label"
+  if "$UNITY" -projectPath "$PROJECT" "$@" -logFile "$log"; then
     return 0
   else
-    echo "FAIL: $label (exit $?)" >&2
-    return 1
+    local status=$?
+    echo "FAIL: $label (Unity exit $status); log: $log" >&2
+    return "$status"
   fi
 }
 
-mkdir -p "$PROJECT/TestResults"
-
-echo "W-Slice validate-local"
-echo "  Project: $PROJECT"
-echo "  Unity:   $UNITY"
-
-run_unity "L0 Compile" -quit -batchmode -nographics
-
-run_unity "L1 Validate Garden Graybox" \
-  -executeMethod WSlice.Editor.GardenGrayboxGenerator.Validate \
+# Reaching the entry point requires script compilation; its receipt proves all
+# validators completed and no error logs were silently swallowed.
+run_unity "L0 Compile + L1 validation" "$RESULTS/validation.log" \
+  -executeMethod WSlice.Editor.WSliceValidationRunner.ValidateAll \
+  -wsliceValidationReport "$RESULTS/validation.json" \
   -quit -batchmode -nographics
-
-run_unity "L1 Validate Platform Graybox" \
-  -executeMethod WSlice.Editor.PlatformGrayboxGenerator.Validate \
-  -quit -batchmode -nographics
-
-run_unity "L1 Validate Gate Graybox" \
-  -executeMethod WSlice.Editor.GateGrayboxGenerator.Validate \
-  -quit -batchmode -nographics
-
-run_unity "L1 Validate Chambers Graybox" \
-  -executeMethod WSlice.Editor.ChambersGrayboxGenerator.Validate \
-  -quit -batchmode -nographics
-
-run_unity "L1 Validate Hazard Graybox" \
-  -executeMethod WSlice.Editor.HazardGrayboxGenerator.Validate \
-  -quit -batchmode -nographics
-
-run_unity "L1 Validate Level Catalog" \
-  -executeMethod WSlice.Editor.LevelCatalogValidatorRunner.Validate \
-  -quit -batchmode -nographics
+"$PYTHON" "$ROOT/scripts/verify_unity_results.py" "$RESULTS/validation.json" \
+  --kind validation --started-after "$RESULTS/invocation.json"
 
 if [[ "$RUN_TESTS" == true ]]; then
-  run_unity "L2 EditMode tests" \
-    -runTests -testPlatform EditMode \
-    -testResults "$PROJECT/TestResults/editmode-results.xml" \
-    -quit -batchmode -nographics
-
-  if [[ -f "$PROJECT/TestResults/editmode-results.xml" ]]; then
-    echo "  XML: TestResults/editmode-results.xml"
-  else
-    echo "WARN: EditMode XML not produced — run tests in Unity Editor Test Runner." >&2
-  fi
-
-  run_unity "L3 PlayMode tests" \
-    -runTests -testPlatform PlayMode \
-    -testResults "$PROJECT/TestResults/playmode-results.xml" \
-    -quit -batchmode -nographics
-
-  if [[ -f "$PROJECT/TestResults/playmode-results.xml" ]]; then
-    echo "  XML: TestResults/playmode-results.xml"
-  else
-    echo "WARN: PlayMode XML not produced — run tests in Unity Editor Test Runner." >&2
-  fi
+  for mode in EditMode PlayMode; do
+    marker="$RESULTS/$mode.started"
+    "$PYTHON" -c 'from pathlib import Path; import sys; Path(sys.argv[1]).touch()' "$marker"
+    run_unity "$mode tests" "$RESULTS/$mode.log" \
+      -runTests -testPlatform "$mode" -testResults "$RESULTS/$mode-results.xml" \
+      -batchmode -nographics
+    "$PYTHON" "$ROOT/scripts/verify_unity_results.py" "$RESULTS/$mode-results.xml" \
+      --started-after "$marker"
+  done
+  echo "L0-L3 VERIFIED. Human smoke, five-player playtest, and build are NOT RUN by this script."
 else
-  echo ""
-  echo "Skipped L2/L3 (pass --tests to enable batchmode test run)."
+  echo "L2/L3 SKIPPED: pass --tests to require automated test evidence."
+  echo "L0/L1 VERIFIED ONLY; this is not a full release verification."
 fi
-
-echo ""
-echo "Done. For manual smoke, see WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md"

@@ -63,7 +63,9 @@ namespace WSlice.Entities
                 if (col != null) col.enabled = solid;
             }
 
-            Vector3 offset = Vector3.Lerp(profile.PositionOffsetAtW0, profile.PositionOffsetAtW1, w);
+            float positionProgress = profile.PositionOffsetProgress != null && profile.PositionOffsetProgress.length > 0
+                ? profile.PositionOffsetProgress.Evaluate(w) : w;
+            Vector3 offset = Vector3.Lerp(profile.PositionOffsetAtW0, profile.PositionOffsetAtW1, positionProgress);
             transform.localPosition = baseLocalPosition + offset;
         }
 

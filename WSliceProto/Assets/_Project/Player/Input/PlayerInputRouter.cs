@@ -12,10 +12,12 @@ namespace WSlice.Player
         [SerializeField] private LevelSessionController session;
         [SerializeField] private MovementController movement;
         [SerializeField] private float snapRadius = 0.03f;
+        [SerializeField] private bool useSurfaceTargets;
 
         public WState WState => levelController != null ? levelController.WState : null;
         public float CurrentW => WState?.CurrentW ?? 0f;
         public PlayerActionResult LastActionResult { get; private set; } = PlayerActionResult.Success();
+        public int ActionVersion { get; private set; }
 
         private void Awake()
         {
@@ -66,6 +68,21 @@ namespace WSlice.Player
             var hits = Physics.RaycastAll(ray, 100f, groundMask);
             System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
 
+            if (useSurfaceTargets)
+            {
+                if (hits.Length == 0)
+                    return Record(PlayerActionResult.Failure(PlayerActionFailureReason.NoGroundHit));
+                var hit = hits[0];
+                var interactable = hit.collider.GetComponentInParent<IWorldInteractable>();
+                if (interactable != null)
+                    return Record(interactable.TryInteract(CurrentW) ? PlayerActionResult.Success()
+                        : PlayerActionResult.Failure(PlayerActionFailureReason.NotInteractiveAtCurrentW, interactable.GetNotInteractiveHint()));
+                var target = hit.collider.GetComponentInParent<WorldMoveTarget>();
+                var node = target != null ? levelController?.Graph?.GetNode(target.NodeId) : null;
+                return Record(node != null ? movement.RequestMove(node.WorldPosition)
+                    : PlayerActionResult.Failure(PlayerActionFailureReason.NoGroundHit));
+            }
+
             foreach (var hit in hits)
             {
                 var interactable = hit.collider.GetComponentInParent<IWorldInteractable>();
@@ -97,6 +114,7 @@ namespace WSlice.Player
         private PlayerActionResult Record(PlayerActionResult result)
         {
             LastActionResult = result;
+            ActionVersion++;
             return result;
         }
     }

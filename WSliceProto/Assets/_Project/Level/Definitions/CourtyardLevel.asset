@@ -1,0 +1,93 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1b2c3d4e5f611111111111111111111, type: 3}
+  m_Name: CourtyardLevel
+  m_EditorClassIdentifier:
+  LevelId: Courtyard_01
+  DisplayName: 回响庭院
+  GoalNodeId: Goal
+  StartNodeId: Entry
+  InitialW: 0
+  TutorialHint:
+  SnapPoints:
+  - 0
+  - 0.3
+  - 0.525
+  - 0.8
+  - 1
+  Nodes:
+  - Id: Entry
+    WorldPosition: {x: 0, y: 0, z: -6}
+  - Id: Courtyard
+    WorldPosition: {x: 0, y: 0, z: 0}
+  - Id: StairFoot
+    WorldPosition: {x: -3, y: 0, z: 0}
+  - Id: UpperLanding
+    WorldPosition: {x: -6, y: 1.2, z: 0}
+  - Id: Mechanism
+    WorldPosition: {x: -7, y: 1.2, z: 0}
+  - Id: BridgeStart
+    WorldPosition: {x: 3, y: 0, z: 0}
+  - Id: ExitLanding
+    WorldPosition: {x: 6, y: 0, z: 0}
+  - Id: Goal
+    WorldPosition: {x: 8, y: 0, z: 0}
+  Edges:
+  - FromNodeId: Entry
+    ToNodeId: Courtyard
+    WalkableRange:
+      Min: 0.2
+      Max: 0.4
+    Bidirectional: 1
+    IsLocked: 0
+  - FromNodeId: Courtyard
+    ToNodeId: StairFoot
+    WalkableRange:
+      Min: 0
+      Max: 1
+    Bidirectional: 1
+    IsLocked: 0
+  - FromNodeId: StairFoot
+    ToNodeId: UpperLanding
+    WalkableRange:
+      Min: 0.7
+      Max: 0.9
+    Bidirectional: 1
+    IsLocked: 0
+  - FromNodeId: UpperLanding
+    ToNodeId: Mechanism
+    WalkableRange:
+      Min: 0
+      Max: 1
+    Bidirectional: 1
+    IsLocked: 0
+  - FromNodeId: Courtyard
+    ToNodeId: BridgeStart
+    WalkableRange:
+      Min: 0
+      Max: 1
+    Bidirectional: 1
+    IsLocked: 0
+  - FromNodeId: BridgeStart
+    ToNodeId: ExitLanding
+    WalkableRange:
+      Min: 0.45
+      Max: 0.6
+    Bidirectional: 1
+    IsLocked: 1
+  - FromNodeId: ExitLanding
+    ToNodeId: Goal
+    WalkableRange:
+      Min: 0
+      Max: 1
+    Bidirectional: 1
+    IsLocked: 0

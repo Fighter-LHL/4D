@@ -8,7 +8,7 @@ namespace WSlice.Editor
         public const float GroundScaleXZ = 1.6f;
         public const string PlayerStartNodeId = "Entry";
         public static readonly UnityEngine.Vector3 PlayerStartPosition = new(0f, 0f, 0f);
-        public static readonly UnityEngine.Vector3 LeverPosition = new(5f, 0.75f, 1.2f);
+        public static readonly UnityEngine.Vector3 LeverPosition = new(4f, 0.75f, 1.2f);
 
         public static string ProfileDirectory => GrayboxLevelRecipe.ProfileDirectory;
     }

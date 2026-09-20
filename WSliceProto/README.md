@@ -2,9 +2,9 @@
 
 基于 Unity 6000.0 LTS + URP 的“隐藏维度切片”解谜原型。关卡作者通过 `w ∈ [0,1]` 定义物体显隐与路径可达性，运行时负责平滑插值与交互。
 
-**阶段：** Prototype v0.3.x — 五关 playable demo + authoring hardening。
+**阶段：** v0.4.0 本机独立应用验收通过。`190dd462` 通过 Unity 7 项校验、EditMode 130/130、PlayMode 74/74（含庭院 10/10）、macOS 构建及三个启动尺寸目标的代理 GUI 回归；庭院共通关 4 次，旧五关各至少 2 次。五人试玩仍为 **0/5，未执行**。见[本轮运行记录与应用路径](../docs/releases/v0.4-courtyard-runtime.md)及[庭院说明](../docs/courtyard-slice.md)。
 
-仓库入口说明见 [`../README.md`](../README.md)。本地验证见 [`Validation.md`](Validation.md)。Release checklist 见 [`../docs/releases/v0.3-wslice-demo.md`](../docs/releases/v0.3-wslice-demo.md)。
+仓库入口说明见 [`../README.md`](../README.md)。本地验证见 [`Validation.md`](Validation.md)。历史 v0.3 release checklist 见 [`../docs/releases/v0.3-wslice-demo.md`](../docs/releases/v0.3-wslice-demo.md)，不作为当前开发版通过证据。
 
 ## 环境
 
@@ -28,7 +28,7 @@
 
 ```bash
 # 从仓库根目录
-./scripts/validate-local.sh          # L0 + L1（五关 graybox + catalog）
+./scripts/validate-local.sh          # L0 + L1（庭院、旧五关 + Catalog）
 ./scripts/validate-local.sh --tests  # 额外尝试 L2/L3 batchmode 测试
 ```
 
@@ -41,20 +41,16 @@
 命令行（需有效 Unity license）：
 
 ```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath "$(pwd)" \
-  -runTests -testPlatform EditMode \
-  -testResults TestResults/editmode-results.xml \
-  -quit -batchmode -nographics
+../scripts/validate-local.sh --tests
 ```
 
-Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `playmode-results.xml`。
+脚本依次执行 EditMode 和 PlayMode，每次生成独立证据目录并解析实际用例结果。
 
-**已知限制：** batchmode `-runTests` 有时退出 0 但不产出 XML，此时必须在 Editor 中手动跑并记录结果（见 Validation.md PR 规范）。
+**证据要求：** 退出 0 但没有新 XML 时，本轮验证失败/未确认。可改用 Editor Test Runner，但必须导出本次结果并记录实际用例数量。
 
 ## 搭建与校验关卡
 
-**推荐（一键生成 + 校验）：**
+场景已入库，运行和验证无需先 Generate。仅在开发更改生成规则时生成资产，单独审查差异后再执行统一验证。
 
 | 关卡 | Generate | Validate |
 |---|---|---|
@@ -64,6 +60,7 @@ Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `p
 | Chambers_04 | `WSlice → Generate Chambers Graybox` | `WSlice → Validate Chambers Graybox` |
 | Hazard_05 | `WSlice → Generate Hazard Graybox` | `WSlice → Validate Hazard Graybox` |
 | Catalog | — | `WSlice → Validate Level Catalog` |
+| Courtyard_01 | `WSlice → Generate Courtyard Slice` | `WSlice → Validate Courtyard Slice` |
 
 手动冒烟：[`Assets/_Project/Tests/PlayModeSmokeTest.md`](Assets/_Project/Tests/PlayModeSmokeTest.md)
 
@@ -74,31 +71,33 @@ Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `p
 ./scripts/build-macos.sh
 ```
 
-或 Editor：`WSlice → Build/macOS Standalone`
+脚本默认输出到新的 `WSliceProto/builds/macos/run-<UTC 时间>-<随机后缀>/W-Slice.app`。成功后用 `open` 打开控制台 `VERIFIED BUILD ARTIFACT ONLY:` 后的本次完整路径。
 
-**输出路径（统一）：** `WSliceProto/builds/macos/W-Slice.app`
+同级保存 `build-invocation.json`、`build-result.json`、`build.log`、`unity-console.log` 与 `build-info.json`。Manifest 应记录 version `0.4.0`、Unity 版本及七个启用场景。脚本拒绝覆盖已有产物和证据；`WSLICE_BUILD_OUTPUT` 可指定新的 `.app` 位置。
 
-构建成功后同目录生成 `build-info.json`（version `0.3.0`、Unity 版本、启用场景、构建时间）。
+构建产物核验不启动应用，`build-result.json` 中的 `applicationSmoke` 保持 `not_run`。当前候选构建后另行完成了实际 GUI 回归，操作和退出日志保存在 `TestResults/gui-190dd46-20260921/`；不回填脚本结果，也不使用较早应用的记录替代本候选验收。
+
+Editor 菜单 `WSlice → Build/macOS Standalone` 默认仍输出固定位置 `WSliceProto/builds/macos/W-Slice.app` 及同级 `build-info.json`，不经过脚本的独立运行目录和完整证据核验。两种入口不可混用输出路径或证据结论。
 
 ## 关键设计原则
 
-- `w` 是唯一真相源。所有显隐、通行、交互都从 `WState.CurrentW` 推导。
+- 切片取自 `WState.CurrentW`；通行还受 graph 的显式锁与机关状态约束，空间表现与这些实际条件同步。
 - 核心逻辑尽量是纯 C#，MonoBehaviour 仅做挂接与表现。
 - 关卡可通行关系用手工节点图表达，清晰可控。
 - Graph 运行时变更通过 `LevelGraphMutationController` 追踪，restart 经 `LevelRestartPipeline` 有序回滚（Graph → W → Player → Interactables → UI）。
 
-## 当前能力（v0.3.x）
+## 当前实现（v0.4.0 可构建候选）
 
-- 五关 graybox demo + `LevelSelect` demo 首页（标题、主题 hint、Quit、版本号）
+- 回响庭院 + 原五关回归，共六个可玩关卡、七个启用场景；`LevelSelect` 首页突出庭院入口并保留机制练习
+- 庭院位置约束机关、显式锁边、跨切片状态、条件完成、可恢复误调与中文按进度提示
 - 完成/失败 overlay、Playing **R** 重开、开局教学提示
 - W 门控边、W-offset 平台、profile 化拉杆 interactable + graph mutation
 - `LevelCatalogValidator` + `GrayboxLevelRecipe`
-- macOS standalone 构建 + 统一灰盒 URP Lit 材质
+- macOS standalone 构建、每轮独立产物与证据核验 + 统一灰盒 URP Lit 材质
 
-## 下一步（v0.3+ foundation）
+## 下一步（v0.4.0 验证与试玩）
 
-1. ~~第四关 **Chambers_04**~~ ✅
-2. ~~第五关 **Hazard_05**~~ ✅（hazard platform + segment-break fail）
-3. ~~Graph runtime deep-copy + restart pipeline~~ ✅
-4. Objective/condition 系统（crystal、flag、multi-step unlock）
-5. CI — GitHub Actions L0/L1（需配置 Unity license secrets）
+1. 当前候选编译、六关与 Catalog 校验、EditMode / PlayMode 和独立应用构建已通过；源码变更后重新运行并保存新的证据。
+2. 保留本次应用与桌面验收证据；三个启动尺寸目标的布局和点击检查已在 S27C900P HiDPI 环境完成，目标参数与缩放截图尺寸分别记录。Garden 末段已改为与图路线吻合的斜坡。
+3. 开展五位陌生玩家的无指导试玩；当前 0/5，达到教学与解谜门槛后再决定扩关。
+4. CI 校验 + EditMode/PlayMode 以实际 Actions 证据为准（需配置 Unity license；缺失时明确跳过）。

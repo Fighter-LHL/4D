@@ -1,6 +1,7 @@
 name: W-Slice Validate
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -13,102 +14,106 @@ on:
       - 'scripts/**'
       - '.github/workflows/wslice-validate.yml'
 
+permissions:
+  contents: read
+
 jobs:
-  l0-l1:
-    name: L0 Compile + L1 Validate
+  evidence-checker:
+    name: Evidence checker tests (no Unity required)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s scripts/tests -v
+      - run: bash -n scripts/validate-local.sh
+
+  validation:
+    name: L0 compile + L1 scene validation
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    if: ${{ secrets.UNITY_LICENSE != '' }}
-
+    env:
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+      EVIDENCE: WSliceProto/TestResults/ci-${{ github.run_id }}-${{ github.run_attempt }}-validation
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           lfs: true
-
-      - name: L0 Compile
-        uses: game-ci/unity-test-runner@v4
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        with:
-          projectPath: WSliceProto
-          unityVersion: 6000.0.77f1
-          customParameters: -quit -batchmode -nographics
-
-      - name: L1 Validate Garden Graybox
-        uses: game-ci/unity-test-runner@v4
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        with:
-          projectPath: WSliceProto
-          unityVersion: 6000.0.77f1
-          customParameters: -executeMethod WSlice.Editor.GardenGrayboxGenerator.Validate -quit -batchmode -nographics
-
-      - name: L1 Validate Platform Graybox
-        uses: game-ci/unity-test-runner@v4
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        with:
-          projectPath: WSliceProto
-          unityVersion: 6000.0.77f1
-          customParameters: -executeMethod WSlice.Editor.PlatformGrayboxGenerator.Validate -quit -batchmode -nographics
-
-      - name: L1 Validate Gate Graybox
-        uses: game-ci/unity-test-runner@v4
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        with:
-          projectPath: WSliceProto
-          unityVersion: 6000.0.77f1
-          customParameters: -executeMethod WSlice.Editor.GateGrayboxGenerator.Validate -quit -batchmode -nographics
-
-      - name: L1 Validate Chambers Graybox
-        uses: game-ci/unity-test-runner@v4
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        with:
-          projectPath: WSliceProto
-          unityVersion: 6000.0.77f1
-          customParameters: -executeMethod WSlice.Editor.ChambersGrayboxGenerator.Validate -quit -batchmode -nographics
-
-      - name: L1 Validate Hazard Graybox
-        uses: game-ci/unity-test-runner@v4
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        with:
-          projectPath: WSliceProto
-          unityVersion: 6000.0.77f1
-          customParameters: -executeMethod WSlice.Editor.HazardGrayboxGenerator.Validate -quit -batchmode -nographics
-
-      - name: L1 Validate Level Catalog
-        uses: game-ci/unity-test-runner@v4
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        with:
-          projectPath: WSliceProto
-          unityVersion: 6000.0.77f1
-          customParameters: -executeMethod WSlice.Editor.LevelCatalogValidatorRunner.Validate -quit -batchmode -nographics
-
-  ci-skipped-notice:
-    name: CI Skipped (no Unity license)
-    runs-on: ubuntu-latest
-    if: ${{ secrets.UNITY_LICENSE == '' }}
-    steps:
-      - name: Notice
+      - name: Report unavailable Unity configuration
+        if: ${{ env.UNITY_LICENSE == '' || env.UNITY_EMAIL == '' || env.UNITY_PASSWORD == '' }}
+        run: echo 'Unity L0/L1 SKIPPED — license configuration unavailable; no Unity validation was performed.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Mark this invocation
+        if: ${{ env.UNITY_LICENSE != '' && env.UNITY_EMAIL != '' && env.UNITY_PASSWORD != '' }}
         run: |
-          echo "W-Slice CI skipped: configure UNITY_LICENSE, UNITY_EMAIL, and UNITY_PASSWORD repo secrets."
-          echo "Local validation: ./scripts/validate-local.sh"
+          mkdir -p "$EVIDENCE"
+          touch "$EVIDENCE/started"
+      - name: Run the unified Editor validator
+        id: validation
+        if: ${{ env.UNITY_LICENSE != '' && env.UNITY_EMAIL != '' && env.UNITY_PASSWORD != '' }}
+        uses: game-ci/unity-builder@v4
+        with:
+          projectPath: WSliceProto
+          unityVersion: 6000.0.77f1
+          targetPlatform: StandaloneLinux64
+          versioning: None
+          buildMethod: WSlice.Editor.WSliceValidationRunner.ValidateAll
+          customParameters: -wsliceValidationReport TestResults/ci-${{ github.run_id }}-${{ github.run_attempt }}-validation/validation.json
+      - name: Require a complete fresh validation receipt
+        if: ${{ always() && steps.validation.outcome != 'skipped' && steps.validation.outcome != '' }}
+        run: python3 scripts/verify_unity_results.py "$EVIDENCE/validation.json" --kind validation --started-after "$EVIDENCE/started"
+      - name: Preserve validation evidence
+        if: ${{ always() && steps.validation.outcome != 'skipped' && steps.validation.outcome != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.EVIDENCE }}
+            WSliceProto/Logs
+          if-no-files-found: error
+
+  tests:
+    name: Unity ${{ matrix.testMode }} tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        testMode: [editmode, playmode]
+    env:
+      UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+      UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+      UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+      EVIDENCE: WSliceProto/TestResults/ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.testMode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Report unavailable Unity configuration
+        if: ${{ env.UNITY_LICENSE == '' || env.UNITY_EMAIL == '' || env.UNITY_PASSWORD == '' }}
+        run: echo 'Unity ${{ matrix.testMode }} SKIPPED — license configuration unavailable; no tests were run.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Mark this invocation
+        if: ${{ env.UNITY_LICENSE != '' && env.UNITY_EMAIL != '' && env.UNITY_PASSWORD != '' }}
+        run: |
+          mkdir -p "$EVIDENCE"
+          touch "$EVIDENCE/started"
+      - name: Run Unity tests
+        id: tests
+        if: ${{ env.UNITY_LICENSE != '' && env.UNITY_EMAIL != '' && env.UNITY_PASSWORD != '' }}
+        uses: game-ci/unity-test-runner@v4
+        with:
+          projectPath: WSliceProto
+          unityVersion: 6000.0.77f1
+          testMode: ${{ matrix.testMode }}
+          artifactsPath: ${{ env.EVIDENCE }}/results
+          coverageEnabled: false
+          githubToken: ''
+      - name: Require fresh completed NUnit cases
+        if: ${{ always() && steps.tests.outcome != 'skipped' && steps.tests.outcome != '' }}
+        run: python3 scripts/verify_unity_results.py "$EVIDENCE/results" --started-after "$EVIDENCE/started"
+      - name: Preserve test evidence
+        if: ${{ always() && steps.tests.outcome != 'skipped' && steps.tests.outcome != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-${{ matrix.testMode }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.EVIDENCE }}
+          if-no-files-found: error

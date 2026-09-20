@@ -37,6 +37,7 @@ namespace WSlice.Player
         public Vector3 LastTargetWorldPosition => _lastTargetWorldPosition;
         public bool HasLastTargetNode => _hasLastTargetNode;
         public string LastTargetNodeId => _lastTargetNodeId;
+        public int RecoveryVersion { get; private set; }
 
         private void Awake()
         {
@@ -184,11 +185,16 @@ namespace WSlice.Player
             if (graph.CanMove(fromId, toId, levelController.WState.CurrentW))
                 return true;
 
+            ResolveSegmentBreak(graph, fromId);
+            return false;
+        }
+
+        private void ResolveSegmentBreak(LevelGraphRuntime graph, string fromId)
+        {
             SnapCharacterToNode(graph, fromId);
+            RecoveryVersion++;
             if (failSessionOnSegmentBreak && session != null)
                 session.NotifySegmentBreakHazard();
-
-            return false;
         }
 
         private void SetActiveSegment(string fromId, string toId)
@@ -245,8 +251,9 @@ namespace WSlice.Player
             Vector3 target = _lastTargetWorldPosition;
 
             CancelMoveRoutineOnly();
-            SnapCharacterToNode(graph, restartFromId);
-            RequestMove(target);
+            ResolveSegmentBreak(graph, restartFromId);
+            if (!failSessionOnSegmentBreak && (session == null || session.State == LevelSessionState.Playing))
+                RequestMove(target);
         }
 
         private void CancelMoveRoutineOnly()
