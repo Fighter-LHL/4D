@@ -148,7 +148,8 @@ namespace WSlice.Editor
             gateBarrier.Bind(levelController, "GateRoom", "Goal");
 
             var goalMarker = GardenEditorUtilities.FindOrCreatePrimitive("GoalMarker", PrimitiveType.Cylinder);
-            goalMarker.transform.position = new Vector3(10f, -0.06f, 0f);
+            // Keep the visual top 1 cm above the supporting plane to prevent z-fighting.
+            goalMarker.transform.position = new Vector3(10f, -0.05f, 0f);
             goalMarker.transform.localScale = new Vector3(0.6f, 0.06f, 0.6f);
             goalMarker.GetComponent<Collider>().enabled = false;
 

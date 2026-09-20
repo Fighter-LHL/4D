@@ -16,7 +16,6 @@ namespace WSlice.Level
 
         private readonly List<EdgeLineBinding> _bindings = new();
         private WState _subscribedWState;
-        private float _lastW = float.NaN;
 
         public IReadOnlyList<PathEdgeVisual> CurrentVisuals { get; private set; } = Array.Empty<PathEdgeVisual>();
 
@@ -36,13 +35,13 @@ namespace WSlice.Level
 
         private void LateUpdate()
         {
-            if (levelController?.WState == null)
+            if (levelController?.Graph == null || levelController.WState == null)
                 return;
 
-            float currentW = levelController.WState.CurrentW;
-            if (Mathf.Approximately(currentW, _lastW))
-                return;
-
+            // Unlocks and graph resets can change a route without changing W.
+            SubscribeW();
+            if (_bindings.Count == 0)
+                RebuildBindings();
             Refresh();
         }
 
@@ -102,8 +101,7 @@ namespace WSlice.Level
             if (levelController?.Graph == null || levelController.WState == null)
                 return;
 
-            _lastW = levelController.WState.CurrentW;
-            CurrentVisuals = LevelPathPreviewModel.Build(levelController.Graph, _lastW, yOffset);
+            CurrentVisuals = LevelPathPreviewModel.Build(levelController.Graph, levelController.WState.CurrentW, yOffset);
 
             for (int i = 0; i < _bindings.Count; i++)
             {
@@ -171,7 +169,6 @@ namespace WSlice.Level
 
             _bindings.Clear();
             CurrentVisuals = Array.Empty<PathEdgeVisual>();
-            _lastW = float.NaN;
         }
 
         private sealed class EdgeLineBinding

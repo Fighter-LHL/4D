@@ -7,5 +7,7 @@ namespace WSlice.Editor
 
         public const float GroundScaleXZ = 1.2f;
         public const string PlayerStartNodeId = "Outside";
+        public static readonly UnityEngine.Vector3 FlowerBasePosition = new(2f, 0f, 0f);
+        public static readonly UnityEngine.Vector3 FlowerTopPosition = new(2f, 1.5f, 3f);
     }
 }

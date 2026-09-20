@@ -170,12 +170,21 @@ namespace WSlice.Editor
             var stairParent = GardenEditorUtilities.FindOrCreate("HiddenStair");
             stairParent.transform.position = Vector3.zero;
 
-            CreateStairCube(stairParent.transform, "Stair_1", new Vector3(2f, 0.25f, 0f), profiles.Stair);
-            CreateStairCube(stairParent.transform, "Stair_2", new Vector3(2f, 0.75f, 0.3f), profiles.Stair);
-            CreateStairCube(stairParent.transform, "Stair_3", new Vector3(2f, 1.25f, 0.6f), profiles.Stair);
+            foreach (string oldStep in new[] { "Stair_2", "Stair_3" })
+            {
+                var oldObject = GameObject.Find(oldStep);
+                if (oldObject != null) Object.DestroyImmediate(oldObject);
+            }
+            BuildRamp(stairParent.transform, profiles.Stair);
+
+            // A permanent landing supports the destination even when the ramp is hidden.
+            var landing = GardenEditorUtilities.FindOrCreatePrimitive("FlowerLanding", PrimitiveType.Cube);
+            landing.transform.SetParent(stairParent.transform);
+            landing.transform.localPosition = GardenGrayboxRecipe.FlowerTopPosition + new Vector3(0f, -0.75f, 0.5f);
+            landing.transform.localScale = new Vector3(1.2f, 1.5f, 1.002f);
 
             var flower = GardenEditorUtilities.FindOrCreatePrimitive("Flower", PrimitiveType.Capsule);
-            flower.transform.position = new Vector3(2f, 1.5f, 0f);
+            flower.transform.position = GardenGrayboxRecipe.FlowerTopPosition;
             flower.transform.localScale = new Vector3(0.6f, 0.02f, 0.6f);
             // CapsuleCollider preserves its radius under nonuniform scaling; use a thin
             // box matching the marker so the elevated goal stays directly clickable.
@@ -186,13 +195,19 @@ namespace WSlice.Editor
             flowerCollider.size = new Vector3(1f, 2f, 1f);
         }
 
-        private static void CreateStairCube(Transform parent, string name, Vector3 localPosition, SliceProfile profile)
+        private static void BuildRamp(Transform parent, SliceProfile profile)
         {
-            var stair = GardenEditorUtilities.FindOrCreatePrimitive(name, PrimitiveType.Cube);
-            stair.transform.SetParent(parent);
-            stair.transform.localPosition = localPosition;
-            stair.transform.localScale = new Vector3(1f, 0.5f, 0.3f);
-            SetupSliceEntityWithPresenters(stair, profile);
+            var ramp = GardenEditorUtilities.FindOrCreatePrimitive("Stair_1", PrimitiveType.Cube);
+            ramp.transform.SetParent(parent);
+            Vector3 start = GardenGrayboxRecipe.FlowerBasePosition;
+            Vector3 end = GardenGrayboxRecipe.FlowerTopPosition;
+            var rotation = Quaternion.LookRotation(end - start, Vector3.up);
+            const float thickness = 0.15f;
+            ramp.transform.localRotation = rotation;
+            // The top face, rather than the cube centre, lies on the movement segment.
+            ramp.transform.localPosition = (start + end) * 0.5f - rotation * Vector3.up * (thickness * 0.5f);
+            ramp.transform.localScale = new Vector3(1.2f, thickness, Vector3.Distance(start, end));
+            SetupSliceEntityWithPresenters(ramp, profile);
         }
 
         private static void SetupSliceEntityWithPresenters(GameObject go, SliceProfile profile)

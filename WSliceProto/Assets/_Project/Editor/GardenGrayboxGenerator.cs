@@ -56,6 +56,19 @@ namespace WSlice.Editor
             int undoGroup = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName("Generate Garden Graybox");
 
+            var flowerBase = levelDef.Nodes.Find(node => node.Id == "FlowerBase");
+            var flowerTop = levelDef.Nodes.Find(node => node.Id == "FlowerTop");
+            if (flowerBase == null || flowerTop == null)
+            {
+                Debug.LogError("GardenLevel.asset must define both ramp endpoints. Aborting generation.");
+                return;
+            }
+            Undo.RecordObject(levelDef, "Align Garden Ramp Nodes");
+            flowerBase.WorldPosition = GardenGrayboxRecipe.FlowerBasePosition;
+            flowerTop.WorldPosition = GardenGrayboxRecipe.FlowerTopPosition;
+            EditorUtility.SetDirty(levelDef);
+            AssetDatabase.SaveAssetIfDirty(levelDef);
+
             var profiles = GardenProfileFactory.EnsureGardenProfiles();
             var sceneResult = GardenSceneBuilder.Build(levelDef, profiles);
             GardenUIBuilder.Build(sceneResult);

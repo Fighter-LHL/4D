@@ -144,7 +144,7 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 默认仍输出固定路径 `W
 ## 当前行为与体验验收门槛
 
 - **R** 重开在 **Playing / Completed / Failed** 状态下均可用；重开会经 `LevelRestartPipeline` 有序重置 graph、W、玩家、机关与 UI
-- Gate 关：未在正确 W 点击 lever 时 HUD 显示 `NotInteractiveAtCurrentW`
+- Gate 关：拉杆在 W 0.45–0.65 可操作；区间外不激活。未激活的门始终锁定，包括 W=0.99/1；激活后墙体和路径线同时反映通行状态。区间外拉杆碰撞体不可点击，不能把特定 HUD 失败文案作为屏幕点击的必然结果。
 - 庭院机关只要求角色实际抵达机关节点，不限制启动时的切片；机关状态只在重开时复原
 - 庭院移动误调后保持 Playing，返回当前路段出发节点；这与 Gate / Hazard 的 Failed 行为不同
 - 庭院是独立试玩，通关后无“下一关”；可选“再试一次”或“关卡选择”。原五关的下一关链保持不变

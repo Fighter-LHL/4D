@@ -128,6 +128,50 @@ namespace WSlice.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator RampAndLandingSupportTheGraphAtEveryOpenBoundary()
+        {
+            var level = Object.FindFirstObjectByType<LevelRuntimeController>();
+            var ramp = GameObject.Find("HiddenStair/Stair_1");
+            var landing = GameObject.Find("FlowerLanding");
+            Assert.That(ramp, Is.Not.Null);
+            Assert.That(landing, Is.Not.Null);
+            var rampCollider = ramp.GetComponent<Collider>();
+            var landingCollider = landing.GetComponent<Collider>();
+            var supports = new[] { rampCollider, landingCollider, GameObject.Find("Ground").GetComponent<Collider>() };
+            Vector3 start = level.Graph.GetNode("FlowerBase").WorldPosition;
+            Vector3 end = level.Graph.GetNode("FlowerTop").WorldPosition;
+            Assert.That(Vector3.ProjectOnPlane(end - start, Vector3.up).magnitude, Is.GreaterThan(1f),
+                "The ascent must follow a supported slope rather than a vertical airborne segment.");
+
+            foreach (float w in new[] { 0f, 0.749f, 0.75f, 0.76f, 0.8f, 0.85f, 0.9f, 0.901f, 1f })
+            {
+                level.WState.Force(w);
+                yield return null;
+                Physics.SyncTransforms();
+                bool open = level.Graph.CanMove("FlowerBase", "FlowerTop", w);
+                Assert.That(rampCollider.enabled, Is.EqualTo(open), $"W={w}");
+                Assert.That(landingCollider.enabled, Is.True);
+                Assert.That(landing.GetComponent<Renderer>().enabled, Is.True);
+                Assert.That(landingCollider.Raycast(new Ray(end + Vector3.up * 0.3f, Vector3.down), out var landingHit, 0.6f), Is.True,
+                    $"The destination must retain support even with the ramp closed, W={w}.");
+                Assert.That(landingHit.point.y, Is.EqualTo(end.y).Within(0.005f));
+                if (!open) continue;
+
+                Assert.That(ramp.GetComponent<Renderer>().enabled, Is.True);
+                for (int sample = 0; sample <= 30; sample++)
+                {
+                    Vector3 feet = Vector3.Lerp(start, end, sample / 30f);
+                    var hits = Physics.RaycastAll(feet + Vector3.up * 0.3f, Vector3.down, 0.6f);
+                    Assert.That(hits.Any(hit => supports.Contains(hit.collider) && Mathf.Abs(hit.point.y - feet.y) < 0.005f), Is.True,
+                        $"Ascent lacks visible geometric support at sample {sample}, W={w}.");
+                    var bodyHits = Physics.OverlapSphere(feet + Vector3.up * 0.6f, 0.18f);
+                    Assert.That(bodyHits.Any(hit => hit == rampCollider || hit == landingCollider), Is.False,
+                        $"The standing body intersects the ascent geometry at sample {sample}, W={w}.");
+                }
+            }
+        }
+
+        [UnityTest]
         public IEnumerator WallRemainsVisible()
         {
             var level = Object.FindFirstObjectByType<LevelRuntimeController>();

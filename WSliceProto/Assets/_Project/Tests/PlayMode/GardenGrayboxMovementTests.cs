@@ -123,17 +123,73 @@ namespace WSlice.Tests.PlayMode
             var session = Object.FindFirstObjectByType<LevelSessionController>();
 
             character.CurrentNodeId = "FlowerBase";
-            character.transform.position = new Vector3(2f, 0f, 0f);
+            character.transform.position = level.Graph.GetNode("FlowerBase").WorldPosition;
 
             level.WState.Force(0.85f);
             yield return null;
 
-            movement.RequestMove(new Vector3(2f, 1.5f, 0f));
+            movement.RequestMove(level.Graph.GetNode("FlowerTop").WorldPosition);
             yield return WaitForMovement(movement);
 
             Assert.That(character.CurrentNodeId, Is.EqualTo("FlowerTop"));
             Assert.That(Vector3.Distance(character.transform.position, level.Graph.GetNode("FlowerTop").WorldPosition), Is.LessThan(0.001f));
             Assert.That(session.State, Is.EqualTo(LevelSessionState.Completed));
+        }
+
+        [UnityTest]
+        public IEnumerator ClickedRampRouteRecoversAtItsFootThenCompletes()
+        {
+            var level = Object.FindFirstObjectByType<LevelRuntimeController>();
+            var movement = Object.FindFirstObjectByType<MovementController>();
+            var character = Object.FindFirstObjectByType<PlayerCharacter>();
+            var session = Object.FindFirstObjectByType<LevelSessionController>();
+            var router = Object.FindFirstObjectByType<PlayerInputRouter>();
+            var camera = Camera.main;
+            Assert.That(camera, Is.Not.Null);
+
+            level.WState.Force(0.55f);
+            yield return null;
+            Physics.SyncTransforms();
+            var insideTap = camera.WorldToScreenPoint(level.Graph.GetNode("InsideGarden").WorldPosition);
+            Assert.That(router.OnTap(insideTap).Succeeded, Is.True);
+            yield return WaitForMovement(movement);
+            Assert.That(character.CurrentNodeId, Is.EqualTo("InsideGarden"));
+
+            level.WState.Force(0.8f);
+            yield return null;
+            var flowerCollider = GameObject.Find("Flower").GetComponent<Collider>();
+            Physics.SyncTransforms();
+            var goalTap = camera.WorldToScreenPoint(flowerCollider.bounds.center);
+            Assert.That(Physics.Raycast(camera.ScreenPointToRay(goalTap), out var hit, 100f), Is.True);
+            Assert.That(hit.collider, Is.SameAs(flowerCollider), "The elevated goal must be reachable by a real camera ray.");
+            Assert.That(router.OnTap(goalTap).Succeeded, Is.True);
+            Assert.That(movement.LastTargetNodeId, Is.EqualTo("FlowerTop"));
+
+            float elapsed = 0f;
+            while (elapsed < 3f && !(movement.ActiveSegmentFromId == "FlowerBase"
+                && character.transform.position.y > 0.2f))
+            {
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+            Assert.That(movement.ActiveSegmentFromId, Is.EqualTo("FlowerBase"));
+            Assert.That(character.transform.position.y, Is.GreaterThan(0.2f));
+            level.WState.Force(0f);
+            yield return null;
+            Assert.That(movement.IsMoving, Is.False);
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
+            Assert.That(character.CurrentNodeId, Is.EqualTo("FlowerBase"));
+            Assert.That(Vector3.Distance(character.transform.position, level.Graph.GetNode("FlowerBase").WorldPosition), Is.LessThan(0.001f));
+
+            // Recover through the same screen target without restarting the session.
+            level.WState.Force(0.8f);
+            yield return null;
+            Physics.SyncTransforms();
+            Assert.That(router.OnTap(goalTap).Succeeded, Is.True);
+            yield return WaitForMovement(movement);
+            Assert.That(character.CurrentNodeId, Is.EqualTo("FlowerTop"));
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Completed));
+            Assert.That(Vector3.Distance(character.transform.position, level.Graph.GetNode("FlowerTop").WorldPosition), Is.LessThan(0.001f));
         }
 
         [UnityTest]

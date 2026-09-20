@@ -2384,7 +2384,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "封闭花园\n<size=18><color=#C8D4E8>Adjust W to find gaps and stairs</color></size>"
+  m_text: "封闭花园\n<size=18><color=#C8D4E8>Adjust W to reveal the gap and ramp</color></size>"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 0}
   m_sharedMaterial: {fileID: 0}

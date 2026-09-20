@@ -28,6 +28,8 @@ namespace WSlice.Editor
             errors += RequireObject("GardenWall_B", typeof(MeshRenderer), typeof(BoxCollider));
             errors += RequireObject("GardenWall_GapSegment", typeof(GraphPassageBarrier));
             errors += RequireObject("HiddenStair", null);
+            errors += RequireObject("Stair_1", typeof(SliceEntity), typeof(BoxCollider));
+            errors += RequireObject("FlowerLanding", typeof(BoxCollider));
             errors += RequireObject("Flower", typeof(BoxCollider));
             errors += RequireObject("Nodes", null);
             errors += RequireObject("LevelRuntime", typeof(LevelRuntimeController), typeof(LevelSessionController));

@@ -113,6 +113,20 @@ namespace WSlice.Tests.PlayMode
                     $"Ground must support the landing {nodes[i]}.");
                 Assert.That(hit.point.y, Is.EqualTo(node.y).Within(0.01f));
             }
+
+            var goal = GameObject.Find("GoalMarker");
+            var goalRenderer = goal.GetComponent<Renderer>();
+            var goalCollider = goal.GetComponent<BoxCollider>();
+            Assert.That(goalRenderer.bounds.max.y - ground.bounds.max.y,
+                Is.EqualTo(0.01f).Within(0.001f),
+                "The exit marker must sit above the ground to avoid coplanar z-fighting.");
+            Assert.That(goalCollider.enabled, Is.True);
+            Assert.That(goalCollider.bounds.max.y,
+                Is.EqualTo(goalRenderer.bounds.max.y).Within(0.001f));
+            var goalRay = new Ray(level.Graph.GetNode("Goal").WorldPosition + Vector3.up, Vector3.down);
+            Assert.That(Physics.Raycast(goalRay, out var goalHit, 2f), Is.True);
+            Assert.That(goalHit.collider, Is.SameAs(goalCollider),
+                "The raised goal surface must remain available for point selection.");
         }
 
         private static IEnumerator WaitForMovement(MovementController movement, float timeoutSeconds = 5f)

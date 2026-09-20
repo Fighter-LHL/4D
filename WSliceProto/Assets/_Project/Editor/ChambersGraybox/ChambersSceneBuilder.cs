@@ -137,7 +137,8 @@ namespace WSlice.Editor
             CreateRoomMarker("ChamberBMarker", new Vector3(8f, -0.02f, 0f), new Vector3(1.5f, 0.04f, 1.5f));
 
             var goalMarker = GardenEditorUtilities.FindOrCreatePrimitive("GoalMarker", PrimitiveType.Cylinder);
-            goalMarker.transform.position = new Vector3(12f, -0.02f, 0f);
+            // Keep the visual and clickable top 1 cm above the supporting plane.
+            goalMarker.transform.position = new Vector3(12f, -0.01f, 0f);
             goalMarker.transform.localScale = new Vector3(0.6f, 0.02f, 0.6f);
             var capsule = goalMarker.GetComponent<CapsuleCollider>();
             if (capsule != null) Object.DestroyImmediate(capsule);

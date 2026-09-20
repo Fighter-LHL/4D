@@ -194,7 +194,9 @@ namespace WSlice.Tests.PlayMode
                 Assert.That(hit.point.y, Is.EqualTo(node.WorldPosition.y).Within(0.01f));
             }
             Assert.That(entryMarker.bounds.max.y, Is.EqualTo(0f).Within(0.01f));
-            Assert.That(goalMarker.bounds.max.y, Is.EqualTo(0f).Within(0.01f));
+            Assert.That(goalMarker.bounds.max.y - ground.bounds.max.y,
+                Is.EqualTo(0.01f).Within(0.001f),
+                "The exit marker must sit above the ground to avoid coplanar z-fighting.");
             Assert.That(goalMarker.GetComponent<Collider>().enabled, Is.False,
                 "The decorative cylinder's capsule collider must not obstruct the goal.");
             yield return null;

@@ -51,7 +51,8 @@ namespace WSlice.Editor
             if (stairParent != null)
             {
                 foreach (Transform child in stairParent.transform)
-                    ApplyRole(child.gameObject, GrayboxMaterialRole.Slice);
+                    ApplyRole(child.gameObject, child.name == "FlowerLanding"
+                        ? GrayboxMaterialRole.Structure : GrayboxMaterialRole.Slice);
             }
 
             StylizeEnvironment();
