@@ -194,7 +194,7 @@ namespace WSlice.Tests.PlayMode
             Assert.That(level, Is.Not.Null);
             yield return null;
 
-            Assert.That(hud.LastState.PrimaryText, Does.Contain("gaps"));
+            Assert.That(hud.LastState.PrimaryText, Does.Contain("gap and ramp"));
 
             level.WState.SetTarget(0.55f);
             yield return null;

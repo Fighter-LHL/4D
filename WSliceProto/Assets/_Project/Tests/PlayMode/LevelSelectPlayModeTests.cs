@@ -32,7 +32,7 @@ namespace WSlice.Tests.PlayMode
             Assert.That(title.GetComponent<TextMeshProUGUI>().text, Is.EqualTo(LevelSelectDemoInfo.Title));
             Assert.That(version.GetComponent<TextMeshProUGUI>().text, Is.EqualTo(LevelSelectDemoInfo.Version));
             Assert.That(gardenButton.GetComponent<TextMeshProUGUI>().text, Does.Contain("封闭花园"));
-            Assert.That(gardenButton.GetComponent<TextMeshProUGUI>().text, Does.Contain("gaps"));
+            Assert.That(gardenButton.GetComponent<TextMeshProUGUI>().text, Does.Contain("gap and ramp"));
             yield return null;
         }
     }
