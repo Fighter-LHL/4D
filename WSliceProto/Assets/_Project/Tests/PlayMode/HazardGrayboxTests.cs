@@ -27,7 +27,7 @@ namespace WSlice.Tests.PlayMode
             Assert.That(level, Is.Not.Null);
             Assert.That(platform, Is.Not.Null);
             Assert.That(level.WState.CurrentW, Is.EqualTo(0f).Within(0.0001f));
-            Assert.That(platform.transform.localPosition.y, Is.EqualTo(-2f).Within(0.01f));
+            Assert.That(platform.GetComponent<Renderer>().bounds.max.y, Is.EqualTo(-2f).Within(0.01f));
             yield return null;
         }
 

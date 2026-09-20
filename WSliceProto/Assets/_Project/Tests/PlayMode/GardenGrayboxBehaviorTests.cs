@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
@@ -32,9 +33,22 @@ namespace WSlice.Tests.PlayMode
             Assert.That(stair, Is.Not.Null);
             Assert.That(wall, Is.Not.Null);
             Assert.That(level.WState.CurrentW, Is.EqualTo(0f).Within(0.0001f));
-            Assert.That(gap.transform.localScale.sqrMagnitude, Is.LessThan(0.01f));
+            Assert.That(gap.GetComponent<Renderer>().enabled, Is.True);
+            Assert.That(gap.GetComponent<Collider>().enabled, Is.True);
             Assert.That(stair.transform.localScale.sqrMagnitude, Is.LessThan(0.01f));
-            Assert.That(wall.transform.localScale, Is.EqualTo(new Vector3(4f, 2f, 0.5f)).Using(Vector3ComparerWithEqualsOperator.Instance));
+            Assert.That(wall.transform.localScale, Is.EqualTo(new Vector3(1.5f, 2f, 0.5f)).Using(Vector3ComparerWithEqualsOperator.Instance));
+            var flower = GameObject.Find("Flower");
+            Assert.That(flower, Is.Not.Null);
+            Assert.That(flower.GetComponent<Renderer>().bounds.size.y, Is.LessThanOrEqualTo(0.05f),
+                "The goal marker must not swallow the player on the vertical legacy route.");
+            var flowerCollider = flower.GetComponent<BoxCollider>();
+            Assert.That(flowerCollider, Is.Not.Null);
+            Assert.That(flower.GetComponent<CapsuleCollider>(), Is.Null);
+            Physics.SyncTransforms();
+            Vector3 goal = level.Graph.GetNode("FlowerTop").WorldPosition;
+            Assert.That(flowerCollider.Raycast(new Ray(goal + Vector3.up, Vector3.down), out var hit, 2f), Is.True,
+                "The elevated goal marker must remain clickable.");
+            Assert.That(hit.point.y, Is.EqualTo(goal.y).Within(0.03f));
             yield return null;
         }
 
@@ -50,25 +64,49 @@ namespace WSlice.Tests.PlayMode
             level.WState.Force(0.55f);
             yield return null;
 
-            Assert.That(wall.transform.localScale, Is.EqualTo(new Vector3(4f, 2f, 0.5f)).Using(Vector3ComparerWithEqualsOperator.Instance));
+            Assert.That(wall.transform.localScale, Is.EqualTo(new Vector3(1.5f, 2f, 0.5f)).Using(Vector3ComparerWithEqualsOperator.Instance));
         }
 
         [UnityTest]
-        public IEnumerator GapSegmentAppearsAtMidW()
+        public IEnumerator EntranceOpensOnlyWithItsGraphEdge_AndDoesNotEncloseLandingNodes()
         {
             var level = Object.FindFirstObjectByType<LevelRuntimeController>();
             var gap = GameObject.Find("GardenWall_GapSegment");
             Assert.That(level, Is.Not.Null);
             Assert.That(gap, Is.Not.Null);
+            var walls = new[] { gap, GameObject.Find("GardenWall_A"), GameObject.Find("GardenWall_B") };
+            Assert.That(walls.All(wall => wall != null), Is.True);
+            var wallColliders = walls.Select(wall => wall.GetComponent<Collider>()).ToArray();
+            Assert.That(wallColliders.All(collider => collider != null), Is.True);
 
-            level.WState.Force(0f);
-            yield return null;
-            Assert.That(gap.transform.localScale.sqrMagnitude, Is.LessThan(0.01f), "Gap should be invisible at w=0");
+            foreach (float w in new[] { 0f, 0.499f, 0.5f, 0.55f, 0.7f, 0.701f, 1f })
+            {
+                level.WState.Force(w);
+                yield return null;
+                Physics.SyncTransforms();
+                bool open = level.Graph.CanMove("Outside", "Gap", w);
+                Assert.That(gap.GetComponent<GraphPassageBarrier>(), Is.Not.Null);
+                Assert.That(gap.GetComponent<Renderer>().enabled, Is.EqualTo(!open), $"W={w}");
+                Assert.That(gap.GetComponent<Collider>().enabled, Is.EqualTo(!open), $"W={w}");
 
-            // GapProfile visibility peaks around w=0.55 (SolidRange 0.50-0.70)
-            level.WState.Force(0.55f);
-            yield return null;
-            Assert.That(gap.transform.localScale.sqrMagnitude, Is.GreaterThan(0.5f), "Gap should be visible at w=0.55");
+                Vector3 start = level.Graph.GetNode("Outside").WorldPosition + Vector3.up * 0.6f;
+                Vector3 end = level.Graph.GetNode("Gap").WorldPosition + Vector3.up * 0.6f;
+                var hits = Physics.SphereCastAll(start, 0.2f, (end - start).normalized, Vector3.Distance(start, end));
+                Assert.That(hits.Any(hit => wallColliders.Contains(hit.collider)), Is.EqualTo(!open),
+                    $"The visible entrance must block exactly when its graph edge is closed, W={w}.");
+
+                foreach (string nodeId in new[] { "Outside", "Gap", "InsideGarden", "FlowerBase" })
+                {
+                    Vector3 body = level.Graph.GetNode(nodeId).WorldPosition + Vector3.up * 0.6f;
+                    Assert.That(wallColliders.Any(collider => collider.enabled && collider.bounds.Contains(body)), Is.False,
+                        $"A wall encloses the safe landing {nodeId}, W={w}.");
+                }
+                // The original solid wall occupied both InsideGarden and the route to the flower.
+                start = level.Graph.GetNode("Gap").WorldPosition + Vector3.up * 0.6f;
+                end = level.Graph.GetNode("InsideGarden").WorldPosition + Vector3.up * 0.6f;
+                hits = Physics.SphereCastAll(start, 0.2f, (end - start).normalized, Vector3.Distance(start, end));
+                Assert.That(hits.Any(hit => wallColliders.Contains(hit.collider)), Is.False);
+            }
         }
 
         [UnityTest]

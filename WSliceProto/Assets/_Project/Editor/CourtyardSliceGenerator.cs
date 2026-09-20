@@ -32,7 +32,7 @@ namespace WSlice.Editor
                 LoadProfile("WallProfile"), LoadProfile("GapProfile"), LoadProfile("StairProfile"));
             var shell = GardenSceneBuilder.Build(definition, profiles);
             GardenUIBuilder.Build(shell);
-            foreach (var name in new[] { "Ground", "GardenWall_A", "GardenWall_GapSegment", "HiddenStair", "Flower", "PathPreview", "WDialTrack", "PlayerHUDText", "DebugText" })
+            foreach (var name in new[] { "Ground", "GardenWall_A", "GardenWall_B", "GardenWall_GapSegment", "HiddenStair", "Flower", "PathPreview", "WDialTrack", "PlayerHUDText", "DebugText" })
             {
                 var go = GameObject.Find(name);
                 if (go != null) UnityEngine.Object.DestroyImmediate(go);

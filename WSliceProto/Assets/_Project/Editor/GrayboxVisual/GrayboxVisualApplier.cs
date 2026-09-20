@@ -22,6 +22,7 @@ namespace WSlice.Editor
 
             ApplyRole(GameObject.Find("Ground"), GrayboxMaterialRole.Ground);
             ApplyRole(GameObject.Find("Player"), GrayboxMaterialRole.Player);
+            ApplyRole(GameObject.Find("PlayerVisual"), GrayboxMaterialRole.Player);
 
             ApplyNamedRoles(
                 GrayboxMaterialRole.Goal,
@@ -31,6 +32,7 @@ namespace WSlice.Editor
             ApplyNamedRoles(
                 GrayboxMaterialRole.Structure,
                 "GardenWall_A",
+                "GardenWall_B",
                 "WestPillar",
                 "EastPillar",
                 "GateFrame",

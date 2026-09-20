@@ -14,6 +14,7 @@ namespace WSlice.Editor
             cameraObj.transform.rotation = Quaternion.Euler(35f, 0f, 0f);
 
             var ground = GardenEditorUtilities.FindOrCreatePrimitive("Ground", PrimitiveType.Plane);
+            ground.transform.position = new Vector3(6f, 0f, 0f);
             ground.transform.localScale = new Vector3(
                 ChambersGrayboxRecipe.GroundScaleXZ,
                 1f,
@@ -39,6 +40,7 @@ namespace WSlice.Editor
 
             var player = GardenEditorUtilities.FindOrCreatePrimitive("Player", PrimitiveType.Capsule);
             player.transform.position = ChambersGrayboxRecipe.PlayerStartPosition;
+            GrayboxPlayerVisuals.Ensure(player);
             var playerCharacter = player.GetComponent<PlayerCharacter>() ?? player.AddComponent<PlayerCharacter>();
             playerCharacter.CurrentNodeId = ChambersGrayboxRecipe.PlayerStartNodeId;
 
@@ -67,7 +69,7 @@ namespace WSlice.Editor
             pathPreviewSo.FindProperty("yOffset").floatValue = GrayboxLevelRecipe.PathPreviewYOffset;
             pathPreviewSo.ApplyModifiedProperties();
 
-            BuildWorldGeometry();
+            BuildWorldGeometry(levelController);
 
             var nodesParent = GardenEditorUtilities.FindOrCreate("Nodes");
             nodesParent.transform.position = Vector3.zero;
@@ -128,19 +130,24 @@ namespace WSlice.Editor
             };
         }
 
-        private static void BuildWorldGeometry()
+        private static void BuildWorldGeometry(LevelRuntimeController levelController)
         {
-            CreateRoomMarker("LobbyMarker", new Vector3(0f, 0.5f, 0f), new Vector3(1.5f, 1f, 1.5f));
-            CreateRoomMarker("ChamberAMarker", new Vector3(4f, 0.5f, 0f), new Vector3(1.5f, 1f, 1.5f));
-            CreateRoomMarker("ChamberBMarker", new Vector3(8f, 0.5f, 0f), new Vector3(1.5f, 1f, 1.5f));
+            CreateRoomMarker("LobbyMarker", new Vector3(0f, 0.02f, 0f), new Vector3(1.5f, 0.04f, 1.5f));
+            CreateRoomMarker("ChamberAMarker", new Vector3(4f, 0.02f, 0f), new Vector3(1.5f, 0.04f, 1.5f));
+            CreateRoomMarker("ChamberBMarker", new Vector3(8f, 0.02f, 0f), new Vector3(1.5f, 0.04f, 1.5f));
 
             var goalMarker = GardenEditorUtilities.FindOrCreatePrimitive("GoalMarker", PrimitiveType.Cylinder);
-            goalMarker.transform.position = new Vector3(12f, 0.75f, 0f);
-            goalMarker.transform.localScale = new Vector3(0.6f, 0.75f, 0.6f);
+            goalMarker.transform.position = new Vector3(12f, 0.02f, 0f);
+            goalMarker.transform.localScale = new Vector3(0.6f, 0.02f, 0.6f);
+            var capsule = goalMarker.GetComponent<CapsuleCollider>();
+            if (capsule != null) Object.DestroyImmediate(capsule);
+            var goalCollider = goalMarker.GetComponent<BoxCollider>() ?? goalMarker.AddComponent<BoxCollider>();
+            goalCollider.center = Vector3.zero;
+            goalCollider.size = new Vector3(1f, 2f, 1f);
 
-            CreateDivider("Divider_LobbyA", new Vector3(2f, 1f, 0f));
-            CreateDivider("Divider_AB", new Vector3(6f, 1f, 0f));
-            CreateDivider("Divider_BGoal", new Vector3(10f, 1f, 0f));
+            CreateDivider("Divider_LobbyA", new Vector3(2f, 1f, 0f), levelController, "Lobby", "ChamberA");
+            CreateDivider("Divider_AB", new Vector3(6f, 1f, 0f), levelController, "ChamberA", "ChamberB");
+            CreateDivider("Divider_BGoal", new Vector3(10f, 1f, 0f), levelController, "ChamberB", "Goal");
         }
 
         private static void CreateRoomMarker(string name, Vector3 position, Vector3 scale)
@@ -150,11 +157,15 @@ namespace WSlice.Editor
             marker.transform.localScale = scale;
         }
 
-        private static void CreateDivider(string name, Vector3 position)
+        private static void CreateDivider(string name, Vector3 position, LevelRuntimeController levelController,
+            string from, string to)
         {
             var divider = GardenEditorUtilities.FindOrCreatePrimitive(name, PrimitiveType.Cube);
             divider.transform.position = position;
             divider.transform.localScale = new Vector3(0.25f, 2f, 2.5f);
+            var barrier = divider.GetComponent<GraphPassageBarrier>();
+            if (barrier == null) barrier = divider.AddComponent<GraphPassageBarrier>();
+            barrier.Bind(levelController, from, to);
         }
     }
 }

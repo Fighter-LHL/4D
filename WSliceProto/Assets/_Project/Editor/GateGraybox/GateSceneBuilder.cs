@@ -15,6 +15,7 @@ namespace WSlice.Editor
             cameraObj.transform.rotation = Quaternion.Euler(35f, 0f, 0f);
 
             var ground = GardenEditorUtilities.FindOrCreatePrimitive("Ground", PrimitiveType.Plane);
+            ground.transform.position = new Vector3(5f, 0f, 0f);
             ground.transform.localScale = new Vector3(GateGrayboxRecipe.GroundScaleXZ, 1f, GateGrayboxRecipe.GroundScaleXZ);
 
             var levelRuntime = GardenEditorUtilities.FindOrCreate(
@@ -37,6 +38,7 @@ namespace WSlice.Editor
 
             var player = GardenEditorUtilities.FindOrCreatePrimitive("Player", PrimitiveType.Capsule);
             player.transform.position = GateGrayboxRecipe.PlayerStartPosition;
+            GrayboxPlayerVisuals.Ensure(player);
             var playerCharacter = player.GetComponent<PlayerCharacter>() ?? player.AddComponent<PlayerCharacter>();
             playerCharacter.CurrentNodeId = GateGrayboxRecipe.PlayerStartNodeId;
 
@@ -134,16 +136,21 @@ namespace WSlice.Editor
                 levelController);
 
             var entryMarker = GardenEditorUtilities.FindOrCreatePrimitive("EntryMarker", PrimitiveType.Cube);
-            entryMarker.transform.position = new Vector3(0f, 0.5f, 0f);
+            entryMarker.transform.position = new Vector3(0f, -0.5f, 0f);
             entryMarker.transform.localScale = new Vector3(1.5f, 1f, 1.5f);
 
             var gateFrame = GardenEditorUtilities.FindOrCreatePrimitive("GateFrame", PrimitiveType.Cube);
-            gateFrame.transform.position = new Vector3(5f, 1.25f, 0f);
+            gateFrame.transform.position = new Vector3(7.5f, 1.25f, 0f);
             gateFrame.transform.localScale = new Vector3(0.5f, 2.5f, 3f);
+            var gateBarrier = gateFrame.GetComponent<GraphPassageBarrier>();
+            if (gateBarrier == null)
+                gateBarrier = gateFrame.AddComponent<GraphPassageBarrier>();
+            gateBarrier.Bind(levelController, "GateRoom", "Goal");
 
             var goalMarker = GardenEditorUtilities.FindOrCreatePrimitive("GoalMarker", PrimitiveType.Cylinder);
-            goalMarker.transform.position = new Vector3(10f, 0.75f, 0f);
-            goalMarker.transform.localScale = new Vector3(0.6f, 0.75f, 0.6f);
+            goalMarker.transform.position = new Vector3(10f, -0.06f, 0f);
+            goalMarker.transform.localScale = new Vector3(0.6f, 0.06f, 0.6f);
+            goalMarker.GetComponent<Collider>().enabled = false;
 
             var lever = GardenEditorUtilities.FindOrCreatePrimitive("GateLever", PrimitiveType.Cube);
             lever.transform.position = GateGrayboxRecipe.LeverPosition;
