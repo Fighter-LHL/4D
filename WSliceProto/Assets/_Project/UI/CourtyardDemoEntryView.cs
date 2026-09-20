@@ -110,8 +110,8 @@ namespace WSlice.UI
                 if (chineseFontAsset != null)
                     label.font = chineseFontAsset;
 
-                // The legacy list labels have a fixed width. Constrain them to
-                // their smaller grid cells before TMP calculates wrapping.
+                // Explicitly fit every label to its grid cell before TMP
+                // calculates wrapping, including regenerated legacy buttons.
                 var labelRect = label.rectTransform;
                 labelRect.anchorMin = Vector2.zero;
                 labelRect.anchorMax = Vector2.one;

@@ -25,8 +25,10 @@ namespace WSlice.Tests.EditMode
                 Assert.That(fontAsset != null, Is.True);
                 Assert.That(File.Exists(path), Is.True, "TMP must retain a real installed font source.");
                 Assert.That(faceIndex, Is.GreaterThanOrEqualTo(0));
-                Assert.That(fontAsset.TryAddCharacters(CourtyardFontSupport.RequiredCharacters, out string missing),
-                    Is.True, "TMP font is missing: " + missing);
+                // The factory already populated these glyphs. TMP returns false
+                // from TryAddCharacters when there are no new glyphs to add.
+                Assert.That(fontAsset.HasCharacters(CourtyardFontSupport.RequiredCharacters),
+                    Is.True, "TMP must contain every required Chinese character.");
 
                 fontAsset.ClearFontAssetData();
                 Assert.That(fontAsset.TryAddCharacters(CourtyardFontSupport.RequiredCharacters, out string reloadMissing),
