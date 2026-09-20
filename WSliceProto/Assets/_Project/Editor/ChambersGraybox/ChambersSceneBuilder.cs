@@ -132,12 +132,12 @@ namespace WSlice.Editor
 
         private static void BuildWorldGeometry(LevelRuntimeController levelController)
         {
-            CreateRoomMarker("LobbyMarker", new Vector3(0f, 0.02f, 0f), new Vector3(1.5f, 0.04f, 1.5f));
-            CreateRoomMarker("ChamberAMarker", new Vector3(4f, 0.02f, 0f), new Vector3(1.5f, 0.04f, 1.5f));
-            CreateRoomMarker("ChamberBMarker", new Vector3(8f, 0.02f, 0f), new Vector3(1.5f, 0.04f, 1.5f));
+            CreateRoomMarker("LobbyMarker", new Vector3(0f, -0.02f, 0f), new Vector3(1.5f, 0.04f, 1.5f));
+            CreateRoomMarker("ChamberAMarker", new Vector3(4f, -0.02f, 0f), new Vector3(1.5f, 0.04f, 1.5f));
+            CreateRoomMarker("ChamberBMarker", new Vector3(8f, -0.02f, 0f), new Vector3(1.5f, 0.04f, 1.5f));
 
             var goalMarker = GardenEditorUtilities.FindOrCreatePrimitive("GoalMarker", PrimitiveType.Cylinder);
-            goalMarker.transform.position = new Vector3(12f, 0.02f, 0f);
+            goalMarker.transform.position = new Vector3(12f, -0.02f, 0f);
             goalMarker.transform.localScale = new Vector3(0.6f, 0.02f, 0.6f);
             var capsule = goalMarker.GetComponent<CapsuleCollider>();
             if (capsule != null) Object.DestroyImmediate(capsule);

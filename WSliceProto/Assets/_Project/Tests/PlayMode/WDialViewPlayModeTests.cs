@@ -84,12 +84,13 @@ namespace WSlice.Tests.PlayMode
             level.WState.Force(0f);
             yield return null;
 
-            var result = router.OnTap(camera.WorldToScreenPoint(new Vector3(0f, 0f, 0f)));
+            var result = router.OnTap(VisibleFlowerScreenPoint(camera));
             yield return null;
 
             Assert.That(result.Succeeded, Is.False);
             Assert.That(result.Reason, Is.EqualTo(PlayerActionFailureReason.NoPathAtCurrentW));
             Assert.That(router.LastActionResult.Reason, Is.EqualTo(PlayerActionFailureReason.NoPathAtCurrentW));
+            Assert.That(Object.FindFirstObjectByType<MovementController>().LastTargetNodeId, Is.EqualTo("FlowerTop"));
             var hudState = WDialModel.Build(
                 level,
                 Object.FindFirstObjectByType<MovementController>(),
@@ -155,9 +156,11 @@ namespace WSlice.Tests.PlayMode
             level.WState.Force(0f);
             yield return null;
 
-            router.OnTap(camera.WorldToScreenPoint(new Vector3(0f, 0f, 0f)));
+            var result = router.OnTap(VisibleFlowerScreenPoint(camera));
             yield return null;
 
+            Assert.That(result.Reason, Is.EqualTo(PlayerActionFailureReason.NoPathAtCurrentW));
+            Assert.That(Object.FindFirstObjectByType<MovementController>().LastTargetNodeId, Is.EqualTo("FlowerTop"));
             Assert.That(debugText.text, Does.Contain("SnapPoints:"));
             Assert.That(debugText.text, Does.Contain("AvailableEdges:"));
             Assert.That(debugText.text, Does.Contain("MoveWillBreak:"));
@@ -179,6 +182,22 @@ namespace WSlice.Tests.PlayMode
 
             Assert.That(playerHud.LastState.IsComplete, Is.True);
             Assert.That(playerHud.LastState.PrimaryText, Is.EqualTo("Level Complete!"));
+        }
+
+        private static Vector2 VisibleFlowerScreenPoint(Camera camera)
+        {
+            var flower = GameObject.Find("Flower");
+            Assert.That(flower, Is.Not.Null);
+            var collider = flower.GetComponent<Collider>();
+            Assert.That(collider, Is.Not.Null);
+            Physics.SyncTransforms();
+            // The elevated marker is visible above the closed entrance; InsideGarden is occluded.
+            var screenPoint = camera.WorldToScreenPoint(collider.bounds.center);
+            Assert.That(screenPoint.z, Is.GreaterThan(0f));
+            var ray = camera.ScreenPointToRay(screenPoint);
+            Assert.That(Physics.Raycast(ray, out var hit, 100f, LayerMask.GetMask("Default")), Is.True);
+            Assert.That(hit.collider, Is.EqualTo(collider), "The tap must reach the visible goal, not the entrance wall.");
+            return screenPoint;
         }
     }
 }
