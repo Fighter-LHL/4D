@@ -39,9 +39,13 @@
 
 早期已执行：验证器及脚本编排测试 **15/15**，`actionlint` 和 shell 语法检查通过；157 个项目 C# 文件通过语法解析，7 个场景通过 YAML/局部引用检查，项目 metadata GUID 无冲突。这里的 15/15 不包含 Unity 测试，C# 语法解析也不等于编译成功。当时实际调用 Unity 验证脚本返回 `NOT RUN: Unity executable unavailable`。
 
-当前已安装 Unity Hub 3.21.3、Unity 6000.0.77f1 ARM64 和 Rosetta，并取得真实运行证据：`b425a3a` 的 7 scopes 与 EditMode 124/124 通过，PlayMode 50/65（15 失败），其中庭院 10/10 通过；修复后的 `e021c2e` 再次通过 7 scopes，EditMode 124/125（新增字体测试 1 失败），PlayMode 尚未复跑。独立字体诊断的 196 字覆盖通过。最终全量测试、macOS 构建与应用内操作仍待完成，逐次结果及失败修复记录见 [v0.4 运行验证记录](releases/v0.4-courtyard-runtime.md)。
+当前状态为**可构建候选，待最终桌面验收**。Unity Hub 3.21.3、Unity 6000.0.77f1 ARM64 和 Rosetta 已安装。候选 `2063e0f98aa3f5fad888d0e94dae89b6142cad2b` 在 clean 工作区通过 7 scopes（0 error/warning）、EditMode **130/130**、PlayMode **71/71**，含庭院 **10/10**；failed/skipped 均为 0。macOS 独立应用已构建并核验源码稳定性，路径为 `WSliceProto/builds/macos/run-20260920T161218Z-ms9l61sb/W-Slice.app`。
 
-修复稳定后先执行 `./scripts/validate-local.sh --tests`。结果必须来自当前运行的 XML/receipt，不接受历史 exit 0 代替通过。再执行 `./scripts/build-macos.sh` 并亲自点击完成、重开、返回按钮。
+较早 `5606df8` 应用通过桌面代理操作完成庭院主线、重开、误调恢复、远程激活拒绝和跨切片状态检查，同时发现旧 Garden、Platform、Gate 的视觉错误；后续修复已由最终自动化回归通过。该较早 GUI 结果不能作为最终候选已试玩的证据。记录截止时 Mac 锁定，已请求用户手动解锁；最终候选的庭院及旧五关桌面验收仍待完成。真实历史失败、源码绑定、截图、日志和本机启动命令见 [v0.4 运行验证记录](releases/v0.4-courtyard-runtime.md)。
+
+早期字体诊断的 196 字覆盖通过，最终独立诊断扩大至 **201 字**且 native/TMP/reload 全部通过，最终 EditMode 字体测试也通过；最终应用中文布局仍待桌面验收。[最终候选启动记录](../WSliceProto/TestResults/gui-20260920/final-candidate-smoke.json)确认进程与 M4/Metal 初始化，状态仍为 `blocked_pending_manual_unlock`。当前硬件证据仅报告 1920×1080 显示器，Retina 未验证。旧 Garden 的垂直 `FlowerBase → FlowerTop` 图边保留，不代表逐阶行走表现。
+
+源码变更后重新执行 `./scripts/validate-local.sh --tests` 和 `./scripts/build-macos.sh`，保存对应的新 XML/receipt 与产物；不能沿用旧版本结论。当前下一步为解锁后启动上述最终应用，实际点击完成、重开、返回按钮并回归旧五关。
 
 回归用例覆盖机关前不可通行、完整往返通关、跨切片状态、位置约束、错误切片安全恢复、图与视觉一致、条件完成、全部机关重开、提示重置、首页入口及结算可重新出现。
 

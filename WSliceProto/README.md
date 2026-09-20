@@ -2,7 +2,7 @@
 
 基于 Unity 6000.0 LTS + URP 的“隐藏维度切片”解谜原型。关卡作者通过 `w ∈ [0,1]` 定义物体显隐与路径可达性，运行时负责平滑插值与交互。
 
-**阶段：** v0.4.0 development，回响庭院代表关 + 原五关回归样例。新关尚待本次 Unity 实测，不能把已写测试视为通过结果；五人试玩为 0/5。见 [`../docs/courtyard-slice.md`](../docs/courtyard-slice.md)。
+**阶段：** v0.4.0 可构建候选，待最终桌面验收。`2063e0f` 已通过 Unity 7 项校验、EditMode 130/130、PlayMode 71/71（含庭院 10/10）及 macOS 构建；五人试玩为 0/5。见[本轮运行记录与应用路径](../docs/releases/v0.4-courtyard-runtime.md)及[庭院说明](../docs/courtyard-slice.md)。
 
 仓库入口说明见 [`../README.md`](../README.md)。本地验证见 [`Validation.md`](Validation.md)。历史 v0.3 release checklist 见 [`../docs/releases/v0.3-wslice-demo.md`](../docs/releases/v0.3-wslice-demo.md)，不作为当前开发版通过证据。
 
@@ -75,7 +75,7 @@
 
 同级保存 `build-invocation.json`、`build-result.json`、`build.log`、`unity-console.log` 与 `build-info.json`。Manifest 应记录 version `0.4.0`、Unity 版本及七个启用场景。脚本拒绝覆盖已有产物和证据；`WSLICE_BUILD_OUTPUT` 可指定新的 `.app` 位置。
 
-构建产物核验不启动应用，`build-result.json` 中的 `applicationSmoke` 保持 `not_run`；独立应用启动、完整路线与返回首页须另外保存实际记录。当前开发版构建仍待本次证据确认。
+构建产物核验不启动应用，`build-result.json` 中的 `applicationSmoke` 保持 `not_run`；独立应用启动、完整路线与返回首页须另外保存实际记录。当前候选构建已通过；最终 GUI 操作因 Mac 锁定尚未完成，较早应用的庭院操作记录不能替代本候选验收。
 
 Editor 菜单 `WSlice → Build/macOS Standalone` 默认仍输出固定位置 `WSliceProto/builds/macos/W-Slice.app` 及同级 `build-info.json`，不经过脚本的独立运行目录和完整证据核验。两种入口不可混用输出路径或证据结论。
 
@@ -86,7 +86,7 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 默认仍输出固定位置 `W
 - 关卡可通行关系用手工节点图表达，清晰可控。
 - Graph 运行时变更通过 `LevelGraphMutationController` 追踪，restart 经 `LevelRestartPipeline` 有序回滚（Graph → W → Player → Interactables → UI）。
 
-## 当前实现（v0.4.0 development，待实测）
+## 当前实现（v0.4.0 可构建候选）
 
 - 回响庭院 + 原五关回归，共六个可玩关卡、七个启用场景；`LevelSelect` 首页突出庭院入口并保留机制练习
 - 庭院位置约束机关、显式锁边、跨切片状态、条件完成、可恢复误调与中文按进度提示
@@ -97,7 +97,7 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 默认仍输出固定位置 `W
 
 ## 下一步（v0.4.0 验证与试玩）
 
-1. 取得本次 Unity 编译、六关与 Catalog 校验、EditMode / PlayMode 的有效 receipt/XML。
-2. 构建独立 macOS 产物，按人工清单验证庭院主线、恢复、重开、中文与原五关回归；启动记录与构建结果分开保存。
+1. 当前候选编译、六关与 Catalog 校验、EditMode / PlayMode 和独立应用构建已通过；源码变更后重新运行并保存新的证据。
+2. 解锁 Mac 后，在本轮最终应用中验证庭院主线、恢复、重开、返回首页、中文与原五关；当前 Retina 未验证，Garden 末段仍采用垂直图边移动。
 3. 开展五位陌生玩家的无指导试玩；当前 0/5，达到教学与解谜门槛后再决定扩关。
 4. CI 校验 + EditMode/PlayMode 以实际 Actions 证据为准（需配置 Unity license；缺失时明确跳过）。

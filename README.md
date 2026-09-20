@@ -2,7 +2,7 @@
 
 Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0,1]` 控制物体显隐、路径可达性与交互反馈。
 
-**当前阶段：** v0.4.0 development，回响庭院代表关 + 原五关机制样例。新关代码和场景已加入；Unity 编译、测试、实际试玩与 macOS 构建仍待本次运行证据确认，五人试玩为 0/5。
+**当前阶段：** v0.4.0 可构建候选，待最终桌面验收。`2063e0f` 已通过真实 Unity 7 项校验、EditMode 130/130、PlayMode 71/71（含庭院 10/10）及 macOS 构建。最终应用 GUI 操作待 Mac 解锁后完成；五人试玩为 0/5。证据和本机应用路径见[本轮运行记录](docs/releases/v0.4-courtyard-runtime.md)。
 
 ## 优先试玩：回响庭院
 
@@ -13,6 +13,7 @@ Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0
 制作目标为约 5–10 分钟的观察解谜体验，实际时长尚待验证。机关状态跨切片保留，必须激活后才能到出口完成。
 
 - [实现与试玩说明](docs/courtyard-slice.md)
+- [v0.4 测试、构建与桌面验收记录](docs/releases/v0.4-courtyard-runtime.md)
 - [五人无指导试玩记录（目前 0/5）](docs/playtests/courtyard-five-player-template.md)
 - [可信验证流程](WSliceProto/Validation.md)：缺失 XML、零用例或失败均不能记为通过。
 
@@ -88,7 +89,7 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceP
     └── Assets/_Project/      ← 游戏代码（Core/Level/Entities/Player/UI/Editor）
 ```
 
-## 当前实现（v0.4.0 development，待实测）
+## 当前实现（v0.4.0 可构建候选）
 
 - W 轴核心：`WState`、`WRange`、`WSnapResolver`、平滑插值与 snap
 - 关卡图：`LevelDefinition` + BFS 路径 + W 门控边
@@ -108,14 +109,15 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceP
 ## 已知限制
 
 - **CI（可选）** — GitHub Actions 已提供 L0/L1 workflow；需在 repo secrets 配置 `UNITY_LICENSE` 等（见 `.github/workflows/wslice-validate.yml`）
-- **Unity 验证待执行**：脚本现在要求本次新生成且有实际用例的 XML；退出 0 而缺失 XML 视为失败/未确认。
+- **最终桌面验收待完成**：自动化与构建已通过；较早版本的庭院桌面操作结果不能替代最终应用验收，历史失败保留在本轮运行记录。
 - **无正式美术/音效**：灰盒 demo，URP Lit 统一材质
 - **仅 macOS 构建**：无 Windows / Linux standalone、无签名公证
 - **试玩证据待补** — 原五关以 Hazard_05 结束；回响庭院独立结束；尚无五人试玩结果。
+- **灰盒表现与显示范围** — Garden 的末段保留垂直图边移动；当前仅有 1920×1080 显示器证据，Retina 未验证。
 
 ## 下一步（v0.4.0 验证与试玩）
 
-1. **Unity 实测** — 编译、六关校验、EditMode / PlayMode、macOS 独立应用试玩。
+1. **最终应用桌面验收** — 解锁 Mac 后复验庭院主线、中文布局、恢复、重开、返回选关及原五关；使用本轮已构建的 `2063e0f` 应用。
 2. **五人试玩** — 按预设门槛检查能否自主理解并完成回响庭院，再决定扩关。
 3. **CI 环境** — 已实现验证和测试任务；缺少 Unity license 配置时明确记为 SKIPPED。
 
@@ -125,6 +127,7 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceP
 
 - [WSliceProto/README.md](WSliceProto/README.md) — 模块与设计原则
 - [WSliceProto/Validation.md](WSliceProto/Validation.md) — 验证命令与 PR 测试记录规范
+- [docs/releases/v0.4-courtyard-runtime.md](docs/releases/v0.4-courtyard-runtime.md) — 本轮真实测试、构建与 GUI 验收边界
 - [docs/releases/v0.3-wslice-demo.md](docs/releases/v0.3-wslice-demo.md) — v0.3 release checklist（历史）
 - [docs/releases/v0.2-wslice-demo.md](docs/releases/v0.2-wslice-demo.md) — v0.2 release checklist（历史）
 - [ManualTesting.md](WSliceProto/Assets/_Project/Tests/ManualTesting.md) — Edit/Play Mode 测试列表
