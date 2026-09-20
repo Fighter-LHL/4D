@@ -40,6 +40,7 @@ MonoBehaviour:
   - FromNodeId: GateRoom
     ToNodeId: Goal
     WalkableRange:
-      Min: 0.99
-      Max: 0.99
+      Min: 0.3
+      Max: 0.55
     Bidirectional: 1
+    IsLocked: 1

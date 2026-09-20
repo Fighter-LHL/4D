@@ -31,6 +31,8 @@ namespace WSlice.Tests.PlayMode
             Assert.That(character, Is.Not.Null);
             Assert.That(lever, Is.Not.Null);
             Assert.That(lever.IsActivated, Is.False);
+            Assert.That(level.Definition.Edges.Find(edge => edge.FromNodeId == "GateRoom" && edge.ToNodeId == "Goal").IsLocked,
+                Is.True, "The saved asset must use an explicit lock, not an otherwise reachable W interval.");
 
             level.WState.Force(0.55f);
             yield return null;
@@ -39,9 +41,17 @@ namespace WSlice.Tests.PlayMode
             yield return WaitForMovement(movement);
             Assert.That(character.CurrentNodeId, Is.EqualTo("GateRoom"));
 
-            movement.RequestMove(new Vector3(10f, 0f, 0f));
-            yield return WaitForMovement(movement);
-            Assert.That(character.CurrentNodeId, Is.EqualTo("GateRoom"));
+            foreach (float w in new[] { 0f, 0.3f, 0.45f, 0.55f, 0.65f, 0.99f, 1f })
+            {
+                level.WState.Force(w);
+                yield return null;
+                Assert.That(level.Graph.CanMove("GateRoom", "Goal", w), Is.False, $"Unactivated gate at W={w}");
+                var result = movement.RequestMove(new Vector3(10f, 0f, 0f));
+                Assert.That(result.Reason, Is.EqualTo(PlayerActionFailureReason.NoPathAtCurrentW), $"W={w}");
+                Assert.That(movement.IsMoving, Is.False);
+                Assert.That(character.CurrentNodeId, Is.EqualTo("GateRoom"));
+                Assert.That(GameObject.Find("GateFrame").GetComponent<GraphPassageBarrier>().IsOpen, Is.False);
+            }
         }
 
         [UnityTest]
@@ -61,6 +71,9 @@ namespace WSlice.Tests.PlayMode
 
             Assert.That(lever.TryInteract(0.55f), Is.True);
             yield return null;
+            Assert.That(level.Graph.CanMove("GateRoom", "Goal", 0.45f), Is.True);
+            Assert.That(level.Definition.Edges.Find(edge => edge.FromNodeId == "GateRoom" && edge.ToNodeId == "Goal").IsLocked,
+                Is.True, "Unlocking the runtime graph must leave the restart source locked.");
 
             level.WState.Force(0.45f);
             yield return null;
@@ -138,14 +151,20 @@ namespace WSlice.Tests.PlayMode
             Assert.That(level.WState.CurrentW, Is.EqualTo(0f).Within(0.001f));
             Assert.That(level.Graph.CanMove("GateRoom", "Goal", 0.55f), Is.False);
 
+            // A blocked destination rejects the whole request; it does not walk a partial path.
+            foreach (float w in new[] { 0.45f, 0.55f, 0.99f, 1f })
+            {
+                level.WState.Force(w);
+                yield return null;
+                Assert.That(level.Graph.CanMove("GateRoom", "Goal", w), Is.False, $"Restart must restore the gate lock at W={w}");
+                var blockedFromEntry = movement.RequestMove(new Vector3(10f, 0f, 0f));
+                Assert.That(blockedFromEntry.Reason, Is.EqualTo(PlayerActionFailureReason.NoPathAtCurrentW));
+                Assert.That(movement.IsMoving, Is.False);
+                Assert.That(character.CurrentNodeId, Is.EqualTo("Entry"));
+            }
+
             level.WState.Force(0.55f);
             yield return null;
-
-            // A blocked destination rejects the whole request; it does not walk a partial path.
-            var blockedFromEntry = movement.RequestMove(new Vector3(10f, 0f, 0f));
-            Assert.That(blockedFromEntry.Reason, Is.EqualTo(PlayerActionFailureReason.NoPathAtCurrentW));
-            Assert.That(movement.IsMoving, Is.False);
-            Assert.That(character.CurrentNodeId, Is.EqualTo("Entry"));
 
             Assert.That(movement.RequestMove(new Vector3(5f, 0f, 0f)).Succeeded, Is.True);
             yield return WaitForMovement(movement);

@@ -20,6 +20,18 @@ namespace WSlice.Editor
                 return;
             }
 
+            var gateEdge = levelDef.Edges.Find(edge => edge.FromNodeId == "GateRoom" && edge.ToNodeId == "Goal");
+            if (gateEdge == null)
+            {
+                Debug.LogError("GateLevel.asset has no GateRoom-to-Goal edge. Aborting generation.");
+                return;
+            }
+            // A narrow W interval is not a lock: the lever must explicitly unlock this edge.
+            gateEdge.IsLocked = true;
+            gateEdge.WalkableRange = new WSlice.Core.WRange { Min = 0.30f, Max = 0.55f };
+            EditorUtility.SetDirty(levelDef);
+            AssetDatabase.SaveAssets();
+
             EnsureSceneAssetExists();
             Scene scene = EditorSceneManager.OpenScene(GateGrayboxRecipe.ScenePath, OpenSceneMode.Single);
 
@@ -55,6 +67,15 @@ namespace WSlice.Editor
                 foreach (string error in validation.Errors)
                 {
                     Debug.LogError(error);
+                    errors++;
+                }
+
+                var gateEdge = levelDef.Edges.Find(edge => edge.FromNodeId == "GateRoom" && edge.ToNodeId == "Goal");
+                if (gateEdge == null || !gateEdge.IsLocked
+                    || !Mathf.Approximately(gateEdge.WalkableRange.Min, 0.30f)
+                    || !Mathf.Approximately(gateEdge.WalkableRange.Max, 0.55f))
+                {
+                    Debug.LogError("GateRoom-to-Goal must start explicitly locked with the lever's 0.30-0.55 W range.");
                     errors++;
                 }
             }
