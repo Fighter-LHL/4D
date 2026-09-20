@@ -42,6 +42,18 @@ class EvidenceTests(unittest.TestCase):
         result = checker.verify_xml(self.write_xml(("Passed", "Passed", "Skipped")), self.start)
         self.assertEqual(result, dict(total=3, passed=2, failed=0, skipped=1, inconclusive=0))
 
+    def test_unity_roundtrip_timestamp_is_accepted_on_macos_python(self):
+        expected = datetime(2026, 9, 20, 14, 6, 52, 90843, tzinfo=timezone.utc).timestamp()
+        for suffix in ("Z", "+00:00"):
+            with self.subTest(suffix=suffix):
+                self.assertEqual(checker.timestamp("2026-09-20T14:06:52.0908430" + suffix), expected)
+        unity_now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f") + "0Z"
+        report = dict(schemaVersion=1, status="passed", startedUtc=unity_now, finishedUtc=unity_now,
+                      errorCount=0, warningCount=0, validatedScopes=sorted(checker.VALIDATION_SCOPES))
+        path = self.root / "validation.json"
+        path.write_text(json.dumps(report))
+        checker.verify_validation(path, self.start)
+
     def test_empty_or_all_skipped_is_not_a_pass(self):
         for cases in ((), ("Skipped",)):
             with self.subTest(cases=cases), self.assertRaises(checker.EvidenceError):

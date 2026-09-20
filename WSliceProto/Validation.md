@@ -22,7 +22,8 @@ python3 -m unittest discover -s scripts/tests -v  # 仅验证证据检查器与�
 | L2/L3 | Unity 成功退出；fresh、完整且计数一致的 NUnit XML；实际通过用例 > 0，失败和未完成为 0 | 不代表人的理解、可玩性或体验成立 |
 | L4 手动冒烟 | 在 Editor 或构建中按步骤操作的实际记录 | 自动化回归不能代替手动 UI 检查 |
 | 五人试玩 | [无指导试玩模板](../docs/playtests/courtyard-five-player-template.md)中的真实观察 | 禁止填入 AI 模拟的人类结果 |
-| L5 构建 | 当前代码构建日志、产物 manifest、实际启动记录 | 构建成功不等于启动和通关成功 |
+| L5 构建产物 | 当前源码快照、构建日志、fresh manifest、`.app` 与 `build-result.json` 产物核验结果 | 不代表应用已启动或能通关 |
+| L5 独立应用冒烟 | 对该轮 `.app` 的实际启动、完整路线、重开和回首页记录 | 不能只用构建成功代替 |
 
 默认不执行 L2/L3，明确标记 `SKIPPED`；此时只能说 L0/L1 已验证。L4、五人试玩、L5 不由本脚本执行。
 
@@ -55,7 +56,23 @@ python3 -m unittest discover -s scripts/tests -v  # 仅验证证据检查器与�
 
 L4 按 [PlayModeSmokeTest.md](Assets/_Project/Tests/PlayModeSmokeTest.md) 检查既有关卡，并对 Courtyard 检查：目标可辨、W 控制可用、开放路径与实体缺口一致、每阶段移动/失败/重开、终点完成和返回选关。五人无指导试玩必须与开发者冒烟分开记录。
 
-构建使用 `./scripts/build-macos.sh`，输出 `WSliceProto/builds/macos/W-Slice.app` 和 `build-info.json`。核对 manifest 中实际启用场景，再启动验证；不能只看构建退出码。
+构建使用 `./scripts/build-macos.sh`，默认输出新的 `WSliceProto/builds/macos/run-<UTC 时间>-<随机后缀>/W-Slice.app`。使用控制台 `VERIFIED BUILD ARTIFACT ONLY:` 后打印的本次完整路径启动应用；不要沿用旧的固定 `.app` 路径。
+
+每轮 `.app` 同级保存以下证据：
+
+| 文件 | 内容 |
+|---|---|
+| `build-invocation.json` | 提交、工作区状态、源码摘要、Unity 路径、预期版本/场景、开始时间与本轮输出位置 |
+| `build.log` | Unity 构建日志 |
+| `unity-console.log` | 本次 Unity 进程的标准输出与错误输出 |
+| `build-info.json` | Unity 生成的版本、Unity 版本、启用场景、构建时间和输出路径 |
+| `build-result.json` | 退出码、核验状态、构建后的源码快照及产物摘要；`applicationSmoke` 为 `not_run` |
+
+脚本检查本轮 fresh manifest、版本/场景/输出位置、应用 Info.plist 与可执行文件，并要求构建期间源码快照不变。已有 `.app` 或同名证据文件会被拒绝；`WSLICE_BUILD_OUTPUT` 可指定一个全新的 `.app` 路径。失败时保留已产生的证据，修复后另起新目录。构建时不要并行修改源码或文档，否则源码快照变化会使该轮核验失败。
+
+`build-result.json` 的通过仅证明脚本完成产物核验，不代表启动或完整试玩已执行。按人工冒烟清单操作该轮 `.app`，把实际启动、中文显示、解谜、重开及返回首页的结果另存为人工记录，不回填脚本结果伪称它执行了试玩。
+
+Editor 菜单 `WSlice → Build/macOS Standalone` 默认仍使用 `WSliceProto/builds/macos/W-Slice.app`，并写入同级 `build-info.json`。菜单调用不经过脚本的独立运行目录和完整证据核验，不能用它的输出冒充脚本的本轮产物。以上流程是待执行标准，不是本开发版已通过的声明。
 
 PR 验证记录应包含：
 
@@ -68,7 +85,8 @@ L2 EditMode: Pass / Fail / Not run (passed / skipped / total; XML path)
 L3 PlayMode: Pass / Fail / Not run (passed / skipped / total; XML path)
 L4 manual smoke: Pass / Fail / Not run (operator; steps; observations)
 Five-player playtest: Not run / Incomplete / Complete (real participants; record path)
-L5 macOS build and launch: Pass / Fail / Not run (manifest; launch evidence)
+L5 macOS build artifact: Pass / Fail / Not run (build invocation/result; logs; manifest; app path)
+L5 macOS application smoke: Pass / Fail / Not run (same app path; operator; launch/playthrough evidence)
 ```
 
 历史 [v0.3 release 文档](../docs/releases/v0.3-wslice-demo.md) 保留了 2026-06-19 原文，其中 L2/L3 曾在 XML 缺失时写 Pass。该记录只能证明脚本当时打印了这些信息，**不能确认测试执行或通过，也不能作为当前代码的验证**。新证据另建，禁止改写历史为已复验。

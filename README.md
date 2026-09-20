@@ -2,7 +2,7 @@
 
 Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0,1]` 控制物体显隐、路径可达性与交互反馈。
 
-**当前阶段：** 回响庭院代表关开发版 + 原五关机制样例。新关代码和场景已加入；当前机器没有 Unity Editor，尚未确认 Unity 编译、实际试玩或 macOS 构建通过。
+**当前阶段：** v0.4.0 development，回响庭院代表关 + 原五关机制样例。新关代码和场景已加入；Unity 编译、测试、实际试玩与 macOS 构建仍待本次运行证据确认，五人试玩为 0/5。
 
 ## 优先试玩：回响庭院
 
@@ -25,7 +25,7 @@ Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0
 | 启动场景 | `LevelSelect`（Build Settings 第一项） |
 | 代表性试玩 | Courtyard_01（独立结束） |
 | 原五关顺序 | Garden_01 → Platform_01 → Gate_03 → Chambers_04 → Hazard_05 |
-| Baseline | `main` @ `d6fbea1`（v0.3 release 锚点） |
+| 历史发布锚点 | `main` @ `d6fbea1`（v0.3 release，不代表当前开发版已验证） |
 
 ### 1. 打开项目
 
@@ -38,11 +38,11 @@ WSliceProto/
 
 在 Unity Editor 菜单：
 
-1. `WSlice → Generate Garden / Platform / Gate / Chambers / Hazard Graybox` — 生成或刷新对应场景
-2. `WSlice → Validate Garden / Platform / Gate / Chambers / Hazard Graybox` — 校验资产与场景引用
+1. `WSlice → Generate Courtyard Slice` 或 `Generate Garden / Platform / Gate / Chambers / Hazard Graybox` — 开发时生成或刷新对应场景，单独审查生成差异
+2. `WSlice → Validate Courtyard Slice` 或 `Validate Garden / Platform / Gate / Chambers / Hazard Graybox` — 校验资产与场景引用
 3. `WSlice → Validate Level Catalog` — 校验 catalog 与 Build Settings
 
-或一键脚本（L0 + 五关 L1 + catalog）：
+场景已入库，正常验证无需 Generate。统一验证脚本覆盖 L0 + 六关 L1 + Catalog：
 
 ```bash
 ./scripts/validate-local.sh
@@ -56,19 +56,21 @@ WSliceProto/
 
 ### 4. 手动试玩
 
-进入 Play Mode，从 `LevelSelect` demo 首页开始，按 [`PlayModeSmokeTest.md`](WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md) 走五关 demo 流程。
+进入 Play Mode，从 `LevelSelect` 首页开始，按 [`PlayModeSmokeTest.md`](WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md) 完成庭院主线、误调恢复与重开，再回归旧五关。
 
 ### 5. macOS 构建
 
-启动场景为 `LevelSelect`（Build Settings 第一项）。也可在 Editor 菜单使用 `WSlice → Build/macOS Standalone`。
+启动场景为 `LevelSelect`（Build Settings 第一项）。从仓库根目录执行：
 
 ```bash
-chmod +x scripts/build-macos.sh   # 首次
 ./scripts/build-macos.sh
-open WSliceProto/builds/macos/W-Slice.app
 ```
 
-构建成功后会在 `WSliceProto/builds/macos/build-info.json` 写入版本、Unity 版本、启用场景与输出路径。
+脚本默认输出到新的 `WSliceProto/builds/macos/run-<UTC 时间>-<随机后缀>/W-Slice.app`。成功后用 `open` 命令打开控制台 `VERIFIED BUILD ARTIFACT ONLY:` 后打印的本次完整路径，不使用旧产物或猜测最近目录。
+
+`.app` 同级保留 `build-invocation.json`、`build-result.json`、`build.log`、`unity-console.log` 与 `build-info.json`。脚本核对源码快照、产物与 manifest；结果中的 `applicationSmoke: not_run` 表示尚未启动/试玩。实际启动和通关须另按冒烟清单记录。可用 `WSLICE_BUILD_OUTPUT` 指定全新的 `.app` 路径；已有产物或同名证据文件会被拒绝，不覆盖。
+
+Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceProto/builds/macos/W-Slice.app`，同级生成 `build-info.json`；它不经过脚本的独立运行目录及完整证据核验流程。
 
 ## 仓库结构
 
@@ -86,7 +88,7 @@ open WSliceProto/builds/macos/W-Slice.app
     └── Assets/_Project/      ← 游戏代码（Core/Level/Entities/Player/UI/Editor）
 ```
 
-## 已实现能力（v0.3）
+## 当前实现（v0.4.0 development，待实测）
 
 - W 轴核心：`WState`、`WRange`、`WSnapResolver`、平滑插值与 snap
 - 关卡图：`LevelDefinition` + BFS 路径 + W 门控边
@@ -97,9 +99,10 @@ open WSliceProto/builds/macos/W-Slice.app
 - Graph mutation：`LevelGraphMutationController` + restart 回滚（Gate 拉杆）
 - HUD / UI：路线提示、教学提示、`LevelOutcomeOverlay`（Next / Retry / Level Select）
 - 关卡流转：`LevelCatalog`、`LevelSelect` demo 首页、**N** 下一关、**R** 重开（Playing / Completed / Failed）
-- 五关 demo：Garden → Platform → Gate → Chambers → Hazard
-- Authoring：`LevelCatalogValidator`、`GrayboxLevelRecipe`、五关 graybox 生成器
-- macOS 构建：`./scripts/build-macos.sh` → `WSliceProto/builds/macos/W-Slice.app`
+- 回响庭院：位置约束机关、显式锁边、跨切片状态、条件完成、可恢复误调与中文按需提示；独立试玩结束后可回首页
+- 原五关回归：Garden → Platform → Gate → Chambers → Hazard
+- Authoring：`LevelCatalogValidator`、`GrayboxLevelRecipe`、庭院和原五关生成器
+- macOS 构建：`./scripts/build-macos.sh` 创建独立运行目录并核验产物，实际路径以脚本打印为准
 - 测试：EditMode + PlayMode 套件
 
 ## 已知限制
@@ -110,19 +113,19 @@ open WSliceProto/builds/macos/W-Slice.app
 - **仅 macOS 构建**：无 Windows / Linux standalone、无签名公证
 - **试玩证据待补** — 原五关以 Hazard_05 结束；回响庭院独立结束；尚无五人试玩结果。
 
-## 后续规划（v0.3+）
+## 下一步（v0.4.0 验证与试玩）
 
 1. **Unity 实测** — 编译、六关校验、EditMode / PlayMode、macOS 独立应用试玩。
 2. **五人试玩** — 按预设门槛检查能否自主理解并完成回响庭院，再决定扩关。
 3. **CI 环境** — 已实现验证和测试任务；缺少 Unity license 配置时明确记为 SKIPPED。
 
-Release checklist 见 [`docs/releases/v0.3-wslice-demo.md`](docs/releases/v0.3-wslice-demo.md)。
+历史 v0.3 release checklist 见 [`docs/releases/v0.3-wslice-demo.md`](docs/releases/v0.3-wslice-demo.md)，不能替代当前开发版的验证记录。
 
 ## 文档索引
 
 - [WSliceProto/README.md](WSliceProto/README.md) — 模块与设计原则
 - [WSliceProto/Validation.md](WSliceProto/Validation.md) — 验证命令与 PR 测试记录规范
-- [docs/releases/v0.3-wslice-demo.md](docs/releases/v0.3-wslice-demo.md) — v0.3 release checklist
+- [docs/releases/v0.3-wslice-demo.md](docs/releases/v0.3-wslice-demo.md) — v0.3 release checklist（历史）
 - [docs/releases/v0.2-wslice-demo.md](docs/releases/v0.2-wslice-demo.md) — v0.2 release checklist（历史）
 - [ManualTesting.md](WSliceProto/Assets/_Project/Tests/ManualTesting.md) — Edit/Play Mode 测试列表
-- [PlayModeSmokeTest.md](WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md) — 五关 demo 手动冒烟清单
+- [PlayModeSmokeTest.md](WSliceProto/Assets/_Project/Tests/PlayModeSmokeTest.md) — 庭院主线与旧五关手动冒烟清单

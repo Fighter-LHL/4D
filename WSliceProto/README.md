@@ -2,9 +2,9 @@
 
 基于 Unity 6000.0 LTS + URP 的“隐藏维度切片”解谜原型。关卡作者通过 `w ∈ [0,1]` 定义物体显隐与路径可达性，运行时负责平滑插值与交互。
 
-**阶段：** 回响庭院代表关开发版 + 原五关回归样例。新关尚待 Unity 实测，不能把已写测试视为通过结果。见 [`../docs/courtyard-slice.md`](../docs/courtyard-slice.md)。
+**阶段：** v0.4.0 development，回响庭院代表关 + 原五关回归样例。新关尚待本次 Unity 实测，不能把已写测试视为通过结果；五人试玩为 0/5。见 [`../docs/courtyard-slice.md`](../docs/courtyard-slice.md)。
 
-仓库入口说明见 [`../README.md`](../README.md)。本地验证见 [`Validation.md`](Validation.md)。Release checklist 见 [`../docs/releases/v0.3-wslice-demo.md`](../docs/releases/v0.3-wslice-demo.md)。
+仓库入口说明见 [`../README.md`](../README.md)。本地验证见 [`Validation.md`](Validation.md)。历史 v0.3 release checklist 见 [`../docs/releases/v0.3-wslice-demo.md`](../docs/releases/v0.3-wslice-demo.md)，不作为当前开发版通过证据。
 
 ## 环境
 
@@ -28,7 +28,7 @@
 
 ```bash
 # 从仓库根目录
-./scripts/validate-local.sh          # L0 + L1（五关 graybox + catalog）
+./scripts/validate-local.sh          # L0 + L1（庭院、旧五关 + Catalog）
 ./scripts/validate-local.sh --tests  # 额外尝试 L2/L3 batchmode 测试
 ```
 
@@ -50,7 +50,7 @@
 
 ## 搭建与校验关卡
 
-**推荐（一键生成 + 校验）：**
+场景已入库，运行和验证无需先 Generate。仅在开发更改生成规则时生成资产，单独审查差异后再执行统一验证。
 
 | 关卡 | Generate | Validate |
 |---|---|---|
@@ -71,31 +71,33 @@
 ./scripts/build-macos.sh
 ```
 
-或 Editor：`WSlice → Build/macOS Standalone`
+脚本默认输出到新的 `WSliceProto/builds/macos/run-<UTC 时间>-<随机后缀>/W-Slice.app`。成功后用 `open` 打开控制台 `VERIFIED BUILD ARTIFACT ONLY:` 后的本次完整路径。
 
-**输出路径（统一）：** `WSliceProto/builds/macos/W-Slice.app`
+同级保存 `build-invocation.json`、`build-result.json`、`build.log`、`unity-console.log` 与 `build-info.json`。Manifest 应记录 version `0.4.0`、Unity 版本及七个启用场景。脚本拒绝覆盖已有产物和证据；`WSLICE_BUILD_OUTPUT` 可指定新的 `.app` 位置。
 
-构建成功后同目录生成 `build-info.json`（version `0.4.0`、Unity 版本、启用场景、构建时间）；目前尚未执行本开发版构建。
+构建产物核验不启动应用，`build-result.json` 中的 `applicationSmoke` 保持 `not_run`；独立应用启动、完整路线与返回首页须另外保存实际记录。当前开发版构建仍待本次证据确认。
+
+Editor 菜单 `WSlice → Build/macOS Standalone` 默认仍输出固定位置 `WSliceProto/builds/macos/W-Slice.app` 及同级 `build-info.json`，不经过脚本的独立运行目录和完整证据核验。两种入口不可混用输出路径或证据结论。
 
 ## 关键设计原则
 
-- `w` 是唯一真相源。所有显隐、通行、交互都从 `WState.CurrentW` 推导。
+- 切片取自 `WState.CurrentW`；通行还受 graph 的显式锁与机关状态约束，空间表现与这些实际条件同步。
 - 核心逻辑尽量是纯 C#，MonoBehaviour 仅做挂接与表现。
 - 关卡可通行关系用手工节点图表达，清晰可控。
 - Graph 运行时变更通过 `LevelGraphMutationController` 追踪，restart 经 `LevelRestartPipeline` 有序回滚（Graph → W → Player → Interactables → UI）。
 
-## 当前能力（v0.3.x）
+## 当前实现（v0.4.0 development，待实测）
 
-- 五关 graybox demo + `LevelSelect` demo 首页（标题、主题 hint、Quit、版本号）
+- 回响庭院 + 原五关回归，共六个可玩关卡、七个启用场景；`LevelSelect` 首页突出庭院入口并保留机制练习
+- 庭院位置约束机关、显式锁边、跨切片状态、条件完成、可恢复误调与中文按进度提示
 - 完成/失败 overlay、Playing **R** 重开、开局教学提示
 - W 门控边、W-offset 平台、profile 化拉杆 interactable + graph mutation
 - `LevelCatalogValidator` + `GrayboxLevelRecipe`
-- macOS standalone 构建 + 统一灰盒 URP Lit 材质
+- macOS standalone 构建、每轮独立产物与证据核验 + 统一灰盒 URP Lit 材质
 
-## 下一步（v0.3+ foundation）
+## 下一步（v0.4.0 验证与试玩）
 
-1. ~~第四关 **Chambers_04**~~ ✅
-2. ~~第五关 **Hazard_05**~~ ✅（hazard platform + segment-break fail）
-3. ~~Graph runtime deep-copy + restart pipeline~~ ✅
-4. 回响庭院：位置约束机关、显式锁边、跨切片状态、条件完成和按进度提示已实现，等待实测。
-5. CI — GitHub Actions 校验 + EditMode/PlayMode（需配置 Unity license；缺失时明确跳过）。
+1. 取得本次 Unity 编译、六关与 Catalog 校验、EditMode / PlayMode 的有效 receipt/XML。
+2. 构建独立 macOS 产物，按人工清单验证庭院主线、恢复、重开、中文与原五关回归；启动记录与构建结果分开保存。
+3. 开展五位陌生玩家的无指导试玩；当前 0/5，达到教学与解谜门槛后再决定扩关。
+4. CI 校验 + EditMode/PlayMode 以实际 Actions 证据为准（需配置 Unity license；缺失时明确跳过）。

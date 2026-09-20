@@ -9,12 +9,9 @@
         "WSlice.UI",
         "Unity.TextMeshPro",
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner",
         "Unity.UGUI"
     ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": true,
@@ -22,7 +19,9 @@
         "nunit.framework.dll"
     ],
     "autoReferenced": false,
-    "defineConstraints": [],
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
     "versionDefines": [],
     "noEngineReferences": false
 }

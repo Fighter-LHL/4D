@@ -6,6 +6,7 @@ from collections import Counter
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import re
 import sys
 import time
 import xml.etree.ElementTree as ET
@@ -20,7 +21,10 @@ class EvidenceError(ValueError):
 
 def timestamp(value):
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        # Unity's DateTime.ToString("o") emits seven fractional digits; the
+        # Python 3.9 bundled with macOS accepts at most microsecond precision.
+        normalized = re.sub(r"(\.\d{6})\d+(?=(?:Z|[+-]\d{2}:\d{2})?$)", r"\1", value)
+        parsed = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=timezone.utc)
         return parsed.timestamp()
