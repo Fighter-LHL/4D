@@ -39,13 +39,13 @@
 
 早期已执行：验证器及脚本编排测试 **15/15**，`actionlint` 和 shell 语法检查通过；157 个项目 C# 文件通过语法解析，7 个场景通过 YAML/局部引用检查，项目 metadata GUID 无冲突。这里的 15/15 不包含 Unity 测试，C# 语法解析也不等于编译成功。当时实际调用 Unity 验证脚本返回 `NOT RUN: Unity executable unavailable`。
 
-当前状态为**可构建候选，待最终桌面验收**。Unity Hub 3.21.3、Unity 6000.0.77f1 ARM64 和 Rosetta 已安装。候选 `2063e0f98aa3f5fad888d0e94dae89b6142cad2b` 在 clean 工作区通过 7 scopes（0 error/warning）、EditMode **130/130**、PlayMode **71/71**，含庭院 **10/10**；failed/skipped 均为 0。macOS 独立应用已构建并核验源码稳定性，路径为 `WSliceProto/builds/macos/run-20260920T161218Z-ms9l61sb/W-Slice.app`。
+当前状态为**本机独立应用验收通过**。Unity Hub 3.21.3、Unity 6000.0.77f1 ARM64 和 Rosetta 已安装。候选 `190dd46280ae8787b4ca82d265e2587f1c881897` 在 clean 工作区通过 7 scopes（0 error/warning）、EditMode **130/130**、PlayMode **74/74**，含庭院 **10/10**；failed/skipped 均为 0。macOS 独立应用已构建并核验源码稳定性，路径为 `WSliceProto/builds/macos/run-20260920T232245Z-lpwj7y4b/W-Slice.app`。
 
-较早 `5606df8` 应用通过桌面代理操作完成庭院主线、重开、误调恢复、远程激活拒绝和跨切片状态检查，同时发现旧 Garden、Platform、Gate 的视觉错误；后续修复已由最终自动化回归通过。该较早 GUI 结果不能作为最终候选已试玩的证据。记录截止时 Mac 锁定，已请求用户手动解锁；最终候选的庭院及旧五关桌面验收仍待完成。真实历史失败、源码绑定、截图、日志和本机启动命令见 [v0.4 运行验证记录](releases/v0.4-courtyard-runtime.md)。
+较早 `5606df8` 与 `2063e0f` 应用已有庭院桌面代理操作记录，并发现旧关视觉、Gate 机关绕过和路径线反馈问题。当前 `190dd462` 在 1280×720 逻辑尺寸目标下重新实际完成庭院两次通关、两种重开、返回首页、远程/未激活门禁、世界/HUD 机关、四类中断恢复、状态保留及教学提示检查；旧五关也各至少两次通关并验证完整下一关链与危险失败恢复。1440×900、1920×1080 启动目标各完成庭院一次，分别检查返回菜单和 Retry，合计 **4 次通关**。这些是代理 GUI 回归，不计作人类试玩。退出日志的指定错误关键字扫描为 0 命中，仍保留 Mono 退出提示。历史失败、源码绑定、尺寸口径、截图、日志和本机启动命令见 [v0.4 运行验证记录](releases/v0.4-courtyard-runtime.md)。
 
-早期字体诊断的 196 字覆盖通过，最终独立诊断扩大至 **201 字**且 native/TMP/reload 全部通过，最终 EditMode 字体测试也通过；最终应用中文布局仍待桌面验收。[最终候选启动记录](../WSliceProto/TestResults/gui-20260920/final-candidate-smoke.json)确认进程与 M4/Metal 初始化，状态仍为 `blocked_pending_manual_unlock`。当前硬件证据仅报告 1920×1080 显示器，Retina 未验证。旧 Garden 的垂直 `FlowerBase → FlowerTop` 图边保留，不代表逐阶行走表现。
+早期 196 字及 `2063e0f` 阶段的 **201 字**独立诊断均通过 native/TMP/reload 覆盖，当前候选的 EditMode 字体测试也通过。M4 外接 S27C900P（**5120×2880 物理像素、2560×1440 点 HiDPI**）上的三个启动目标已通过中文布局与点击检查。Sky 截图会缩放，实际保存尺寸与窗口启动目标分别记录，不能等同。旧 Garden 的垂直图边已改为有支撑的斜坡与落脚平台，自动化和实际回归通过。
 
-源码变更后重新执行 `./scripts/validate-local.sh --tests` 和 `./scripts/build-macos.sh`，保存对应的新 XML/receipt 与产物；不能沿用旧版本结论。当前下一步为解锁后启动上述最终应用，实际点击完成、重开、返回按钮并回归旧五关。
+源码变更后重新执行 `./scripts/validate-local.sh --tests` 和 `./scripts/build-macos.sh`，保存对应的新 XML/receipt 与产物；不能沿用旧版本结论。当前候选的本机 GUI 验收已完成，下一步是使用同一候选开展真实无指导试玩。
 
 回归用例覆盖机关前不可通行、完整往返通关、跨切片状态、位置约束、错误切片安全恢复、图与视觉一致、条件完成、全部机关重开、提示重置、首页入口及结算可重新出现。
 

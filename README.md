@@ -2,7 +2,7 @@
 
 Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0,1]` 控制物体显隐、路径可达性与交互反馈。
 
-**当前阶段：** v0.4.0 可构建候选，待最终桌面验收。`2063e0f` 已通过真实 Unity 7 项校验、EditMode 130/130、PlayMode 71/71（含庭院 10/10）及 macOS 构建。最终应用 GUI 操作待 Mac 解锁后完成；五人试玩为 0/5。证据和本机应用路径见[本轮运行记录](docs/releases/v0.4-courtyard-runtime.md)。
+**当前阶段：** v0.4.0 本机独立应用验收通过。`190dd462` 通过 Unity 7 项校验、EditMode 130/130、PlayMode 74/74（含庭院 10/10）及 macOS 构建；同一应用完成三个启动尺寸目标的代理 GUI 回归，庭院共通关 4 次、旧五关各至少 2 次。五名陌生玩家试玩仍为 **0/5，未执行**。证据、尺寸口径和本机应用路径见[本轮运行记录](docs/releases/v0.4-courtyard-runtime.md)。
 
 ## 优先试玩：回响庭院
 
@@ -69,7 +69,7 @@ WSliceProto/
 
 脚本默认输出到新的 `WSliceProto/builds/macos/run-<UTC 时间>-<随机后缀>/W-Slice.app`。成功后用 `open` 命令打开控制台 `VERIFIED BUILD ARTIFACT ONLY:` 后打印的本次完整路径，不使用旧产物或猜测最近目录。
 
-`.app` 同级保留 `build-invocation.json`、`build-result.json`、`build.log`、`unity-console.log` 与 `build-info.json`。脚本核对源码快照、产物与 manifest；结果中的 `applicationSmoke: not_run` 表示尚未启动/试玩。实际启动和通关须另按冒烟清单记录。可用 `WSLICE_BUILD_OUTPUT` 指定全新的 `.app` 路径；已有产物或同名证据文件会被拒绝，不覆盖。
+`.app` 同级保留 `build-invocation.json`、`build-result.json`、`build.log`、`unity-console.log` 与 `build-info.json`。脚本核对源码快照、产物与 manifest；结果中的 `applicationSmoke: not_run` 表示构建脚本自身未执行 GUI 验收。随后实际启动和通关的结果另按冒烟清单记录。可用 `WSLICE_BUILD_OUTPUT` 指定全新的 `.app` 路径；已有产物或同名证据文件会被拒绝，不覆盖。
 
 Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceProto/builds/macos/W-Slice.app`，同级生成 `build-info.json`；它不经过脚本的独立运行目录及完整证据核验流程。
 
@@ -109,16 +109,16 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceP
 ## 已知限制
 
 - **CI（可选）** — GitHub Actions 已提供 L0/L1 workflow；需在 repo secrets 配置 `UNITY_LICENSE` 等（见 `.github/workflows/wslice-validate.yml`）
-- **最终桌面验收待完成**：自动化与构建已通过；较早版本的庭院桌面操作结果不能替代最终应用验收，历史失败保留在本轮运行记录。
+- **验收边界**：当前通过的是本机代理 GUI 回归，不能替代陌生玩家理解度；历史失败和退出阶段 Mono 提示保留在本轮运行记录。
 - **无正式美术/音效**：灰盒 demo，URP Lit 统一材质
 - **仅 macOS 构建**：无 Windows / Linux standalone、无签名公证
 - **试玩证据待补** — 原五关以 Hazard_05 结束；回响庭院独立结束；尚无五人试玩结果。
-- **灰盒表现与显示范围** — Garden 的末段保留垂直图边移动；当前仅有 1920×1080 显示器证据，Retina 未验证。
+- **显示验收范围** — M4 外接 S27C900P，5120×2880 物理像素、2560×1440 点 HiDPI；通过 1280×720、1440×900、1920×1080 预期逻辑尺寸启动目标的 GUI 检查，缩放截图尺寸另记。Garden 末段已修为有支撑的斜坡。
 
 ## 下一步（v0.4.0 验证与试玩）
 
-1. **最终应用桌面验收** — 解锁 Mac 后复验庭院主线、中文布局、恢复、重开、返回选关及原五关；使用本轮已构建的 `2063e0f` 应用。
-2. **五人试玩** — 按预设门槛检查能否自主理解并完成回响庭院，再决定扩关。
+1. **五人试玩** — 使用已验收候选，按预设门槛检查能否自主理解并完成回响庭院，再决定扩关。
+2. **候选交接** — 保留 `190dd462` 应用与证据；源码变更后重新测试、构建并复验，交付文档提交单独记录。
 3. **CI 环境** — 已实现验证和测试任务；缺少 Unity license 配置时明确记为 SKIPPED。
 
 历史 v0.3 release checklist 见 [`docs/releases/v0.3-wslice-demo.md`](docs/releases/v0.3-wslice-demo.md)，不能替代当前开发版的验证记录。

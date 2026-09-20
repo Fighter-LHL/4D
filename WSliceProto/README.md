@@ -2,7 +2,7 @@
 
 基于 Unity 6000.0 LTS + URP 的“隐藏维度切片”解谜原型。关卡作者通过 `w ∈ [0,1]` 定义物体显隐与路径可达性，运行时负责平滑插值与交互。
 
-**阶段：** v0.4.0 可构建候选，待最终桌面验收。`2063e0f` 已通过 Unity 7 项校验、EditMode 130/130、PlayMode 71/71（含庭院 10/10）及 macOS 构建；五人试玩为 0/5。见[本轮运行记录与应用路径](../docs/releases/v0.4-courtyard-runtime.md)及[庭院说明](../docs/courtyard-slice.md)。
+**阶段：** v0.4.0 本机独立应用验收通过。`190dd462` 通过 Unity 7 项校验、EditMode 130/130、PlayMode 74/74（含庭院 10/10）、macOS 构建及三个启动尺寸目标的代理 GUI 回归；庭院共通关 4 次，旧五关各至少 2 次。五人试玩仍为 **0/5，未执行**。见[本轮运行记录与应用路径](../docs/releases/v0.4-courtyard-runtime.md)及[庭院说明](../docs/courtyard-slice.md)。
 
 仓库入口说明见 [`../README.md`](../README.md)。本地验证见 [`Validation.md`](Validation.md)。历史 v0.3 release checklist 见 [`../docs/releases/v0.3-wslice-demo.md`](../docs/releases/v0.3-wslice-demo.md)，不作为当前开发版通过证据。
 
@@ -75,7 +75,7 @@
 
 同级保存 `build-invocation.json`、`build-result.json`、`build.log`、`unity-console.log` 与 `build-info.json`。Manifest 应记录 version `0.4.0`、Unity 版本及七个启用场景。脚本拒绝覆盖已有产物和证据；`WSLICE_BUILD_OUTPUT` 可指定新的 `.app` 位置。
 
-构建产物核验不启动应用，`build-result.json` 中的 `applicationSmoke` 保持 `not_run`；独立应用启动、完整路线与返回首页须另外保存实际记录。当前候选构建已通过；最终 GUI 操作因 Mac 锁定尚未完成，较早应用的庭院操作记录不能替代本候选验收。
+构建产物核验不启动应用，`build-result.json` 中的 `applicationSmoke` 保持 `not_run`。当前候选构建后另行完成了实际 GUI 回归，操作和退出日志保存在 `TestResults/gui-190dd46-20260921/`；不回填脚本结果，也不使用较早应用的记录替代本候选验收。
 
 Editor 菜单 `WSlice → Build/macOS Standalone` 默认仍输出固定位置 `WSliceProto/builds/macos/W-Slice.app` 及同级 `build-info.json`，不经过脚本的独立运行目录和完整证据核验。两种入口不可混用输出路径或证据结论。
 
@@ -98,6 +98,6 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 默认仍输出固定位置 `W
 ## 下一步（v0.4.0 验证与试玩）
 
 1. 当前候选编译、六关与 Catalog 校验、EditMode / PlayMode 和独立应用构建已通过；源码变更后重新运行并保存新的证据。
-2. 解锁 Mac 后，在本轮最终应用中验证庭院主线、恢复、重开、返回首页、中文与原五关；当前 Retina 未验证，Garden 末段仍采用垂直图边移动。
+2. 保留本次应用与桌面验收证据；三个启动尺寸目标的布局和点击检查已在 S27C900P HiDPI 环境完成，目标参数与缩放截图尺寸分别记录。Garden 末段已改为与图路线吻合的斜坡。
 3. 开展五位陌生玩家的无指导试玩；当前 0/5，达到教学与解谜门槛后再决定扩关。
 4. CI 校验 + EditMode/PlayMode 以实际 Actions 证据为准（需配置 Unity license；缺失时明确跳过）。
