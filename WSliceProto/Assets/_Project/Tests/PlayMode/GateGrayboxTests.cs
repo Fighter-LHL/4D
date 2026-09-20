@@ -127,6 +127,7 @@ namespace WSlice.Tests.PlayMode
             Assert.That(lever.TryInteract(0.55f), Is.True);
             yield return null;
             Assert.That(lever.IsActivated, Is.True);
+            Assert.That(level.Graph.CanMove("GateRoom", "Goal", 0.55f), Is.True);
 
             Assert.That(session.RequestRestart(), Is.True);
             yield return null;
@@ -135,11 +136,25 @@ namespace WSlice.Tests.PlayMode
             Assert.That(lever.IsActivated, Is.False);
             Assert.That(character.CurrentNodeId, Is.EqualTo("Entry"));
             Assert.That(level.WState.CurrentW, Is.EqualTo(0f).Within(0.001f));
+            Assert.That(level.Graph.CanMove("GateRoom", "Goal", 0.55f), Is.False);
 
             level.WState.Force(0.55f);
             yield return null;
-            movement.RequestMove(new Vector3(10f, 0f, 0f));
+
+            // A blocked destination rejects the whole request; it does not walk a partial path.
+            var blockedFromEntry = movement.RequestMove(new Vector3(10f, 0f, 0f));
+            Assert.That(blockedFromEntry.Reason, Is.EqualTo(PlayerActionFailureReason.NoPathAtCurrentW));
+            Assert.That(movement.IsMoving, Is.False);
+            Assert.That(character.CurrentNodeId, Is.EqualTo("Entry"));
+
+            Assert.That(movement.RequestMove(new Vector3(5f, 0f, 0f)).Succeeded, Is.True);
             yield return WaitForMovement(movement);
+            Assert.That(character.CurrentNodeId, Is.EqualTo("GateRoom"));
+
+            var blockedAtGate = movement.RequestMove(new Vector3(10f, 0f, 0f));
+            Assert.That(blockedAtGate.Reason, Is.EqualTo(PlayerActionFailureReason.NoPathAtCurrentW));
+            yield return WaitForMovement(movement);
+            Assert.That(movement.IsMoving, Is.False);
             Assert.That(character.CurrentNodeId, Is.EqualTo("GateRoom"));
         }
 

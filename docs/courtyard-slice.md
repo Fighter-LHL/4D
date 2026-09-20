@@ -35,11 +35,13 @@
 
 ## 验证状态与交接
 
-当前开发环境没有发现 Unity Editor；Unity 编译、EditMode、PlayMode、macOS 构建与人工试玩均未执行。提交的场景壳做静态引用检查，不能替代 Unity 导入与渲染检查。
+早期实现阶段没有发现 Unity Editor，当时 Unity 编译、EditMode、PlayMode、macOS 构建与人工试玩均未执行。提交的场景壳仅做静态引用检查，不能替代 Unity 导入与渲染检查。以下保留该阶段的历史证据。
 
-本轮已执行：验证器及脚本编排测试 **15/15**，`actionlint` 和 shell 语法检查通过；157 个项目 C# 文件通过语法解析，7 个场景通过 YAML/局部引用检查，项目 metadata GUID 无冲突。这里的 15/15 不包含 Unity 测试，C# 语法解析也不等于编译成功。实际调用 Unity 验证脚本返回 `NOT RUN: Unity executable unavailable`。
+早期已执行：验证器及脚本编排测试 **15/15**，`actionlint` 和 shell 语法检查通过；157 个项目 C# 文件通过语法解析，7 个场景通过 YAML/局部引用检查，项目 metadata GUID 无冲突。这里的 15/15 不包含 Unity 测试，C# 语法解析也不等于编译成功。当时实际调用 Unity 验证脚本返回 `NOT RUN: Unity executable unavailable`。
 
-使用指定 Editor 后先执行 `./scripts/validate-local.sh --tests`。结果必须来自当前运行的 XML/receipt，不接受历史 exit 0 代替通过。再执行 `./scripts/build-macos.sh` 并亲自点击完成、重开、返回按钮。
+当前已安装 Unity Hub 3.21.3、Unity 6000.0.77f1 ARM64 和 Rosetta，并取得真实运行证据：`b425a3a` 的 7 scopes 与 EditMode 124/124 通过，PlayMode 50/65（15 失败），其中庭院 10/10 通过；修复后的 `e021c2e` 再次通过 7 scopes，EditMode 124/125（新增字体测试 1 失败），PlayMode 尚未复跑。独立字体诊断的 196 字覆盖通过。最终全量测试、macOS 构建与应用内操作仍待完成，逐次结果及失败修复记录见 [v0.4 运行验证记录](releases/v0.4-courtyard-runtime.md)。
+
+修复稳定后先执行 `./scripts/validate-local.sh --tests`。结果必须来自当前运行的 XML/receipt，不接受历史 exit 0 代替通过。再执行 `./scripts/build-macos.sh` 并亲自点击完成、重开、返回按钮。
 
 回归用例覆盖机关前不可通行、完整往返通关、跨切片状态、位置约束、错误切片安全恢复、图与视觉一致、条件完成、全部机关重开、提示重置、首页入口及结算可重新出现。
 
