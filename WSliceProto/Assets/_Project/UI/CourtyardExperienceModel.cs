@@ -97,7 +97,7 @@ namespace WSlice.UI
                     case CourtyardExperienceStage.ReachExit:
                         return Choose("观察出口，机关改变的部分还留在那里。",
                             "继续切换，寻找能与机关留下的结构接上的石桥。",
-                            "让石桥完整显现，点击桥另一端的落脚点；过桥后，再点击金色出口标记走到终点。");
+                            "让石桥完整显现，点击桥另一端的落脚点；过桥后，再点击发光出口标记走到终点。");
                     default:
                         return string.Empty;
                 }
