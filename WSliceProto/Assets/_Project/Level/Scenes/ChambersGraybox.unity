@@ -1026,7 +1026,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 255ba9c5ccbf141cc9473caeaae5e2cc, type: 3}
   m_Name:
   m_EditorClassIdentifier:
-  definition: {fileID: 0}
+  definition: {fileID: 11400000, guid: c8e4f1a23b5d4e7098123456789abcde, type: 2}
   wSmoothing: 2
 --- !u!114 &432891969
 MonoBehaviour:

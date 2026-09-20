@@ -280,28 +280,4 @@ namespace WSlice.UI
         }
     }
 
-    internal static class CourtyardFontSupport
-    {
-        public static Font CreateFont() => Font.CreateDynamicFontFromOSFont(new[]
-        {
-            "PingFang SC", "Hiragino Sans GB", "Heiti SC", "Microsoft YaHei", "Noto Sans CJK SC", "Arial"
-        }, 24);
-
-        public static TMPro.TMP_FontAsset CreateTMPFontAsset(Font font)
-        {
-            if (font == null)
-                return null;
-
-            // OS Font objects reference installed fonts but do not embed font data.
-            // TMP's family/style overload creates a DynamicOS asset that can load
-            // glyphs from the same family; the Font overload requires embedded data.
-            foreach (var family in font.fontNames)
-            {
-                var asset = TMPro.TMP_FontAsset.CreateFontAsset(family, "Regular", 48);
-                if (asset != null)
-                    return asset;
-            }
-            return null;
-        }
-    }
 }

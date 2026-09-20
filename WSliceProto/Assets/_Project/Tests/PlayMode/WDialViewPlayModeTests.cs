@@ -44,7 +44,7 @@ namespace WSlice.Tests.PlayMode
                 Object.FindFirstObjectByType<PlayerCharacter>());
             Assert.That(hudState.TargetW, Is.EqualTo(0.55f).Within(0.0001f));
             Assert.That(track.LastState.TargetW, Is.EqualTo(0.55f).Within(0.0001f));
-            Assert.That(track.LastState.SnapTicks[1], Is.EqualTo(0.55f).Within(0.0001f));
+            Assert.That(track.LastState.SnapTicks, Is.EqualTo(new[] { 0f, 0.35f, 0.55f, 0.8f }).Within(0.0001f));
         }
 
         [UnityTest]

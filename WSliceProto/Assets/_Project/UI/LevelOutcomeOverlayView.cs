@@ -91,16 +91,7 @@ namespace WSlice.UI
         private void ReleaseChineseFont()
         {
             if (chineseFontAsset != null)
-            {
-                if (chineseFontAsset.material != null)
-                    Destroy(chineseFontAsset.material);
-                foreach (var texture in chineseFontAsset.atlasTextures)
-                {
-                    if (texture != null)
-                        Destroy(texture);
-                }
-                Destroy(chineseFontAsset);
-            }
+                CourtyardFontSupport.ReleaseTMPFontAsset(chineseFontAsset);
             if (ownsChineseFont && chineseFont != null)
                 Destroy(chineseFont);
             chineseFontAsset = null;

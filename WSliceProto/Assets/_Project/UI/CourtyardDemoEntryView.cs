@@ -17,14 +17,14 @@ namespace WSlice.UI
         private GameObject examplesCaption;
         private Button featuredButton;
 
-        private IEnumerator Start()
+        private void Awake()
         {
             if (selectView == null)
                 selectView = GetComponentInChildren<LevelSelectView>(true);
             if (selectView == null)
                 selectView = FindFirstObjectByType<LevelSelectView>();
             if (selectView == null)
-                yield break;
+                return;
 
             var canvas = selectView.GetComponentInParent<Canvas>();
             if (canvas != null)
@@ -52,6 +52,21 @@ namespace WSlice.UI
                 if (chineseFontAsset != null)
                     subtitle.font = chineseFontAsset;
             }
+
+            // Apply Chinese glyph coverage before the first canvas rebuild. The
+            // grid conversion below yields a frame while removing the old layout.
+            var panel = selectView.transform.Find("Buttons");
+            if (panel != null && chineseFontAsset != null)
+            {
+                foreach (var label in panel.GetComponentsInChildren<TextMeshProUGUI>(true))
+                    label.font = chineseFontAsset;
+            }
+        }
+
+        private IEnumerator Start()
+        {
+            if (selectView == null)
+                yield break;
 
             BuildFeaturedButton();
             var panel = selectView.transform.Find("Buttons") as RectTransform;
@@ -94,8 +109,25 @@ namespace WSlice.UI
             {
                 if (chineseFontAsset != null)
                     label.font = chineseFontAsset;
+
+                // The legacy list labels have a fixed width. Constrain them to
+                // their smaller grid cells before TMP calculates wrapping.
+                var labelRect = label.rectTransform;
+                labelRect.anchorMin = Vector2.zero;
+                labelRect.anchorMax = Vector2.one;
+                labelRect.pivot = new Vector2(0.5f, 0.5f);
+                labelRect.offsetMin = new Vector2(12f, 8f);
+                labelRect.offsetMax = new Vector2(-12f, -8f);
+                label.margin = Vector4.zero;
+                label.alignment = TextAlignmentOptions.Center;
+                label.textWrappingMode = TextWrappingModes.Normal;
+                label.overflowMode = TextOverflowModes.Ellipsis;
+
+                // An absolute description size overrides auto sizing and can
+                // overflow even when the title fits. Keep both sizes relative.
+                label.text = label.text.Replace("<size=18>", "<size=80%>");
                 label.enableAutoSizing = true;
-                label.fontSizeMin = 14f;
+                label.fontSizeMin = 16f;
                 label.fontSizeMax = 22f;
             }
             LayoutRebuilder.ForceRebuildLayoutImmediate(panel);
@@ -148,16 +180,7 @@ namespace WSlice.UI
             if (examplesCaption != null)
                 Destroy(examplesCaption);
             if (chineseFontAsset != null)
-            {
-                if (chineseFontAsset.material != null)
-                    Destroy(chineseFontAsset.material);
-                foreach (var texture in chineseFontAsset.atlasTextures)
-                {
-                    if (texture != null)
-                        Destroy(texture);
-                }
-                Destroy(chineseFontAsset);
-            }
+                CourtyardFontSupport.ReleaseTMPFontAsset(chineseFontAsset);
             if (chineseFont != null)
                 Destroy(chineseFont);
         }

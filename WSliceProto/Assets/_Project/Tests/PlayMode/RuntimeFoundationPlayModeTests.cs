@@ -22,6 +22,16 @@ namespace WSlice.Tests.PlayMode
             while (!operation.isDone)
                 yield return null;
             yield return null;
+
+            var level = Object.FindFirstObjectByType<LevelRuntimeController>();
+            Assert.That(level, Is.Not.Null, "Gate scene must contain its level runtime.");
+            Assert.That(level.Definition, Is.Not.Null, "Gate scene must bind its authored LevelDefinition.");
+            Assert.That(level.Graph, Is.Not.Null);
+            Assert.That(level.WState, Is.Not.Null);
+            Assert.That(Object.FindFirstObjectByType<LevelSessionController>(), Is.Not.Null);
+            Assert.That(Object.FindFirstObjectByType<PlayerCharacter>(), Is.Not.Null);
+            Assert.That(Object.FindFirstObjectByType<LevelGraphMutationController>(), Is.Not.Null);
+            Assert.That(Object.FindFirstObjectByType<GateLeverInteractable>(), Is.Not.Null);
         }
 
         [UnityTearDown]

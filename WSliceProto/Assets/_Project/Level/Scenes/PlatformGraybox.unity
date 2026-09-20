@@ -2114,7 +2114,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 255ba9c5ccbf141cc9473caeaae5e2cc, type: 3}
   m_Name:
   m_EditorClassIdentifier:
-  definition: {fileID: 0}
+  definition: {fileID: 11400000, guid: a298e5385845147eea5c8d607717c4e9, type: 2}
   wSmoothing: 2
 --- !u!4 &1491429924
 Transform:
