@@ -6,13 +6,8 @@ namespace WSlice.Level
 {
     public static class LevelRestartPipeline
     {
-        private static readonly string[] EarlyHandlerTypes =
-        {
-            "WSlice.Level.LevelGraphMutationController",
-            "WSlice.Player.LevelPlayerReset",
-        };
-
-        private const string LateHandlerType = "WSlice.UI.LevelTutorialController";
+        private const string PlayerHandlerType = "WSlice.Player.LevelPlayerReset";
+        private const string TutorialHandlerType = "WSlice.UI.LevelTutorialController";
 
         public static void Apply(
             LevelDefinition definition,
@@ -20,49 +15,61 @@ namespace WSlice.Level
             LevelRuntimeController levelController)
         {
             var handlers = CollectHandlers();
+            bool graphReset = false;
 
-            foreach (var typeName in EarlyHandlerTypes)
+            foreach (var handler in handlers)
             {
-                if (handlers.TryGetValue(typeName, out var handler))
+                if (handler is LevelGraphMutationController)
                 {
                     handler.ApplyLevelRestart(definition, graph);
-                    handlers.Remove(typeName);
-
-                    if (typeName == EarlyHandlerTypes[0])
-                        levelController?.ResetToInitialState();
+                    graphReset = true;
                 }
             }
 
-            handlers.Remove(LateHandlerType, out var tutorialHandler);
+            if (!graphReset)
+                GraphMutationModel.ResetToDefinition(graph, definition);
 
-            var remaining = new List<ILevelRestartHandler>(handlers.Values);
-            remaining.Sort((left, right) =>
-                string.Compare(
-                    left.GetType().FullName,
-                    right.GetType().FullName,
-                    StringComparison.Ordinal));
+            // Reset W even when a scene has no graph mutation component.
+            levelController?.ResetToInitialState();
 
-            foreach (var handler in remaining)
-                handler.ApplyLevelRestart(definition, graph);
-
-            tutorialHandler?.ApplyLevelRestart(definition, graph);
+            foreach (var handler in handlers)
+            {
+                if (handler is not LevelGraphMutationController)
+                    handler.ApplyLevelRestart(definition, graph);
+            }
         }
 
-        private static Dictionary<string, ILevelRestartHandler> CollectHandlers()
+        private static List<ILevelRestartHandler> CollectHandlers()
         {
-            var handlers = new Dictionary<string, ILevelRestartHandler>();
+            var handlers = new List<ILevelRestartHandler>();
 
-            foreach (var behaviour in UnityEngine.Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None))
+            foreach (var behaviour in UnityEngine.Object.FindObjectsByType<MonoBehaviour>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.InstanceID))
             {
-                if (behaviour is not ILevelRestartHandler handler)
-                    continue;
-
-                var typeName = handler.GetType().FullName;
-                if (!handlers.ContainsKey(typeName))
-                    handlers[typeName] = handler;
+                if (behaviour is ILevelRestartHandler handler)
+                    handlers.Add(handler);
             }
 
+            handlers.Sort((left, right) =>
+            {
+                int phase = GetPhase(left).CompareTo(GetPhase(right));
+                if (phase != 0)
+                    return phase;
+
+                int type = string.Compare(left.GetType().FullName, right.GetType().FullName, StringComparison.Ordinal);
+                return type != 0 ? type : ((MonoBehaviour)left).GetInstanceID().CompareTo(((MonoBehaviour)right).GetInstanceID());
+            });
+
             return handlers;
+        }
+
+        private static int GetPhase(ILevelRestartHandler handler)
+        {
+            if (handler is LevelGraphMutationController)
+                return 0;
+            if (handler.GetType().FullName == PlayerHandlerType)
+                return 1;
+            return handler.GetType().FullName == TutorialHandlerType ? 3 : 2;
         }
     }
 }

@@ -114,6 +114,88 @@ namespace WSlice.Tests.EditMode
             }
         }
 
+        [TestCase(0.2f)]
+        [TestCase(0.58f)]
+        [TestCase(1f)]
+        public void LockedRoute_HasNoNumericBandOrWOnlySolution(float currentW)
+        {
+            var def = CreateThreeNodeDef();
+            def.Edges[0].IsLocked = true;
+            var graph = new LevelGraphRuntime(def);
+            var wState = new WState();
+            wState.Force(currentW);
+            wState.SetTarget(0.58f);
+            var playerObject = new GameObject("Player");
+            var movement = playerObject.AddComponent<MovementController>();
+            var character = playerObject.AddComponent<PlayerCharacter>();
+            character.CurrentNodeId = "A";
+            SetPrivateField(movement, "_hasLastTargetNode", true);
+            SetPrivateField(movement, "_lastTargetNodeId", "C");
+
+            try
+            {
+                var state = WDialModel.Build(wState, def, graph, movement, null, character);
+
+                Assert.That(state.HasRouteHint, Is.False);
+                Assert.That(state.EdgePreviews.Count, Is.EqualTo(1));
+                Assert.That(state.EdgePreviews[0].FromNodeId, Is.EqualTo("B"));
+                Assert.That(WDialTrackModel.Build(state).EdgeBands.Count, Is.EqualTo(1));
+                foreach (var edge in state.AvailableEdges)
+                    Assert.That(edge.FromNodeId, Is.Not.EqualTo("A"));
+
+                graph.TryUnlockEdge("A", "B", new WRange { Min = 0.4f, Max = 0.6f });
+                wState.Force(0.2f);
+                state = WDialModel.Build(wState, def, graph, movement, null, character);
+                Assert.That(state.EdgePreviews.Count, Is.EqualTo(2));
+                Assert.That(state.HasRouteHint, Is.True);
+                Assert.That(state.RouteHint.FromNodeId, Is.EqualTo("A"));
+                Assert.That(state.RouteHint.ToNodeId, Is.EqualTo("B"));
+                Assert.That(state.RouteHint.MinW, Is.EqualTo(0.4f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(playerObject);
+                Object.DestroyImmediate(def);
+            }
+        }
+
+        [Test]
+        public void LockedShortcut_HintUsesAnUnlockedAlternativeRoute()
+        {
+            var def = CreateThreeNodeDef();
+            def.Edges.Insert(0, new LevelEdge
+            {
+                FromNodeId = "A",
+                ToNodeId = "C",
+                WalkableRange = new WRange { Min = 0f, Max = 1f },
+                IsLocked = true
+            });
+            var wState = new WState();
+            wState.Force(0.8f);
+            var playerObject = new GameObject("Player");
+            var movement = playerObject.AddComponent<MovementController>();
+            var character = playerObject.AddComponent<PlayerCharacter>();
+            character.CurrentNodeId = "A";
+            SetPrivateField(movement, "_hasLastTargetNode", true);
+            SetPrivateField(movement, "_lastTargetNodeId", "C");
+
+            try
+            {
+                var state = WDialModel.Build(wState, def, new LevelGraphRuntime(def), movement, null, character);
+
+                Assert.That(state.HasRouteHint, Is.True);
+                Assert.That(state.RouteHint.FromNodeId, Is.EqualTo("A"));
+                Assert.That(state.RouteHint.ToNodeId, Is.EqualTo("B"));
+                Assert.That(state.RouteHint.MinW, Is.EqualTo(0.4f));
+                Assert.That(state.RouteHint.MaxW, Is.EqualTo(0.6f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(playerObject);
+                Object.DestroyImmediate(def);
+            }
+        }
+
         private static void SetPrivateField(object target, string fieldName, object value)
         {
             var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);

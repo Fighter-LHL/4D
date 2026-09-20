@@ -1,272 +1,74 @@
-# W-Slice 本地验证清单
+# W-Slice 验证与证据
 
-本文档把 compile、五关 graybox 校验、自动化测试、手动冒烟、macOS 构建分层说明，便于新开发者 clone 后按同一流程验证。
+Unity 版本为 `6000.0.77f1`。验证必须对应当前提交和本次运行；旧日志、进程退出 `0`、测试源码存在都不能单独证明测试通过。
 
-**Unity 版本：** `6000.0.77f1`（见 `ProjectSettings/ProjectVersion.txt`）
+## 本地验证
 
-**Baseline commit：** `d6fbea1`（v0.3 — PR #16 合并后）
+从仓库根目录执行：
 
----
+```bash
+./scripts/validate-local.sh          # L0 编译 + L1 六关和 Catalog 校验
+./scripts/validate-local.sh --tests  # 再要求 L2 EditMode + L3 PlayMode 真实测试结果
+python3 -m unittest discover -s scripts/tests -v  # 仅验证证据检查器与脚本编排
+```
 
-## 验证层级
+环境变量 `UNITY_PATH` 覆盖 Unity 可执行文件；`PROJECT_PATH` 覆盖 Unity 项目路径；`PYTHON_PATH` 覆盖 Python 3。缺少 Unity 时退出非零并报告 `NOT RUN`。已有本机 Unity license 由 Unity 使用，脚本不请求、搜索或打印任何凭据；license 不可用导致的失败不能记作 Pass。
 
-| 层级 | 做什么 | 必须通过？ |
+每次创建独立 `WSliceProto/TestResults/run-<UTC 时间>-<随机后缀>/`，保留 invocation、日志、JSON receipt 和 NUnit XML。目录不会覆盖上次记录；`invocation.json` 记录提交、工作区是否有修改、是否要求测试。若工作区有改动，应另保存可复现的 diff 或提交后重跑。
+
+| 层级 | 成功证据 | 不代表什么 |
 |---|---|---|
-| L0 Compile | batchmode 打开项目并编译脚本 | 是 |
-| L1 Validate | 五关 graybox validate + Level Catalog validate | 是 |
-| L2 EditMode | 纯逻辑单元测试 | 是（有 license 时） |
-| L3 PlayMode | 五关 + LevelFlow 集成测试 | 是（有 license 时） |
-| L4 Smoke | 手动 Play Mode 五关 demo 试玩 | 发布前建议 |
-| L5 Build | macOS standalone 构建 | 发布前建议 |
+| L0/L1 | 统一 `WSliceValidationRunner.ValidateAll` 成功退出；fresh JSON 收齐 Garden、Platform、Gate、Chambers、Hazard、Courtyard、Catalog，错误数为 0 | 不代表每个玩家交互都正确 |
+| L2/L3 | Unity 成功退出；fresh、完整且计数一致的 NUnit XML；实际通过用例 > 0，失败和未完成为 0 | 不代表人的理解、可玩性或体验成立 |
+| L4 手动冒烟 | 在 Editor 或构建中按步骤操作的实际记录 | 自动化回归不能代替手动 UI 检查 |
+| 五人试玩 | [无指导试玩模板](../docs/playtests/courtyard-five-player-template.md)中的真实观察 | 禁止填入 AI 模拟的人类结果 |
+| L5 构建 | 当前代码构建日志、产物 manifest、实际启动记录 | 构建成功不等于启动和通关成功 |
 
----
+默认不执行 L2/L3，明确标记 `SKIPPED`；此时只能说 L0/L1 已验证。L4、五人试玩、L5 不由本脚本执行。
 
-## 一键脚本（推荐）
+## 自动化通过标准
 
-仓库根目录：
+- 测试命令使用 `-runTests -batchmode -testPlatform ... -testResults ...`，**不加 `-quit`**，让 Test Runner 在完成后关闭；场景校验的同步 `-executeMethod` 可以使用 `-quit`。
+- `scripts/verify_unity_results.py` 读取 NUnit 3 XML 的真实 `test-case`，核对 summary 的 total/passed/failed/skipped/inconclusive 与发现数。丢失、损坏、全 skipped、零用例、失败、inconclusive、未完成或计数不一致均退出非零。
+- XML 文件时间和内嵌开始/结束时间必须属于本次 invocation。旧 XML 即使复制到新目录也不被接受。
+- 部分 skipped 会单独报数；不能写成全部用例已执行。新增关键行为的测试不得通过 skipped 规避。
+- L1 统一 runner 捕获旧 Validate 方法的 Error/Exception/Assert；不能仅凭这些方法退出 `0` 报成功。它只校验已保存的资产，不运行 Generate、不保存场景。
+- 失败证据保留在本次目录，修复后重跑生成另一个目录。不要回填上一次日志使其看似通过。
 
-```bash
-./scripts/validate-local.sh
+如必须通过 Editor Test Runner 手动 Run All，应导出当次 XML，并记录提交、Unity 版本、开始时间、测试数量、跳过数量和 XML 路径；无 XML 只记 `未确认`，不能把控制台 “OK” 当作替代。
+
+## CI
+
+`.github/workflows/wslice-validate.yml` 中：
+
+- 无需 Unity 的 job 始终运行 Python 检查器测试和 shell 语法检查。
+- L0/L1 使用 `game-ci/unity-builder@v4` 的真实 `buildMethod` 调用统一 runner；此步骤只校验，不产出 Linux 玩家版本。
+- L2/L3 使用独立的 `game-ci/unity-test-runner@v4` EditMode/PlayMode matrix，随后由同一个 Python 检查器核验证据。上传按 `run_id/run_attempt/mode` 隔离的 artifact。
+- 凭据只从已配置的 Unity repository secrets 传给 GameCI。合法的 step `if` 引用 job `env`，不在 job `if` 中直接引用 `secrets`。缺少配置时 Unity steps 明确 `SKIPPED`，job summary 写清没有执行 Unity；此类工作流绿色不代表 Unity 通过。
+- CI 配置改正确并不证明 CI 已跑通。只有相应 Actions run 和可下载 receipt/XML 才能作证；不为此查询凭据值。
+
+依据：[Unity Test Framework 命令行与 NUnit 输出](https://docs.unity3d.com/Packages/com.unity.test-framework@1.4/manual/reference-command-line.html)、[GameCI Builder 自定义方法](https://game.ci/docs/github/builder/#buildmethod)、[GameCI Test Runner](https://game.ci/docs/github/test-runner/)、[GitHub secrets 条件规则](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)。项目实际测试框架版本以 `Packages/manifest.json` 为准。
+
+## 场景、试玩与发布
+
+新关入口为 `WSlice.Editor.CourtyardSliceGenerator.Generate/Validate`。Generate 是开发时的资产生成操作，单独执行并审查生成的 diff；保存资产后运行上面的完整验证。旧五关保留作回归。
+
+L4 按 [PlayModeSmokeTest.md](Assets/_Project/Tests/PlayModeSmokeTest.md) 检查既有关卡，并对 Courtyard 检查：目标可辨、W 控制可用、开放路径与实体缺口一致、每阶段移动/失败/重开、终点完成和返回选关。五人无指导试玩必须与开发者冒烟分开记录。
+
+构建使用 `./scripts/build-macos.sh`，输出 `WSliceProto/builds/macos/W-Slice.app` 和 `build-info.json`。核对 manifest 中实际启用场景，再启动验证；不能只看构建退出码。
+
+PR 验证记录应包含：
+
+```text
+Commit / dirty diff reference:
+Unity version:
+Invocation directory / CI run:
+L0/L1: Pass / Fail / Not run (receipt path; error/warning counts)
+L2 EditMode: Pass / Fail / Not run (passed / skipped / total; XML path)
+L3 PlayMode: Pass / Fail / Not run (passed / skipped / total; XML path)
+L4 manual smoke: Pass / Fail / Not run (operator; steps; observations)
+Five-player playtest: Not run / Incomplete / Complete (real participants; record path)
+L5 macOS build and launch: Pass / Fail / Not run (manifest; launch evidence)
 ```
 
-默认执行 **L0 + L1**（含五关 validate + catalog）。加 `--tests` 尝试 **L2 + L3**（需要有效 Unity license 且 batchmode 测试可用）。
-
-环境变量：
-
-| 变量 | 默认 | 说明 |
-|---|---|---|
-| `UNITY_PATH` | macOS Hub 路径 | Unity 可执行文件 |
-| `PROJECT_PATH` | `WSliceProto/` | 相对仓库根 |
-
----
-
-## L0 — 脚本编译
-
-```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath WSliceProto \
-  -quit -batchmode -nographics \
-  -logFile -
-```
-
-（从仓库根目录执行；`-projectPath` 也可写绝对路径。）
-
-**预期：** 日志含 `Tundra build success`，退出码 `0`。
-
----
-
-## L1 — Graybox 校验（三关）
-
-`validate-local.sh` 依次执行以下三项。也可单独在 Editor 菜单或 batchmode 运行。
-
-### Garden
-
-Editor：`WSlice → Validate Garden Graybox`
-
-```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath WSliceProto \
-  -executeMethod WSlice.Editor.GardenGrayboxGenerator.Validate \
-  -quit -batchmode -nographics -logFile -
-```
-
-**预期：** `GardenGraybox validation passed.`
-
-### Platform
-
-Editor：`WSlice → Validate Platform Graybox`
-
-```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath WSliceProto \
-  -executeMethod WSlice.Editor.PlatformGrayboxGenerator.Validate \
-  -quit -batchmode -nographics -logFile -
-```
-
-**预期：** `PlatformGraybox validation passed.`
-
-### Gate
-
-Editor：`WSlice → Validate Gate Graybox`
-
-```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath WSliceProto \
-  -executeMethod WSlice.Editor.GateGrayboxGenerator.Validate \
-  -quit -batchmode -nographics -logFile -
-```
-
-**预期：** `GateGraybox validation passed.`
-
-### Chambers
-
-Editor：`WSlice → Validate Chambers Graybox`
-
-```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath WSliceProto \
-  -executeMethod WSlice.Editor.ChambersGrayboxGenerator.Validate \
-  -quit -batchmode -nographics -logFile -
-```
-
-**预期：** `ChambersGraybox validation passed.`
-
-### Hazard
-
-Editor：`WSlice → Validate Hazard Graybox`
-
-```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath WSliceProto \
-  -executeMethod WSlice.Editor.HazardGrayboxGenerator.Validate \
-  -quit -batchmode -nographics -logFile -
-```
-
-**预期：** `HazardGraybox validation passed.`
-
-### Level Catalog
-
-Editor：`WSlice → Validate Level Catalog`
-
-```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath WSliceProto \
-  -executeMethod WSlice.Editor.LevelCatalogValidatorRunner.Validate \
-  -quit -batchmode -nographics -logFile -
-```
-
-**预期：** `LevelCatalog validation passed.`
-
-校验内容：LevelId 唯一、SceneName 非空、LevelDefinition 与 catalog 一致、Build Settings 第一项为 LevelSelect、catalog 场景均已启用。
-
----
-
-## L2 — Edit Mode 测试
-
-Editor：`Window → General → Test Runner → Edit Mode → Run All`
-
-命令行：
-
-```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath WSliceProto \
-  -runTests -testPlatform EditMode \
-  -testResults WSliceProto/TestResults/editmode-results.xml \
-  -quit -batchmode -nographics -logFile -
-```
-
-**预期套件：**
-
-- Core: `WRangeTests`, `WConditionTests`, `WStateTests`, `WSnapResolverTests`
-- Level: `LevelGraphRuntimeTests`, `LevelDefinitionValidatorTests`, `LevelCatalogValidatorTests`, `LevelSessionTests`, `LevelRestartRulesTests`, `LevelFlowModelTests`, `GraphMutationModelTests`, `LevelGraphMutationControllerTests`, `LevelPathPreviewModelTests`, `LevelDefinitionInspectorModelTests`, `LevelNodeMirrorNamingTests`, `LevelTutorialDismissRulesTests`, `LevelSelectButtonModelTests`
-- Interaction: `SliceInteractionModelTests`, `WInteractableProfileModelTests`
-- UI: `WDialModelTests`, `PlayerHUDModelTests`, `WDialTrackModelTests`
-
-**已知问题：** 部分环境 `-runTests` 退出 `0` 但不生成 XML。若 XML 缺失，必须在 Unity Editor Test Runner 中手动 Run All 并记录结果。
-
----
-
-## L3 — Play Mode 测试
-
-Editor：`Test Runner → Play Mode → Run All`
-
-命令行：
-
-```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath WSliceProto \
-  -runTests -testPlatform PlayMode \
-  -testResults WSliceProto/TestResults/playmode-results.xml \
-  -quit -batchmode -nographics -logFile -
-```
-
-**预期套件：**
-
-- Garden: `GardenGrayboxBehaviorTests`, `GardenGrayboxMovementTests`
-- Platform: `PlatformGrayboxTests`
-- Gate: `GateGrayboxTests`
-- Chambers: `ChambersGrayboxTests`
-- Hazard: `HazardGrayboxTests`
-- Flow: `LevelFlowPlayModeTests`, `LevelSelectPlayModeTests`
-- Entities/UI: `SliceEntityPlayModeTests`, `WDialViewPlayModeTests`, `LevelPathPreviewPlayModeTests`
-
----
-
-## L4 — 手动冒烟
-
-按 [`Assets/_Project/Tests/PlayModeSmokeTest.md`](Assets/_Project/Tests/PlayModeSmokeTest.md) 完整走一遍：
-
-1. **LevelSelect** — demo 首页（标题、版本、Quit）、五关按钮
-2. **Garden_01** — 教学提示、W 门控缺口/楼梯、Playing **R** 重开、Completed overlay/**N**
-3. **Platform_01** — W-offset 平台、West→East 边 W 区间通行
-4. **Gate_03** — 拉杆 interactable hint、GateRoom→Goal 解锁、移动中断 Failed、overlay/**R**
-5. **Chambers_04** — 多房间 W 序列解谜
-6. **Hazard_05** — hazard platform、移动中降 W → Failed、**R** 重开
-
----
-
-## L5 — macOS Standalone 构建
-
-仓库根目录：
-
-```bash
-./scripts/build-macos.sh
-```
-
-或 Editor：`WSlice → Build/macOS Standalone`
-
-**输出路径（统一）：** `WSliceProto/builds/macos/W-Slice.app`
-
-**Manifest：** `WSliceProto/builds/macos/build-info.json`（version、Unity 版本、enabled scenes、build time、output path）
-
-**预期：** 日志含 `macOS build succeeded`，退出码 `0`。启动后首先进入 `LevelSelect`。
-
-Build Settings 启用场景顺序：
-
-1. `LevelSelect`
-2. `GardenGraybox`
-3. `PlatformGraybox`
-4. `GateGraybox`
-5. `ChambersGraybox`
-6. `HazardGraybox`
-
-环境变量 `WSLICE_BUILD_OUTPUT` 可覆盖输出 `.app` 路径（manifest 写入同目录）。
-
----
-
-## PR 测试记录规范
-
-每个改动 WSlice 代码的 PR，body 中应包含：
-
-```markdown
-## Test plan
-
-- Unity: 6000.0.77f1
-- L0 Compile: Pass / Fail / Not run
-- L1 Validate (Garden / Platform / Gate / Chambers / Hazard / Catalog): Pass / Fail / Not run
-- L2 EditMode: Pass / Fail / Not run (N/N tests) — Editor manual if batchmode skipped
-- L3 PlayMode: Pass / Fail / Not run (N/N tests)
-- L4 Smoke: Pass / Fail / Not run
-- L5 macOS Build: Pass / Fail / Not run
-```
-
-不要求把 XML 提交进仓库，但必须写清实际执行方式（batchmode 或 Editor 手动）。
-
----
-
-## 生成场景（开发用）
-
-修改生成器或关卡数据后：
-
-1. `WSlice → Generate <Level> Graybox`
-2. `WSlice → Validate <Level> Graybox`
-3. 重新跑 L2/L3 或至少 L4
-
----
-
-## 当前能力边界（v0.3.x）
-
-- 有：五关 demo、LevelSelect 首页、overlay/教学/Playing 重开、W 门控机关、LevelCatalog 校验、graph mutation（runtime deep-copy）、有序 restart pipeline、macOS 构建
-- 无：已配置 secrets 前的 CI 自动跑通、objective/condition 系统、Windows/Linux 构建、正式美术与音效
-
-Release tag：`v0.3-wslice-demo`（见 [`docs/releases/v0.3-wslice-demo.md`](../docs/releases/v0.3-wslice-demo.md)）。v0.2 见 [`v0.2-wslice-demo.md`](../docs/releases/v0.2-wslice-demo.md)。
+历史 [v0.3 release 文档](../docs/releases/v0.3-wslice-demo.md) 保留了 2026-06-19 原文，其中 L2/L3 曾在 XML 缺失时写 Pass。该记录只能证明脚本当时打印了这些信息，**不能确认测试执行或通过，也不能作为当前代码的验证**。新证据另建，禁止改写历史为已复验。

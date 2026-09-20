@@ -55,8 +55,10 @@ namespace WSlice.Level
             if (mutationController == null || levelController == null)
                 return false;
 
+            if (interactableProfile == null || !mutationController.ApplyUnlock(interactableProfile.UnlockAction))
+                return false;
+
             _activated = true;
-            mutationController.ApplyUnlock(interactableProfile.UnlockAction);
             ApplyActivatedVisual();
             return true;
         }

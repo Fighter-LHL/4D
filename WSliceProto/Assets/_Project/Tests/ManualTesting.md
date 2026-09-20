@@ -1,8 +1,8 @@
 # 手动测试指南
 
-**版本：** Prototype v0.3.x — 五关 demo + LevelSelect 首页 + overlay/教学/Playing 重开
+**范围：** 旧五关回归 + Courtyard 纵向体验；验证状态以本次证据为准。
 
-当前环境可以用 Unity batchmode 做脚本编译和五关 graybox 校验；`-runTests` 有时会退出 0 但不产出 XML。遇到这种情况时，用 Unity Editor Test Runner 手动执行 EditMode/PlayMode。
+使用仓库根目录 `./scripts/validate-local.sh --tests` 校验当前代码与资产。新关 Courtyard 与旧五关一起校验。测试结果必须有本次运行的完整 NUnit XML；退出 0 但没有 XML 时记为失败/未确认，不能记 Pass。参见 [Validation.md](../../../Validation.md)。
 
 项目路径：仓库内 `WSliceProto/`（用 Unity Hub 打开该目录）。
 
@@ -16,21 +16,7 @@
 ./scripts/validate-local.sh
 ```
 
-或单独执行：
-
-```bash
-UNITY=/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity
-PROJECT=WSliceProto
-
-$UNITY -projectPath $PROJECT -executeMethod WSlice.Editor.GardenGrayboxGenerator.Validate -quit -batchmode -nographics
-$UNITY -projectPath $PROJECT -executeMethod WSlice.Editor.PlatformGrayboxGenerator.Validate -quit -batchmode -nographics
-$UNITY -projectPath $PROJECT -executeMethod WSlice.Editor.GateGrayboxGenerator.Validate -quit -batchmode -nographics
-$UNITY -projectPath $PROJECT -executeMethod WSlice.Editor.ChambersGrayboxGenerator.Validate -quit -batchmode -nographics
-$UNITY -projectPath $PROJECT -executeMethod WSlice.Editor.HazardGrayboxGenerator.Validate -quit -batchmode -nographics
-$UNITY -projectPath $PROJECT -executeMethod WSlice.Editor.LevelCatalogValidatorRunner.Validate -quit -batchmode -nographics
-```
-
-**预期：** 各关日志含 `<Level>Graybox validation passed.`；catalog 日志含 `LevelCatalog validation passed.`
+该命令通过统一 `WSliceValidationRunner.ValidateAll` 校验旧五关、Courtyard 与 Catalog，并核对包含七项 scope 的 fresh JSON receipt。旧生成器 `Validate` 的日志可用于定位问题，但其单独退出码不能代替统一校验。新关的 Generate 为独立开发操作，不在验证时偷偷生成资产。
 
 ---
 
@@ -100,30 +86,15 @@ $UNITY -projectPath $PROJECT -executeMethod WSlice.Editor.LevelCatalogValidatorR
 
 ---
 
-## 命令行测试（可选）
+## 命令行测试
+
+从仓库根目录运行：
 
 ```bash
-UNITY=/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity
-PROJECT=WSliceProto
-
-# L0 Compile
-$UNITY -projectPath $PROJECT -quit -batchmode -nographics
-# Expected: Tundra build success
-
-# L2 EditMode
-$UNITY -projectPath $PROJECT \
-  -runTests -testPlatform EditMode \
-  -testResults $PROJECT/TestResults/editmode-results.xml \
-  -quit -batchmode -nographics
-
-# L3 PlayMode
-$UNITY -projectPath $PROJECT \
-  -runTests -testPlatform PlayMode \
-  -testResults $PROJECT/TestResults/playmode-results.xml \
-  -quit -batchmode -nographics
+./scripts/validate-local.sh --tests
 ```
 
-若 XML 未生成，在 Editor Test Runner 中手动 Run All 并记录结果。
+脚本在独立结果目录保存 L0/L1 receipt、EditMode/PlayMode XML 与日志。测试调用不加 `-quit`；缺失、陈旧、损坏、失败、未完成或全 skipped 的 XML 都不能通过。Editor 中手动 Run All 也须保存实际 XML 和运行信息。详细标准见 [Validation.md](../../../Validation.md)。
 
 ---
 

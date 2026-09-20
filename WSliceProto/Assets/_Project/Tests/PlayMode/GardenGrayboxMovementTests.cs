@@ -78,6 +78,7 @@ namespace WSlice.Tests.PlayMode
             var level = Object.FindFirstObjectByType<LevelRuntimeController>();
             var movement = Object.FindFirstObjectByType<MovementController>();
             var character = Object.FindFirstObjectByType<PlayerCharacter>();
+            var session = Object.FindFirstObjectByType<LevelSessionController>();
 
             level.WState.Force(0.55f);
             yield return null;
@@ -90,6 +91,8 @@ namespace WSlice.Tests.PlayMode
 
             Assert.That(character.CurrentNodeId, Is.EqualTo("Outside"));
             Assert.That(Vector3.Distance(character.transform.position, level.Graph.GetNode("Outside").WorldPosition), Is.LessThan(0.001f));
+            Assert.That(movement.IsMoving, Is.False);
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
         }
 
         [UnityTest]

@@ -82,6 +82,13 @@ namespace WSlice.Tests.PlayMode
 
             Assert.That(session.State, Is.EqualTo(LevelSessionState.Failed));
             Assert.That(character.CurrentNodeId, Is.EqualTo("West"));
+            Assert.That(movement.IsMoving, Is.False);
+            Assert.That(character.transform.position, Is.EqualTo(level.Graph.GetNode("West").WorldPosition));
+
+            level.WState.Force(0.55f);
+            yield return null;
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Failed));
+            Assert.That(movement.IsMoving, Is.False, "A failed crossing must wait for an explicit restart.");
         }
 
         private static IEnumerator WaitForMovement(MovementController movement, float timeoutSeconds = 5f)

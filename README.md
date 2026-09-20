@@ -2,7 +2,19 @@
 
 Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0,1]` 控制物体显隐、路径可达性与交互反馈。
 
-**当前阶段：** Prototype v0.3.x — 五关 demo（Garden → Platform → Gate → Chambers → Hazard）+ LevelSelect 首页 + overlay/教学/Playing 重开 + authoring hardening。
+**当前阶段：** 回响庭院代表关开发版 + 原五关机制样例。新关代码和场景已加入；当前机器没有 Unity Editor，尚未确认 Unity 编译、实际试玩或 macOS 构建通过。
+
+## 优先试玩：回响庭院
+
+用 Unity **6000.0.77f1** 打开 `WSliceProto`，进入 `LevelSelect`，点击 **开始：回响庭院**；也可直接打开 `Assets/_Project/Level/Scenes/CourtyardSlice.unity` 后 Play。场景已提交，进入 Play 时创建空间表现，不必先运行生成器。
+
+拖动底部滑条切换切片，点击地面落脚点移动。到机关旁点击机关或“启动机关”；“提示”按当前进度逐级揭示。误调切片会返回安全落脚点，可以继续尝试；按 **R** 重开。
+
+制作目标为约 5–10 分钟的观察解谜体验，实际时长尚待验证。机关状态跨切片保留，必须激活后才能到出口完成。
+
+- [实现与试玩说明](docs/courtyard-slice.md)
+- [五人无指导试玩记录（目前 0/5）](docs/playtests/courtyard-five-player-template.md)
+- [可信验证流程](WSliceProto/Validation.md)：缺失 XML、零用例或失败均不能记为通过。
 
 ## 快速开始
 
@@ -11,7 +23,8 @@ Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0
 | Unity 版本 | **6000.0.77f1**（Unity 6 LTS） |
 | 项目路径 | [`WSliceProto/`](WSliceProto/) |
 | 启动场景 | `LevelSelect`（Build Settings 第一项） |
-| 关卡顺序 | Garden_01 → Platform_01 → Gate_03 → Chambers_04 → Hazard_05 |
+| 代表性试玩 | Courtyard_01（独立结束） |
+| 原五关顺序 | Garden_01 → Platform_01 → Gate_03 → Chambers_04 → Hazard_05 |
 | Baseline | `main` @ `d6fbea1`（v0.3 release 锚点） |
 
 ### 1. 打开项目
@@ -92,15 +105,16 @@ open WSliceProto/builds/macos/W-Slice.app
 ## 已知限制
 
 - **CI（可选）** — GitHub Actions 已提供 L0/L1 workflow；需在 repo secrets 配置 `UNITY_LICENSE` 等（见 `.github/workflows/wslice-validate.yml`）
-- **batchmode 测试不稳定**：`-runTests` 有时退出 0 但不产出 XML（见 Validation.md）
+- **Unity 验证待执行**：脚本现在要求本次新生成且有实际用例的 XML；退出 0 而缺失 XML 视为失败/未确认。
 - **无正式美术/音效**：灰盒 demo，URP Lit 统一材质
 - **仅 macOS 构建**：无 Windows / Linux standalone、无签名公证
-- **五关 demo** — Hazard_05 为当前最后一关；无存档与 CI
+- **试玩证据待补** — 原五关以 Hazard_05 结束；回响庭院独立结束；尚无五人试玩结果。
 
 ## 后续规划（v0.3+）
 
-1. **Foundation** — objective/condition 系统、W 语义产品决策（W-Slice vs 4D grid）
-2. **CI secrets** — 配置 Unity license 以启用 GitHub Actions L0/L1
+1. **Unity 实测** — 编译、六关校验、EditMode / PlayMode、macOS 独立应用试玩。
+2. **五人试玩** — 按预设门槛检查能否自主理解并完成回响庭院，再决定扩关。
+3. **CI 环境** — 已实现验证和测试任务；缺少 Unity license 配置时明确记为 SKIPPED。
 
 Release checklist 见 [`docs/releases/v0.3-wslice-demo.md`](docs/releases/v0.3-wslice-demo.md)。
 

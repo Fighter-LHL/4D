@@ -41,7 +41,7 @@ namespace WSlice.Level
         {
             foreach (var edge in _edges)
             {
-                if (edge.WalkableRange.Contains(w))
+                if (!edge.IsLocked && edge.WalkableRange.Contains(w))
                     yield return edge;
             }
         }
@@ -54,7 +54,7 @@ namespace WSlice.Level
                 bool connects = edge.FromNodeId == from && edge.ToNodeId == to;
                 if (edge.Bidirectional)
                     connects |= edge.FromNodeId == to && edge.ToNodeId == from;
-                if (connects && edge.WalkableRange.Contains(w)) return true;
+                if (connects && !edge.IsLocked && edge.WalkableRange.Contains(w)) return true;
             }
             return false;
         }
@@ -115,8 +115,29 @@ namespace WSlice.Level
 
         public bool SetEdgeWalkableRange(string fromNodeId, string toNodeId, WRange walkableRange)
         {
-            if (string.IsNullOrEmpty(fromNodeId) || string.IsNullOrEmpty(toNodeId))
+            var edge = FindEdge(fromNodeId, toNodeId);
+            if (edge == null)
                 return false;
+
+            edge.WalkableRange = walkableRange;
+            return true;
+        }
+
+        public bool TryUnlockEdge(string fromNodeId, string toNodeId, WRange walkableRange)
+        {
+            var edge = FindEdge(fromNodeId, toNodeId);
+            if (edge == null)
+                return false;
+
+            edge.WalkableRange = walkableRange;
+            edge.IsLocked = false;
+            return true;
+        }
+
+        private LevelEdge FindEdge(string fromNodeId, string toNodeId)
+        {
+            if (string.IsNullOrEmpty(fromNodeId) || string.IsNullOrEmpty(toNodeId))
+                return null;
 
             for (int i = 0; i < _edges.Count; i++)
             {
@@ -126,13 +147,10 @@ namespace WSlice.Level
                     connects |= edge.FromNodeId == toNodeId && edge.ToNodeId == fromNodeId;
 
                 if (connects)
-                {
-                    edge.WalkableRange = walkableRange;
-                    return true;
-                }
+                    return edge;
             }
 
-            return false;
+            return null;
         }
 
         private static LevelNode CloneNode(LevelNode node)
@@ -151,7 +169,8 @@ namespace WSlice.Level
                 FromNodeId = edge.FromNodeId,
                 ToNodeId = edge.ToNodeId,
                 WalkableRange = edge.WalkableRange,
-                Bidirectional = edge.Bidirectional
+                Bidirectional = edge.Bidirectional,
+                IsLocked = edge.IsLocked
             };
         }
     }

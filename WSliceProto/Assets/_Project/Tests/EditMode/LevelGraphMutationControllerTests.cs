@@ -18,7 +18,8 @@ namespace WSlice.Tests.EditMode
                 FromNodeId = "A",
                 ToNodeId = "B",
                 WalkableRange = new WRange { Min = 0.99f, Max = 0.99f },
-                Bidirectional = true
+                Bidirectional = true,
+                IsLocked = true
             });
 
             var levelRuntime = new GameObject("LevelRuntime");
@@ -33,8 +34,8 @@ namespace WSlice.Tests.EditMode
             mutationSo.FindProperty("levelController").objectReferenceValue = levelController;
             mutationSo.ApplyModifiedPropertiesWithoutUndo();
 
-            levelController.enabled = true;
-            mutationController.enabled = true;
+            // EditMode does not run MonoBehaviour Awake automatically.
+            levelController.SendMessage("Awake");
 
             var graph = levelController.Graph;
             Assert.IsFalse(graph.CanMove("A", "B", 0.5f));
@@ -49,11 +50,14 @@ namespace WSlice.Tests.EditMode
                 Is.True);
             Assert.That(mutationController.AppliedActions, Has.Count.EqualTo(1));
             Assert.IsTrue(graph.CanMove("A", "B", 0.5f));
+            Assert.That(graph.Edges[0].IsLocked, Is.False);
+            Assert.That(def.Edges[0].IsLocked, Is.True);
 
             mutationController.ApplyLevelRestart(def, graph);
 
             Assert.That(mutationController.AppliedActions, Is.Empty);
             Assert.IsFalse(graph.CanMove("A", "B", 0.5f));
+            Assert.That(graph.Edges[0].IsLocked, Is.True);
 
             Object.DestroyImmediate(levelRuntime);
             Object.DestroyImmediate(def);

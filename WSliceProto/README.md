@@ -2,7 +2,7 @@
 
 基于 Unity 6000.0 LTS + URP 的“隐藏维度切片”解谜原型。关卡作者通过 `w ∈ [0,1]` 定义物体显隐与路径可达性，运行时负责平滑插值与交互。
 
-**阶段：** Prototype v0.3.x — 五关 playable demo + authoring hardening。
+**阶段：** 回响庭院代表关开发版 + 原五关回归样例。新关尚待 Unity 实测，不能把已写测试视为通过结果。见 [`../docs/courtyard-slice.md`](../docs/courtyard-slice.md)。
 
 仓库入口说明见 [`../README.md`](../README.md)。本地验证见 [`Validation.md`](Validation.md)。Release checklist 见 [`../docs/releases/v0.3-wslice-demo.md`](../docs/releases/v0.3-wslice-demo.md)。
 
@@ -41,16 +41,12 @@
 命令行（需有效 Unity license）：
 
 ```bash
-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath "$(pwd)" \
-  -runTests -testPlatform EditMode \
-  -testResults TestResults/editmode-results.xml \
-  -quit -batchmode -nographics
+../scripts/validate-local.sh --tests
 ```
 
-Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `playmode-results.xml`。
+脚本依次执行 EditMode 和 PlayMode，每次生成独立证据目录并解析实际用例结果。
 
-**已知限制：** batchmode `-runTests` 有时退出 0 但不产出 XML，此时必须在 Editor 中手动跑并记录结果（见 Validation.md PR 规范）。
+**证据要求：** 退出 0 但没有新 XML 时，本轮验证失败/未确认。可改用 Editor Test Runner，但必须导出本次结果并记录实际用例数量。
 
 ## 搭建与校验关卡
 
@@ -64,6 +60,7 @@ Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `p
 | Chambers_04 | `WSlice → Generate Chambers Graybox` | `WSlice → Validate Chambers Graybox` |
 | Hazard_05 | `WSlice → Generate Hazard Graybox` | `WSlice → Validate Hazard Graybox` |
 | Catalog | — | `WSlice → Validate Level Catalog` |
+| Courtyard_01 | `WSlice → Generate Courtyard Slice` | `WSlice → Validate Courtyard Slice` |
 
 手动冒烟：[`Assets/_Project/Tests/PlayModeSmokeTest.md`](Assets/_Project/Tests/PlayModeSmokeTest.md)
 
@@ -78,7 +75,7 @@ Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `p
 
 **输出路径（统一）：** `WSliceProto/builds/macos/W-Slice.app`
 
-构建成功后同目录生成 `build-info.json`（version `0.3.0`、Unity 版本、启用场景、构建时间）。
+构建成功后同目录生成 `build-info.json`（version `0.4.0`、Unity 版本、启用场景、构建时间）；目前尚未执行本开发版构建。
 
 ## 关键设计原则
 
@@ -100,5 +97,5 @@ Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `p
 1. ~~第四关 **Chambers_04**~~ ✅
 2. ~~第五关 **Hazard_05**~~ ✅（hazard platform + segment-break fail）
 3. ~~Graph runtime deep-copy + restart pipeline~~ ✅
-4. Objective/condition 系统（crystal、flag、multi-step unlock）
-5. CI — GitHub Actions L0/L1（需配置 Unity license secrets）
+4. 回响庭院：位置约束机关、显式锁边、跨切片状态、条件完成和按进度提示已实现，等待实测。
+5. CI — GitHub Actions 校验 + EditMode/PlayMode（需配置 Unity license；缺失时明确跳过）。
