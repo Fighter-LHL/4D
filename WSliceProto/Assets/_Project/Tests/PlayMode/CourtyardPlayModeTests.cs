@@ -264,6 +264,119 @@ namespace WSlice.Tests.PlayMode
             Assert.That(puzzle.CanActivate, Is.True);
         }
 
+        [UnityTest]
+        public IEnumerator RepeatedTarget_DoesNotRestartInFlightMovement()
+        {
+            yield return BeginEntranceCrossing();
+            for (int i = 0; i < 8; i++)
+            {
+                Vector3 before = character.transform.position;
+                Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.Courtyard).WorldPosition).Succeeded, Is.True);
+                Assert.That(character.transform.position, Is.EqualTo(before));
+                yield return null;
+                Assert.That(character.transform.position.z, Is.GreaterThanOrEqualTo(before.z));
+            }
+            yield return WaitForArrival(CourtyardLayout.Courtyard);
+        }
+
+        [UnityTest]
+        public IEnumerator ChangedTarget_CompletesCurrentSegmentBeforeTurningBack()
+        {
+            yield return BeginEntranceCrossing();
+            Vector3 before = character.transform.position;
+            Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.Entry).WorldPosition).Succeeded, Is.True);
+            Assert.That(character.transform.position, Is.EqualTo(before));
+            yield return WaitForSegment(CourtyardLayout.Courtyard, CourtyardLayout.Entry);
+            yield return WaitForArrival(CourtyardLayout.Entry);
+        }
+
+        [UnityTest]
+        public IEnumerator PendingTarget_LatestAcceptedWins_AndRejectedClickPreservesIt()
+        {
+            yield return BeginEntranceCrossing();
+            Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.StairFoot).WorldPosition).Succeeded, Is.True);
+            var target = level.Graph.GetNode(CourtyardLayout.BridgeStart).WorldPosition;
+            Assert.That(movement.RequestMove(target).Succeeded, Is.True);
+            Vector3 before = character.transform.position;
+            Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.Goal).WorldPosition).Reason,
+                Is.EqualTo(PlayerActionFailureReason.NoPathAtCurrentW));
+            Assert.That(character.transform.position, Is.EqualTo(before));
+            Assert.That(movement.LastTargetNodeId, Is.EqualTo(CourtyardLayout.BridgeStart));
+            Assert.That(movement.LastTargetWorldPosition, Is.EqualTo(target));
+            yield return WaitForArrival(CourtyardLayout.BridgeStart);
+        }
+
+        [UnityTest]
+        public IEnumerator PendingTarget_RouteClosingAhead_StopsAtSafeLanding()
+        {
+            movement.ResetToNode(CourtyardLayout.Courtyard);
+            yield return SetW(0.8f);
+            Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.StairFoot).WorldPosition).Succeeded, Is.True);
+            yield return WaitForSegment(CourtyardLayout.Courtyard, CourtyardLayout.StairFoot);
+            Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.Mechanism).WorldPosition).Succeeded, Is.True);
+            yield return SetW(0.3f);
+            yield return WaitForArrival(CourtyardLayout.StairFoot);
+            Assert.That(movement.RecoveryVersion, Is.Zero, "The current permanent segment stays open.");
+        }
+
+        [UnityTest]
+        public IEnumerator SmoothedDialBreak_WithPendingTarget_RecoversToEntry()
+        {
+            yield return BeginEntranceCrossing();
+            Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.StairFoot).WorldPosition).Succeeded, Is.True);
+            int recovery = movement.RecoveryVersion;
+            float before = level.WState.CurrentW;
+            Assert.That(router.SetWDial(0f).Succeeded, Is.True);
+            Assert.That(level.WState.CurrentW, Is.EqualTo(before), "The dial sets a target; it does not force W.");
+            bool observedIntermediate = false;
+            float elapsed = 0f;
+            while (movement.IsMoving && elapsed < 5f)
+            {
+                yield return null;
+                elapsed += Time.unscaledDeltaTime;
+                observedIntermediate |= level.WState.CurrentW > 0f && level.WState.CurrentW < before;
+            }
+            Assert.That(observedIntermediate, Is.True);
+            yield return WaitForArrival(CourtyardLayout.Entry);
+            Assert.That(movement.RecoveryVersion, Is.EqualTo(recovery + 1));
+            Assert.That(movement.LastTargetNodeId, Is.EqualTo(CourtyardLayout.StairFoot));
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
+        }
+
+        [UnityTest]
+        public IEnumerator Restart_ClearsPendingAndAcceptedTargets()
+        {
+            yield return BeginEntranceCrossing();
+            Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.StairFoot).WorldPosition).Succeeded, Is.True);
+            Assert.That(session.RequestRestart(), Is.True);
+            yield return null;
+            yield return null;
+            AssertRestarted();
+            Assert.That(movement.HasLastTarget, Is.False);
+            Assert.That(movement.HasLastTargetNode, Is.False);
+            Assert.That(movement.HasActiveSegment, Is.False);
+            yield return SetW(0.3f);
+            yield return MoveTo(CourtyardLayout.Courtyard);
+            Assert.That(movement.IsMoving, Is.False);
+        }
+
+        private IEnumerator BeginEntranceCrossing()
+        {
+            yield return SetW(0.3f);
+            Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.Courtyard).WorldPosition).Succeeded, Is.True);
+            yield return WaitForSegment(CourtyardLayout.Entry, CourtyardLayout.Courtyard);
+            // Exercise clicks away from either landing, where a rewind is visible.
+            float elapsed = 0f;
+            var origin = level.Graph.GetNode(CourtyardLayout.Entry).WorldPosition;
+            while (Vector3.Distance(character.transform.position, origin) < 0.5f && elapsed < 3f)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+            Assert.That(movement.IsMoving, Is.True);
+            Assert.That(Vector3.Distance(character.transform.position, origin), Is.GreaterThanOrEqualTo(0.5f));
+        }
+
         private IEnumerator EnterAndReachMechanism()
         {
             yield return SetW(0.3f);

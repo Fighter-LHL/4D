@@ -90,7 +90,9 @@ namespace WSlice.Tests.PlayMode
             Assert.That(result.Succeeded, Is.False);
             Assert.That(result.Reason, Is.EqualTo(PlayerActionFailureReason.NoPathAtCurrentW));
             Assert.That(router.LastActionResult.Reason, Is.EqualTo(PlayerActionFailureReason.NoPathAtCurrentW));
-            Assert.That(Object.FindFirstObjectByType<MovementController>().LastTargetNodeId, Is.EqualTo("FlowerTop"));
+            var movement = Object.FindFirstObjectByType<MovementController>();
+            Assert.That(movement.HasLastTargetNode, Is.False, "A rejected tap must not become movement intent.");
+            Assert.That(movement.HintTargetNodeId, Is.EqualTo("FlowerTop"));
             var hudState = WDialModel.Build(
                 level,
                 Object.FindFirstObjectByType<MovementController>(),
@@ -160,7 +162,9 @@ namespace WSlice.Tests.PlayMode
             yield return null;
 
             Assert.That(result.Reason, Is.EqualTo(PlayerActionFailureReason.NoPathAtCurrentW));
-            Assert.That(Object.FindFirstObjectByType<MovementController>().LastTargetNodeId, Is.EqualTo("FlowerTop"));
+            var movement = Object.FindFirstObjectByType<MovementController>();
+            Assert.That(movement.HasLastTargetNode, Is.False, "A rejected tap must not become movement intent.");
+            Assert.That(movement.HintTargetNodeId, Is.EqualTo("FlowerTop"));
             Assert.That(debugText.text, Does.Contain("SnapPoints:"));
             Assert.That(debugText.text, Does.Contain("AvailableEdges:"));
             Assert.That(debugText.text, Does.Contain("MoveWillBreak:"));
