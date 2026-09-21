@@ -17,11 +17,13 @@ namespace WSlice.Player
 
         private Coroutine _moveRoutine;
         private bool _isMoving;
+        private bool _hasPendingTarget;
 
         private Vector3 _lastTargetWorldPosition;
         private bool _hasLastTarget;
         private string _lastTargetNodeId;
         private bool _hasLastTargetNode;
+        private string _hintTargetNodeId;
 
         private string _activeSegmentFromId;
         private string _activeSegmentToId;
@@ -37,6 +39,8 @@ namespace WSlice.Player
         public Vector3 LastTargetWorldPosition => _lastTargetWorldPosition;
         public bool HasLastTargetNode => _hasLastTargetNode;
         public string LastTargetNodeId => _lastTargetNodeId;
+        // Feedback may describe a rejected click without changing movement intent.
+        public string HintTargetNodeId => _hintTargetNodeId;
         public int RecoveryVersion { get; private set; }
 
         private void Awake()
@@ -79,19 +83,29 @@ namespace WSlice.Player
             if (string.IsNullOrEmpty(nearest))
                 return PlayerActionResult.Failure(PlayerActionFailureReason.NoNearestNode);
 
-            SetLastTarget(worldPosition, nearest);
+            _hintTargetNodeId = nearest;
 
-            var path = graph.FindPath(currentId, nearest, levelController.WState.CurrentW);
+            // Repeated clicks keep the in-flight segment and accepted route intact.
+            if (_isMoving && nearest == _lastTargetNodeId)
+                return PlayerActionResult.Success();
+
+            // New intent is evaluated from the next safe landing, never from the
+            // stale logical node behind a character already crossing an edge.
+            string routeStart = _isMoving && _hasActiveSegment ? _activeSegmentToId : currentId;
+            var path = graph.FindPath(routeStart, nearest, levelController.WState.CurrentW);
             if (path.Count == 0)
                 return PlayerActionResult.Failure(PlayerActionFailureReason.NoPathAtCurrentW);
 
-            if (_moveRoutine != null)
+            SetLastTarget(worldPosition, nearest);
+            if (_isMoving && _hasActiveSegment)
             {
-                CancelMoveRoutineOnly();
-                SnapCharacterToNode(graph, currentId);
+                _hasPendingTarget = true;
+                return PlayerActionResult.Success();
             }
 
-            _moveRoutine = StartCoroutine(MoveAlongPath(path));
+            // A one-node path completes synchronously; do not retain its coroutine.
+            var routine = StartCoroutine(MoveAlongPath(path));
+            _moveRoutine = _isMoving ? routine : null;
             return PlayerActionResult.Success();
         }
 
@@ -100,6 +114,7 @@ namespace WSlice.Player
             CancelMoveRoutineOnly();
             _hasLastTarget = false;
             _hasLastTargetNode = false;
+            _hintTargetNodeId = null;
         }
 
         public void ResetToNode(string nodeId)
@@ -170,11 +185,21 @@ namespace WSlice.Player
                     character.transform.position = target;
                     character.CurrentNodeId = segmentToId;
                     ClearActiveSegment();
+
+                    if (_hasPendingTarget)
+                    {
+                        _hasPendingTarget = false;
+                        // W may have changed since acceptance. Revalidate at the
+                        // landing and stop there if the requested route has closed.
+                        path = graph.FindPath(segmentToId, _lastTargetNodeId, levelController.WState.CurrentW);
+                        i = 0;
+                    }
                 }
             }
             finally
             {
                 _isMoving = false;
+                _hasPendingTarget = false;
                 _moveRoutine = null;
                 ClearActiveSegment();
             }
@@ -265,6 +290,7 @@ namespace WSlice.Player
             }
 
             _isMoving = false;
+            _hasPendingTarget = false;
             ClearActiveSegment();
         }
     }

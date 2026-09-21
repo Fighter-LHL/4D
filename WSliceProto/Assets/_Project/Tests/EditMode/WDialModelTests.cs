@@ -93,8 +93,7 @@ namespace WSlice.Tests.EditMode
             var movement = movementObject.AddComponent<MovementController>();
             var character = characterObject.AddComponent<PlayerCharacter>();
             character.CurrentNodeId = "A";
-            SetPrivateField(movement, "_hasLastTargetNode", true);
-            SetPrivateField(movement, "_lastTargetNodeId", "C");
+            SetPrivateField(movement, "_hintTargetNodeId", "C");
 
             try
             {
@@ -129,8 +128,7 @@ namespace WSlice.Tests.EditMode
             var movement = playerObject.AddComponent<MovementController>();
             var character = playerObject.AddComponent<PlayerCharacter>();
             character.CurrentNodeId = "A";
-            SetPrivateField(movement, "_hasLastTargetNode", true);
-            SetPrivateField(movement, "_lastTargetNodeId", "C");
+            SetPrivateField(movement, "_hintTargetNodeId", "C");
 
             try
             {
@@ -176,8 +174,7 @@ namespace WSlice.Tests.EditMode
             var movement = playerObject.AddComponent<MovementController>();
             var character = playerObject.AddComponent<PlayerCharacter>();
             character.CurrentNodeId = "A";
-            SetPrivateField(movement, "_hasLastTargetNode", true);
-            SetPrivateField(movement, "_lastTargetNodeId", "C");
+            SetPrivateField(movement, "_hintTargetNodeId", "C");
 
             try
             {
