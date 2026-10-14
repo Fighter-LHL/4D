@@ -5,7 +5,7 @@ namespace WSlice.UI
 {
     public static class PlayerHUDModel
     {
-        private const string DefaultPrimaryText = "Find a W that opens the path.";
+        private const string DefaultPrimaryText = "Use W and movement to reach the goal.";
         private const string BreakWarningText = "Changing W now will break the current move.";
         private const string CompleteText = "Level Complete!";
         private const string FailedText = "Move interrupted!";
@@ -19,7 +19,8 @@ namespace WSlice.UI
             bool hasNextLevel = false,
             bool isLevelFailed = false,
             bool showTutorial = false,
-            string tutorialHint = null)
+            string tutorialHint = null,
+            bool showDeveloperSolutionHints = false)
         {
             if (isLevelFailed)
             {
@@ -35,19 +36,29 @@ namespace WSlice.UI
             }
 
             bool isComplete = isLevelComplete;
-            bool showWarning = hud != null && hud.ActiveMoveWillBreakAtTargetW && !isComplete;
+            bool showWarning = showDeveloperSolutionHints
+                && hud != null
+                && hud.ActiveMoveWillBreakAtTargetW
+                && !isComplete;
             bool showFailure = hud != null
                 && hud.LastFailureReason != PlayerActionFailureReason.None
                 && !isComplete;
+            bool exposeRouteHint = showDeveloperSolutionHints
+                && hud != null
+                && hud.HasRouteHint;
             bool showHint = !isComplete
                 && showFailure
                 && hud.LastFailureReason == PlayerActionFailureReason.NoPathAtCurrentW
-                && hud.HasRouteHint;
+                && exposeRouteHint;
             bool showRestartHint = isComplete;
 
             string warning = showWarning ? BreakWarningText : string.Empty;
             string failure = showFailure
-                ? BuildFailureText(hud.LastFailureReason, hud.LastFailureMessage, hud.HasRouteHint)
+                ? BuildFailureText(
+                    hud.LastFailureReason,
+                    hud.LastFailureMessage,
+                    exposeRouteHint,
+                    showDeveloperSolutionHints)
                 : string.Empty;
             string hint = isComplete
                 ? BuildCompleteHint(hasNextLevel)
@@ -70,7 +81,11 @@ namespace WSlice.UI
                 showHint || showRestartHint);
         }
 
-        private static string BuildFailureText(PlayerActionFailureReason reason, string fallback, bool hasRouteHint)
+        private static string BuildFailureText(
+            PlayerActionFailureReason reason,
+            string fallback,
+            bool hasRouteHint,
+            bool showDeveloperSolutionHints)
         {
             switch (reason)
             {
@@ -91,11 +106,11 @@ namespace WSlice.UI
                 case PlayerActionFailureReason.NoPathAtCurrentW:
                     return hasRouteHint
                         ? "No path at this W."
-                        : "No path at this W. Shift W and try again.";
+                        : "That destination is unreachable in the current state.";
                 case PlayerActionFailureReason.NotInteractiveAtCurrentW:
-                    return string.IsNullOrEmpty(fallback)
-                        ? "Not interactive at this W. Shift W and try again."
-                        : fallback;
+                    return showDeveloperSolutionHints && !string.IsNullOrEmpty(fallback)
+                        ? fallback
+                        : "This object is not interactive in the current state.";
                 case PlayerActionFailureReason.LevelNotPlaying:
                     return "Level is complete. Press R to restart.";
                 default:

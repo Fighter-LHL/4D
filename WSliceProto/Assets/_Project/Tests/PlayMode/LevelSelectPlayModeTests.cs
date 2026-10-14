@@ -20,19 +20,37 @@ namespace WSlice.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator ShowsDemoTitleVersionAndLevelThemes()
+        public IEnumerator ShowsDemoTitleVersionAndAllLevelNamesWithoutSolutionThemes()
         {
             var title = GameObject.Find("Title");
             var version = GameObject.Find("VersionLabel");
-            var gardenButton = GameObject.Find("LevelButton_Garden_01/Label");
+            var subtitle = GameObject.Find("Subtitle");
 
             Assert.That(title, Is.Not.Null);
             Assert.That(version, Is.Not.Null);
-            Assert.That(gardenButton, Is.Not.Null);
+            Assert.That(subtitle, Is.Not.Null);
             Assert.That(title.GetComponent<TextMeshProUGUI>().text, Is.EqualTo(LevelSelectDemoInfo.Title));
             Assert.That(version.GetComponent<TextMeshProUGUI>().text, Is.EqualTo(LevelSelectDemoInfo.Version));
-            Assert.That(gardenButton.GetComponent<TextMeshProUGUI>().text, Does.Contain("封闭花园"));
-            Assert.That(gardenButton.GetComponent<TextMeshProUGUI>().text, Does.Contain("gaps"));
+            Assert.That(subtitle.GetComponent<TextMeshProUGUI>().text, Is.EqualTo("W-Slice graybox demo"));
+
+            string[][] expectedLabels =
+            {
+                new[] { "Garden_01", "封闭花园" },
+                new[] { "Platform_01", "偏移平台" },
+                new[] { "Gate_03", "机关门" },
+                new[] { "Chambers_04", "连环密室" },
+                new[] { "Hazard_05", "危险平台" }
+            };
+
+            foreach (string[] expected in expectedLabels)
+            {
+                var button = GameObject.Find($"LevelButton_{expected[0]}");
+                Assert.That(button, Is.Not.Null, expected[0]);
+                var label = button.transform.Find("Label");
+                Assert.That(label, Is.Not.Null, expected[0]);
+                Assert.That(label.GetComponent<TextMeshProUGUI>().text, Is.EqualTo(expected[1]), expected[0]);
+            }
+
             yield return null;
         }
     }

@@ -7,6 +7,7 @@
 1. 运行 `./scripts/validate-local.sh`（或 Editor 菜单 Validate 五关 graybox + catalog）。
 2. 确认 Build Settings 启用顺序：`LevelSelect` → 五关 graybox（Garden / Platform / Gate / Chambers / Hazard）。
 3. 打开 `Assets/_Project/Level/Scenes/LevelSelect.unity`（或任意单关场景）。
+4. 在 Unity Editor 中确认五关 `DebugText` 上的 `DebugOverlay.showDeveloperDebug` 保持关闭。
 
 ---
 
@@ -14,8 +15,26 @@
 
 1. 进入 Play Mode（或启动 macOS build）。
 2. 应看到标题 **W-Slice Demo**、副标题、左下 **v0.3.0**、右下 **Quit**。
-3. 五个关卡按钮显示中文名 + 英文教学主题。
+3. 关卡按钮不显示 W 方向、区间或路线解法。
 4. 点击各按钮应加载对应 graybox 场景。
+
+---
+
+## Part A — Mechanic Isolation
+
+按 Garden → Platform → Gate → Chambers → Hazard 逐关执行玩家模式检查：
+
+1. 世界中没有红绿 PathPreview，左上没有 DebugText。
+2. W 轨道只显示 current/target marker，不显示 authored snap ticks、edge bands 或危险预告。
+3. 在当前截面点击不可达目标，HUD 说明目标在本截面不连通，不显示 W 数字区间或 graph 节点名。
+4. 在 Gate 的不可交互截面点击拉杆，HUD 不显示精确 WRange。
+
+每一关都仅在 Unity Editor Play Mode 中选中 `DebugText`，开启 `DebugOverlay.showDeveloperDebug`：
+
+1. PathPreview、DebugText、snap ticks、edge bands、route/WRange hint 与危险预告一起恢复。
+2. 记录 current/target W、graph、玩家 world position、当前节点和 session。
+3. 关闭开关，确认 PathPreview、DebugText、snap ticks、edge bands、route/WRange hint 与危险预告再次清空。
+4. 对比记录，确认 W、graph、玩家位置、当前节点和 session 未变，再进入下一关。
 
 ---
 
@@ -47,8 +66,8 @@
 ## Part 5 — Hazard_05（hazard platform + 移动中断）
 
 1. 进入 `HazardGraybox`。
-2. W≈0.55 时平台升起，West→East 可通行；低 W 无法横穿。
-3. 移动过程中把 W 调低 → session **Failed**，玩家回到 West。
+2. 根据平台几何变化寻找可通行截面，不读取数值答案或路线提示。
+3. 移动过程中改变 W 使截面断开 → session **Failed**，玩家回到 West。
 4. Failed 后 **R** 重开；Completed 后无下一关（demo 最后一关）。
 
 ---
@@ -62,7 +81,8 @@ open WSliceProto/builds/macos/W-Slice.app
 
 1. 启动后首先进入 LevelSelect demo 首页。
 2. 走一遍 Part 0–5 的核心路径。
-3. 检查 `WSliceProto/builds/macos/build-info.json`：
+3. 确认 build 保持玩家模式，且没有 runtime Developer Debug 入口。
+4. 检查 `WSliceProto/builds/macos/build-info.json`：
    - `version`: `0.3.0`
    - `enabledScenes` 含 LevelSelect + 五关 graybox
 

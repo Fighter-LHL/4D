@@ -26,9 +26,11 @@ namespace WSlice.UI
         private readonly List<Image> edgeBands = new();
         private Image currentMarker;
         private Image targetMarker;
+        private bool _developerSolutionOracleVisible;
 
         public WDialTrackState LastState { get; private set; } =
             new WDialTrackState(0f, 0f, new List<float>().AsReadOnly(), new List<WDialEdgeBand>().AsReadOnly(), false);
+        public bool DeveloperSolutionOracleVisible => _developerSolutionOracleVisible;
 
         private void Start()
         {
@@ -38,11 +40,23 @@ namespace WSlice.UI
 
         private void Update()
         {
+            Refresh();
+        }
+
+        private void Refresh()
+        {
             ResolveReferences();
 
             HUDState hud = WDialModel.Build(level, movement, inputRouter, character);
-            LastState = WDialTrackModel.Build(hud);
+            LastState = WDialTrackModel.Build(hud, _developerSolutionOracleVisible);
             Render(LastState);
+        }
+
+        public void SetDeveloperSolutionOracleVisible(bool visible)
+        {
+            _developerSolutionOracleVisible = visible;
+            if (isActiveAndEnabled)
+                Refresh();
         }
 
         private void ResolveReferences()

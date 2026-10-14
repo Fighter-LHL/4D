@@ -17,15 +17,14 @@ namespace WSlice.Level
         private readonly List<EdgeLineBinding> _bindings = new();
         private WState _subscribedWState;
         private float _lastW = float.NaN;
+        private bool _developerDebugVisible;
 
         public IReadOnlyList<PathEdgeVisual> CurrentVisuals { get; private set; } = Array.Empty<PathEdgeVisual>();
+        public bool DeveloperDebugVisible => _developerDebugVisible;
 
         private void OnEnable()
         {
-            ResolveReferences();
-            RebuildBindings();
-            SubscribeW();
-            Refresh();
+            ApplyDeveloperDebugVisibility();
         }
 
         private void OnDisable()
@@ -36,6 +35,9 @@ namespace WSlice.Level
 
         private void LateUpdate()
         {
+            if (!_developerDebugVisible)
+                return;
+
             if (levelController?.WState == null)
                 return;
 
@@ -55,6 +57,27 @@ namespace WSlice.Level
             }
 
             return false;
+        }
+
+        public void SetDeveloperDebugVisible(bool visible)
+        {
+            _developerDebugVisible = visible;
+            if (isActiveAndEnabled)
+                ApplyDeveloperDebugVisibility();
+        }
+
+        private void ApplyDeveloperDebugVisibility()
+        {
+            UnsubscribeW();
+            ClearBindings();
+
+            if (!_developerDebugVisible)
+                return;
+
+            ResolveReferences();
+            RebuildBindings();
+            SubscribeW();
+            Refresh();
         }
 
         private void ResolveReferences()
@@ -99,6 +122,9 @@ namespace WSlice.Level
 
         private void Refresh()
         {
+            if (!_developerDebugVisible)
+                return;
+
             if (levelController?.Graph == null || levelController.WState == null)
                 return;
 
@@ -166,7 +192,10 @@ namespace WSlice.Level
             foreach (var binding in _bindings)
             {
                 if (binding.LineRenderer != null)
+                {
+                    binding.LineRenderer.enabled = false;
                     Destroy(binding.LineRenderer.gameObject);
+                }
             }
 
             _bindings.Clear();

@@ -13,7 +13,7 @@ namespace WSlice.Editor
 {
     public static class GardenGrayboxValidationRunner
     {
-        public static void Validate()
+        public static bool Validate()
         {
             int errors = GardenProfileFactory.ValidateGardenProfiles();
             int warnings = 0;
@@ -97,6 +97,8 @@ namespace WSlice.Editor
                 Debug.Log("GardenGraybox validation passed.");
             else
                 Debug.LogWarning($"GardenGraybox validation finished with {errors} error(s) and {warnings} warning(s).");
+
+            return errors == 0;
         }
 
         private static int RequireObject(string name, params Type[] expectedComponents)

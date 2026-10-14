@@ -15,21 +15,21 @@ MonoBehaviour:
   Entries:
   - LevelId: Garden_01
     DisplayName: 封闭花园
-    ThemeHint: Adjust W to find gaps and stairs
+    ThemeHint:
     SceneName: GardenGraybox
   - LevelId: Platform_01
     DisplayName: 偏移平台
-    ThemeHint: Raise W to align the moving platform
+    ThemeHint:
     SceneName: PlatformGraybox
   - LevelId: Gate_03
     DisplayName: 机关门
-    ThemeHint: Interact at mid-W; shifting W mid-move is risky
+    ThemeHint:
     SceneName: GateGraybox
   - LevelId: Chambers_04
     DisplayName: 连环密室
-    ThemeHint: Shift W in sequence to open each corridor
+    ThemeHint:
     SceneName: ChambersGraybox
   - LevelId: Hazard_05
     DisplayName: 危险平台
-    ThemeHint: Align W to cross; shifting W mid-move fails
+    ThemeHint:
     SceneName: HazardGraybox

@@ -9,6 +9,8 @@ namespace WSlice.UI
 {
     public sealed class DebugOverlay : MonoBehaviour
     {
+        [SerializeField, Tooltip("Explicit developer-only diagnostics. Keep disabled for player-facing playtests.")]
+        private bool showDeveloperDebug;
         [SerializeField] private TextMeshProUGUI label;
         [SerializeField] private WState wState;
         [SerializeField] private LevelRuntimeController level;
@@ -17,7 +19,30 @@ namespace WSlice.UI
         [SerializeField] private MovementController movement;
         [SerializeField] private PlayerInputRouter inputRouter;
 
-        private void Start()
+        private LevelPathPreviewRenderer _pathPreview;
+        private PlayerHUDView _playerHud;
+        private WDialTrackView _dialTrack;
+        private bool _appliedDeveloperDebugVisible;
+
+        public bool DeveloperDebugVisible => isActiveAndEnabled && showDeveloperDebug;
+
+        private void Awake()
+        {
+            ResolveReferences();
+            ApplyVisibility();
+        }
+
+        private void OnEnable()
+        {
+            ApplyVisibility();
+        }
+
+        private void OnDisable()
+        {
+            ApplyVisibility(false);
+        }
+
+        private void ResolveReferences()
         {
             if (level == null)
                 level = FindFirstObjectByType<LevelRuntimeController>();
@@ -36,14 +61,69 @@ namespace WSlice.UI
 
             if (inputRouter == null)
                 inputRouter = FindFirstObjectByType<PlayerInputRouter>();
+
+            if (_pathPreview == null)
+                _pathPreview = FindFirstObjectByType<LevelPathPreviewRenderer>();
+
+            if (_playerHud == null)
+                _playerHud = FindFirstObjectByType<PlayerHUDView>();
+
+            if (_dialTrack == null)
+                _dialTrack = FindFirstObjectByType<WDialTrackView>();
         }
 
         private void Update()
         {
+            bool shouldShowDeveloperDebug = DeveloperDebugVisible;
+            if (_appliedDeveloperDebugVisible != shouldShowDeveloperDebug)
+            {
+                ResolveReferences();
+                ApplyVisibility(shouldShowDeveloperDebug);
+            }
+
+            if (!shouldShowDeveloperDebug)
+                return;
+
+            if (level == null || wState == null)
+                ResolveReferences();
+
             if (label == null || wState == null || level == null) return;
 
             HUDState state = WDialModel.Build(level, movement, inputRouter, character);
             label.text = BuildDebugText(state);
+        }
+
+        public void SetDeveloperDebugVisible(bool visible)
+        {
+            showDeveloperDebug = visible;
+            ResolveReferences();
+            ApplyVisibility();
+        }
+
+        private void ApplyVisibility()
+        {
+            ApplyVisibility(DeveloperDebugVisible);
+        }
+
+        private void ApplyVisibility(bool visible)
+        {
+            _appliedDeveloperDebugVisible = visible;
+
+            if (label != null)
+            {
+                label.enabled = visible;
+                if (!visible)
+                    label.text = string.Empty;
+            }
+
+            if (_pathPreview != null)
+                _pathPreview.SetDeveloperDebugVisible(visible);
+
+            if (_playerHud != null)
+                _playerHud.SetDeveloperSolutionHintsVisible(visible);
+
+            if (_dialTrack != null)
+                _dialTrack.SetDeveloperSolutionOracleVisible(visible);
         }
 
         private string BuildDebugText(HUDState state)

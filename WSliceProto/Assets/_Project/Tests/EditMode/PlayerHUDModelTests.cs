@@ -13,25 +13,25 @@ namespace WSlice.Tests.EditMode
 
             var state = PlayerHUDModel.Build(hud, isLevelComplete: false);
 
-            Assert.That(state.PrimaryText, Is.EqualTo("Find a W that opens the path."));
+            Assert.That(state.PrimaryText, Is.EqualTo("Use W and movement to reach the goal."));
             Assert.That(state.ShowFailure, Is.False);
             Assert.That(state.ShowWarning, Is.False);
             Assert.That(state.IsComplete, Is.False);
         }
 
         [Test]
-        public void Build_NoPathFailure_ExplainsDialCanOpenPath()
+        public void Build_NoPathFailure_ExplainsCurrentStateWithoutRoute()
         {
             var hud = CreateHud(PlayerActionFailureReason.NoPathAtCurrentW, "No path is available at current W.", willBreak: false);
 
             var state = PlayerHUDModel.Build(hud, isLevelComplete: false);
 
             Assert.That(state.ShowFailure, Is.True);
-            Assert.That(state.FailureText, Is.EqualTo("No path at this W. Shift W and try again."));
+            Assert.That(state.FailureText, Is.EqualTo("That destination is unreachable in the current state."));
         }
 
         [Test]
-        public void Build_NoPathFailureWithRouteHint_ShowsSuggestedWRange()
+        public void Build_NoPathFailureWithRouteHint_HidesSuggestedWRangeByDefault()
         {
             var routeHint = new RouteHint("Outside", "Gap", "InsideGarden", 0.5f, 0.7f);
             var hud = CreateHud(
@@ -41,6 +41,27 @@ namespace WSlice.Tests.EditMode
                 routeHint: routeHint);
 
             var state = PlayerHUDModel.Build(hud, isLevelComplete: false);
+
+            Assert.That(state.ShowFailure, Is.True);
+            Assert.That(state.FailureText, Is.EqualTo("That destination is unreachable in the current state."));
+            Assert.That(state.ShowHint, Is.False);
+            Assert.That(state.HintText, Is.Empty);
+        }
+
+        [Test]
+        public void Build_NoPathFailureWithDeveloperHints_ShowsSuggestedWRange()
+        {
+            var routeHint = new RouteHint("Outside", "Gap", "InsideGarden", 0.5f, 0.7f);
+            var hud = CreateHud(
+                PlayerActionFailureReason.NoPathAtCurrentW,
+                "No path is available at current W.",
+                willBreak: false,
+                routeHint: routeHint);
+
+            var state = PlayerHUDModel.Build(
+                hud,
+                isLevelComplete: false,
+                showDeveloperSolutionHints: true);
 
             Assert.That(state.ShowFailure, Is.True);
             Assert.That(state.FailureText, Is.EqualTo("No path at this W."));
@@ -60,14 +81,22 @@ namespace WSlice.Tests.EditMode
         }
 
         [Test]
-        public void Build_MoveWillBreak_ShowsWarning()
+        public void Build_MoveWillBreak_PlayerDefaultHidesPredictionWarning()
         {
             var hud = CreateHud(PlayerActionFailureReason.None, string.Empty, willBreak: true);
 
             var state = PlayerHUDModel.Build(hud, isLevelComplete: false);
 
-            Assert.That(state.ShowWarning, Is.True);
-            Assert.That(state.WarningText, Is.EqualTo("Changing W now will break the current move."));
+            Assert.That(state.ShowWarning, Is.False);
+            Assert.That(state.WarningText, Is.Empty);
+
+            var developerState = PlayerHUDModel.Build(
+                hud,
+                isLevelComplete: false,
+                showDeveloperSolutionHints: true);
+
+            Assert.That(developerState.ShowWarning, Is.True);
+            Assert.That(developerState.WarningText, Is.EqualTo("Changing W now will break the current move."));
         }
 
         [Test]
@@ -105,7 +134,7 @@ namespace WSlice.Tests.EditMode
         }
 
         [Test]
-        public void Build_NotInteractiveAtCurrentW_UsesCustomHintMessage()
+        public void Build_NotInteractiveAtCurrentW_HidesCustomWRangeByDefault()
         {
             var hud = CreateHud(
                 PlayerActionFailureReason.NotInteractiveAtCurrentW,
@@ -113,6 +142,23 @@ namespace WSlice.Tests.EditMode
                 willBreak: false);
 
             var state = PlayerHUDModel.Build(hud, isLevelComplete: false);
+
+            Assert.That(state.ShowFailure, Is.True);
+            Assert.That(state.FailureText, Is.EqualTo("This object is not interactive in the current state."));
+        }
+
+        [Test]
+        public void Build_NotInteractiveAtCurrentW_DeveloperHintsUseCustomWRange()
+        {
+            var hud = CreateHud(
+                PlayerActionFailureReason.NotInteractiveAtCurrentW,
+                "Lever works at W 0.45-0.65.",
+                willBreak: false);
+
+            var state = PlayerHUDModel.Build(
+                hud,
+                isLevelComplete: false,
+                showDeveloperSolutionHints: true);
 
             Assert.That(state.ShowFailure, Is.True);
             Assert.That(state.FailureText, Is.EqualTo("Lever works at W 0.45-0.65."));
@@ -127,9 +173,9 @@ namespace WSlice.Tests.EditMode
                 hud,
                 isLevelComplete: false,
                 showTutorial: true,
-                tutorialHint: "Drag W to reveal gaps.");
+                tutorialHint: "Drag W. Tap the ground to move.");
 
-            Assert.That(state.PrimaryText, Is.EqualTo("Drag W to reveal gaps."));
+            Assert.That(state.PrimaryText, Is.EqualTo("Drag W. Tap the ground to move."));
         }
 
         [Test]
@@ -141,9 +187,9 @@ namespace WSlice.Tests.EditMode
                 hud,
                 isLevelComplete: false,
                 showTutorial: true,
-                tutorialHint: "Drag W to reveal gaps.");
+                tutorialHint: "Drag W. Tap the ground to move.");
 
-            Assert.That(state.PrimaryText, Is.EqualTo("Find a W that opens the path."));
+            Assert.That(state.PrimaryText, Is.EqualTo("Use W and movement to reach the goal."));
             Assert.That(state.ShowFailure, Is.True);
         }
 

@@ -17,7 +17,7 @@ MonoBehaviour:
   GoalNodeId: Goal
   StartNodeId: Lobby
   InitialW: 0
-  TutorialHint: Each corridor opens at a different W. Shift W as you advance room by room.
+  TutorialHint: Drag W. Tap the ground to move.
   SnapPoints:
   - 0
   - 0.35

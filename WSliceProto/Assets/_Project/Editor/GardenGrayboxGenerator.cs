@@ -9,9 +9,21 @@ namespace WSlice.Editor
     public static class GardenGrayboxGenerator
     {
         [MenuItem("WSlice/Validate Garden Graybox")]
+        public static void ValidateMenu()
+        {
+            RunValidation(exitOnFailure: false);
+        }
+
         public static void Validate()
         {
-            GardenGrayboxValidationRunner.Validate();
+            RunValidation(exitOnFailure: true);
+        }
+
+        private static void RunValidation(bool exitOnFailure)
+        {
+            bool isValid = GardenGrayboxValidationRunner.Validate();
+            if (!isValid && exitOnFailure)
+                EditorApplication.Exit(1);
         }
 
         [MenuItem("WSlice/Sync Garden Node Mirrors From LevelDefinition")]

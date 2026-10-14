@@ -17,7 +17,7 @@ MonoBehaviour:
   GoalNodeId: Goal
   StartNodeId: Entry
   InitialW: 0
-  TutorialHint: Some objects only work at certain W. Pull the lever at mid-W; shifting W mid-move can fail.
+  TutorialHint: Drag W. Tap objects to interact or the ground to move.
   SnapPoints:
   - 0
   - 0.45

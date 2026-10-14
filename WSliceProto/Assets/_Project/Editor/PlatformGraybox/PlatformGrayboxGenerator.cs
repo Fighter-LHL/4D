@@ -40,7 +40,17 @@ namespace WSlice.Editor
         }
 
         [MenuItem("WSlice/Validate Platform Graybox")]
+        public static void ValidateMenu()
+        {
+            RunValidation(exitOnFailure: false);
+        }
+
         public static void Validate()
+        {
+            RunValidation(exitOnFailure: true);
+        }
+
+        private static void RunValidation(bool exitOnFailure)
         {
             int errors = 0;
 
@@ -89,7 +99,11 @@ namespace WSlice.Editor
             if (errors == 0)
                 Debug.Log("PlatformGraybox validation passed.");
             else
+            {
                 Debug.LogWarning($"PlatformGraybox validation finished with {errors} error(s).");
+                if (exitOnFailure)
+                    EditorApplication.Exit(1);
+            }
         }
 
         private static void EnsureSceneAssetExists()

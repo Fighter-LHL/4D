@@ -17,7 +17,7 @@ MonoBehaviour:
   GoalNodeId: East
   StartNodeId: West
   InitialW: 0
-  TutorialHint: Raise W to align the hazard platform. Shifting W mid-crossing will fail the move.
+  TutorialHint: Drag W. Tap the ground to move.
   SnapPoints:
   - 0
   - 0.55

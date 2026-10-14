@@ -105,7 +105,7 @@ namespace WSlice.Editor
             playerHUDText.fontSizeMax = 22f;
             playerHUDText.alignment = TextAlignmentOptions.Top;
             playerHUDText.color = Color.white;
-            playerHUDText.text = "Find a W that opens the path.";
+            playerHUDText.text = "Use W and movement to reach the goal.";
 
             var playerHUDRect = playerHUDObj.GetComponent<RectTransform>();
             playerHUDRect.anchorMin = new Vector2(0.5f, 1f);
@@ -277,6 +277,7 @@ namespace WSlice.Editor
             debugSo.FindProperty("character").objectReferenceValue = scene.PlayerCharacter;
             debugSo.FindProperty("movement").objectReferenceValue = scene.Movement;
             debugSo.FindProperty("inputRouter").objectReferenceValue = scene.InputRouter;
+            debugSo.FindProperty("showDeveloperDebug").boolValue = false;
             debugSo.ApplyModifiedProperties();
         }
 

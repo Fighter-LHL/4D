@@ -8,6 +8,7 @@
         "WSlice.Player",
         "WSlice.UI",
         "Unity.TextMeshPro",
+        "Unity.UGUI",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

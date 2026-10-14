@@ -6,6 +6,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using WSlice.Level;
 using WSlice.Player;
+using WSlice.UI;
 
 namespace WSlice.Tests.PlayMode
 {
@@ -152,10 +153,15 @@ namespace WSlice.Tests.PlayMode
         {
             var session = Object.FindFirstObjectByType<LevelSessionController>();
             var character = Object.FindFirstObjectByType<PlayerCharacter>();
+            var debug = Object.FindFirstObjectByType<DebugOverlay>();
             var debugText = GameObject.Find("DebugText")?.GetComponent<TextMeshProUGUI>();
             Assert.That(session, Is.Not.Null);
             Assert.That(character, Is.Not.Null);
+            Assert.That(debug, Is.Not.Null);
             Assert.That(debugText, Is.Not.Null);
+            Assert.That(debugText.enabled, Is.False);
+
+            debug.SetDeveloperDebugVisible(true);
 
             character.CurrentNodeId = "FlowerTop";
             yield return null;

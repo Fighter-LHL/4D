@@ -112,13 +112,13 @@ namespace WSlice.Tests.PlayMode
             Assert.That(level, Is.Not.Null);
             yield return null;
 
-            Assert.That(hud.LastState.PrimaryText, Does.Contain("gaps"));
+            Assert.That(hud.LastState.PrimaryText, Does.Contain("Drag W"));
 
             level.WState.SetTarget(0.55f);
             yield return null;
             yield return null;
 
-            Assert.That(hud.LastState.PrimaryText, Is.EqualTo("Find a W that opens the path."));
+            Assert.That(hud.LastState.PrimaryText, Is.EqualTo("Use W and movement to reach the goal."));
         }
     }
 }

@@ -4,22 +4,27 @@ namespace WSlice.UI
 {
     public static class WDialTrackModel
     {
-        public static WDialTrackState Build(HUDState hud)
+        public static WDialTrackState Build(HUDState hud, bool showDeveloperSolutionOracle = false)
         {
             if (hud == null)
                 return new WDialTrackState(0f, 0f, new List<float>().AsReadOnly(), new List<WDialEdgeBand>().AsReadOnly(), false);
 
-            var ticks = new List<float>(hud.SnapPoints);
+            var ticks = showDeveloperSolutionOracle
+                ? new List<float>(hud.SnapPoints)
+                : new List<float>();
             var bands = new List<WDialEdgeBand>();
 
-            foreach (var edge in hud.EdgePreviews)
+            if (showDeveloperSolutionOracle)
             {
-                bands.Add(new WDialEdgeBand(
-                    $"{edge.FromNodeId}->{edge.ToNodeId}",
-                    edge.MinW,
-                    edge.MaxW,
-                    edge.AvailableAtCurrentW,
-                    edge.AvailableAtTargetW));
+                foreach (var edge in hud.EdgePreviews)
+                {
+                    bands.Add(new WDialEdgeBand(
+                        $"{edge.FromNodeId}->{edge.ToNodeId}",
+                        edge.MinW,
+                        edge.MaxW,
+                        edge.AvailableAtCurrentW,
+                        edge.AvailableAtTargetW));
+                }
             }
 
             return new WDialTrackState(
@@ -27,7 +32,7 @@ namespace WSlice.UI
                 hud.TargetW,
                 ticks.AsReadOnly(),
                 bands.AsReadOnly(),
-                hud.ActiveMoveWillBreakAtTargetW);
+                showDeveloperSolutionOracle && hud.ActiveMoveWillBreakAtTargetW);
         }
     }
 }

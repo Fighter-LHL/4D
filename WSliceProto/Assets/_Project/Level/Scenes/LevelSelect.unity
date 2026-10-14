@@ -1717,8 +1717,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\u5371\u9669\u5E73\u53F0\n<size=18><color=#C8D4E8>Align W to cross; shifting
-    W mid-move fails</color></size>"
+  m_text: "\u5371\u9669\u5E73\u53F0"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 0}
   m_sharedMaterial: {fileID: 0}

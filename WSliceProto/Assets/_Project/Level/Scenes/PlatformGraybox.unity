@@ -290,6 +290,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 298ac1f7a87d440a08b369bbee01b0e1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  showDeveloperDebug: 0
   label: {fileID: 44392657}
   level: {fileID: 1491429923}
   session: {fileID: 1491429922}
@@ -4681,7 +4682,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Find a W that opens the path.
+  m_text: Use W and movement to reach the goal.
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 0}
   m_sharedMaterial: {fileID: 0}

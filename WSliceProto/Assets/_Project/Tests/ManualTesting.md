@@ -1,8 +1,8 @@
 # 手动测试指南
 
-**版本：** Prototype v0.3.x — 五关 demo + LevelSelect 首页 + overlay/教学/Playing 重开
+**阶段：** Engineering Baseline — 五关 demo + LevelSelect 首页 + overlay/教学/Playing 重开
 
-当前环境可以用 Unity batchmode 做脚本编译和五关 graybox 校验；`-runTests` 有时会退出 0 但不产出 XML。遇到这种情况时，用 Unity Editor Test Runner 手动执行 EditMode/PlayMode。
+在具备 Unity 6000.0.77f1 与有效 license 的环境中，可用 batchmode 做脚本编译、五关 graybox 校验和自动测试。`validate-local.sh --tests` 会拒绝缺失或无效的 XML；命令行不能产出有效 XML 时，用 Unity Editor Test Runner 手动执行并保存结果。
 
 项目路径：仓库内 `WSliceProto/`（用 Unity Hub 打开该目录）。
 
@@ -105,6 +105,8 @@ $UNITY -projectPath $PROJECT -executeMethod WSlice.Editor.LevelCatalogValidatorR
 ```bash
 UNITY=/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity
 PROJECT=WSliceProto
+mkdir -p "$PROJECT/TestResults"
+TEST_RUN_DIR="$(mktemp -d "$PROJECT/TestResults/run.XXXXXX")"
 
 # L0 Compile
 $UNITY -projectPath $PROJECT -quit -batchmode -nographics
@@ -113,17 +115,17 @@ $UNITY -projectPath $PROJECT -quit -batchmode -nographics
 # L2 EditMode
 $UNITY -projectPath $PROJECT \
   -runTests -testPlatform EditMode \
-  -testResults $PROJECT/TestResults/editmode-results.xml \
-  -quit -batchmode -nographics
+  -testResults "$TEST_RUN_DIR/editmode-results.xml" \
+  -batchmode -nographics
 
 # L3 PlayMode
 $UNITY -projectPath $PROJECT \
   -runTests -testPlatform PlayMode \
-  -testResults $PROJECT/TestResults/playmode-results.xml \
-  -quit -batchmode -nographics
+  -testResults "$TEST_RUN_DIR/playmode-results.xml" \
+  -batchmode -nographics
 ```
 
-若 XML 未生成，在 Editor Test Runner 中手动 Run All 并记录结果。
+若 XML 未生成或内容无效，在 Editor Test Runner 中手动 Run All 并保存结果；不得根据进程退出 0 推断通过。
 
 ---
 
@@ -132,9 +134,21 @@ $UNITY -projectPath $PROJECT \
 完整步骤见 [`PlayModeSmokeTest.md`](PlayModeSmokeTest.md)。摘要：
 
 1. 打开 `LevelSelect` 或从 macOS build 启动
-2. 依次验证 Garden → Platform → Gate → Chambers → Hazard（**N** 下一关）
-3. Gate 关验证拉杆交互、移动中断 Failed、**R** 重开
-4. Hazard 关验证移动中降 W → Failed、**R** 重开
+2. 保持 `DebugOverlay.showDeveloperDebug = false`，在 Editor 或 macOS build 检查五关无 solution oracle
+3. 仅在 Unity Editor Play Mode 中显式开启 Developer Debug，检查路径、区间、route 与 debug text 恢复；再关闭并检查清空
+4. 依次验证 Garden → Platform → Gate → Chambers → Hazard（**N** 下一关）
+5. Gate 关验证拉杆交互、移动中断 Failed、**R** 重开
+6. Hazard 关验证移动中改变 W → Failed、**R** 重开
+
+### Mechanic Isolation 验收
+
+玩家模式应保留 W slider、current/target marker、世界变化、失败与完成反馈。以下信息不得出现：
+
+- 红绿 PathPreview、DebugText
+- authored snap ticks、edge WRange bands、目标 W 断路预告
+- `Try W min-max`、graph 节点名、interactable 精确 WRange
+
+Developer Debug 通过 Unity Editor Inspector 中 `DebugText` 对象上的一个开关统一恢复这些诊断。切换前后记录 current/target W、graph、玩家 world position、当前节点与 session，确认状态未变。普通 macOS build 没有 runtime 开关。
 
 ---
 
@@ -158,4 +172,4 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 应输出到同一路径。
 ## 已知行为（v0.3.x）
 
 - **R** 重开在 **Playing / Completed / Failed** 状态下均可用；重开会经 `LevelRestartPipeline` 有序重置 graph、W、玩家、机关与 UI
-- Gate 关：未在正确 W 点击 lever 时 HUD 显示 `NotInteractiveAtCurrentW`
+- Gate 关：未在可交互截面点击 lever 时，玩家 HUD 只说明当前截面不可交互；Developer Debug 保留精确 WRange
