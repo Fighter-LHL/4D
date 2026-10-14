@@ -2,7 +2,9 @@
 
 Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0,1]` 控制物体显隐、路径可达性与交互反馈。
 
-**当前阶段：** Prototype v0.3.x — 五关 demo（Garden → Platform → Gate → Chambers → Hazard）+ LevelSelect 首页 + overlay/教学/Playing 重开 + authoring hardening。
+**当前阶段：** Intended Engineering Baseline。五关 demo、LevelSelect、restart、测试和 macOS build 预期共同构成机制实验底座；只有在 wiring repair 与 Unity 回归通过后，具体分支才可称为稳定 baseline。
+
+**当前产品目标：** 让玩家理解 3D 世界是高维结构的截面，并在改变 W 前预测几何变化。当前工作按 mechanic isolation、geometry slice、geometry-driven collision、Impossible Room、playtest 的顺序推进。详见 [`docs/mechanic-validation.md`](docs/mechanic-validation.md)。
 
 ## 快速开始
 
@@ -12,7 +14,7 @@ Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0
 | 项目路径 | [`WSliceProto/`](WSliceProto/) |
 | 启动场景 | `LevelSelect`（Build Settings 第一项） |
 | 关卡顺序 | Garden_01 → Platform_01 → Gate_03 → Chambers_04 → Hazard_05 |
-| Baseline | `main` @ `d6fbea1`（v0.3 release 锚点） |
+| Pre-isolation baseline | `b719b3a` |
 
 ### 1. 打开项目
 
@@ -80,9 +82,9 @@ open WSliceProto/builds/macos/W-Slice.app
 - 关卡生命周期：`LevelSessionState`（NotStarted / Playing / Completed / Failed / Restarting）
 - 切片实体：`SliceProfile` + Presenter（Fade/Scale/Shader）
 - 玩家：tap 移动、W dial、W-aware movement retry
-- 世界交互：`IWorldInteractable`、`WInteractableProfile`、`SliceInteractionModel`、W 区间 HUD hint
+- 世界交互：`IWorldInteractable`、`WInteractableProfile`、`SliceInteractionModel`；玩家反馈不显示精确 W 区间
 - Graph mutation：`LevelGraphMutationController` + restart 回滚（Gate 拉杆）
-- HUD / UI：路线提示、教学提示、`LevelOutcomeOverlay`（Next / Retry / Level Select）
+- HUD / UI：中性切片反馈、`LevelOutcomeOverlay`（Next / Retry / Level Select）；路线、W 区间和 PathPreview 只供显式 Developer Debug 使用
 - 关卡流转：`LevelCatalog`、`LevelSelect` demo 首页、**N** 下一关、**R** 重开（Playing / Completed / Failed）
 - 五关 demo：Garden → Platform → Gate → Chambers → Hazard
 - Authoring：`LevelCatalogValidator`、`GrayboxLevelRecipe`、五关 graybox 生成器
@@ -92,15 +94,19 @@ open WSliceProto/builds/macos/W-Slice.app
 ## 已知限制
 
 - **CI（可选）** — GitHub Actions 已提供 L0/L1 workflow；需在 repo secrets 配置 `UNITY_LICENSE` 等（见 `.github/workflows/wslice-validate.yml`）
-- **batchmode 测试不稳定**：`-runTests` 有时退出 0 但不产出 XML（见 Validation.md）
+- **测试证据必须可核验**：当前脚本把缺失/无效 XML 判为失败；无法产出 XML 时须保存 Editor Test Runner 结果（见 Validation.md）
 - **无正式美术/音效**：灰盒 demo，URP Lit 统一材质
 - **仅 macOS 构建**：无 Windows / Linux standalone、无签名公证
-- **五关 demo** — Hazard_05 为当前最后一关；无存档与 CI
+- **五关 demo** — Hazard_05 为当前最后一关；无存档，CI workflow 也未配置 Unity license secrets
+- **尚无玩法证据**：compile、测试和 build 不能证明玩家理解、预测或迁移 W-Slice 心智模型
 
-## 后续规划（v0.3+）
+## 当前实验顺序
 
-1. **Foundation** — objective/condition 系统、W 语义产品决策（W-Slice vs 4D grid）
-2. **CI secrets** — 配置 Unity license 以启用 GitHub Actions L0/L1
+1. **Mechanic Isolation**：玩家默认移除 route 与正确 W 区间 oracle
+2. **FourD Geometry Lab**：用统一 4D 定义生成连续 3D 截面
+3. **Geometry-driven Collider**：让截面决定碰撞与通路
+4. **Impossible Room**：验证空间绕行是否形成可解释的 aha moment
+5. **Playtest**：记录 discoverability、causality、prediction、exploitation、transfer 后再做产品判断
 
 Release checklist 见 [`docs/releases/v0.3-wslice-demo.md`](docs/releases/v0.3-wslice-demo.md)。
 
@@ -108,6 +114,7 @@ Release checklist 见 [`docs/releases/v0.3-wslice-demo.md`](docs/releases/v0.3-w
 
 - [WSliceProto/README.md](WSliceProto/README.md) — 模块与设计原则
 - [WSliceProto/Validation.md](WSliceProto/Validation.md) — 验证命令与 PR 测试记录规范
+- [docs/mechanic-validation.md](docs/mechanic-validation.md) — 当前产品假设、实验顺序与 gameplay gates
 - [docs/releases/v0.3-wslice-demo.md](docs/releases/v0.3-wslice-demo.md) — v0.3 release checklist
 - [docs/releases/v0.2-wslice-demo.md](docs/releases/v0.2-wslice-demo.md) — v0.2 release checklist（历史）
 - [ManualTesting.md](WSliceProto/Assets/_Project/Tests/ManualTesting.md) — Edit/Play Mode 测试列表

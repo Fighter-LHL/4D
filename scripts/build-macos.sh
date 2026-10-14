@@ -49,6 +49,8 @@ echo "  Output:  $OUTPUT"
 echo ""
 
 export WSLICE_BUILD_OUTPUT="$OUTPUT"
+BUILD_STAMP="$(mktemp "${TMPDIR:-/tmp}/wslice-build.XXXXXX")"
+trap 'rm -f "$BUILD_STAMP"' EXIT
 
 "$UNITY" \
   -projectPath "$PROJECT" \
@@ -58,14 +60,17 @@ export WSLICE_BUILD_OUTPUT="$OUTPUT"
 
 MANIFEST="$(dirname "$OUTPUT")/build-info.json"
 
-if [[ -d "$OUTPUT" ]]; then
-  echo ""
-  echo "OK: Built $OUTPUT"
-  if [[ -f "$MANIFEST" ]]; then
-    echo "Manifest: $MANIFEST"
-  fi
-  echo "Run: open \"$OUTPUT\""
-else
+if [[ ! -d "$OUTPUT" ]]; then
   echo "ERROR: Build output not found at $OUTPUT" >&2
   exit 1
 fi
+
+if [[ ! -f "$MANIFEST" || ! "$MANIFEST" -nt "$BUILD_STAMP" ]]; then
+  echo "ERROR: Build did not produce a fresh manifest at $MANIFEST" >&2
+  exit 1
+fi
+
+echo ""
+echo "OK: Built $OUTPUT"
+echo "Manifest: $MANIFEST"
+echo "Run: open \"$OUTPUT\""

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local validation for WSliceProto (L0 compile + L1 Garden validate; optional L2/L3 tests).
+# Local validation for WSliceProto (L0 compile + five graybox/catalog L1 checks; optional L2/L3 tests).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -56,6 +56,34 @@ run_unity() {
   fi
 }
 
+verify_test_result() {
+  local label="$1"
+  local result_path="$2"
+
+  if [[ ! -s "$result_path" ]]; then
+    echo "FAIL: $label did not produce a fresh XML result: $result_path" >&2
+    return 1
+  fi
+
+  local result
+  local failed
+  local total
+  local passed
+  result="$(xmllint --xpath 'string(/test-run/@result)' "$result_path" 2>/dev/null || true)"
+  failed="$(xmllint --xpath 'string(/test-run/@failed)' "$result_path" 2>/dev/null || true)"
+  total="$(xmllint --xpath 'string(/test-run/@total)' "$result_path" 2>/dev/null || true)"
+  passed="$(xmllint --xpath 'string(/test-run/@passed)' "$result_path" 2>/dev/null || true)"
+  if [[ "$result" != "Passed"
+        || "$failed" != "0"
+        || ! "$total" =~ ^[1-9][0-9]*$
+        || "$passed" != "$total" ]]; then
+    echo "FAIL: $label XML reports result=${result:-missing}, total=${total:-missing}, passed=${passed:-missing}, failed=${failed:-missing}" >&2
+    return 1
+  fi
+
+  echo "  XML: ${result_path#"$PROJECT/"} (Passed, $passed/$total, failed=0)"
+}
+
 mkdir -p "$PROJECT/TestResults"
 
 echo "W-Slice validate-local"
@@ -89,27 +117,31 @@ run_unity "L1 Validate Level Catalog" \
   -quit -batchmode -nographics
 
 if [[ "$RUN_TESTS" == true ]]; then
+  if ! command -v xmllint >/dev/null 2>&1; then
+    echo "ERROR: xmllint is required to validate Unity test results." >&2
+    exit 1
+  fi
+
+  TEST_RUN_DIR="$(mktemp -d "$PROJECT/TestResults/run.XXXXXX")"
+  EDITMODE_RESULT="$TEST_RUN_DIR/editmode-results.xml"
+  PLAYMODE_RESULT="$TEST_RUN_DIR/playmode-results.xml"
+  echo "  Test run: ${TEST_RUN_DIR#"$PROJECT/"}"
+
   run_unity "L2 EditMode tests" \
     -runTests -testPlatform EditMode \
-    -testResults "$PROJECT/TestResults/editmode-results.xml" \
-    -quit -batchmode -nographics
-
-  if [[ -f "$PROJECT/TestResults/editmode-results.xml" ]]; then
-    echo "  XML: TestResults/editmode-results.xml"
-  else
-    echo "WARN: EditMode XML not produced — run tests in Unity Editor Test Runner." >&2
-  fi
+    -testResults "$EDITMODE_RESULT" \
+    -batchmode -nographics
+  verify_test_result \
+    "L2 EditMode tests" \
+    "$EDITMODE_RESULT"
 
   run_unity "L3 PlayMode tests" \
     -runTests -testPlatform PlayMode \
-    -testResults "$PROJECT/TestResults/playmode-results.xml" \
-    -quit -batchmode -nographics
-
-  if [[ -f "$PROJECT/TestResults/playmode-results.xml" ]]; then
-    echo "  XML: TestResults/playmode-results.xml"
-  else
-    echo "WARN: PlayMode XML not produced — run tests in Unity Editor Test Runner." >&2
-  fi
+    -testResults "$PLAYMODE_RESULT" \
+    -batchmode -nographics
+  verify_test_result \
+    "L3 PlayMode tests" \
+    "$PLAYMODE_RESULT"
 else
   echo ""
   echo "Skipped L2/L3 (pass --tests to enable batchmode test run)."

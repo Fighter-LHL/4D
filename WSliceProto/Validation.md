@@ -4,7 +4,7 @@
 
 **Unity 版本：** `6000.0.77f1`（见 `ProjectSettings/ProjectVersion.txt`）
 
-**Baseline commit：** `d6fbea1`（v0.3 — PR #16 合并后）
+**Pre-isolation engineering baseline：** `b719b3a`
 
 ---
 
@@ -16,7 +16,7 @@
 | L1 Validate | 五关 graybox validate + Level Catalog validate | 是 |
 | L2 EditMode | 纯逻辑单元测试 | 是（有 license 时） |
 | L3 PlayMode | 五关 + LevelFlow 集成测试 | 是（有 license 时） |
-| L4 Smoke | 手动 Play Mode 五关 demo 试玩 | 发布前建议 |
+| L4 Smoke | 玩家模式与 Developer Debug 双模式检查 + 五关试玩 | 发布前建议 |
 | L5 Build | macOS standalone 构建 | 发布前建议 |
 
 ---
@@ -30,6 +30,8 @@
 ```
 
 默认执行 **L0 + L1**（含五关 validate + catalog）。加 `--tests` 尝试 **L2 + L3**（需要有效 Unity license 且 batchmode 测试可用）。
+
+batchmode 发现 graybox 或 catalog error 后，Unity 进程返回非零。Editor 菜单记录同一错误并保持编辑器打开。
 
 环境变量：
 
@@ -55,9 +57,9 @@
 
 ---
 
-## L1 — Graybox 校验（三关）
+## L1 — Graybox 校验（五关）
 
-`validate-local.sh` 依次执行以下三项。也可单独在 Editor 菜单或 batchmode 运行。
+`validate-local.sh` 依次执行以下五关与 catalog 校验。也可单独在 Editor 菜单或 batchmode 运行。
 
 ### Garden
 
@@ -148,11 +150,13 @@ Editor：`Window → General → Test Runner → Edit Mode → Run All`
 命令行：
 
 ```bash
+mkdir -p WSliceProto/TestResults
+TEST_RUN_DIR="$(mktemp -d WSliceProto/TestResults/run.XXXXXX)"
 /Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
   -projectPath WSliceProto \
   -runTests -testPlatform EditMode \
-  -testResults WSliceProto/TestResults/editmode-results.xml \
-  -quit -batchmode -nographics -logFile -
+  -testResults "$TEST_RUN_DIR/editmode-results.xml" \
+  -batchmode -nographics -logFile -
 ```
 
 **预期套件：**
@@ -162,7 +166,7 @@ Editor：`Window → General → Test Runner → Edit Mode → Run All`
 - Interaction: `SliceInteractionModelTests`, `WInteractableProfileModelTests`
 - UI: `WDialModelTests`, `PlayerHUDModelTests`, `WDialTrackModelTests`
 
-**已知问题：** 部分环境 `-runTests` 退出 `0` 但不生成 XML。若 XML 缺失，必须在 Unity Editor Test Runner 中手动 Run All 并记录结果。
+`validate-local.sh --tests` 使用每轮唯一结果目录，并要求 XML 为 `Passed`、`failed=0`、`total>0` 且 `passed=total`；缺失或不满足任一条件都返回非零。若命令行环境不能产出有效 XML，必须在 Unity Editor Test Runner 中手动 Run All 并保存结果。
 
 ---
 
@@ -173,11 +177,13 @@ Editor：`Test Runner → Play Mode → Run All`
 命令行：
 
 ```bash
+mkdir -p WSliceProto/TestResults
+TEST_RUN_DIR="$(mktemp -d WSliceProto/TestResults/run.XXXXXX)"
 /Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
   -projectPath WSliceProto \
   -runTests -testPlatform PlayMode \
-  -testResults WSliceProto/TestResults/playmode-results.xml \
-  -quit -batchmode -nographics -logFile -
+  -testResults "$TEST_RUN_DIR/playmode-results.xml" \
+  -batchmode -nographics -logFile -
 ```
 
 **预期套件：**
@@ -194,7 +200,13 @@ Editor：`Test Runner → Play Mode → Run All`
 
 ## L4 — 手动冒烟
 
-按 [`Assets/_Project/Tests/PlayModeSmokeTest.md`](Assets/_Project/Tests/PlayModeSmokeTest.md) 完整走一遍：
+按 [`Assets/_Project/Tests/PlayModeSmokeTest.md`](Assets/_Project/Tests/PlayModeSmokeTest.md) 完整走一遍。先在玩家模式检查机制隔离，再显式开启 Developer Debug 检查诊断恢复：
+
+- 玩家模式：无 PathPreview、DebugText、authored snap ticks、edge bands、精确 WRange、route 节点名或未来断路预告
+- Developer Debug：仅在 Unity Editor Play Mode 中通过 `DebugOverlay.showDeveloperDebug` 恢复上述诊断；关闭后清空
+- 模式切换：W、graph、session 与玩家位置保持不变
+
+随后验证五关流程：
 
 1. **LevelSelect** — demo 首页（标题、版本、Quit）、五关按钮
 2. **Garden_01** — 教学提示、W 门控缺口/楼梯、Playing **R** 重开、Completed overlay/**N**
@@ -202,6 +214,10 @@ Editor：`Test Runner → Play Mode → Run All`
 4. **Gate_03** — 拉杆 interactable hint、GateRoom→Goal 解锁、移动中断 Failed、overlay/**R**
 5. **Chambers_04** — 多房间 W 序列解谜
 6. **Hazard_05** — hazard platform、移动中降 W → Failed、**R** 重开
+
+普通 macOS build 没有 runtime Developer Debug 入口，只验证默认关闭的玩家模式。
+
+L0–L5 只证明软件和手动流程按预期工作。它们不提供 G0 discoverability、G2 prediction 或 G4 transfer 的玩家证据。
 
 ---
 
@@ -236,21 +252,23 @@ Build Settings 启用场景顺序：
 
 ## PR 测试记录规范
 
-每个改动 WSlice 代码的 PR，body 中应包含：
+每个改动 WSlice 代码的 PR 都使用仓库的
+[`pull_request_template.md`](../.github/pull_request_template.md) 作为唯一格式来源，包含：
 
 ```markdown
-## Test plan
-
-- Unity: 6000.0.77f1
-- L0 Compile: Pass / Fail / Not run
-- L1 Validate (Garden / Platform / Gate / Chambers / Hazard / Catalog): Pass / Fail / Not run
-- L2 EditMode: Pass / Fail / Not run (N/N tests) — Editor manual if batchmode skipped
-- L3 PlayMode: Pass / Fail / Not run (N/N tests)
-- L4 Smoke: Pass / Fail / Not run
-- L5 macOS Build: Pass / Fail / Not run
+## Goal
+## Product hypothesis
+## Changed files
+## Reused modules
+## New modules
+## Gameplay effect
+## Validation
+## What this proves
+## What this does NOT prove
+## Recommendation
 ```
 
-不要求把 XML 提交进仓库，但必须写清实际执行方式（batchmode 或 Editor 手动）。
+`Validation` 内分别记录 Compile、EditMode、PlayMode、Manual mechanic check、L1 legacy validate 与 macOS build。测试必须写 N/N 及实际执行方式；没有新鲜 XML 或保存的 Editor Test Runner 结果就写 `Not run`，不得根据进程退出 0 推断 Pass。
 
 ---
 

@@ -2,7 +2,7 @@
 
 基于 Unity 6000.0 LTS + URP 的“隐藏维度切片”解谜原型。关卡作者通过 `w ∈ [0,1]` 定义物体显隐与路径可达性，运行时负责平滑插值与交互。
 
-**阶段：** Prototype v0.3.x — 五关 playable demo + authoring hardening。
+**阶段：** Intended Engineering Baseline。五关 playable demo 预期支撑独立机制实验；团队暂停通用 framework 和同类关卡扩张。具体分支仍须通过 wiring、Compile、五关回归与 build 验证，不能仅凭定位宣称稳定。
 
 仓库入口说明见 [`../README.md`](../README.md)。本地验证见 [`Validation.md`](Validation.md)。Release checklist 见 [`../docs/releases/v0.3-wslice-demo.md`](../docs/releases/v0.3-wslice-demo.md)。
 
@@ -41,16 +41,18 @@
 命令行（需有效 Unity license）：
 
 ```bash
+mkdir -p "$(pwd)/WSliceProto/TestResults"
+TEST_RUN_DIR="$(mktemp -d "$(pwd)/WSliceProto/TestResults/run.XXXXXX")"
 /Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity \
-  -projectPath "$(pwd)" \
+  -projectPath "$(pwd)/WSliceProto" \
   -runTests -testPlatform EditMode \
-  -testResults TestResults/editmode-results.xml \
-  -quit -batchmode -nographics
+  -testResults "$TEST_RUN_DIR/editmode-results.xml" \
+  -batchmode -nographics
 ```
 
-Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `playmode-results.xml`。
+Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `$TEST_RUN_DIR/playmode-results.xml`。
 
-**已知限制：** batchmode `-runTests` 有时退出 0 但不产出 XML，此时必须在 Editor 中手动跑并记录结果（见 Validation.md PR 规范）。
+`validate-local.sh --tests` 为每轮测试创建唯一结果目录，并把 XML 缺失、`total=0`、非 `Passed` 或 `failed>0` 一律视为失败。若命令行环境不能产出有效 XML，必须在 Editor 中手动跑并保存结果（见 Validation.md PR 规范）。
 
 ## 搭建与校验关卡
 
@@ -82,23 +84,26 @@ Play Mode 将 `-testPlatform EditMode` 改为 `PlayMode`，结果文件改为 `p
 
 ## 关键设计原则
 
-- `w` 是唯一真相源。所有显隐、通行、交互都从 `WState.CurrentW` 推导。
+- legacy 五关从 `WState.CurrentW` 推导显隐、通行与交互，保留为 regression baseline。
+- `LevelGraph` 继续负责 legacy 导航和流程。新的 4D 实验应让高维几何截面决定 3D geometry、collider 与 connectivity。
 - 核心逻辑尽量是纯 C#，MonoBehaviour 仅做挂接与表现。
-- 关卡可通行关系用手工节点图表达，清晰可控。
 - Graph 运行时变更通过 `LevelGraphMutationController` 追踪，restart 经 `LevelRestartPipeline` 有序回滚（Graph → W → Player → Interactables → UI）。
+- 玩家模式不显示 graph route、正确 W 区间或未来断路提示。`DebugOverlay.showDeveloperDebug` 统一控制这些开发诊断。
 
 ## 当前能力（v0.3.x）
 
-- 五关 graybox demo + `LevelSelect` demo 首页（标题、主题 hint、Quit、版本号）
+- 五关 graybox demo + `LevelSelect` demo 首页（标题、关卡按钮、Quit、版本号）
 - 完成/失败 overlay、Playing **R** 重开、开局教学提示
-- W 门控边、W-offset 平台、profile 化拉杆 interactable + graph mutation
+- W 门控边、W-offset 平台、profile 化拉杆 interactable + graph mutation（legacy baseline）
 - `LevelCatalogValidator` + `GrayboxLevelRecipe`
 - macOS standalone 构建 + 统一灰盒 URP Lit 材质
 
-## 下一步（v0.3+ foundation）
+## 当前实验顺序
 
-1. ~~第四关 **Chambers_04**~~ ✅
-2. ~~第五关 **Hazard_05**~~ ✅（hazard platform + segment-break fail）
-3. ~~Graph runtime deep-copy + restart pipeline~~ ✅
-4. Objective/condition 系统（crystal、flag、multi-step unlock）
-5. CI — GitHub Actions L0/L1（需配置 Unity license secrets）
+1. Mechanic Isolation
+2. FourD Geometry Lab
+3. Geometry-driven Collider
+4. Impossible Room
+5. Playtest Instrumentation 与产品判断
+
+产品假设、非目标和 G0–G4 gates 见 [`../docs/mechanic-validation.md`](../docs/mechanic-validation.md)。

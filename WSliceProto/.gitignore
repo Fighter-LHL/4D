@@ -4,7 +4,9 @@
 [Bb]uild/
 [Bb]uilds/
 [Ll]ogs/
+[Tt]est[Rr]esults/
 [Uu]ser[Ss]ettings/
+.DS_Store
 [Mm]emoryCaptures/
 [Rr]ecordings/
 [Aa]ssets/Plugins/Editor/JetBrains*
