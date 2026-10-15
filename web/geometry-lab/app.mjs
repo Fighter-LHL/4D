@@ -31,6 +31,14 @@ const MOVE_DIRS = {
 const corridorActive = () => mode === 'explore' && !!LEVELS[specimen] && corridor !== null;
 const corridorSectionsNow = () => corridorSections(dialToW(current), corridor.level);
 let prevVisible = new Set();
+const ripples = []; // {x, z, t0} floor rings when a body enters this slice
+const RIPPLE_MS = 900;
+
+function liveRipples() {
+  const now = performance.now();
+  while (ripples.length && now - ripples[0].t0 > RIPPLE_MS) ripples.shift();
+  return ripples.map((r) => [r.x, r.z, (now - r.t0) / RIPPLE_MS]);
+}
 
 // Show each specimen's W extent as a band under the slider; levels and the
 // challenge hide it — the range would be a solution oracle there.
@@ -85,7 +93,12 @@ function renderSlice() {
   const inCorridor = corridorActive();
   const sections = inCorridor ? corridorSectionsNow() : bodies.map((body) => sliceAtDial(body, current));
   renderer?.setSections(sections);
+  const now = performance.now();
+  if (corridor) {
+    while (corridor.trail.length && now - corridor.trail[0][2] > 1400) corridor.trail.shift();
+  }
   renderer?.setMarkers(inCorridor ? {
+    trail: corridor.trail.map((p) => [p[0], p[1], Math.max(0, 1 - (now - p[2]) / 1400) * 0.8]),
     token: corridor.pos,
     tokenRadius: corridor.level.tokenRadius,
     flash: corridor.flash,
@@ -96,10 +109,16 @@ function renderSlice() {
   } : null);
   const visibleIds = new Set(sections.filter((s) => s.kind !== 'empty').map((s) => s.id));
   sections.forEach((s) => {
-    if (s.kind !== 'empty' && !prevVisible.has(s.id)) sfx.appear();
+    if (s.kind !== 'empty' && !prevVisible.has(s.id)) {
+      sfx.appear();
+      ripples.push({ x: s.center[0], z: s.center[2], t0: performance.now() });
+      if (ripples.length > 4) ripples.shift();
+      requestFrame();
+    }
     if (s.kind === 'empty' && prevVisible.has(s.id)) sfx.vanish();
   });
   prevVisible = visibleIds;
+  renderer?.setRipples(liveRipples());
   const empty = sections.every((section) => section.kind === 'empty');
   const tangent = empty && sections.some((section) => section.kind === 'point');
   $('empty-notice').hidden = !empty || !rendererReady || inCorridor;
@@ -132,6 +151,11 @@ function moveCorridor(delta) {
     if (travelled && !corridor.startedAt) corridor.startedAt = performance.now();
     corridor.distance += travelled;
     corridor.pos = [move.x, move.z];
+    const last = corridor.trail.at(-1);
+    if (!last || Math.hypot(move.x - last[0], move.z - last[1]) > 0.07) {
+      corridor.trail.push([move.x, move.z, performance.now()]);
+      if (corridor.trail.length > 24) corridor.trail.shift();
+    }
     const jammed = travelled === 0;
     if (jammed && !corridor.blockedLast) {
       corridor.blocked += 1;
@@ -173,8 +197,8 @@ function tick(time) {
   }
   if (corridorActive()) moveCorridor(delta);
   renderSlice();
-  if (sweep || revealAnimation || Math.abs(current - target) > 0
-      || (corridorActive() && (pressed.size || corridor.flash > 0))) requestFrame();
+  if (sweep || revealAnimation || Math.abs(current - target) > 0 || ripples.length
+      || (corridorActive() && (pressed.size || corridor.flash > 0 || corridor.trail.length))) requestFrame();
   else previousTime = 0;
 }
 
@@ -250,6 +274,7 @@ function resetCorridor() {
     level: LEVELS[specimen],
     levelId: specimen,
     pos: [...LEVELS[specimen].start],
+    trail: [],
     distance: 0,
     blocked: 0,
     wMoves: 0,

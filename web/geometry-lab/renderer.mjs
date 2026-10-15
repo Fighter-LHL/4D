@@ -19,6 +19,8 @@ uniform vec4 uToken;
 uniform vec4 uGoal;
 uniform vec3 uStart;
 uniform vec3 uBounds;
+uniform vec3 uTrail[8];
+uniform vec4 uRipples[4];
 
 float hitSphere(vec3 ro, vec3 rd, vec4 sphere) {
   if (sphere.w <= 0.00001) return -1.0;
@@ -151,6 +153,18 @@ void main() {
       floorColor = mix(floorColor, tokenColor * 1.12, clamp(disc + rim * 0.8, 0.0, 0.95));
     }
     for (int i = 0; i < 8; i += 1) {
+      if (uTrail[i].z <= 0.001) break;
+      float td = length(p.xz - uTrail[i].xy);
+      floorColor = mix(floorColor, vec3(0.55, 0.68, 0.34), uTrail[i].z * (1.0 - smoothstep(0.06, 0.15, td)));
+    }
+    for (int i = 0; i < 4; i += 1) {
+      if (uRipples[i].w < 0.5) break;
+      float rr = length(p.xz - uRipples[i].xy);
+      float prog = uRipples[i].z;
+      float ring = (1.0 - smoothstep(0.02, 0.08, abs(rr - prog * 1.7))) * (1.0 - prog);
+      floorColor += vec3(0.30, 0.36, 0.18) * ring;
+    }
+    for (int i = 0; i < 8; i += 1) {
       if (float(i) >= uCount) break;
       floorColor *= shadow(p, uSpheres[i]);
     }
@@ -203,6 +217,8 @@ void main() {
     vec3 beamColor = mix(vec3(0.85, 0.95, 0.55), vec3(0.96, 0.42, 0.28), clamp(uToken.w, 0.0, 1.0));
     color = mix(color, beamColor * 1.1, 0.8);
   }
+  float sceneT = min(floorT, bestT);
+  color = mix(color, vec3(0.052, 0.078, 0.065), 1.0 - exp(-max(sceneT, 0.0) * 0.014));
   float vignette = 1.0 - 0.14 * pow(length(uv) / 1.5, 2.0);
   color *= max(0.65, vignette);
   color = pow(color, vec3(0.87));
@@ -282,6 +298,8 @@ export class SliceRenderer {
     this.uniforms.uSphereAlt = gl.getUniformLocation(this.program, 'uSphereAlt[0]') || gl.getUniformLocation(this.program, 'uSphereAlt');
     this.uniforms.uBoxC = gl.getUniformLocation(this.program, 'uBoxC[0]') || gl.getUniformLocation(this.program, 'uBoxC');
     this.uniforms.uBoxH = gl.getUniformLocation(this.program, 'uBoxH[0]') || gl.getUniformLocation(this.program, 'uBoxH');
+    this.uniforms.uTrail = gl.getUniformLocation(this.program, 'uTrail[0]') || gl.getUniformLocation(this.program, 'uTrail');
+    this.uniforms.uRipples = gl.getUniformLocation(this.program, 'uRipples[0]') || gl.getUniformLocation(this.program, 'uRipples');
   }
 
   bindControls() {
@@ -341,6 +359,11 @@ export class SliceRenderer {
     this.draw();
   }
 
+  setRipples(ripples) {
+    this.ripples = ripples;
+    this.draw();
+  }
+
   draw() {
     if (this.lost) return;
     const { canvas, gl, uniforms } = this;
@@ -386,6 +409,12 @@ export class SliceRenderer {
     gl.uniform4f(uniforms.uGoal, ...(corridor ? [corridor.goal[0], corridor.goal[1], 0.3, corridor.won ? 1 : 0] : [0, 0, 0, HIDDEN]));
     gl.uniform3f(uniforms.uStart, ...(corridor ? [corridor.start[0], corridor.start[1], 1] : [0, 0, 0]));
     gl.uniform3f(uniforms.uBounds, ...(corridor ? [corridor.bounds.x, corridor.bounds.z, 1] : [0, 0, 0]));
+    const trailData = new Float32Array(24);
+    (corridor?.trail ?? []).slice(0, 8).forEach((p, i) => trailData.set(p, i * 3));
+    gl.uniform3fv(uniforms.uTrail, trailData);
+    const rippleData = new Float32Array(16);
+    (this.ripples ?? []).slice(0, 4).forEach((r, i) => rippleData.set([r[0], r[1], r[2], 1], i * 4));
+    gl.uniform4fv(uniforms.uRipples, rippleData);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 }
