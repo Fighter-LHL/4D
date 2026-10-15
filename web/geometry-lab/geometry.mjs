@@ -117,7 +117,92 @@ export const ROOM = Object.freeze({
   ]),
 });
 
-export const LEVELS = Object.freeze({ corridor: CORRIDOR, room: ROOM });
+// Chapter 2: a wall whose middle segment (the door) only exists for
+// W <= 0.8, plus a second wall that only exists for W >= 0.4. The door is
+// open exactly where the second wall stands, so the player must pass the
+// door at high W and then lower W again — the door closes behind them.
+export const GATE = Object.freeze({
+  start: Object.freeze([-2.2, 0]),
+  goal: Object.freeze([2.2, 0]),
+  bounds: Object.freeze({ x: 2.55, z: 1.12 }),
+  tokenRadius: 0.22,
+  tokenY: 0.22,
+  bodies: Object.freeze([
+    hyperbox('gate-north', [0, 0.75, -0.88, 0], [0.14, 0.95, 0.53, 2.2]),
+    hyperbox('gate-south', [0, 0.75, 0.88, 0], [0.14, 0.95, 0.53, 2.2]),
+    hyperbox('gate-door', [0, 0.75, 0, -0.65], [0.14, 0.95, 0.36, 1.45], true),
+    hyperbox('gate-back', [1.4, 0.75, 0, 1.3], [0.14, 0.95, 1.3, 0.9], true),
+  ]),
+});
+
+// Chapter 2: two sealed rooms. The left room (start) only opens for
+// W < -0.8; the right room (goal) only opens for W > -0.4. No single W opens
+// both, so the player must step out, park between them and change W again.
+const roomWalls = (prefix, cx, w, halfW, alt) => [
+  hyperbox(`${prefix}-north`, [cx, 0.75, -0.85, w], [0.97, 0.95, 0.12, halfW], alt),
+  hyperbox(`${prefix}-south`, [cx, 0.75, 0.85, w], [0.97, 0.95, 0.12, halfW], alt),
+  hyperbox(`${prefix}-west`, [cx - 0.85, 0.75, 0, w], [0.12, 0.95, 0.97, halfW], alt),
+  hyperbox(`${prefix}-east`, [cx + 0.85, 0.75, 0, w], [0.12, 0.95, 0.97, halfW], alt),
+];
+export const TWO_ROOMS = Object.freeze({
+  start: Object.freeze([-1.9, 0]),
+  goal: Object.freeze([1.9, 0]),
+  bounds: Object.freeze({ x: 3.2, z: 1.4 }),
+  tokenRadius: 0.22,
+  tokenY: 0.22,
+  bodies: Object.freeze([
+    ...roomWalls('left', -1.9, 0.7, 1.5, false),
+    ...roomWalls('right', 1.9, -1.3, 0.9, true),
+  ]),
+});
+
+export const LEVELS = Object.freeze({ corridor: CORRIDOR, room: ROOM, gate: GATE, rooms: TWO_ROOMS });
+
+// The Flatland chapter reuses a level's (x, z, W) layout but lives entirely
+// at the walking height, so each drawn 2D shape is exactly the collision shape.
+export function flatVariant(level) {
+  const y = level.tokenY;
+  const lift = (body) => {
+    const center = [body.center[0], y, body.center[2], body.center[3]];
+    return body.type === 'box'
+      ? hyperbox(body.id, center, [...body.half], body.alt)
+      : hypersphere(body.id, center, body.radius, body.alt);
+  };
+  return Object.freeze({ ...level, flat: true, bodies: Object.freeze(level.bodies.map(lift)) });
+}
+
+// The W map: every body cut at a fixed height y, kept over all W. The result
+// lives in (x, z, W) and is a plain 3D box or ball, so it can be drawn whole.
+export function wFootprint(body, y) {
+  finite(y, 'y');
+  const [cx, cy, cz, cw] = body.center;
+  if (body.type === 'box') {
+    return {
+      id: body.id, type: 'box', alt: body.alt,
+      center: [cx, cz, cw], half: [body.half[0], body.half[2], body.half[3]],
+      exists: Math.abs(y - cy) <= body.half[1],
+    };
+  }
+  const dy = Math.abs(y - cy);
+  const radiusSquared = (body.radius - dy) * (body.radius + dy);
+  return {
+    id: body.id, type: 'sphere', alt: body.alt,
+    center: [cx, cz, cw], radius: Math.sqrt(Math.max(0, radiusSquared)),
+    exists: radiusSquared > 0,
+  };
+}
+
+// 2D shape of a 3D section at height y (what a Flatlander standing there sees).
+export function flatShape(section, y) {
+  if (section.kind === 'empty') return null;
+  if (section.type === 'box') {
+    if (Math.abs(y - section.center[1]) > section.half[1]) return null;
+    return { id: section.id, type: 'box', alt: section.alt, center: [section.center[0], section.center[2]], half: [section.half[0], section.half[2]] };
+  }
+  const dy = Math.abs(y - section.center[1]);
+  const radius = Math.sqrt(Math.max(0, (section.radius - dy) * (section.radius + dy)));
+  return radius > 0 ? { id: section.id, type: 'sphere', alt: section.alt, center: [section.center[0], section.center[2]], radius } : null;
+}
 
 export function corridorSections(w, level = CORRIDOR) {
   return level.bodies.map((body) => sliceAtW(body, w));
@@ -167,6 +252,17 @@ export function moveCorridorToken(sections, from, dx, dz, level = CORRIDOR) {
     return { x: from[0], z: from[1] + dz, blocked: 'x' };
   }
   return { x: from[0], z: from[1], blocked: 'both' };
+}
+
+// The token may never end up inside a section. For each body, the W in the
+// crossed interval closest to its center gives its largest section.
+export function wChangeEngulfs(level, pos, fromW, toW) {
+  const low = Math.min(fromW, toW);
+  const high = Math.max(fromW, toW);
+  return level.bodies.some((body) => {
+    const w = Math.max(low, Math.min(high, body.center[3]));
+    return tokenInsideSection([sliceAtW(body, w)], pos[0], pos[1], level);
+  });
 }
 
 export const PREDICTIONS = Object.freeze({

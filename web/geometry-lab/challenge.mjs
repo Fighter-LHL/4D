@@ -10,13 +10,15 @@ export const TRIALS = Object.freeze([
 ].map(Object.freeze));
 
 export class PredictionSession {
-  constructor() {
+  constructor(trials = TRIALS) {
+    if (!trials.length) throw new RangeError('A session needs at least one trial');
+    this.trials = trials;
     this.index = 0;
     this.records = [];
     this.state = 'predict';
   }
 
-  get trial() { return TRIALS[this.index]; }
+  get trial() { return this.trials[this.index]; }
   get score() { return this.records.filter((record) => record.correct).length; }
 
   submit(choice) {
@@ -36,7 +38,7 @@ export class PredictionSession {
 
   next() {
     if (this.state !== 'result') throw new Error('Answer the current trial first');
-    if (this.index === TRIALS.length - 1) {
+    if (this.index === this.trials.length - 1) {
       this.state = 'complete';
       return false;
     }
@@ -53,7 +55,7 @@ export class PredictionSession {
       completed: this.state === 'complete',
       score: this.score,
       answered: this.records.length,
-      total: TRIALS.length,
+      total: this.trials.length,
       trials: this.records,
     };
   }
