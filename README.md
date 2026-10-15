@@ -6,6 +6,23 @@ Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0
 
 **当前产品目标：** 让玩家理解 3D 世界是高维结构的截面，并在改变 W 前预测几何变化。当前工作按 mechanic isolation、geometry slice、geometry-driven collision、Impossible Room、playtest 的顺序推进。详见 [`docs/mechanic-validation.md`](docs/mechanic-validation.md)。
 
+## 不安装 Unity，先试玩切片实验
+
+新增独立的 [浏览器几何实验](web/geometry-lab/)，用于观察真实四维超球的三维截面，并练习预测变化。支持单个超球、W 方向错位的双球、旋转视角、六轮预测挑战，以及一个"截面通道"——光点的移动合法性完全由当前截面几何决定（阶段 C 的浏览器 spike）。
+
+```bash
+./scripts/preview-geometry-lab.sh
+# 浏览器打开 http://127.0.0.1:4175
+```
+
+启动只需要 Python 3 和支持 WebGL 的浏览器，无需 Unity、npm install 或 CDN。已有 Node.js 18+ 时，可运行几何与挑战逻辑测试：
+
+```bash
+node --test web/geometry-lab/tests/geometry.test.mjs
+```
+
+这是独立的玩法实验，尚未接入 Unity 五关、碰撞或移动系统。计算、操作和验证范围见 [浏览器实验说明](docs/browser-geometry-lab.md)。
+
 ## 快速开始
 
 | 项 | 值 |

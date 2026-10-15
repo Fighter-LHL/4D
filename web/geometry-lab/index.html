@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#eeeee7">
+  <title>W / SLICE · 四维切片实验</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23252c27'/%3E%3Cpath d='m12 18 8 28 12-22 12 22 8-28' fill='none' stroke='%23d5ef9c' stroke-width='5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="masthead">
+      <a href="./" class="wordmark" aria-label="W Slice 实验首页">W<span class="wordmark-slash">/</span>SLICE<span class="wordmark-dot"></span></a>
+      <span class="masthead-note">A SMALL WINDOW INTO FOUR DIMENSIONS</span>
+      <span class="edition">EXPERIMENT <b>001</b></span>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <div><p class="eyebrow">几何观察室 <span> / </span> FOUR-D LAB</p><h1 id="page-title">沿第四维，<em>看见变化。</em></h1></div>
+        <p class="intro-copy">眼前是一枚四维物体的三维截面。<br>移动 W，看看世界会怎样改变。</p>
+      </section>
+
+      <div class="lab-layout">
+        <section class="stage-column" aria-label="交互切片视图">
+          <div class="viewport" id="viewport">
+            <canvas id="scene" tabindex="0" aria-label="三维截面。拖动旋转视角，滚轮缩放；用下方 W 滑块改变截面。"></canvas>
+            <div class="view-heading"><span class="live-dot"></span><span>当前三维截面</span><span class="view-tag">3D SECTION</span></div>
+            <div class="view-actions"><button id="reset-view" class="icon-button" aria-label="重置视角" title="重置视角">↺</button></div>
+            <div class="corridor-hud" id="corridor-hud" hidden><span id="corridor-stats">移动 0.0 m · 用时 0 s · 被挡 0 · W 调整 0</span><span id="corridor-tip">方向键 / WASD 移动光点，W 滑块改变墙</span></div>
+            <div class="dpad" id="dpad" hidden aria-label="移动光点"><button data-dir="ArrowUp" class="dpad-up" aria-label="向上移动">▲</button><button data-dir="ArrowLeft" class="dpad-left" aria-label="向左移动">◀</button><button data-dir="ArrowRight" class="dpad-right" aria-label="向右移动">▶</button><button data-dir="ArrowDown" class="dpad-down" aria-label="向下移动">▼</button></div>
+            <div class="corridor-done" id="corridor-done" hidden role="status"><p class="done-kicker">到达出口</p><h2>通路由这一片几何决定。</h2><p id="corridor-summary" class="done-summary"></p><div class="done-actions"><button class="primary-button" id="corridor-retry">再走一次 <span>↗</span></button><button class="text-button" id="corridor-save">保存这次记录 ↓</button><button class="text-button" id="corridor-continue">继续观察</button></div></div>
+            <div class="axis-mark" aria-hidden="true"><svg viewBox="0 0 56 56"><path d="M26 32V8M26 32L48 44M26 32L6 44"/><text x="22" y="7">Y</text><text x="48" y="52">X</text><text x="1" y="52">Z</text></svg></div>
+            <div class="view-caption"><span id="object-caption">01 — 单个超球</span><span>拖动旋转 · 滚轮缩放</span></div>
+            <div class="empty-notice" id="empty-notice" hidden><span class="empty-ring"></span><p id="empty-title">这一片，没有碰到物体。</p><span id="empty-caption">试着沿 W 继续移动</span></div>
+            <div class="render-error" id="render-error" role="alert" hidden>当前浏览器无法显示三维画面。请使用支持 WebGL 的浏览器并开启硬件加速。</div>
+          </div>
+
+          <div class="slice-control">
+            <div class="control-top"><div><span class="control-letter">W</span><span class="control-description" id="control-description">移动截面</span></div><div class="transport"><button id="sweep" aria-pressed="false"><span id="sweep-icon">▷</span> <span id="sweep-label">自动往返</span></button><button id="reset-slice" aria-label="将截面复位">复位 ↺</button></div></div>
+            <div class="slider-wrap" id="slider-wrap"><div class="target-tick" id="target-tick" hidden><span>目标</span></div><label class="sr-only" for="w-slider">W 截面位置</label><input id="w-slider" type="range" min="0" max="1" step="0.001" value="0.38" aria-valuetext="第四维轴的 38% 位置"></div>
+            <div class="slider-captions"><span>− W</span><span id="slider-hint">也可以使用 ← → 键微调</span><span>+ W</span></div>
+          </div>
+        </section>
+
+        <aside class="lab-panel" aria-label="实验控制">
+          <div class="mode-tabs" role="group" aria-label="实验模式"><button id="explore-mode" class="active" aria-pressed="true">自由观察</button><button id="challenge-mode" aria-pressed="false">预测挑战 <span>↗</span></button></div>
+
+          <div id="explore-panel">
+            <div class="panel-kicker">选一枚四维物体</div>
+            <div class="specimen-list" role="group" aria-label="选择实验物体">
+              <button class="specimen active" data-specimen="single" aria-pressed="true"><span class="specimen-icon single-icon" aria-hidden="true"></span><span><b>单个超球</b><small>出现、增大、缩小、消失</small></span><span class="specimen-index">01</span></button>
+              <button class="specimen" data-specimen="twins" aria-pressed="false"><span class="specimen-icon twins-icon" aria-hidden="true"></span><span><b>错位双球</b><small>同一切片里的不同变化</small></span><span class="specimen-index">02</span></button>
+              <button class="specimen" data-specimen="corridor" aria-pressed="false"><span class="specimen-icon corridor-icon" aria-hidden="true"></span><span><b>截面通道</b><small>走通两堵会变化的墙</small></span><span class="specimen-index">03</span></button>
+            </div>
+            <div class="observation"><span class="tiny-label">观察笔记</span><h2 id="observation-title">物体还在，截面变了。</h2><p id="observation-copy">缓慢拖动 W，找找截面最大的位置。再往前走，它会一直变大吗？</p></div>
+            <button class="primary-button" id="start-challenge">先预测，再移动 <span>↗</span></button>
+            <p class="button-note">6 次短挑战 · 约 1 分钟</p>
+          </div>
+
+          <div id="challenge-panel" hidden>
+            <div class="challenge-meta"><span class="panel-kicker" id="challenge-chapter">找到物体</span><span id="challenge-count">01 / 06</span></div>
+            <div class="progress-rail" id="progress-rail" aria-hidden="true"></div>
+            <h2 class="challenge-question" id="challenge-question">向右移动这一片，会发生什么？</h2>
+            <p class="challenge-instruction" id="challenge-instruction">先选一个判断，再移动到滑轨上的目标位置。</p>
+            <div class="prediction-options" id="prediction-options" role="group" aria-label="预测截面的变化">
+              <button data-choice="appear" aria-pressed="false"><span>◌</span>出现</button><button data-choice="grow" aria-pressed="false"><span>↗</span>变大</button><button data-choice="shrink" aria-pressed="false"><span>↘</span>变小</button><button data-choice="disappear" aria-pressed="false"><span>╌</span>消失</button><button data-choice="same" aria-pressed="false"><span>＝</span>不变</button>
+            </div>
+            <div class="challenge-feedback" id="challenge-feedback" role="status" hidden></div>
+            <button class="primary-button" id="reveal" disabled>看看结果 <span>→</span></button>
+            <button class="primary-button" id="next-trial" hidden>下一片 <span>→</span></button>
+            <button class="text-button" id="exit-challenge">返回自由观察</button>
+          </div>
+
+          <div id="summary-panel" hidden>
+            <span class="tiny-label">本次预测</span><div class="score"><span id="score">0</span><small>/ 6</small></div>
+            <h2>再换个角度想一想。</h2><p class="summary-copy">向右移动不一定让截面变大。它与物体在第四维的位置有关。</p>
+            <button class="primary-button" id="retry-challenge">再试一次 <span>↗</span></button><button class="text-button" id="download-results">保存这次记录 ↓</button><button class="text-button" id="summary-explore">回到自由观察</button>
+          </div>
+
+          <div class="panel-bottom"><span class="tiny-label">一个小提示</span><p>转动视角，只会改变你看它的方向。<br>移动 W，会改变这一片世界本身。</p></div>
+        </aside>
+      </div>
+
+      <details class="geometry-note" id="geometry-note"><summary><span>为什么会这样？</span><span class="note-summary">看看截面背后的几何 <b>＋</b></span></summary><div class="geometry-content"><div><h2>一枚固定的四维超球。</h2><p>就像一个球穿过平面会留下大小不同的圆，四维超球被三维空间切过，会留下大小不同的球。W 只决定切在哪里。</p><p>错位双球由两个固定超球组成，它们在 W 方向上的中心不同。</p></div><div class="formula"><span>截面半径</span><code>r = √(R² − (W − W₀)²)</code><p>|W − W₀| &lt; R：球体截面<br>|W − W₀| = R：相切为一个点<br>|W − W₀| &gt; R：没有交集</p></div></div></details>
+    </main>
+    <footer><span>W / SLICE <span class="footer-separator">—</span> 一个关于空间直觉的实验</span><span>拖动 · 观察 · 预测</span></footer>
+  </div>
+  <noscript><p class="noscript">请启用 JavaScript 来操作切片实验。</p></noscript>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>

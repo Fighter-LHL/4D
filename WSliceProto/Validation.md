@@ -6,6 +6,10 @@
 
 **Pre-isolation engineering baseline：** `b719b3a`
 
+## 无 Unity 环境中的几何实验
+
+仓库另有独立浏览器实验，启动及测试方法见 [`../docs/browser-geometry-lab.md`](../docs/browser-geometry-lab.md)。它的 Node 测试覆盖超球截面方程和预测挑战状态，浏览器检查覆盖实验页面的交互。该结果单独记录，不计入下方 Unity L0–L5。
+
 ---
 
 ## 验证层级
