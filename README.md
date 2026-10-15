@@ -8,22 +8,28 @@ W-Slice 玩法实验。核心机制是 **W-Slice**：标量 `w` 控制当前三�
 
 **当前产品目标：** 让玩家理解 3D 世界是高维结构的截面，并在改变 W 前预测几何变化。当前工作按 mechanic isolation、geometry slice、geometry-driven collision、Impossible Room、playtest 的顺序推进。详见 [`docs/mechanic-validation.md`](docs/mechanic-validation.md)。
 
-## 不安装 Unity，先试玩切片实验
+## 试玩：W / SLICE 网页小游戏
 
-独立的 [浏览器几何实验](web/geometry-lab/) 是当前主线：观察真实四维超球的三维截面，并练习预测变化。支持单个超球、W 方向错位的双球、旋转视角、六轮预测挑战，以及两个可玩关卡——"截面通道"（两堵 W 错位的墙）和"不可能的密室"（三维封死、只有换 W 才能走出）。关卡墙体是四维超立方体的三维截面墙板，光点的移动合法性完全由当前截面几何决定。
+[`web/geometry-lab/`](web/geometry-lab/) 是当前主线：一个让人在二维屏幕上看懂第四维的网页小游戏，共三章 8 关。
+
+- **第 0 章 扁平国**：先当二维光点，旁边的「全貌」图能看到整个三维世界；
+- **第 1 章 升一维**：同样的关卡布局，你变成三维的，那张图变成「W 地图」（竖直方向就是 W）；
+- **第 2 章 只靠截面**：地图收起，只靠当前这一片解谜。
+
+暗色发光玻璃美术，五个平行世界「层」各有颜色和花纹，竖直的 W 滑轨，关卡内嵌「先猜再看」的预测题，提示分 3 级，进度自动保存。
 
 ```bash
 ./scripts/preview-geometry-lab.sh
-# 浏览器打开 http://127.0.0.1:4175
+# 浏览器打开 http://127.0.0.1:4175（?level=1-2 可直接进入某一关）
 ```
 
-启动只需要 Python 3 和支持 WebGL 的浏览器，无需 Unity、npm install 或 CDN。已有 Node.js 18+ 时，可运行几何与挑战逻辑测试：
+只需要 Python 3 和支持 WebGL 的浏览器，无需 npm install 或 CDN。已有 Node.js 18+ 时可运行测试（包括证明每关都必须用到第四维的搜索测试）：
 
 ```bash
-node --test web/geometry-lab/tests/geometry.test.mjs
+node --test web/geometry-lab/tests/*.test.mjs
 ```
 
-这是独立的玩法实验，尚未接入 Unity 五关、碰撞或移动系统。计算、操作和验证范围见 [浏览器实验说明](docs/browser-geometry-lab.md)。
+设计依据、几何定义、文件结构与验证记录见 [游戏说明](docs/browser-geometry-lab.md)。
 
 ## 快速开始
 
