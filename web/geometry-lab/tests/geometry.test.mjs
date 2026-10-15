@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SINGLE, TWINS, TRANSFER, CORRIDOR, hypersphere, sliceAtW, sliceAtDial, dialToW, surfacePoint, classifyChange, corridorSections, tokenInsideSection, legalCorridorSpot, moveCorridorToken } from '../geometry.mjs';
+import { SINGLE, TWINS, TRANSFER, CORRIDOR, ROOM, LEVELS, hypersphere, sliceAtW, sliceAtDial, dialToW, surfacePoint, classifyChange, corridorSections, tokenInsideSection, legalCorridorSpot, moveCorridorToken } from '../geometry.mjs';
 import { PredictionSession, TRIALS } from '../challenge.mjs';
 
 const near = (actual, expected, tolerance = 1e-10) => assert.ok(Math.abs(actual - expected) < tolerance, `${actual} != ${expected}`);
@@ -96,12 +96,12 @@ const wallBlocked = (sections, wallX) => {
   return true;
 };
 
-const pathLegal = (sections, from, to) => {
+const pathLegal = (sections, from, to, level = CORRIDOR) => {
   const steps = Math.ceil(Math.hypot(to[0] - from[0], to[1] - from[1]) / 0.02);
   for (let i = 0; i <= steps; i += 1) {
     const x = from[0] + (to[0] - from[0]) * (i / steps);
     const z = from[1] + (to[1] - from[1]) * (i / steps);
-    if (!legalCorridorSpot(sections, x, z)) return false;
+    if (!legalCorridorSpot(sections, x, z, level)) return false;
   }
   return true;
 };
@@ -160,4 +160,39 @@ test('corridor token moves slide along walls and stop at bounds', () => {
   assert.equal(diagonal.blocked, 'x');
   near(diagonal.z, 0.4);
   assert.ok(legalCorridorSpot(sections, diagonal.x, diagonal.z));
+});
+
+const escapeRays = (sections, level) => {
+  let open = 0;
+  for (let a = 0; a < Math.PI * 2; a += 0.1) {
+    let clear = true;
+    for (let r = 0; r <= 2.0; r += 0.05) {
+      if (!legalCorridorSpot(sections, Math.cos(a) * r, Math.sin(a) * r, level)) { clear = false; break; }
+    }
+    if (clear) open += 1;
+  }
+  return open;
+};
+
+test('room is sealed in 3D at W=0 and opens only through the fourth dimension', () => {
+  const sealed = corridorSections(0, ROOM);
+  assert.equal(sealed.filter((s) => s.kind === 'sphere').length, 8);
+  assert.equal(escapeRays(sealed, ROOM), 0);
+  assert.ok(!pathLegal(sealed, ROOM.start, ROOM.goal, ROOM));
+  // Staying inside stays legal, but every radial direction is walled off.
+  assert.ok(legalCorridorSpot(sealed, ...ROOM.start, ROOM));
+  for (const w of [-0.6, -0.3, 0.3, 0.6]) {
+    assert.equal(escapeRays(corridorSections(w, ROOM), ROOM), 0, `W ${w} should stay sealed`);
+  }
+  const open = corridorSections(1.0, ROOM);
+  assert.ok(open.every((s) => s.kind === 'empty'));
+  assert.ok(pathLegal(open, ROOM.start, ROOM.goal, ROOM));
+  // Sliding back to W=0 with the token outside never traps it; inside it would engulf.
+  assert.ok(!tokenInsideSection(sealed, ...ROOM.goal, ROOM));
+  assert.ok(tokenInsideSection(corridorSections(0, ROOM), 1.5, 0, ROOM));
+});
+
+test('level registry exposes both playable fields', () => {
+  assert.equal(LEVELS.corridor, CORRIDOR);
+  assert.equal(LEVELS.room, ROOM);
 });

@@ -73,6 +73,26 @@ export const CORRIDOR = Object.freeze({
   ]),
 });
 
+// Stage D spike: a room that is sealed in 3D at W = 0. Eight hyperspheres
+// form a ring; every wall shares the same W center, so sliding |W| away
+// thins the whole ring at once. There is no 3D exit — the only way out is
+// through the fourth dimension.
+const ROOM_RING = 1.5;
+const ROOM_WALL_R = 0.85;
+export const ROOM = Object.freeze({
+  start: Object.freeze([0, 0]),
+  goal: Object.freeze([3.1, 0]),
+  bounds: Object.freeze({ x: 3.4, z: 2.2 }),
+  tokenRadius: 0.22,
+  tokenY: 0.22,
+  bodies: Object.freeze(Array.from({ length: 8 }, (_, i) => {
+    const angle = (i / 8) * Math.PI * 2;
+    return hypersphere(`room-${i}`, [Math.cos(angle) * ROOM_RING, 0.55, Math.sin(angle) * ROOM_RING, 0], ROOM_WALL_R);
+  })),
+});
+
+export const LEVELS = Object.freeze({ corridor: CORRIDOR, room: ROOM });
+
 export function corridorSections(w, level = CORRIDOR) {
   return level.bodies.map((body) => sliceAtW(body, w));
 }

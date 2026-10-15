@@ -9,7 +9,7 @@ precision highp float;
 uniform vec2 uResolution;
 uniform vec3 uEye;
 uniform float uLookY;
-uniform vec4 uSpheres[6];
+uniform vec4 uSpheres[8];
 uniform float uCount;
 uniform float uAltFrom;
 uniform vec4 uToken;
@@ -25,6 +25,19 @@ float hitSphere(vec3 ro, vec3 rd, vec4 sphere) {
   if (h < 0.0) return -1.0;
   float t = -b - sqrt(h);
   return t > 0.0 ? t : -1.0;
+}
+
+// Distance test between the view ray and a vertical beam standing on the
+// floor, so the token and goal stay visible even inside sealed walls.
+float beamHit(vec3 ro, vec3 rd, vec2 pos, float h) {
+  vec3 w = ro - vec3(pos.x, 0.0, pos.y);
+  float denom = 1.0 - rd.y * rd.y;
+  if (denom < 0.0001) return 0.0;
+  float d = dot(rd, w);
+  float t = (rd.y * w.y - d) / denom;
+  float s = (w.y - rd.y * d) / denom;
+  vec3 diff = (ro + rd * t) - vec3(pos.x, s, pos.y);
+  return (t > 0.0 && s > -0.05 && s < h && length(diff) < 0.055) ? 1.0 : 0.0;
 }
 
 float shadow(vec3 p, vec4 sphere) {
@@ -98,7 +111,7 @@ void main() {
       vec3 tokenColor = mix(vec3(0.85, 0.95, 0.55), vec3(0.96, 0.42, 0.28), clamp(uToken.w, 0.0, 1.0));
       floorColor = mix(floorColor, tokenColor * 1.12, clamp(disc + rim * 0.8, 0.0, 0.95));
     }
-    for (int i = 0; i < 6; i += 1) {
+    for (int i = 0; i < 8; i += 1) {
       if (float(i) >= uCount) break;
       floorColor *= shadow(p, uSpheres[i]);
     }
@@ -107,7 +120,7 @@ void main() {
   float bestT = floorT;
   vec4 hitSphereData = vec4(0.0);
   bool hitAlt = false;
-  for (int i = 0; i < 6; i += 1) {
+  for (int i = 0; i < 8; i += 1) {
     if (float(i) >= uCount) break;
     float t = hitSphere(ro, rd, uSpheres[i]);
     if (t > 0.0 && t < bestT) {
@@ -121,6 +134,13 @@ void main() {
     vec3 normal = normalize(p - hitSphereData.xyz);
     color = material(p, normal, rd, hitAlt);
   }
+  if (uGoal.w > -0.5 && beamHit(ro, rd, uGoal.xy, 1.7) > 0.5) {
+    color = mix(color, vec3(0.95, 0.86, 0.45), uGoal.w > 0.5 ? 0.8 : 0.55);
+  }
+  if (uToken.w > -0.5 && beamHit(ro, rd, uToken.xy, 1.9) > 0.5) {
+    vec3 beamColor = mix(vec3(0.85, 0.95, 0.55), vec3(0.96, 0.42, 0.28), clamp(uToken.w, 0.0, 1.0));
+    color = mix(color, beamColor * 1.1, 0.8);
+  }
   float vignette = 1.0 - 0.14 * pow(length(uv) / 1.5, 2.0);
   color *= max(0.65, vignette);
   color = pow(color, vec3(0.87));
@@ -128,7 +148,7 @@ void main() {
 }
 `;
 
-const MAX_SECTIONS = 6;
+const MAX_SECTIONS = 8;
 const HIDDEN = -1;
 
 export class SliceRenderer {

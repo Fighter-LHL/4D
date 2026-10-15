@@ -1,14 +1,16 @@
 # 4D — W-Slice Puzzle Prototype
 
-Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0,1]` 控制物体显隐、路径可达性与交互反馈。
+W-Slice 玩法实验。核心机制是 **W-Slice**：标量 `w` 控制当前三维截面，玩家靠沿第四维移动来改变几何。
 
-**当前阶段：** Intended Engineering Baseline。五关 demo、LevelSelect、restart、测试和 macOS build 预期共同构成机制实验底座；只有在 wiring repair 与 Unity 回归通过后，具体分支才可称为稳定 baseline。
+**方向调整（2026-10-15）：** 主线已收敛为纯浏览器小游戏（`web/geometry-lab/`），Unity 工程 `WSliceProto/` 保留为历史参照，不再维护。下文 Unity 相关内容仅作存档。
+
+**历史阶段：** Intended Engineering Baseline。五关 demo、LevelSelect、restart、测试和 macOS build 曾预期共同构成机制实验底座；随着方向调整，浏览器原型取代 Unity 成为玩法验证载体。
 
 **当前产品目标：** 让玩家理解 3D 世界是高维结构的截面，并在改变 W 前预测几何变化。当前工作按 mechanic isolation、geometry slice、geometry-driven collision、Impossible Room、playtest 的顺序推进。详见 [`docs/mechanic-validation.md`](docs/mechanic-validation.md)。
 
 ## 不安装 Unity，先试玩切片实验
 
-新增独立的 [浏览器几何实验](web/geometry-lab/)，用于观察真实四维超球的三维截面，并练习预测变化。支持单个超球、W 方向错位的双球、旋转视角、六轮预测挑战，以及一个"截面通道"——光点的移动合法性完全由当前截面几何决定（阶段 C 的浏览器 spike）。
+独立的 [浏览器几何实验](web/geometry-lab/) 是当前主线：观察真实四维超球的三维截面，并练习预测变化。支持单个超球、W 方向错位的双球、旋转视角、六轮预测挑战，以及两个可玩关卡——"截面通道"（两堵 W 错位的墙）和"不可能的密室"（三维封死、只有换 W 才能走出）。关卡的移动合法性完全由当前截面几何决定。
 
 ```bash
 ./scripts/preview-geometry-lab.sh

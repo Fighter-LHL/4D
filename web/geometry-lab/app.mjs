@@ -1,4 +1,4 @@
-import { SINGLE, TWINS, CORRIDOR, PREDICTIONS, clampDial, dialToW, sliceAtW, sliceAtDial, corridorSections, tokenInsideSection, moveCorridorToken } from './geometry.mjs';
+import { SINGLE, TWINS, LEVELS, PREDICTIONS, clampDial, dialToW, sliceAtW, sliceAtDial, corridorSections, tokenInsideSection, moveCorridorToken } from './geometry.mjs';
 import { PredictionSession, TRIALS } from './challenge.mjs';
 import { SliceRenderer } from './renderer.mjs';
 
@@ -27,8 +27,8 @@ const MOVE_DIRS = {
   w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0],
   W: [0, -1], S: [0, 1], A: [-1, 0], D: [1, 0],
 };
-const corridorActive = () => mode === 'explore' && specimen === 'corridor' && corridor !== null;
-const corridorSectionsNow = () => corridorSections(dialToW(current));
+const corridorActive = () => mode === 'explore' && !!LEVELS[specimen] && corridor !== null;
+const corridorSectionsNow = () => corridorSections(dialToW(current), corridor.level);
 
 function renderAvailability(failed) {
   rendererReady = !failed;
@@ -65,15 +65,15 @@ function updateSlider() {
 function renderSlice() {
   const inCorridor = corridorActive();
   const sections = inCorridor ? corridorSectionsNow() : bodies.map((body) => sliceAtDial(body, current));
-  renderer?.setSections(sections, inCorridor ? 3 : 1);
+  renderer?.setSections(sections, !inCorridor ? 1 : (specimen === 'corridor' ? 3 : 9));
   renderer?.setMarkers(inCorridor ? {
     token: corridor.pos,
-    tokenRadius: CORRIDOR.tokenRadius,
+    tokenRadius: corridor.level.tokenRadius,
     flash: corridor.flash,
-    goal: CORRIDOR.goal,
+    goal: corridor.level.goal,
     won: corridor.won,
-    start: CORRIDOR.start,
-    bounds: CORRIDOR.bounds,
+    start: corridor.level.start,
+    bounds: corridor.level.bounds,
   } : null);
   const empty = sections.every((section) => section.radius === 0);
   const tangent = empty && sections.some((section) => section.kind === 'point');
@@ -83,7 +83,7 @@ function renderSlice() {
   updateSlider();
   const visible = sections.filter((section) => section.radius > 0).length;
   $('scene').setAttribute('aria-label', inCorridor
-    ? '通道模式：方向键或 WASD 移动光点到右侧出口，W 滑块改变两堵墙的截面。'
+    ? '关卡模式：方向键或 WASD 移动光点到出口，W 滑块改变墙的截面。'
     : `${visible ? `当前有 ${visible} 个球体截面` : '当前切片没有球体截面'}。拖动旋转视角，滚轮缩放；聚焦画面后可用方向键旋转、加减键缩放。`);
 }
 
@@ -101,7 +101,7 @@ function moveCorridor(delta) {
   const length = Math.hypot(dx, dz);
   if (length) {
     const step = (1.55 * delta) / length;
-    const move = moveCorridorToken(corridorSectionsNow(), corridor.pos, dx * step, dz * step);
+    const move = moveCorridorToken(corridorSectionsNow(), corridor.pos, dx * step, dz * step, corridor.level);
     const travelled = Math.hypot(move.x - corridor.pos[0], move.z - corridor.pos[1]);
     if (travelled && !corridor.startedAt) corridor.startedAt = performance.now();
     corridor.distance += travelled;
@@ -173,15 +173,16 @@ function updateMode() {
   $('explore-panel').hidden = !exploring;
   $('challenge-panel').hidden = mode !== 'challenge';
   $('summary-panel').hidden = mode !== 'summary';
+  const field = !!LEVELS[specimen];
   $('w-slider').disabled = !exploring;
-  $('sweep').disabled = !exploring || !rendererReady || specimen === 'corridor';
+  $('sweep').disabled = !exploring || !rendererReady || field;
   $('reset-slice').disabled = !exploring;
   $('geometry-note').hidden = !exploring;
   $('target-tick').hidden = mode !== 'challenge';
-  $('control-description').textContent = specimen === 'corridor' && exploring ? '改变两堵墙的截面' : (exploring ? '移动截面' : '先预测，再移动');
-  $('slider-hint').textContent = specimen === 'corridor' && exploring ? '滑块移动整片空间，墙会变大或消失' : (exploring ? '也可以使用 ← → 键微调' : (mode === 'summary' ? '本轮预测完成' : '标记是这次要去的位置'));
-  $('corridor-hud').hidden = !(exploring && specimen === 'corridor');
-  $('dpad').hidden = !(exploring && specimen === 'corridor');
+  $('control-description').textContent = field && exploring ? (specimen === 'room' ? '让整圈墙变薄' : '改变两堵墙的截面') : (exploring ? '移动截面' : '先预测，再移动');
+  $('slider-hint').textContent = field && exploring ? (specimen === 'room' ? '出口在三维里不存在——滑动 W' : '滑块移动整片空间，墙会变大或消失') : (exploring ? '也可以使用 ← → 键微调' : (mode === 'summary' ? '本轮预测完成' : '标记是这次要去的位置'));
+  $('corridor-hud').hidden = !(exploring && field);
+  $('dpad').hidden = !(exploring && field);
   if (!exploring) $('corridor-done').hidden = true;
 }
 
@@ -189,6 +190,12 @@ const SPECIMEN_META = {
   single: ['01 — 单个超球', '物体还在，截面变了。', '缓慢拖动 W，找找截面最大的位置。再往前走，它会一直变大吗？'],
   twins: ['02 — 错位双球', '同一片里，各有变化。', '两枚超球在第四维错开了一点。沿 W 移动，观察它们何时出现、何时一起留在这一片里。'],
   corridor: ['03 — 截面通道', '墙也是四维物体。', '把光点带到右侧出口。两堵墙待在不同的 W 上——这一片走到哪里，路就停在哪里。'],
+  room: ['04 — 不可能的密室', '这间屋子没有门。', '光点出生在房间正中，出口在墙外。三维里怎么走都出不去——试试 W。'],
+};
+
+const TIP_DEFAULTS = {
+  corridor: '方向键 / WASD 移动光点，W 滑块改变墙',
+  room: '方向键 / WASD 移动光点，W 滑块让墙变薄',
 };
 
 let tipTimer = 0;
@@ -198,7 +205,7 @@ function corridorTip(text, warn = false) {
   tip.classList.toggle('warn', warn);
   clearTimeout(tipTimer);
   tipTimer = setTimeout(() => {
-    tip.textContent = '方向键 / WASD 移动光点，W 滑块改变墙';
+    tip.textContent = TIP_DEFAULTS[specimen] ?? TIP_DEFAULTS.corridor;
     tip.classList.remove('warn');
   }, 1800);
 }
@@ -213,7 +220,9 @@ function updateCorridorHud() {
 
 function resetCorridor() {
   corridor = {
-    pos: [...CORRIDOR.start],
+    level: LEVELS[specimen],
+    levelId: specimen,
+    pos: [...LEVELS[specimen].start],
     distance: 0,
     blocked: 0,
     wMoves: 0,
@@ -226,17 +235,20 @@ function resetCorridor() {
     wMax: 0.5,
   };
   $('corridor-done').hidden = true;
+  $('corridor-tip').textContent = TIP_DEFAULTS[specimen] ?? TIP_DEFAULTS.corridor;
   updateCorridorHud();
 }
 
 function checkCorridorWin() {
   if (corridor.won) return;
-  if (Math.hypot(corridor.pos[0] - CORRIDOR.goal[0], corridor.pos[1] - CORRIDOR.goal[1]) >= 0.3) return;
+  const [gx, gz] = corridor.level.goal;
+  if (Math.hypot(corridor.pos[0] - gx, corridor.pos[1] - gz) >= 0.3) return;
   corridor.won = true;
   corridor.finishedAt = performance.now();
   pressed.clear();
   const seconds = corridor.startedAt ? Math.round((corridor.finishedAt - corridor.startedAt) / 1000) : 0;
-  $('corridor-summary').textContent = `移动 ${corridor.distance.toFixed(1)} m · 用时 ${seconds} s · 被挡 ${corridor.blocked} 次 · W 调整 ${corridor.wMoves} 次`;
+  $('corridor-done-title').textContent = corridor.levelId === 'room' ? '你从一间没有门的屋子走出来了。' : '通路由这一片几何决定。';
+  $('corridor-summary').textContent = `移动 ${corridor.distance.toFixed(1)} m · 用时 ${seconds} s · 被挡 ${corridor.blocked} 次 · W 调整 ${corridor.wMoves} 次${corridor.levelId === 'room' ? '。把 W 滑回去，看看墙还在不在。' : ''}`;
   $('corridor-done').hidden = false;
   updateCorridorHud();
 }
@@ -247,9 +259,9 @@ function corridorEngulfs(fromDial, toDial) {
   if (!corridor) return false;
   const low = dialToW(Math.min(fromDial, toDial));
   const high = dialToW(Math.max(fromDial, toDial));
-  return CORRIDOR.bodies.some((body) => {
+  return corridor.level.bodies.some((body) => {
     const w = Math.max(low, Math.min(high, body.center[3]));
-    return tokenInsideSection([sliceAtW(body, w)], corridor.pos[0], corridor.pos[1]);
+    return tokenInsideSection([sliceAtW(body, w)], corridor.pos[0], corridor.pos[1], corridor.level);
   });
 }
 
@@ -272,7 +284,7 @@ function trySetDial(value, immediate = false) {
 function selectSpecimen(value) {
   specimen = value;
   pressed.clear();
-  if (value === 'corridor') resetCorridor();
+  if (LEVELS[value]) resetCorridor();
   else corridor = null;
   $('corridor-done').hidden = true;
   bodies = value === 'twins' ? TWINS : [SINGLE];
@@ -295,7 +307,7 @@ function explore() {
   stopSweep();
   updateMode();
   selectSpecimen(specimen);
-  setDial(specimen === 'corridor' ? 0.5 : 0.38, true);
+  setDial(LEVELS[specimen] ? 0.5 : 0.38, true);
 }
 
 function startChallenge() {
@@ -386,7 +398,7 @@ $('sweep').addEventListener('click', () => {
 });
 $('reset-slice').addEventListener('click', () => { stopSweep(); trySetDial(corridor ? 0.5 : 0.38); });
 $('reset-view').addEventListener('click', () => renderer?.resetView());
-specimenButtons.forEach((button) => button.addEventListener('click', () => { stopSweep(); selectSpecimen(button.dataset.specimen); setDial(specimen === 'corridor' ? 0.5 : 0.38, true); }));
+specimenButtons.forEach((button) => button.addEventListener('click', () => { stopSweep(); selectSpecimen(button.dataset.specimen); setDial(LEVELS[specimen] ? 0.5 : 0.38, true); }));
 document.querySelectorAll('#dpad button').forEach((button) => {
   const dir = button.dataset.dir;
   button.addEventListener('pointerdown', (event) => {
@@ -408,14 +420,14 @@ $('corridor-save').addEventListener('click', () => {
   const result = {
     schemaVersion: 1,
     experiment: 'four-d-geometry-lab',
-    stage: 'browser-corridor-run',
+    stage: `browser-${corridor.levelId}-run`,
     completed: corridor.won,
     distance: Number(corridor.distance.toFixed(3)),
     blocked: corridor.blocked,
     wAdjusts: corridor.wMoves,
     wRange: [Number(corridor.wMin.toFixed(3)), Number(corridor.wMax.toFixed(3))],
     seconds: corridor.startedAt && corridor.finishedAt ? Math.round((corridor.finishedAt - corridor.startedAt) / 1000) : 0,
-    bodies: CORRIDOR.bodies.map((body) => ({ id: body.id, center: [...body.center], radius: body.radius })),
+    bodies: corridor.level.bodies.map((body) => ({ id: body.id, center: [...body.center], radius: body.radius })),
     exportedAt: new Date().toISOString(),
   };
   const url = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' }));
