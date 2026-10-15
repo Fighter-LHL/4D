@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SINGLE, TWINS, TRANSFER, CORRIDOR, ROOM, LEVELS, hypersphere, sliceAtW, sliceAtDial, dialToW, surfacePoint, classifyChange, corridorSections, tokenInsideSection, legalCorridorSpot, moveCorridorToken } from '../geometry.mjs';
+import { SINGLE, TWINS, TRANSFER, CORRIDOR, ROOM, LEVELS, hypersphere, hyperbox, sliceAtW, sliceAtDial, dialToW, surfacePoint, classifyChange, corridorSections, tokenInsideSection, legalCorridorSpot, moveCorridorToken } from '../geometry.mjs';
 import { PredictionSession, TRIALS } from '../challenge.mjs';
 
 const near = (actual, expected, tolerance = 1e-10) => assert.ok(Math.abs(actual - expected) < tolerance, `${actual} != ${expected}`);
@@ -96,6 +96,9 @@ const wallBlocked = (sections, wallX) => {
   return true;
 };
 
+const pathLegalVia = (sections, points, level = CORRIDOR) =>
+  points.slice(1).every((to, i) => pathLegal(sections, points[i], to, level));
+
 const pathLegal = (sections, from, to, level = CORRIDOR) => {
   const steps = Math.ceil(Math.hypot(to[0] - from[0], to[1] - from[1]) / 0.02);
   for (let i = 0; i <= steps; i += 1) {
@@ -107,27 +110,41 @@ const pathLegal = (sections, from, to, level = CORRIDOR) => {
 };
 
 const NEAR_X = CORRIDOR.bodies[0].center[0];
-const FAR_X = CORRIDOR.bodies[3].center[0];
+const FAR_X = CORRIDOR.bodies[1].center[0];
+
+test('box sections exist only inside their W interval and block the token', () => {
+  const wallA = CORRIDOR.bodies[0];
+  assert.equal(wallA.type, 'box');
+  assert.equal(sliceAtW(wallA, -1).kind, 'box');
+  assert.equal(sliceAtW(wallA, 0.2).kind, 'empty');
+  assert.equal(sliceAtW(wallA, -2.05).kind, 'box');
+  assert.equal(sliceAtW(wallA, -2.2).kind, 'empty');
+  const sections = corridorSections(0);
+  assert.equal(sections[0].kind, 'box');
+  assert.equal(sections[1].kind, 'box');
+  assert.equal(sections[2].kind, 'sphere');
+  assert.ok(tokenInsideSection(sections, -1.3, 0));
+  assert.ok(!tokenInsideSection(sections, -1.9, 0));
+  assert.throws(() => hyperbox('bad', [0, 0, 0, 0], [1, 1, 0, 1]), RangeError);
+});
 
 test('corridor walls seal at W=0 and each opens only on its own W side', () => {
   const center = corridorSections(0);
-  assert.equal(center.filter((s) => s.kind === 'sphere').length, 6);
+  assert.equal(center.filter((s) => s.kind === 'box').length, 2);
   assert.ok(wallBlocked(center, NEAR_X) && wallBlocked(center, FAR_X));
   // No single W leaves the straight route open: near wall seals for W <= 0,
   // far wall seals for W >= 0.
   for (const w of [-2, -1.6, -1.2, -0.6, 0]) assert.ok(wallBlocked(corridorSections(w), NEAR_X), `near wall should block at ${w}`);
   for (const w of [0.6, 1.2, 1.6, 2]) assert.ok(wallBlocked(corridorSections(w), FAR_X), `far wall should block at ${w}`);
-  const high = corridorSections(0.3);
-  const low = corridorSections(-0.3);
-  assert.ok(high.slice(0, 3).every((s) => s.kind === 'empty'));
-  assert.ok(low.slice(3).every((s) => s.kind === 'empty'));
-  assert.ok(wallBlocked(high, FAR_X));
-  assert.ok(wallBlocked(low, NEAR_X));
+  assert.equal(corridorSections(0.3)[0].kind, 'empty');
+  assert.equal(corridorSections(-0.3)[1].kind, 'empty');
+  assert.ok(wallBlocked(corridorSections(0.3), FAR_X));
+  assert.ok(wallBlocked(corridorSections(-0.3), NEAR_X));
 });
 
 test('corridor route is only solvable by changing W mid-run', () => {
   const entry = corridorSections(0.3);
-  assert.ok(pathLegal(entry, CORRIDOR.start, [0, 0]));
+  assert.ok(pathLegalVia(entry, [CORRIDOR.start, [-0.5, 0.75], [0, 0.75]]));
   assert.ok(!pathLegal(entry, [0, 0], CORRIDOR.goal));
   const exit = corridorSections(-0.3);
   assert.ok(pathLegal(exit, [0, 0], CORRIDOR.goal));
@@ -139,9 +156,12 @@ test('corridor route is only solvable by changing W mid-run', () => {
 });
 
 test('growing sections would engulf the token; engulf check detects it', () => {
-  assert.ok(!tokenInsideSection(corridorSections(0), -2.2, 0));
-  assert.ok(tokenInsideSection(corridorSections(-1), -2.2, 0));
-  assert.ok(tokenInsideSection(corridorSections(1), 2.2, 0));
+  // The center pillar swallows a token parked next to it as W approaches 0.
+  assert.ok(tokenInsideSection(corridorSections(0), 0, -0.55));
+  assert.ok(!tokenInsideSection(corridorSections(1), 0, -0.55));
+  // A box wall returning to this slice swallows a token parked inside it.
+  assert.ok(tokenInsideSection(corridorSections(0), -1.3, 0));
+  assert.ok(!tokenInsideSection(corridorSections(1.5), -1.3, 0));
   assert.ok(!legalCorridorSpot(corridorSections(0), 2.4, 0));
   assert.ok(!legalCorridorSpot(corridorSections(0), 0, 1.0));
 });
@@ -151,14 +171,14 @@ test('corridor token moves slide along walls and stop at bounds', () => {
   const slide = moveCorridorToken(sections, [-2.0, 0.7], 0, -0.2);
   assert.equal(slide.blocked, null);
   near(slide.z, 0.5);
-  const wedged = moveCorridorToken(sections, [-2.05, 0.2], 0.2, 0);
-  assert.equal(wedged.x, -2.05);
+  const wedged = moveCorridorToken(sections, [-1.75, 0.2], 0.2, 0);
+  assert.equal(wedged.x, -1.75);
   assert.notEqual(wedged.blocked, null);
   const out = moveCorridorToken(sections, [-2.3, 0], -0.2, 0);
   assert.equal(out.x, -2.3);
-  const diagonal = moveCorridorToken(sections, [-2.0, 0.55], 0.3, -0.15);
+  const diagonal = moveCorridorToken(sections, [-1.75, 0.5], 0.3, -0.15);
   assert.equal(diagonal.blocked, 'x');
-  near(diagonal.z, 0.4);
+  near(diagonal.z, 0.35);
   assert.ok(legalCorridorSpot(sections, diagonal.x, diagonal.z));
 });
 
@@ -176,20 +196,20 @@ const escapeRays = (sections, level) => {
 
 test('room is sealed in 3D at W=0 and opens only through the fourth dimension', () => {
   const sealed = corridorSections(0, ROOM);
-  assert.equal(sealed.filter((s) => s.kind === 'sphere').length, 8);
+  assert.equal(sealed.filter((s) => s.kind === 'box').length, 4);
   assert.equal(escapeRays(sealed, ROOM), 0);
   assert.ok(!pathLegal(sealed, ROOM.start, ROOM.goal, ROOM));
   // Staying inside stays legal, but every radial direction is walled off.
   assert.ok(legalCorridorSpot(sealed, ...ROOM.start, ROOM));
-  for (const w of [-0.6, -0.3, 0.3, 0.6]) {
+  for (const w of [-0.8, -0.5, 0.5, 0.8]) {
     assert.equal(escapeRays(corridorSections(w, ROOM), ROOM), 0, `W ${w} should stay sealed`);
   }
   const open = corridorSections(1.0, ROOM);
   assert.ok(open.every((s) => s.kind === 'empty'));
   assert.ok(pathLegal(open, ROOM.start, ROOM.goal, ROOM));
-  // Sliding back to W=0 with the token outside never traps it; inside it would engulf.
+  // Sliding back to W=0 with the token outside never traps it; inside a wall it would engulf.
   assert.ok(!tokenInsideSection(sealed, ...ROOM.goal, ROOM));
-  assert.ok(tokenInsideSection(corridorSections(0, ROOM), 1.5, 0, ROOM));
+  assert.ok(tokenInsideSection(sealed, 1.5, 0, ROOM));
 });
 
 test('level registry exposes both playable fields', () => {

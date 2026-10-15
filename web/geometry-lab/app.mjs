@@ -1,6 +1,7 @@
 import { SINGLE, TWINS, LEVELS, PREDICTIONS, clampDial, dialToW, sliceAtW, sliceAtDial, corridorSections, tokenInsideSection, moveCorridorToken } from './geometry.mjs';
 import { PredictionSession, TRIALS } from './challenge.mjs';
 import { SliceRenderer } from './renderer.mjs';
+import { sfxInit, sfx } from './sfx.mjs';
 
 const $ = (id) => document.getElementById(id);
 const choiceButtons = [...document.querySelectorAll('[data-choice]')];
@@ -29,6 +30,24 @@ const MOVE_DIRS = {
 };
 const corridorActive = () => mode === 'explore' && !!LEVELS[specimen] && corridor !== null;
 const corridorSectionsNow = () => corridorSections(dialToW(current), corridor.level);
+let prevVisible = new Set();
+
+// Show each specimen's W extent as a band under the slider; levels and the
+// challenge hide it — the range would be a solution oracle there.
+function renderWBands() {
+  const wrap = $('w-bands');
+  const show = mode === 'explore' && (specimen === 'single' || specimen === 'twins');
+  wrap.hidden = !show;
+  wrap.replaceChildren(...(show ? bodies.map((body) => {
+    const band = document.createElement('span');
+    band.className = `w-band${body.alt ? ' alt' : ''}`;
+    const a = (body.center[3] - body.radius) / 4 + 0.5;
+    const b = (body.center[3] + body.radius) / 4 + 0.5;
+    band.style.left = `${a * 100}%`;
+    band.style.width = `${(b - a) * 100}%`;
+    return band;
+  }) : []));
+}
 
 function renderAvailability(failed) {
   rendererReady = !failed;
@@ -65,7 +84,7 @@ function updateSlider() {
 function renderSlice() {
   const inCorridor = corridorActive();
   const sections = inCorridor ? corridorSectionsNow() : bodies.map((body) => sliceAtDial(body, current));
-  renderer?.setSections(sections, !inCorridor ? 1 : (specimen === 'corridor' ? 3 : 9));
+  renderer?.setSections(sections);
   renderer?.setMarkers(inCorridor ? {
     token: corridor.pos,
     tokenRadius: corridor.level.tokenRadius,
@@ -75,7 +94,13 @@ function renderSlice() {
     start: corridor.level.start,
     bounds: corridor.level.bounds,
   } : null);
-  const empty = sections.every((section) => section.radius === 0);
+  const visibleIds = new Set(sections.filter((s) => s.kind !== 'empty').map((s) => s.id));
+  sections.forEach((s) => {
+    if (s.kind !== 'empty' && !prevVisible.has(s.id)) sfx.appear();
+    if (s.kind === 'empty' && prevVisible.has(s.id)) sfx.vanish();
+  });
+  prevVisible = visibleIds;
+  const empty = sections.every((section) => section.kind === 'empty');
   const tangent = empty && sections.some((section) => section.kind === 'point');
   $('empty-notice').hidden = !empty || !rendererReady || inCorridor;
   $('empty-title').textContent = tangent ? '这一片，刚好与超球相切。' : '这一片，没有碰到物体。';
@@ -85,6 +110,7 @@ function renderSlice() {
   $('scene').setAttribute('aria-label', inCorridor
     ? '关卡模式：方向键或 WASD 移动光点到出口，W 滑块改变墙的截面。'
     : `${visible ? `当前有 ${visible} 个球体截面` : '当前切片没有球体截面'}。拖动旋转视角，滚轮缩放；聚焦画面后可用方向键旋转、加减键缩放。`);
+  renderWBands();
 }
 
 function requestFrame() {
@@ -110,6 +136,7 @@ function moveCorridor(delta) {
     if (jammed && !corridor.blockedLast) {
       corridor.blocked += 1;
       corridor.flash = 1;
+      sfx.blocked();
       corridorTip('被当前截面挡住了', true);
     }
     corridor.blockedLast = jammed;
@@ -246,6 +273,7 @@ function checkCorridorWin() {
   corridor.won = true;
   corridor.finishedAt = performance.now();
   pressed.clear();
+  sfx.win();
   const seconds = corridor.startedAt ? Math.round((corridor.finishedAt - corridor.startedAt) / 1000) : 0;
   $('corridor-done-title').textContent = corridor.levelId === 'room' ? '你从一间没有门的屋子走出来了。' : '通路由这一片几何决定。';
   $('corridor-summary').textContent = `移动 ${corridor.distance.toFixed(1)} m · 用时 ${seconds} s · 被挡 ${corridor.blocked} 次 · W 调整 ${corridor.wMoves} 次${corridor.levelId === 'room' ? '。把 W 滑回去，看看墙还在不在。' : ''}`;
@@ -268,6 +296,7 @@ function corridorEngulfs(fromDial, toDial) {
 function trySetDial(value, immediate = false) {
   if (corridor && corridorEngulfs(current, value)) {
     corridor.flash = 1;
+    sfx.refused();
     corridorTip('这个 W 会把光点包进墙里，先挪开光点', true);
     renderSlice();
     requestFrame();
@@ -488,6 +517,7 @@ document.addEventListener('keydown', (event) => {
   }
 });
 document.addEventListener('keyup', (event) => pressed.delete(event.key));
+['pointerdown', 'keydown'].forEach((type) => document.addEventListener(type, sfxInit, { once: true }));
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     stopSweep();

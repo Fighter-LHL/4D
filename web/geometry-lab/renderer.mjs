@@ -10,8 +10,11 @@ uniform vec2 uResolution;
 uniform vec3 uEye;
 uniform float uLookY;
 uniform vec4 uSpheres[8];
+uniform float uSphereAlt[8];
 uniform float uCount;
-uniform float uAltFrom;
+uniform vec4 uBoxC[4];
+uniform vec4 uBoxH[4];
+uniform float uBoxCount;
 uniform vec4 uToken;
 uniform vec4 uGoal;
 uniform vec3 uStart;
@@ -38,6 +41,42 @@ float beamHit(vec3 ro, vec3 rd, vec2 pos, float h) {
   float s = (w.y - rd.y * d) / denom;
   vec3 diff = (ro + rd * t) - vec3(pos.x, s, pos.y);
   return (t > 0.0 && s > -0.05 && s < h && length(diff) < 0.055) ? 1.0 : 0.0;
+}
+
+float hitBox(vec3 ro, vec3 rd, vec3 c, vec3 h) {
+  vec3 m = vec3(1.0) / rd;
+  vec3 n = m * (ro - c);
+  vec3 k = abs(m) * h;
+  vec3 t1 = -n - k;
+  vec3 t2 = -n + k;
+  float tN = max(max(t1.x, t1.y), t1.z);
+  float tF = min(min(t2.x, t2.y), t2.z);
+  if (tN > tF || tF < 0.0) return -1.0;
+  return tN > 0.0 ? tN : -1.0;
+}
+
+vec3 boxNormal(vec3 p, vec3 c, vec3 h) {
+  vec3 d = (p - c) / h;
+  vec3 a = abs(d);
+  if (a.x > a.y && a.x > a.z) return vec3(sign(d.x), 0.0, 0.0);
+  if (a.y > a.z) return vec3(0.0, sign(d.y), 0.0);
+  return vec3(0.0, 0.0, sign(d.z));
+}
+
+float shadowBox(vec3 p, vec4 c, vec3 h) {
+  if (h.y < 0.001) return 1.0;
+  vec2 d = abs(p.xz - c.xz + vec2(0.25, -0.16) * c.y) - h.xz;
+  float dist = length(max(d, vec2(0.0)));
+  return 1.0 - exp(-dist * dist / 0.35) * 0.5;
+}
+
+vec3 boxMaterial(vec3 p, vec3 n, vec3 rd, bool alt) {
+  vec3 base = alt ? vec3(0.44, 0.63, 0.60) : vec3(0.70, 0.72, 0.62);
+  vec3 key = normalize(vec3(-0.65, 1.0, 0.8));
+  float diffuse = max(dot(n, key), 0.0);
+  float spec = pow(max(dot(reflect(-key, n), -rd), 0.0), 40.0);
+  return base * (0.24 + 0.72 * diffuse) * (1.0 + n.y * 0.08)
+       + vec3(1.0, 0.97, 0.8) * spec * 0.18;
 }
 
 float shadow(vec3 p, vec4 sphere) {
@@ -115,10 +154,17 @@ void main() {
       if (float(i) >= uCount) break;
       floorColor *= shadow(p, uSpheres[i]);
     }
+    for (int i = 0; i < 4; i += 1) {
+      if (float(i) >= uBoxCount) break;
+      floorColor *= shadowBox(p, uBoxC[i], uBoxH[i].xyz);
+    }
     color = mix(color, floorColor, exp(-floorT * 0.008));
   }
   float bestT = floorT;
   vec4 hitSphereData = vec4(0.0);
+  vec3 hitBC = vec3(0.0);
+  vec3 hitBH = vec3(0.0);
+  bool hitIsBox = false;
   bool hitAlt = false;
   for (int i = 0; i < 8; i += 1) {
     if (float(i) >= uCount) break;
@@ -126,10 +172,26 @@ void main() {
     if (t > 0.0 && t < bestT) {
       bestT = t;
       hitSphereData = uSpheres[i];
-      hitAlt = float(i) >= uAltFrom;
+      hitIsBox = false;
+      hitAlt = uSphereAlt[i] > 0.5;
     }
   }
-  if (hitSphereData.w > 0.0) {
+  for (int i = 0; i < 4; i += 1) {
+    if (float(i) >= uBoxCount) break;
+    float t = hitBox(ro, rd, uBoxC[i].xyz, uBoxH[i].xyz);
+    if (t > 0.0 && t < bestT) {
+      bestT = t;
+      hitSphereData = vec4(0.0);
+      hitBC = uBoxC[i].xyz;
+      hitBH = uBoxH[i].xyz;
+      hitIsBox = true;
+      hitAlt = uBoxC[i].w > 0.5;
+    }
+  }
+  if (hitIsBox) {
+    vec3 p = ro + rd * bestT;
+    color = boxMaterial(p, boxNormal(p, hitBC, hitBH), rd, hitAlt);
+  } else if (hitSphereData.w > 0.0) {
     vec3 p = ro + rd * bestT;
     vec3 normal = normalize(p - hitSphereData.xyz);
     color = material(p, normal, rd, hitAlt);
@@ -156,7 +218,6 @@ export class SliceRenderer {
     this.canvas = canvas;
     this.onError = onError;
     this.sections = [];
-    this.altFrom = 1;
     this.markers = null;
     this.yaw = 0.38;
     this.pitch = 0.22;
@@ -214,10 +275,13 @@ export class SliceRenderer {
     gl.enableVertexAttribArray(position);
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
     this.uniforms = {};
-    for (const name of ['uResolution', 'uEye', 'uLookY', 'uCount', 'uAltFrom', 'uToken', 'uGoal', 'uStart', 'uBounds']) {
+    for (const name of ['uResolution', 'uEye', 'uLookY', 'uCount', 'uBoxCount', 'uToken', 'uGoal', 'uStart', 'uBounds']) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
     this.uniforms.uSpheres = gl.getUniformLocation(this.program, 'uSpheres[0]') || gl.getUniformLocation(this.program, 'uSpheres');
+    this.uniforms.uSphereAlt = gl.getUniformLocation(this.program, 'uSphereAlt[0]') || gl.getUniformLocation(this.program, 'uSphereAlt');
+    this.uniforms.uBoxC = gl.getUniformLocation(this.program, 'uBoxC[0]') || gl.getUniformLocation(this.program, 'uBoxC');
+    this.uniforms.uBoxH = gl.getUniformLocation(this.program, 'uBoxH[0]') || gl.getUniformLocation(this.program, 'uBoxH');
   }
 
   bindControls() {
@@ -267,9 +331,8 @@ export class SliceRenderer {
     this.draw();
   }
 
-  setSections(sections, altFrom = 1) {
+  setSections(sections) {
     this.sections = sections.slice(0, MAX_SECTIONS);
-    this.altFrom = altFrom;
     this.draw();
   }
 
@@ -293,10 +356,30 @@ export class SliceRenderer {
     const distance = this.distance * (box.width / box.height < 1.2 ? 1.18 : 1);
     gl.uniform3f(uniforms.uEye, Math.sin(this.yaw) * Math.cos(this.pitch) * distance, 1.12 + Math.sin(this.pitch) * distance, Math.cos(this.yaw) * Math.cos(this.pitch) * distance);
     const packed = new Float32Array(MAX_SECTIONS * 4);
-    this.sections.forEach((section, index) => packed.set([...section.center, section.radius], index * 4));
+    const sphereAlt = new Float32Array(MAX_SECTIONS);
+    const boxC = new Float32Array(16);
+    const boxH = new Float32Array(16);
+    let sphereCount = 0;
+    let boxCount = 0;
+    this.sections.forEach((section) => {
+      if (section.type === 'box') {
+        if (boxCount < 4) {
+          boxC.set([...section.center, section.alt ? 1 : 0], boxCount * 4);
+          boxH.set([...(section.kind === 'box' ? section.half : [0, 0, 0]), 0], boxCount * 4);
+          boxCount += 1;
+        }
+      } else if (sphereCount < MAX_SECTIONS) {
+        packed.set([...section.center, section.radius], sphereCount * 4);
+        sphereAlt[sphereCount] = section.alt ? 1 : 0;
+        sphereCount += 1;
+      }
+    });
     gl.uniform4fv(uniforms.uSpheres, packed);
-    gl.uniform1f(uniforms.uCount, this.sections.length);
-    gl.uniform1f(uniforms.uAltFrom, this.altFrom);
+    gl.uniform1fv(uniforms.uSphereAlt, sphereAlt);
+    gl.uniform4fv(uniforms.uBoxC, boxC);
+    gl.uniform4fv(uniforms.uBoxH, boxH);
+    gl.uniform1f(uniforms.uCount, sphereCount);
+    gl.uniform1f(uniforms.uBoxCount, boxCount);
     const corridor = this.markers;
     gl.uniform1f(uniforms.uLookY, corridor ? 0.5 : 1.12);
     gl.uniform4f(uniforms.uToken, ...(corridor ? [corridor.token[0], corridor.token[1], corridor.tokenRadius, corridor.flash] : [0, 0, 0, HIDDEN]));

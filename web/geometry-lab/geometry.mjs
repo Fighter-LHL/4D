@@ -15,13 +15,27 @@ export function dialToW(value) {
   return (clampDial(value) - 0.5) * DIAL_SPAN;
 }
 
-export function hypersphere(id, center, radius) {
+export function hypersphere(id, center, radius, alt = false) {
   if (!Array.isArray(center) || center.length !== 4) {
     throw new TypeError('center must contain four coordinates');
   }
   center.forEach((value) => finite(value, 'center coordinate'));
   if (finite(radius, 'radius') <= 0) throw new RangeError('radius must be positive');
-  return Object.freeze({ id, center: Object.freeze([...center]), radius });
+  return Object.freeze({ id, type: 'sphere', center: Object.freeze([...center]), radius, alt });
+}
+
+export function hyperbox(id, center, half, alt = false) {
+  if (!Array.isArray(center) || center.length !== 4) {
+    throw new TypeError('center must contain four coordinates');
+  }
+  if (!Array.isArray(half) || half.length !== 4) {
+    throw new TypeError('half extents must contain four coordinates');
+  }
+  center.forEach((value) => finite(value, 'center coordinate'));
+  half.forEach((value) => {
+    if (finite(value, 'half extent') <= 0) throw new RangeError('half extents must be positive');
+  });
+  return Object.freeze({ id, type: 'box', center: Object.freeze([...center]), half: Object.freeze([...half]), alt });
 }
 
 export const SINGLE = hypersphere('single', [0, 1.65, 0, 0], 1.5);
@@ -34,11 +48,28 @@ export const TWINS = Object.freeze([
 export function sliceAtW(body, w) {
   finite(w, 'W');
   const distance = Math.abs(w - body.center[3]);
+  if (body.type === 'box') {
+    // A 4D box slice does not shrink: it is either the full 3D box or nothing.
+    const exists = distance <= body.half[3];
+    return {
+      id: body.id,
+      type: 'box',
+      alt: body.alt,
+      center: body.center.slice(0, 3),
+      half: body.half.slice(0, 3),
+      radius: 0,
+      kind: exists ? 'box' : 'empty',
+      volume: exists ? 8 * body.half[0] * body.half[1] * body.half[2] : 0,
+    };
+  }
+
   // Factored form avoids cancellation near the tangency boundary.
   const radiusSquared = (body.radius - distance) * (body.radius + distance);
   const radius = Math.sqrt(Math.max(0, radiusSquared));
   return {
     id: body.id,
+    type: 'sphere',
+    alt: body.alt,
     center: body.center.slice(0, 3),
     radius,
     kind: radiusSquared > 0 ? 'sphere' : (radiusSquared === 0 ? 'point' : 'empty'),
@@ -51,12 +82,10 @@ export function sliceAtDial(body, dial) {
 }
 
 // Stage C spike: a corridor whose walkable space is decided by the current
-// 3D sections alone. Two rows of hyperspheres form walls; each row is centered
-// on a different W, so no single slice opens both. A move is legal only when
-// the token sphere does not intersect any section sphere.
-const WALL_X = 1.3;
-const WALL_W = 1.0;
-const wall = (id, x, z, w) => hypersphere(id, [x, 0.55, z, w], 1.15);
+// 3D sections alone. Two 4D box walls live on different W intervals, so no
+// single slice opens both. A wandering sphere in the middle punishes careless
+// W slides: it can grow over the token. A move is legal only when the token
+// sphere does not intersect any section body.
 export const CORRIDOR = Object.freeze({
   start: Object.freeze([-2.2, 0]),
   goal: Object.freeze([2.2, 0]),
@@ -64,31 +93,28 @@ export const CORRIDOR = Object.freeze({
   tokenRadius: 0.22,
   tokenY: 0.22,
   bodies: Object.freeze([
-    wall('wall-near-left', -WALL_X, -1.05, -WALL_W),
-    wall('wall-near-mid', -WALL_X, 0, -WALL_W),
-    wall('wall-near-right', -WALL_X, 1.05, -WALL_W),
-    wall('wall-far-left', WALL_X, -1.05, WALL_W),
-    wall('wall-far-mid', WALL_X, 0, WALL_W),
-    wall('wall-far-right', WALL_X, 1.05, WALL_W),
+    hyperbox('wall-near', [-1.3, 0.75, 0, -1.0], [0.14, 0.95, 1.3, 1.1]),
+    hyperbox('wall-far', [1.3, 0.75, 0, 1.0], [0.14, 0.95, 1.3, 1.1], true),
+    hypersphere('pillar', [0, 0.55, -0.55, 0], 0.5, true),
   ]),
 });
 
-// Stage D spike: a room that is sealed in 3D at W = 0. Eight hyperspheres
-// form a ring; every wall shares the same W center, so sliding |W| away
-// thins the whole ring at once. There is no 3D exit — the only way out is
-// through the fourth dimension.
-const ROOM_RING = 1.5;
-const ROOM_WALL_R = 0.85;
+// Stage D spike: a room sealed in 3D at W = 0. Four 4D box panels form the
+// walls; all share the same W interval, so sliding |W| away removes the whole
+// room at once. There is no 3D exit — the only way out is through the fourth
+// dimension.
 export const ROOM = Object.freeze({
   start: Object.freeze([0, 0]),
   goal: Object.freeze([3.1, 0]),
   bounds: Object.freeze({ x: 3.4, z: 2.2 }),
   tokenRadius: 0.22,
   tokenY: 0.22,
-  bodies: Object.freeze(Array.from({ length: 8 }, (_, i) => {
-    const angle = (i / 8) * Math.PI * 2;
-    return hypersphere(`room-${i}`, [Math.cos(angle) * ROOM_RING, 0.55, Math.sin(angle) * ROOM_RING, 0], ROOM_WALL_R);
-  })),
+  bodies: Object.freeze([
+    hyperbox('room-north', [0, 0.75, -1.5, 0], [1.64, 0.95, 0.14, 0.9]),
+    hyperbox('room-south', [0, 0.75, 1.5, 0], [1.64, 0.95, 0.14, 0.9]),
+    hyperbox('room-west', [-1.5, 0.75, 0, 0], [0.14, 0.95, 1.64, 0.9]),
+    hyperbox('room-east', [1.5, 0.75, 0, 0], [0.14, 0.95, 1.64, 0.9]),
+  ]),
 });
 
 export const LEVELS = Object.freeze({ corridor: CORRIDOR, room: ROOM });
@@ -97,17 +123,28 @@ export function corridorSections(w, level = CORRIDOR) {
   return level.bodies.map((body) => sliceAtW(body, w));
 }
 
-// True when the token sphere overlaps any section sphere in 3D.
+// True when the token sphere overlaps a single section body in 3D.
+export function sectionContains(section, x, z, level = CORRIDOR) {
+  if (section.type === 'box') {
+    if (section.kind !== 'box') return false;
+    const qx = Math.max(section.center[0] - section.half[0], Math.min(section.center[0] + section.half[0], x));
+    const qy = Math.max(section.center[1] - section.half[1], Math.min(section.center[1] + section.half[1], level.tokenY));
+    const qz = Math.max(section.center[2] - section.half[2], Math.min(section.center[2] + section.half[2], z));
+    const dx = x - qx;
+    const dy = level.tokenY - qy;
+    const dz = z - qz;
+    return dx * dx + dy * dy + dz * dz < level.tokenRadius * level.tokenRadius;
+  }
+  if (section.radius <= 0) return false;
+  const dx = x - section.center[0];
+  const dy = level.tokenY - section.center[1];
+  const dz = z - section.center[2];
+  const limit = section.radius + level.tokenRadius;
+  return dx * dx + dy * dy + dz * dz < limit * limit;
+}
+
 export function tokenInsideSection(sections, x, z, level = CORRIDOR) {
-  const reach = level.tokenRadius;
-  return sections.some((section) => {
-    if (section.radius <= 0) return false;
-    const dx = x - section.center[0];
-    const dy = level.tokenY - section.center[1];
-    const dz = z - section.center[2];
-    const limit = section.radius + reach;
-    return dx * dx + dy * dy + dz * dz < limit * limit;
-  });
+  return sections.some((section) => sectionContains(section, x, z, level));
 }
 
 export function legalCorridorSpot(sections, x, z, level = CORRIDOR) {
