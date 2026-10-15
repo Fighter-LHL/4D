@@ -1,464 +1,658 @@
-import { SINGLE, TWINS, LEVELS, PREDICTIONS, clampDial, dialToW, sliceAtW, sliceAtDial, corridorSections, tokenInsideSection, moveCorridorToken } from './geometry.mjs';
-import { PredictionSession, TRIALS } from './challenge.mjs';
+import { clampDial, dialToW, sliceAtW, wFootprint, flatShape, PREDICTIONS } from './geometry.mjs';
+import { WalkRun, VisitRun } from './game.mjs';
+import { CHAPTERS, LEVELS_LIST, levelById, nextLevel, isUnlocked } from './levels.mjs';
+import { LAYERS, layerBlend, layerIndex, wColor, cssColor } from './layers.mjs';
 import { SliceRenderer } from './renderer.mjs';
-import { sfxInit, sfx } from './sfx.mjs';
+import { MapRenderer } from './map-renderer.mjs';
+import { FlatRenderer } from './flat-renderer.mjs';
+import { sfxInit, sfx, sfxSetMuted } from './sfx.mjs';
 
 const $ = (id) => document.getElementById(id);
-const choiceButtons = [...document.querySelectorAll('[data-choice]')];
-const specimenButtons = [...document.querySelectorAll('[data-specimen]')];
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-let bodies = [SINGLE];
-let specimen = 'single';
-let mode = 'explore';
-let current = 0.38;
-let target = current;
-let sweep = false;
-let sweepDirection = 1;
-let frame = 0;
-let previousTime = 0;
-let revealAnimation = null;
-let session = null;
-let choice = null;
-let renderer = null;
-let rendererReady = false;
-let corridor = null;
-const pressed = new Set();
 const MOVE_DIRS = {
   ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
   w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0],
   W: [0, -1], S: [0, 1], A: [-1, 0], D: [1, 0],
 };
-const corridorActive = () => mode === 'explore' && !!LEVELS[specimen] && corridor !== null;
-const corridorSectionsNow = () => corridorSections(dialToW(current), corridor.level);
-let prevVisible = new Set();
-const ripples = []; // {x, z, t0} floor rings when a body enters this slice
+const W_KEYS = { e: 1, E: 1, q: -1, Q: -1, PageUp: 1, PageDown: -1 };
+const W_RATE = 0.32; // dial units per second while a W key is held
+const TRAIL_MS = 1400;
 const RIPPLE_MS = 900;
+const PEEK_MS = 5000;
+const STORAGE_KEY = 'wslice-progress-v1';
+const choiceButtons = [...document.querySelectorAll('[data-choice]')];
 
-function liveRipples() {
-  const now = performance.now();
-  while (ripples.length && now - ripples[0].t0 > RIPPLE_MS) ripples.shift();
-  return ripples.map((r) => [r.x, r.z, (now - r.t0) / RIPPLE_MS]);
+// ---------- Progress ----------
+const progress = (() => {
+  try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? []); } catch { return new Set(); }
+})();
+function saveProgress() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...progress])); } catch { /* private mode */ }
 }
 
-// Show each specimen's W extent as a band under the slider; levels and the
-// challenge hide it — the range would be a solution oracle there.
-function renderWBands() {
-  const wrap = $('w-bands');
-  const show = mode === 'explore' && (specimen === 'single' || specimen === 'twins');
-  wrap.hidden = !show;
-  wrap.replaceChildren(...(show ? bodies.map((body) => {
-    const band = document.createElement('span');
-    band.className = `w-band${body.alt ? ' alt' : ''}`;
-    const a = (body.center[3] - body.radius) / 4 + 0.5;
-    const b = (body.center[3] + body.radius) / 4 + 0.5;
-    band.style.left = `${a * 100}%`;
-    band.style.width = `${(b - a) * 100}%`;
-    return band;
-  }) : []));
-}
-
-function renderAvailability(failed) {
-  rendererReady = !failed;
-  $('render-error').hidden = !failed;
-  $('start-challenge').disabled = failed;
-  $('challenge-mode').disabled = failed;
-  $('sweep').disabled = failed || mode !== 'explore';
-  if (failed) {
-    stopSweep();
-    if (mode === 'challenge') explore();
-  }
-}
-
+// ---------- Renderers ----------
+let sliceOk = false;
+let mapOk = false;
+let slice = null;
+let map = null;
 try {
-  renderer = new SliceRenderer($('scene'), renderAvailability);
-  renderer.directionHandler = (key) => {
-    if (!corridorActive() || !MOVE_DIRS[key]) return false;
-    pressed.add(key);
-    requestFrame();
-    return true;
-  };
-  renderAvailability(false);
-} catch (error) {
-  console.error('Slice rendering unavailable:', error);
-  renderAvailability(true);
+  slice = new SliceRenderer($('scene'), (failed) => { sliceOk = !failed; updateErrors(); });
+  sliceOk = true;
+} catch (error) { console.error('Slice view unavailable:', error); }
+try {
+  map = new MapRenderer($('map'), (failed) => { mapOk = !failed; updateErrors(); });
+  mapOk = true;
+} catch (error) { console.error('W map unavailable:', error); }
+const flat = new FlatRenderer($('flat'));
+
+// ---------- State ----------
+let level = null;
+let run = null;
+let current = 0.5;
+let target = 0.5;
+let frameId = 0;
+let previousTime = 0;
+const pressed = new Set();
+let wHold = 0;
+let heldWKey = null;
+let gestureStart = null;
+let reveal = null;
+let choice = null;
+let trialActive = false;
+let trail = [];
+const ripples = [];
+let prevVisible = new Set();
+let prevLayer = null;
+let flash = 0;
+let hintLevel = 0;
+let mapPeeking = false;
+let peekTimer = 0;
+let cardOpen = false;
+let lastRefuse = 0;
+const introShown = new Set();
+
+const isWalk = () => level?.kind === 'walk';
+const isFlat = () => level?.view === 'flat';
+const mapVisible = () => level?.map === 'shown' || mapPeeking;
+const railLocked = () => cardOpen || !!reveal || (level?.kind === 'visit' && run.phase !== 'explore');
+const signed = (v) => `${v < -0.004 ? '−' : v > 0.004 ? '+' : ''}${Math.abs(v).toFixed(2)}`;
+
+function updateErrors() {
+  $('render-error').hidden = sliceOk || isFlat();
+  $('map-error').hidden = mapOk;
 }
 
-function updateSlider() {
-  $('w-slider').value = String(current);
-  $('w-slider').style.setProperty('--progress', `${current * 100}%`);
-  $('w-slider').setAttribute('aria-valuetext', `第四维轴的 ${Math.round(current * 100)}% 位置`);
+// ---------- Toast / objective ----------
+let toastTimer = 0;
+function toast(text, tone = '', ms = 2600) {
+  const el = $('toast');
+  el.textContent = text;
+  el.className = `toast show ${tone}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
+const setObjective = (text) => { $('objective').textContent = text; };
 
-function renderSlice() {
-  const inCorridor = corridorActive();
-  const sections = inCorridor ? corridorSectionsNow() : bodies.map((body) => sliceAtDial(body, current));
-  renderer?.setSections(sections);
+// ---------- Frame building ----------
+function displayBodies() {
+  if (isWalk()) return level.field.bodies;
+  return trialActive ? [run.session.trial.body] : level.bodies;
+}
+const frameBounds = () => (isWalk() ? level.field.bounds : { x: 2.8, z: 2.0 });
+
+function buildFrame() {
+  const w = dialToW(current);
+  const bodies = displayBodies();
+  const y = isWalk() ? level.field.tokenY : bodies[0].center[1];
+  const tinted = bodies.map((body) => ({ body, tint: wColor(body.center[3]) }));
+  const sections = tinted.map(({ body, tint }) => ({ ...sliceAtW(body, w), tint }));
+  const blend = layerBlend(w);
   const now = performance.now();
-  if (corridor) {
-    while (corridor.trail.length && now - corridor.trail[0][2] > 1400) corridor.trail.shift();
-  }
-  renderer?.setMarkers(inCorridor ? {
-    trail: corridor.trail.map((p) => [p[0], p[1], Math.max(0, 1 - (now - p[2]) / 1400) * 0.8]),
-    token: corridor.pos,
-    tokenRadius: corridor.level.tokenRadius,
-    flash: corridor.flash,
-    goal: corridor.level.goal,
-    won: corridor.won,
-    start: corridor.level.start,
-    bounds: corridor.level.bounds,
-  } : null);
-  const visibleIds = new Set(sections.filter((s) => s.kind !== 'empty').map((s) => s.id));
-  sections.forEach((s) => {
+  while (trail.length && now - trail[0][2] > TRAIL_MS) trail.shift();
+  while (ripples.length && now - ripples[0].t0 > RIPPLE_MS) ripples.shift();
+  return {
+    w,
+    sections,
+    shapes: sections.map((s) => { const f = flatShape(s, y); return f && { ...f, tint: s.tint }; }).filter(Boolean),
+    footprints: tinted.map(({ body, tint }) => ({ ...wFootprint(body, y), tint })),
+    field: isWalk() ? level.field : null,
+    token: isWalk() ? { pos: run.pos, flash, won: run.won } : null,
+    goal: isWalk() ? level.field.goal : null,
+    bounds: frameBounds(),
+    trail: trail.map(([x, z, t]) => [x, z, Math.max(0, 1 - (now - t) / TRAIL_MS) * 0.8]),
+    ripples: ripples.map((r) => ({ x: r.x, z: r.z, tint: r.tint, progress: (now - r.t0) / RIPPLE_MS })),
+    layer: { a: LAYERS[blend.a], b: LAYERS[blend.b], t: blend.t },
+    planeTint: wColor(w),
+    layerColors: LAYERS.map((l) => l.color),
+  };
+}
+
+const visibleIds = (sections) => new Set(sections.filter((s) => s.kind !== 'empty').map((s) => s.id));
+
+function render() {
+  if (!level) return;
+  let frame = buildFrame();
+  const now = performance.now();
+  let rippled = false;
+  for (const s of frame.sections) {
     if (s.kind !== 'empty' && !prevVisible.has(s.id)) {
       sfx.appear();
-      ripples.push({ x: s.center[0], z: s.center[2], t0: performance.now() });
+      ripples.push({ x: s.center[0], z: s.center[2], tint: s.tint, t0: now });
       if (ripples.length > 4) ripples.shift();
-      requestFrame();
-    }
-    if (s.kind === 'empty' && prevVisible.has(s.id)) sfx.vanish();
-  });
-  prevVisible = visibleIds;
-  renderer?.setRipples(liveRipples());
-  const empty = sections.every((section) => section.kind === 'empty');
-  const tangent = empty && sections.some((section) => section.kind === 'point');
-  $('empty-notice').hidden = !empty || !rendererReady || inCorridor;
-  $('empty-title').textContent = tangent ? '这一片，刚好与超球相切。' : '这一片，没有碰到物体。';
-  $('empty-caption').textContent = tangent ? '交集缩小为一个点' : (mode === 'explore' ? '试着沿 W 继续移动' : '先做预测，再查看目标切片');
-  updateSlider();
-  const visible = sections.filter((section) => section.radius > 0).length;
-  $('scene').setAttribute('aria-label', inCorridor
-    ? '关卡模式：方向键或 WASD 移动光点到出口，W 滑块改变墙的截面。'
-    : `${visible ? `当前有 ${visible} 个球体截面` : '当前切片没有球体截面'}。拖动旋转视角，滚轮缩放；聚焦画面后可用方向键旋转、加减键缩放。`);
-  renderWBands();
-}
-
-function requestFrame() {
-  if (!frame && !document.hidden) frame = requestAnimationFrame(tick);
-}
-
-function moveCorridor(delta) {
-  let dx = 0;
-  let dz = 0;
-  pressed.forEach((key) => {
-    const dir = MOVE_DIRS[key];
-    if (dir) { dx += dir[0]; dz += dir[1]; }
-  });
-  const length = Math.hypot(dx, dz);
-  if (length) {
-    const step = (1.55 * delta) / length;
-    const move = moveCorridorToken(corridorSectionsNow(), corridor.pos, dx * step, dz * step, corridor.level);
-    const travelled = Math.hypot(move.x - corridor.pos[0], move.z - corridor.pos[1]);
-    if (travelled && !corridor.startedAt) corridor.startedAt = performance.now();
-    corridor.distance += travelled;
-    corridor.pos = [move.x, move.z];
-    const last = corridor.trail.at(-1);
-    if (!last || Math.hypot(move.x - last[0], move.z - last[1]) > 0.07) {
-      corridor.trail.push([move.x, move.z, performance.now()]);
-      if (corridor.trail.length > 24) corridor.trail.shift();
-    }
-    const jammed = travelled === 0;
-    if (jammed && !corridor.blockedLast) {
-      corridor.blocked += 1;
-      corridor.flash = 1;
-      sfx.blocked();
-      corridorTip('被当前截面挡住了', true);
-    }
-    corridor.blockedLast = jammed;
-    checkCorridorWin();
-  } else {
-    corridor.blockedLast = false;
+      rippled = true;
+    } else if (s.kind === 'empty' && prevVisible.has(s.id)) sfx.vanish();
   }
-  if (corridor.flash > 0) corridor.flash = Math.max(0, corridor.flash - delta * 2.4);
-  updateCorridorHud();
+  prevVisible = visibleIds(frame.sections);
+  if (rippled) { frame = buildFrame(); requestFrame(); }
+  // A single drag can pass through "appear" and "vanish", so watch every frame.
+  if (level.kind === 'visit' && level.goal === 'appear-vanish' && run.observe(current)) onObserved();
+  const li = layerIndex(frame.w);
+  if (li !== prevLayer) { sfx.layer(li); prevLayer = li; }
+  if (isFlat()) flat.render(frame);
+  else if (sliceOk) slice.render(frame);
+  if (mapVisible() && mapOk) map.render(frame);
+  $('empty-notice').hidden = isWalk() || frame.sections.some((s) => s.kind !== 'empty');
+  updateRail(frame.w);
+  updateStats();
+}
+
+// ---------- Loop ----------
+function requestFrame() {
+  if (!frameId && !document.hidden) frameId = requestAnimationFrame(tick);
 }
 
 function tick(time) {
-  frame = 0;
+  frameId = 0;
   const delta = previousTime ? Math.min((time - previousTime) / 1000, 0.05) : 1 / 60;
   previousTime = time;
-  if (revealAnimation) {
-    const progress = reducedMotion.matches ? 1 : Math.min(1, (time - revealAnimation.started) / 1100);
-    const ease = progress * progress * (3 - 2 * progress);
-    current = revealAnimation.from + (revealAnimation.to - revealAnimation.from) * ease;
-    target = current;
-    if (progress === 1) {
-      current = revealAnimation.to;
-      revealAnimation = null;
-      finishReveal();
-    }
-  } else if (sweep) {
-    target = clampDial(target + sweepDirection * delta * 0.13);
-    if (target === 0 || target === 1) sweepDirection *= -1;
-    current = target;
-  } else if (reducedMotion.matches || Math.abs(current - target) < 0.0001) {
-    current = target;
+  if (reveal) {
+    const p = reducedMotion.matches ? 1 : Math.min(1, (time - reveal.started) / 1100);
+    const ease = p * p * (3 - 2 * p);
+    current = target = reveal.from + (reveal.to - reveal.from) * ease;
+    if (p === 1) { reveal = null; finishReveal(); }
   } else {
-    current += (target - current) * (1 - Math.exp(-12 * delta));
+    if (wHold && !railLocked()) {
+      const next = clampDial(target + wHold * W_RATE * delta);
+      if (next !== target && !requestDial(next)) wHold = 0;
+    }
+    if (reducedMotion.matches || Math.abs(current - target) < 1e-4) current = target;
+    else current += (target - current) * (1 - Math.exp(-14 * delta));
   }
-  if (corridorActive()) moveCorridor(delta);
-  renderSlice();
-  if (sweep || revealAnimation || Math.abs(current - target) > 0 || ripples.length
-      || (corridorActive() && (pressed.size || corridor.flash > 0 || corridor.trail.length))) requestFrame();
+  if (isWalk() && !cardOpen && !run.won) stepToken(delta, time);
+  if (flash > 0) flash = Math.max(0, flash - delta * 2.4);
+  render();
+  if (reveal || wHold || current !== target || ripples.length || pressed.size || flash > 0 || trail.length) requestFrame();
   else previousTime = 0;
 }
 
-function setDial(value, immediate = false) {
-  target = clampDial(value);
-  if (immediate) { current = target; renderSlice(); }
-  else requestFrame();
+function stepToken(delta, now) {
+  let dx = 0;
+  let dz = 0;
+  pressed.forEach((key) => { const d = MOVE_DIRS[key]; if (d) { dx += d[0]; dz += d[1]; } });
+  const result = run.step(dx, dz, delta, now, current);
+  if (result.travelled) {
+    const last = trail.at(-1);
+    if (!last || Math.hypot(run.pos[0] - last[0], run.pos[1] - last[1]) > 0.08) {
+      trail.push([run.pos[0], run.pos[1], now]);
+      if (trail.length > 16) trail.shift();
+    }
+  }
+  if (result.newlyBlocked) {
+    flash = 1;
+    sfx.blocked();
+    if (run.blockStreak >= 3) {
+      $('w-rail').classList.add('pulse');
+      if (run.blockStreak === 3 && level.chapter < 2) {
+        toast(isFlat() ? '被挡住了？试试把你的这一层上下移动。' : '被挡住了？试试改变 W。');
+      }
+    }
+  }
+  if (result.won) win();
 }
 
-function stopSweep() {
-  sweep = false;
-  $('sweep').setAttribute('aria-pressed', 'false');
-  $('sweep-icon').textContent = '▷';
-  $('sweep-label').textContent = '自动往返';
-}
-
-function updateMode() {
-  const exploring = mode === 'explore';
-  $('explore-mode').classList.toggle('active', exploring);
-  $('explore-mode').setAttribute('aria-pressed', String(exploring));
-  $('challenge-mode').classList.toggle('active', !exploring);
-  $('challenge-mode').setAttribute('aria-pressed', String(!exploring));
-  $('explore-panel').hidden = !exploring;
-  $('challenge-panel').hidden = mode !== 'challenge';
-  $('summary-panel').hidden = mode !== 'summary';
-  const field = !!LEVELS[specimen];
-  $('w-slider').disabled = !exploring;
-  $('sweep').disabled = !exploring || !rendererReady || field;
-  $('reset-slice').disabled = !exploring;
-  $('geometry-note').hidden = !exploring;
-  $('target-tick').hidden = mode !== 'challenge';
-  $('control-description').textContent = field && exploring ? (specimen === 'room' ? '让整圈墙变薄' : '改变两堵墙的截面') : (exploring ? '移动截面' : '先预测，再移动');
-  $('slider-hint').textContent = field && exploring ? (specimen === 'room' ? '出口在三维里不存在——滑动 W' : '滑块移动整片空间，墙会变大或消失') : (exploring ? '也可以使用 ← → 键微调' : (mode === 'summary' ? '本轮预测完成' : '标记是这次要去的位置'));
-  $('corridor-hud').hidden = !(exploring && field);
-  $('dpad').hidden = !(exploring && field);
-  if (!exploring) $('corridor-done').hidden = true;
-}
-
-const SPECIMEN_META = {
-  single: ['01 — 单个超球', '物体还在，截面变了。', '缓慢拖动 W，找找截面最大的位置。再往前走，它会一直变大吗？'],
-  twins: ['02 — 错位双球', '同一片里，各有变化。', '两枚超球在第四维错开了一点。沿 W 移动，观察它们何时出现、何时一起留在这一片里。'],
-  corridor: ['03 — 截面通道', '墙也是四维物体。', '把光点带到右侧出口。两堵墙待在不同的 W 上——这一片走到哪里，路就停在哪里。'],
-  room: ['04 — 不可能的密室', '这间屋子没有门。', '光点出生在房间正中，出口在墙外。三维里怎么走都出不去——试试 W。'],
-};
-
-const TIP_DEFAULTS = {
-  corridor: '方向键 / WASD 移动光点，W 滑块改变墙',
-  room: '方向键 / WASD 移动光点，W 滑块让墙变薄',
-};
-
-let tipTimer = 0;
-function corridorTip(text, warn = false) {
-  const tip = $('corridor-tip');
-  tip.textContent = text;
-  tip.classList.toggle('warn', warn);
-  clearTimeout(tipTimer);
-  tipTimer = setTimeout(() => {
-    tip.textContent = TIP_DEFAULTS[specimen] ?? TIP_DEFAULTS.corridor;
-    tip.classList.remove('warn');
-  }, 1800);
-}
-
-function updateCorridorHud() {
-  if (!corridor) return;
-  const elapsed = corridor.startedAt
-    ? Math.round(((corridor.won ? corridor.finishedAt : performance.now()) - corridor.startedAt) / 1000)
-    : 0;
-  $('corridor-stats').textContent = `移动 ${corridor.distance.toFixed(1)} m · 用时 ${elapsed} s · 被挡 ${corridor.blocked} · W 调整 ${corridor.wMoves}`;
-}
-
-function resetCorridor() {
-  corridor = {
-    level: LEVELS[specimen],
-    levelId: specimen,
-    pos: [...LEVELS[specimen].start],
-    trail: [],
-    distance: 0,
-    blocked: 0,
-    wMoves: 0,
-    startedAt: 0,
-    finishedAt: 0,
-    won: false,
-    flash: 0,
-    blockedLast: false,
-    wMin: 0.5,
-    wMax: 0.5,
-  };
-  $('corridor-done').hidden = true;
-  $('corridor-tip').textContent = TIP_DEFAULTS[specimen] ?? TIP_DEFAULTS.corridor;
-  updateCorridorHud();
-}
-
-function checkCorridorWin() {
-  if (corridor.won) return;
-  const [gx, gz] = corridor.level.goal;
-  if (Math.hypot(corridor.pos[0] - gx, corridor.pos[1] - gz) >= 0.3) return;
-  corridor.won = true;
-  corridor.finishedAt = performance.now();
-  pressed.clear();
-  sfx.win();
-  const seconds = corridor.startedAt ? Math.round((corridor.finishedAt - corridor.startedAt) / 1000) : 0;
-  $('corridor-done-title').textContent = corridor.levelId === 'room' ? '你从一间没有门的屋子走出来了。' : '通路由这一片几何决定。';
-  $('corridor-summary').textContent = `移动 ${corridor.distance.toFixed(1)} m · 用时 ${seconds} s · 被挡 ${corridor.blocked} 次 · W 调整 ${corridor.wMoves} 次${corridor.levelId === 'room' ? '。把 W 滑回去，看看墙还在不在。' : ''}`;
-  $('corridor-done').hidden = false;
-  updateCorridorHud();
-}
-
-// The token may never end up inside a section. Check the worst-case radius of
-// every wall over the whole W interval the dial is about to cross.
-function corridorEngulfs(fromDial, toDial) {
-  if (!corridor) return false;
-  const low = dialToW(Math.min(fromDial, toDial));
-  const high = dialToW(Math.max(fromDial, toDial));
-  return corridor.level.bodies.some((body) => {
-    const w = Math.max(low, Math.min(high, body.center[3]));
-    return tokenInsideSection([sliceAtW(body, w)], corridor.pos[0], corridor.pos[1], corridor.level);
-  });
-}
-
-function trySetDial(value, immediate = false) {
-  if (corridor && corridorEngulfs(current, value)) {
-    corridor.flash = 1;
-    sfx.refused();
-    corridorTip('这个 W 会把光点包进墙里，先挪开光点', true);
-    renderSlice();
-    requestFrame();
+// ---------- W control ----------
+function requestDial(value, immediate = false) {
+  const dial = clampDial(value);
+  if (isWalk() && !run.setDial(dial)) {
+    refuse();
     return false;
   }
-  if (corridor) {
-    corridor.wMin = Math.min(corridor.wMin, clampDial(value));
-    corridor.wMax = Math.max(corridor.wMax, clampDial(value));
-  }
-  setDial(value, immediate);
+  target = dial;
+  if (immediate || reducedMotion.matches) current = target;
+  requestFrame();
   return true;
 }
 
-function selectSpecimen(value) {
-  specimen = value;
-  pressed.clear();
-  if (LEVELS[value]) resetCorridor();
-  else corridor = null;
-  $('corridor-done').hidden = true;
-  bodies = value === 'twins' ? TWINS : [SINGLE];
-  specimenButtons.forEach((button) => {
-    const selected = button.dataset.specimen === value;
-    button.classList.toggle('active', selected);
-    button.setAttribute('aria-pressed', String(selected));
-  });
-  const [caption, title, copy] = SPECIMEN_META[value];
-  $('object-caption').textContent = caption;
-  $('observation-title').textContent = title;
-  $('observation-copy').textContent = copy;
-  updateMode();
-  renderSlice();
+function refuse() {
+  flash = 1;
+  const now = performance.now();
+  if (now - lastRefuse > 700) {
+    sfx.refused();
+    toast(isFlat() ? '换到那一层，墙会出现在光点身上——先挪开光点。' : '这个 W 会把光点包进墙里——先挪开光点。', 'warn');
+  }
+  lastRefuse = now;
+  requestFrame();
 }
 
-function explore() {
-  mode = 'explore';
-  revealAnimation = null;
-  stopSweep();
-  updateMode();
-  selectSpecimen(specimen);
-  setDial(LEVELS[specimen] ? 0.5 : 0.38, true);
+function beginGesture() { if (gestureStart === null) gestureStart = target; }
+function commitW() {
+  if (gestureStart === null) return;
+  const moved = Math.abs(target - gestureStart) > 1e-6;
+  gestureStart = null;
+  if (!moved || !run) return;
+  if (isWalk()) {
+    run.noteWAdjust();
+    $('w-rail').classList.remove('pulse');
+  } else if (run.observe(target)) {
+    onObserved();
+  }
 }
 
-function startChallenge() {
-  if (!rendererReady) return;
-  stopSweep();
-  revealAnimation = null;
-  mode = 'challenge';
-  session = new PredictionSession();
-  updateMode();
-  showTrial();
+function updateRail(w = dialToW(current)) {
+  const rail = $('w-rail');
+  $('rail-thumb').style.top = `${(1 - current) * 100}%`;
+  rail.setAttribute('aria-valuenow', w.toFixed(2));
+  rail.setAttribute('aria-valuetext', `${isFlat() ? '高度' : 'W'} ${signed(w)}，第 ${LAYERS[layerIndex(w)].name} 层`);
+  rail.classList.toggle('locked', railLocked());
+  const trialTarget = level?.kind === 'visit' && run.phase === 'predict' ? run.session.trial.to : null;
+  $('rail-target').hidden = trialTarget === null;
+  if (trialTarget !== null) $('rail-target').style.top = `${(1 - trialTarget) * 100}%`;
+  const color = cssColor(wColor(w));
+  $('layer-swatch').style.color = color;
+  $('layer-name').textContent = `第 ${LAYERS[layerIndex(w)].name} 层`;
+  $('w-value').textContent = `${isFlat() ? '高度' : 'W'} ${signed(w)}`;
 }
 
-function updateProgress() {
-  $('progress-rail').replaceChildren(...TRIALS.map((_, index) => {
-    const bar = document.createElement('span');
-    if (session.records[index]) bar.className = session.records[index].correct ? 'correct' : 'incorrect';
-    else if (index === session.index) bar.className = 'current';
-    return bar;
+function railDial(event) {
+  const rect = $('rail-track').getBoundingClientRect();
+  return clampDial(1 - (event.clientY - rect.top) / rect.height);
+}
+
+let railPointer = null;
+$('w-rail').addEventListener('pointerdown', (event) => {
+  if (railLocked() || !event.isPrimary) return;
+  event.preventDefault();
+  sfxInit();
+  railPointer = event.pointerId;
+  try { $('w-rail').setPointerCapture(event.pointerId); } catch { /* synthetic pointer */ }
+  beginGesture();
+  requestDial(railDial(event));
+});
+$('w-rail').addEventListener('pointermove', (event) => {
+  if (railPointer !== event.pointerId || railLocked()) return;
+  requestDial(railDial(event));
+});
+const railRelease = (event) => {
+  if (railPointer !== event.pointerId) return;
+  railPointer = null;
+  commitW();
+  // Keep the keyboard on the stage so arrows keep walking after a drag.
+  if (!cardOpen) focusStage();
+};
+$('w-rail').addEventListener('pointerup', railRelease);
+$('w-rail').addEventListener('pointercancel', railRelease);
+$('w-rail').addEventListener('keydown', (event) => {
+  const steps = { ArrowUp: 0.02, ArrowDown: -0.02, PageUp: 0.1, PageDown: -0.1 };
+  let next = null;
+  if (event.key in steps) next = target + steps[event.key];
+  else if (event.key === 'Home') next = 0;
+  else if (event.key === 'End') next = 1;
+  if (next === null) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (railLocked()) return;
+  sfxInit();
+  beginGesture();
+  requestDial(next);
+});
+$('w-rail').addEventListener('keyup', (event) => {
+  if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) {
+    event.stopPropagation();
+    commitW();
+  }
+});
+
+// ---------- Screens ----------
+function renderChapters() {
+  const list = $('chapter-list');
+  list.replaceChildren(...CHAPTERS.map((chapter) => {
+    const levels = LEVELS_LIST.filter((l) => l.chapter === chapter.id);
+    const el = document.createElement('section');
+    el.className = `chapter${isUnlocked(levels[0].id, progress) ? '' : ' locked'}`;
+    el.innerHTML = `<p class="kicker">第 ${chapter.id} 章 · ${chapter.tag}</p><h2>${chapter.name}</h2><p>${chapter.blurb}</p>`;
+    const box = document.createElement('div');
+    box.className = 'levels';
+    for (const l of levels) {
+      const button = document.createElement('button');
+      button.className = 'level-button';
+      const open = isUnlocked(l.id, progress);
+      button.disabled = !open;
+      button.innerHTML = `<span class="num">${l.id}</span><span>${l.title}</span><span class="mark">${progress.has(l.id) ? '✓' : (open ? '→' : '·')}</span>`;
+      button.setAttribute('aria-label', `${l.id} ${l.title}${progress.has(l.id) ? '，已完成' : (open ? '' : '，未解锁')}`);
+      button.addEventListener('click', () => startLevel(l.id));
+      box.append(button);
+    }
+    el.append(box);
+    return el;
   }));
+  const fresh = progress.size === 0;
+  $('play').firstChild.textContent = fresh ? '开始 ' : '继续 ';
 }
 
-function showTrial() {
-  const trial = session.trial;
-  bodies = [trial.body];
+const firstOpenLevel = () => LEVELS_LIST.find((l) => !progress.has(l.id) && isUnlocked(l.id, progress)) ?? LEVELS_LIST[0];
+
+function leaveLevel() {
+  pressed.clear();
+  wHold = 0;
+  heldWKey = null;
+  gestureStart = null;
+  reveal = null;
+  clearTimeout(peekTimer);
+  mapPeeking = false;
+  hideCard(false);
+}
+
+function showTitle() {
+  leaveLevel();
+  level = null;
+  $('game-screen').hidden = true;
+  $('title-screen').hidden = false;
+  renderChapters();
+  $('play').focus({ preventScroll: true });
+}
+
+function keysHelp() {
+  const w = isFlat() ? '换层' : '移动 W';
+  return isWalk()
+    ? `<kbd>↑↓←→</kbd> / <kbd>WASD</kbd> 移动 · <kbd>Q</kbd> <kbd>E</kbd> 或拖动滑轨${w} · <kbd>H</kbd> 提示 · 拖动画面可以转视角`
+    : `<kbd>↑</kbd> <kbd>↓</kbd> / <kbd>Q</kbd> <kbd>E</kbd> 或拖动滑轨${w} · <kbd>H</kbd> 提示`;
+}
+
+function startLevel(id, { skipIntro = false } = {}) {
+  leaveLevel();
+  level = levelById(id);
+  const chapter = CHAPTERS[level.chapter];
+  run = isWalk() ? new WalkRun(level.field, level.id, performance.now()) : new VisitRun(level.bodies, level.goal, level.trials, level.id);
+  current = target = isWalk() ? 0.5 : level.startDial;
+  trail = [];
+  ripples.length = 0;
+  flash = 0;
+  hintLevel = 0;
   choice = null;
-  $('challenge-chapter').textContent = trial.chapter;
-  $('challenge-count').textContent = `${String(session.index + 1).padStart(2, '0')} / 06`;
-  $('challenge-question').textContent = trial.prompt;
-  $('challenge-instruction').textContent = '先选一个判断，再移动到滑轨上的目标位置。';
-  $('object-caption').textContent = session.index === 5 ? '03 — 偏心超球' : '01 — 单个超球';
-  $('challenge-feedback').hidden = true;
+  trialActive = false;
+  $('title-screen').hidden = true;
+  $('game-screen').hidden = false;
+  $('level-chapter').textContent = `${level.id} · ${chapter.name}`;
+  $('level-title').textContent = level.title;
+  const flatView = isFlat();
+  $('scene').hidden = flatView;
+  $('flat').hidden = !flatView;
+  $('reset-view').hidden = flatView;
+  $('stage-tag').textContent = flatView ? '你的世界 · 二维的一层' : '你的世界 · 三维的一片';
+  $('map-title').textContent = flatView ? '全貌' : 'W 地图';
+  $('map-sub').textContent = flatView ? '竖直方向 = 你看不见的第三维' : '竖直方向 = W（第四维）';
+  $('rail-top').textContent = flatView ? '上' : '+W';
+  $('rail-bottom').textContent = flatView ? '下' : '−W';
+  $('w-rail').setAttribute('aria-label', flatView ? '把你的这一层上下移动' : '沿 W 移动这一片');
+  $('w-rail').classList.remove('pulse');
+  $('dpad').hidden = !isWalk();
+  $('predict').hidden = true;
+  $('keys').innerHTML = keysHelp();
+  setObjective(level.objective);
+  updateHintButton();
+  updateErrors();
+  prevVisible = visibleIds(displayBodies().map((b) => sliceAtW(b, dialToW(current))));
+  prevLayer = layerIndex(dialToW(current));
+  updateMapVisibility();
+  map?.fitTo(frameBounds());
+  slice?.resetView({ distance: isWalk() && level.field.bounds.x > 3 ? 8.8 : 7.6 });
+  render();
+  const firstOfChapter = LEVELS_LIST.find((l) => l.chapter === level.chapter) === level;
+  if (firstOfChapter && !skipIntro && !introShown.has(level.chapter)) {
+    introShown.add(level.chapter);
+    showCard({ ...chapter.intro, actions: [['开始', 'primary', () => hideCard()]] });
+  } else focusStage();
+}
+
+const focusStage = () => $(isFlat() ? 'flat' : 'scene').focus({ preventScroll: true });
+
+function updateMapVisibility() {
+  $('map-veil').hidden = mapVisible() || !mapOk;
+  if (mapVisible()) render();
+}
+
+function updateStats() {
+  if (!run) return;
+  if (isWalk()) {
+    $('stats').textContent = `被挡 ${run.blocked} · W 调整 ${run.wMoves}${level.map === 'hidden' ? ` · 窥视 ${run.peeks}` : ''}`;
+  } else {
+    $('stats').textContent = run.phase === 'explore' ? '观察中' : `预测 ${run.session.records.length} / ${run.session.trials.length}`;
+  }
+}
+
+// ---------- Cards ----------
+function showCard({ kicker, title, body = '', formula = '', stats = '', actions }) {
+  pressed.clear();
+  wHold = 0;
+  $('card-kicker').textContent = kicker;
+  $('card-title').textContent = title;
+  $('card-body').textContent = body;
+  $('card-body').hidden = !body;
+  $('card-formula').textContent = formula;
+  $('card-formula').hidden = !formula;
+  $('card-stats').textContent = stats;
+  $('card-stats').hidden = !stats;
+  $('card-actions').replaceChildren(...actions.map(([label, kind, handler]) => {
+    const button = document.createElement('button');
+    button.className = kind;
+    button.textContent = label;
+    button.addEventListener('click', handler);
+    return button;
+  }));
+  $('card-layer').hidden = false;
+  cardOpen = true;
+  updateRail();
+  $('card-actions').firstChild?.focus({ preventScroll: true });
+}
+
+function hideCard(refocus = true) {
+  $('card-layer').hidden = true;
+  cardOpen = false;
+  if (level) updateRail();
+  if (refocus && level) focusStage();
+}
+
+function win() {
+  progress.add(level.id);
+  saveProgress();
+  sfx.win();
+  pressed.clear();
+  wHold = 0;
+  $('w-rail').classList.remove('pulse');
+  const now = performance.now();
+  let stats;
+  if (isWalk()) {
+    stats = `用时 ${run.seconds(now)} 秒 · 移动 ${run.distance.toFixed(1)} · 被挡 ${run.blocked} 次 · W 调整 ${run.wMoves} 次 · 提示 ${run.hints}`;
+    if (level.map === 'hidden') stats += ` · 窥视地图 ${run.peeks} 次`;
+  } else {
+    stats = `预测 ${run.session.score} / ${run.session.trials.length} 正确 · 提示 ${run.hints}`;
+    $('predict').hidden = true;
+  }
+  const next = nextLevel(level.id);
+  const chapterEnd = !next || next.chapter !== level.chapter;
+  const actions = [[chapterEnd ? '继续 →' : '下一关 →', 'primary', () => (chapterEnd ? showWhy() : startLevel(next.id))]];
+  actions.push(['再来一次', 'ghost', () => startLevel(level.id, { skipIntro: true })]);
+  if (isWalk()) actions.push(['留在这里看看', 'ghost', () => hideCard()]);
+  actions.push(['保存记录 ↓', 'ghost', download]);
+  showCard({ kicker: '完成', title: level.done, stats, actions });
+  setObjective(!isWalk() ? '已完成。' : `已完成——${isFlat() ? '把这一层移回去' : '把 W 滑回去'}，看看墙还在不在。`);
+}
+
+function showWhy() {
+  const chapter = CHAPTERS[level.chapter];
+  const next = nextLevel(level.id);
+  showCard({ ...chapter.why, actions: [[next ? '下一章 →' : '回到章节', 'primary', () => (next ? startLevel(next.id) : showTitle())]] });
+}
+
+function download() {
+  const data = { ...run.toJSON(), exportedAt: new Date().toISOString() };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `w-slice-${level.id}.json`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ---------- Hints & map peek ----------
+function updateHintButton() {
+  $('hint-count').textContent = `${hintLevel}/3`;
+}
+function showHint() {
+  if (!level || cardOpen) return;
+  if (hintLevel < level.hints.length) {
+    hintLevel += 1;
+    run.hints += 1;
+  }
+  toast(level.hints[Math.max(0, hintLevel - 1)], '', 6000);
+  updateHintButton();
+}
+$('hint').addEventListener('click', showHint);
+$('peek').addEventListener('click', () => {
+  if (!run || mapPeeking) return;
+  run.peeks += 1;
+  mapPeeking = true;
+  updateMapVisibility();
+  updateStats();
+  clearTimeout(peekTimer);
+  peekTimer = setTimeout(() => { mapPeeking = false; updateMapVisibility(); }, PEEK_MS);
+});
+
+// ---------- Predictions (visit levels) ----------
+function onObserved() {
+  sfx.win();
+  toast('做到了。接下来：先猜，再看。', 'good');
+  setTimeout(beginTrial, reducedMotion.matches ? 0 : 500);
+}
+
+function beginTrial() {
+  if (!level || level.kind !== 'visit' || run.phase !== 'predict') return;
+  const trial = run.session.trial;
+  choice = null;
+  trialActive = true;
+  $('predict').hidden = false;
+  $('predict-count').textContent = `${run.session.index + 1} / ${run.session.trials.length}`;
+  $('predict-question').textContent = trial.prompt;
+  $('predict-feedback').hidden = true;
   $('reveal').hidden = false;
   $('reveal').disabled = true;
   $('next-trial').hidden = true;
-  $('target-tick').style.left = `calc(8px + (100% - 16px) * ${trial.to})`;
-  $('target-tick').hidden = false;
   choiceButtons.forEach((button) => {
     button.disabled = false;
     button.setAttribute('aria-pressed', 'false');
     button.classList.remove('answer');
   });
-  updateProgress();
-  setDial(trial.from, true);
+  setObjective(`${level.predictObjective}金色虚线是要去的位置。`);
+  current = target = trial.from;
+  render();
+  choiceButtons[0].focus({ preventScroll: true });
+  $('predict').scrollIntoView({ block: 'nearest', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
 }
 
-const explanations = {
-  appear: '这一片进入了超球，球体截面出现了。',
-  grow: '这一片更接近超球的 W 中心，截面变大了。',
-  shrink: '这一片离超球的 W 中心更远，截面变小了。',
-  disappear: '这一片离开了超球，没有留下球体截面。',
-  same: '两个位置到 W 中心的距离相同，所以终点和起点一样大。途中大小仍会变化。',
-};
+function explain(answer) {
+  const piece = isFlat() ? '圆' : '球';
+  const whole = isFlat() ? '球' : '超球';
+  return {
+    appear: `这一层碰到了${whole}，${piece}出现了。`,
+    grow: `这一层更靠近${whole}的中心，${piece}变大了。`,
+    shrink: `这一层离${whole}的中心更远，${piece}变小了。`,
+    disappear: `这一层离开了${whole}，${piece}消失了。`,
+    same: '起点和终点离中心一样远，所以一样大——途中它先变大，再变小。',
+  }[answer];
+}
 
 function finishReveal() {
-  const result = session.records.at(-1);
-  $('challenge-feedback').hidden = false;
-  $('challenge-feedback').classList.toggle('incorrect', !result.correct);
-  $('challenge-feedback').textContent = `${result.correct ? '预测正确。' : `实际是「${PREDICTIONS[result.answer]}」。`}${explanations[result.answer]}`;
-  $('challenge-instruction').textContent = '观察起点与终点的区别，再试下一片。';
+  const result = run.session.records.at(-1);
+  const feedback = $('predict-feedback');
+  feedback.hidden = false;
+  feedback.classList.toggle('wrong', !result.correct);
+  feedback.textContent = `${result.correct ? '猜对了。' : `实际是「${PREDICTIONS[result.answer]}」。`}${explain(result.answer)}`;
+  choiceButtons.forEach((button) => button.classList.toggle('answer', button.dataset.choice === result.answer));
   $('reveal').hidden = true;
   $('next-trial').hidden = false;
-  $('next-trial').innerHTML = session.index === TRIALS.length - 1 ? '查看本次记录 <span>→</span>' : '下一片 <span>→</span>';
-  choiceButtons.forEach((button) => button.classList.toggle('answer', button.dataset.choice === result.answer));
-  updateProgress();
+  $('next-trial').firstChild.textContent = run.session.index === run.session.trials.length - 1 ? '完成 ' : '下一题 ';
+  $('next-trial').focus({ preventScroll: true });
+  updateStats();
 }
 
-$('w-slider').addEventListener('input', (event) => {
-  if (mode !== 'explore') return;
-  stopSweep();
-  if (!trySetDial(Number(event.target.value))) {
-    event.target.value = String(current);
-    updateSlider();
-  }
-});
-$('w-slider').addEventListener('change', () => {
-  if (corridor) corridor.wMoves += 1;
-});
-$('sweep').addEventListener('click', () => {
-  if (sweep) { stopSweep(); return; }
-  if (mode !== 'explore' || !rendererReady) return;
-  sweep = true;
-  target = current;
-  sweepDirection = current >= 1 ? -1 : 1;
-  $('sweep').setAttribute('aria-pressed', 'true');
-  $('sweep-icon').textContent = 'Ⅱ';
-  $('sweep-label').textContent = '暂停';
+choiceButtons.forEach((button) => button.addEventListener('click', () => {
+  if (level?.kind !== 'visit' || run.phase !== 'predict' || reveal || run.session.state !== 'predict') return;
+  choice = button.dataset.choice;
+  choiceButtons.forEach((option) => option.setAttribute('aria-pressed', String(option === button)));
+  $('reveal').disabled = false;
+}));
+$('reveal').addEventListener('click', () => {
+  if (!choice || reveal || run.session.state !== 'predict') return;
+  sfxInit();
+  run.submit(choice);
+  choiceButtons.forEach((button) => { button.disabled = true; });
+  $('reveal').disabled = true;
+  const trial = run.session.trial;
+  reveal = { from: trial.from, to: trial.to, started: performance.now() };
   requestFrame();
 });
-$('reset-slice').addEventListener('click', () => { stopSweep(); trySetDial(corridor ? 0.5 : 0.38); });
-$('reset-view').addEventListener('click', () => renderer?.resetView());
-specimenButtons.forEach((button) => button.addEventListener('click', () => { stopSweep(); selectSpecimen(button.dataset.specimen); setDial(LEVELS[specimen] ? 0.5 : 0.38, true); }));
+$('next-trial').addEventListener('click', () => {
+  if (reveal || run.session.state !== 'result') return;
+  if (run.next()) beginTrial();
+  else win();
+});
+
+// ---------- Input ----------
+window.addEventListener('keydown', (event) => {
+  if (!level || $('game-screen').hidden || cardOpen) return;
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+  const key = event.key;
+  if (event.target.closest?.('#w-rail') && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(key)) return;
+  if (key === 'h' || key === 'H') { showHint(); return; }
+  const visitArrow = !isWalk() && (key === 'ArrowUp' || key === 'ArrowDown');
+  if (key in W_KEYS || visitArrow) {
+    event.preventDefault();
+    if (event.repeat || railLocked()) return;
+    sfxInit();
+    wHold = W_KEYS[key] ?? (key === 'ArrowUp' ? 1 : -1);
+    heldWKey = key;
+    beginGesture();
+    requestFrame();
+    return;
+  }
+  if (isWalk() && MOVE_DIRS[key]) {
+    event.preventDefault();
+    sfxInit();
+    pressed.add(key);
+    requestFrame();
+  }
+});
+window.addEventListener('keyup', (event) => {
+  if (heldWKey && event.key.toLowerCase() === heldWKey.toLowerCase()) {
+    wHold = 0;
+    heldWKey = null;
+    commitW();
+  }
+  for (const key of [...pressed]) if (key.toLowerCase() === event.key.toLowerCase()) pressed.delete(key);
+});
+window.addEventListener('blur', () => {
+  pressed.clear();
+  if (heldWKey) { wHold = 0; heldWKey = null; commitW(); }
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden && level) render(); });
+
 document.querySelectorAll('#dpad button').forEach((button) => {
   const dir = button.dataset.dir;
   button.addEventListener('pointerdown', (event) => {
-    if (!corridorActive()) return;
+    if (!isWalk() || cardOpen) return;
     event.preventDefault();
-    try { button.setPointerCapture(event.pointerId); } catch { /* synthetic or stale pointer */ }
+    sfxInit();
+    try { button.setPointerCapture(event.pointerId); } catch { /* synthetic pointer */ }
     pressed.add(dir);
     requestFrame();
   });
@@ -467,89 +661,18 @@ document.querySelectorAll('#dpad button').forEach((button) => {
   button.addEventListener('pointercancel', release);
   button.addEventListener('lostpointercapture', release);
 });
-$('corridor-retry').addEventListener('click', () => { resetCorridor(); setDial(0.5, true); });
-$('corridor-continue').addEventListener('click', () => { $('corridor-done').hidden = true; });
-$('corridor-save').addEventListener('click', () => {
-  if (!corridor) return;
-  const result = {
-    schemaVersion: 1,
-    experiment: 'four-d-geometry-lab',
-    stage: `browser-${corridor.levelId}-run`,
-    completed: corridor.won,
-    distance: Number(corridor.distance.toFixed(3)),
-    blocked: corridor.blocked,
-    wAdjusts: corridor.wMoves,
-    wRange: [Number(corridor.wMin.toFixed(3)), Number(corridor.wMax.toFixed(3))],
-    seconds: corridor.startedAt && corridor.finishedAt ? Math.round((corridor.finishedAt - corridor.startedAt) / 1000) : 0,
-    bodies: corridor.level.bodies.map((body) => ({ id: body.id, center: [...body.center], radius: body.radius })),
-    exportedAt: new Date().toISOString(),
-  };
-  const url = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'w-slice-corridor.json';
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+$('play').addEventListener('click', () => { sfxInit(); startLevel(firstOpenLevel().id); });
+$('back').addEventListener('click', showTitle);
+$('reset-view').addEventListener('click', () => slice?.resetView());
+$('sound').addEventListener('click', () => {
+  const on = $('sound').getAttribute('aria-pressed') !== 'true';
+  $('sound').setAttribute('aria-pressed', String(on));
+  sfxSetMuted(!on);
 });
-['challenge-mode', 'start-challenge', 'retry-challenge'].forEach((id) => $(id).addEventListener('click', startChallenge));
-['explore-mode', 'exit-challenge', 'summary-explore'].forEach((id) => $(id).addEventListener('click', explore));
-choiceButtons.forEach((button) => button.addEventListener('click', () => {
-  if (mode !== 'challenge' || session.state !== 'predict' || revealAnimation) return;
-  choice = button.dataset.choice;
-  choiceButtons.forEach((option) => option.setAttribute('aria-pressed', String(option === button)));
-  $('reveal').disabled = false;
-}));
-$('reveal').addEventListener('click', () => {
-  if (!choice || mode !== 'challenge' || session.state !== 'predict' || revealAnimation) return;
-  session.submit(choice);
-  choiceButtons.forEach((button) => { button.disabled = true; });
-  $('reveal').disabled = true;
-  revealAnimation = { from: session.trial.from, to: session.trial.to, started: performance.now() };
-  requestFrame();
-});
-$('next-trial').addEventListener('click', () => {
-  if (revealAnimation || session.state !== 'result') return;
-  if (session.next()) { showTrial(); return; }
-  mode = 'summary';
-  $('score').textContent = String(session.score);
-  updateMode();
-});
-$('download-results').addEventListener('click', () => {
-  if (!session || session.state !== 'complete') return;
-  const result = { ...session.toJSON(), exportedAt: new Date().toISOString() };
-  const url = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'w-slice-predictions.json';
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-});
-document.addEventListener('keydown', (event) => {
-  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-  const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName) || event.target.isContentEditable;
-  if (!typing && corridorActive() && MOVE_DIRS[event.key]) {
-    event.preventDefault();
-    pressed.add(event.key);
-    requestFrame();
-    return;
-  }
-  if (typing || mode !== 'explore') return;
-  if (['BUTTON', 'SUMMARY', 'CANVAS', 'A'].includes(event.target.tagName)) return;
-  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-    event.preventDefault();
-    stopSweep();
-    trySetDial(target + (event.key === 'ArrowRight' ? 0.015 : -0.015));
-  }
-});
-document.addEventListener('keyup', (event) => pressed.delete(event.key));
-['pointerdown', 'keydown'].forEach((type) => document.addEventListener(type, sfxInit, { once: true }));
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    stopSweep();
-    pressed.clear();
-    if (frame) cancelAnimationFrame(frame);
-    frame = 0;
-    previousTime = 0;
-  } else requestFrame();
-});
-renderSlice();
+document.addEventListener('pointerdown', sfxInit, { once: true });
+
+// ?level=1-2 opens a level directly (for playtests and shared links).
+const requested = levelById(new URLSearchParams(location.search).get('level') ?? '');
+if (requested) startLevel(requested.id);
+else showTitle();

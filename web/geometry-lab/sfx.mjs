@@ -1,13 +1,19 @@
 // Tiny WebAudio cues. Everything degrades silently without an AudioContext.
 let ctx = null;
 let master = null;
+let muted = false;
+
+export function sfxSetMuted(value) {
+  muted = value;
+  if (master) master.gain.value = muted ? 0 : 0.08;
+}
 
 export function sfxInit() {
   if (ctx) return;
   try {
     ctx = new AudioContext();
     master = ctx.createGain();
-    master.gain.value = 0.08;
+    master.gain.value = muted ? 0 : 0.08;
     master.connect(ctx.destination);
   } catch { /* no audio device */ }
 }
@@ -31,5 +37,6 @@ export const sfx = {
   vanish: () => blip(300, 0.28),
   blocked: () => blip(150, 0.09, 'square', 0.28),
   refused: () => blip(220, 0.12, 'triangle', 0.35),
+  layer: (index) => blip(392 * 2 ** (index / 6), 0.12, 'sine', 0.22),
   win: () => { blip(523, 0.16); setTimeout(() => blip(659, 0.16), 130); setTimeout(() => blip(784, 0.3), 260); },
 };

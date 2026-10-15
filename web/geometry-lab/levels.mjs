@@ -66,6 +66,7 @@ export const LEVELS_LIST = Object.freeze([
   {
     id: '0-1', chapter: 0, kind: 'visit', view: 'flat', map: 'shown',
     title: '访客',
+    done: '你看见了一个球——一圈一圈地。',
     bodies: [SINGLE], goal: 'appear-vanish', startDial: 0.04,
     objective: '拖动右侧滑轨，让访客出现，再让它消失。',
     predictObjective: '先猜，再看。',
@@ -83,6 +84,7 @@ export const LEVELS_LIST = Object.freeze([
   {
     id: '0-2', chapter: 0, kind: 'walk', view: 'flat', map: 'shown',
     title: '两堵墙', field: flatVariant(CORRIDOR),
+    done: '你从「上下」绕过了两堵墙。',
     objective: '走到右边的金色出口。',
     hints: [
       '被挡住时，看看全貌里那堵墙占了哪几层。',
@@ -93,6 +95,7 @@ export const LEVELS_LIST = Object.freeze([
   {
     id: '0-3', chapter: 0, kind: 'walk', view: 'flat', map: 'shown',
     title: '没有门的房间', field: flatVariant(ROOM),
+    done: '你从没有门的房间里走出来了。',
     objective: '离开这个房间，走到出口。',
     hints: [
       '四面墙在你这一层里是封死的。',
@@ -103,6 +106,7 @@ export const LEVELS_LIST = Object.freeze([
   {
     id: '1-1', chapter: 1, kind: 'visit', view: 'slice', map: 'shown',
     title: '两位访客',
+    done: '同一片空间里，各有各的变化。',
     bodies: TWINS, goal: 'together', startDial: 0.1,
     objective: '找到一个 W，让两位访客同时出现。',
     predictObjective: '先猜，再看。',
@@ -120,6 +124,7 @@ export const LEVELS_LIST = Object.freeze([
   {
     id: '1-2', chapter: 1, kind: 'walk', view: 'slice', map: 'shown',
     title: '两堵墙', field: CORRIDOR,
+    done: '同一张地图，升了一维。',
     objective: '走到右边的金色出口。',
     hints: [
       '和扁平国的「两堵墙」是同一张地图。',
@@ -130,6 +135,7 @@ export const LEVELS_LIST = Object.freeze([
   {
     id: '1-3', chapter: 1, kind: 'walk', view: 'slice', map: 'shown',
     title: '不可能的密室', field: ROOM,
+    done: '三维里没有门，四维里有。',
     objective: '离开这间没有门的屋子。',
     hints: [
       '三维里每个方向都被封死了。',
@@ -140,6 +146,7 @@ export const LEVELS_LIST = Object.freeze([
   {
     id: '2-1', chapter: 2, kind: 'walk', view: 'slice', map: 'hidden',
     title: '门', field: GATE,
+    done: '门在你身后关上了。',
     objective: '穿过这堵墙，到达出口。',
     hints: [
       '墙中间那一段，只在某些 W 里存在。',
@@ -150,6 +157,7 @@ export const LEVELS_LIST = Object.freeze([
   {
     id: '2-2', chapter: 2, kind: 'walk', view: 'slice', map: 'hidden',
     title: '两间屋子', field: TWO_ROOMS,
+    done: '你在两间封闭的屋子之间走了一趟。',
     objective: '从左边的屋子，走进右边的屋子。',
     hints: [
       '两间屋子的墙存在于不同的 W 区间。',
