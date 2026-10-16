@@ -107,5 +107,37 @@ namespace WSlice.Tests.EditMode
             Assert.That(def.Edges[1].WalkableRange.Min, Is.EqualTo(original.Min));
             Assert.That(def.Edges[1].WalkableRange.Max, Is.EqualTo(original.Max));
         }
+
+        [Test]
+        public void UnlockAndRestart_RestoresExplicitLockWithoutMutatingDefinition()
+        {
+            var def = CreateGateLikeDef();
+            try
+            {
+                def.Edges[1].IsLocked = true;
+                def.Edges[1].WalkableRange = new WRange { Min = 0f, Max = 1f };
+                var graph = new LevelGraphRuntime(def);
+                Assert.That(graph.CanMove("GateRoom", "Goal", 0.5f), Is.False);
+
+                Assert.That(GraphMutationModel.TryApplyUnlock(graph, new GraphEdgeUnlockAction
+                {
+                    FromNodeId = "Goal",
+                    ToNodeId = "GateRoom",
+                    WalkableRange = new WRange { Min = 0.3f, Max = 0.6f }
+                }), Is.True);
+
+                Assert.That(graph.CanMove("GateRoom", "Goal", 0.5f), Is.True);
+                Assert.That(def.Edges[1].IsLocked, Is.True);
+                Assert.That(def.Edges[1].WalkableRange.Min, Is.EqualTo(0f));
+
+                GraphMutationModel.ResetToDefinition(graph, def);
+                Assert.That(graph.Edges[1].IsLocked, Is.True);
+                Assert.That(graph.CanMove("GateRoom", "Goal", 0.5f), Is.False);
+            }
+            finally
+            {
+                Object.DestroyImmediate(def);
+            }
+        }
     }
 }

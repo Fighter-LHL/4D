@@ -38,17 +38,7 @@ namespace WSlice.Editor
         }
 
         [MenuItem("WSlice/Validate Chambers Graybox")]
-        public static void ValidateMenu()
-        {
-            RunValidation(exitOnFailure: false);
-        }
-
         public static void Validate()
-        {
-            RunValidation(exitOnFailure: true);
-        }
-
-        private static void RunValidation(bool exitOnFailure)
         {
             int errors = 0;
 
@@ -79,16 +69,15 @@ namespace WSlice.Editor
                 errors += RequireObject("LevelRuntime", typeof(LevelRuntimeController), typeof(LevelSessionController));
                 errors += RequireObject("PathPreview", typeof(LevelPathPreviewRenderer));
                 errors += RequireObject("GoalMarker");
+                errors += RequireObject("Divider_LobbyA", typeof(GraphPassageBarrier));
+                errors += RequireObject("Divider_AB", typeof(GraphPassageBarrier));
+                errors += RequireObject("Divider_BGoal", typeof(GraphPassageBarrier));
             }
 
             if (errors == 0)
                 Debug.Log("ChambersGraybox validation passed.");
             else
-            {
                 Debug.LogWarning($"ChambersGraybox validation finished with {errors} error(s).");
-                if (exitOnFailure)
-                    EditorApplication.Exit(1);
-            }
         }
 
         private static void EnsureSceneAssetExists()

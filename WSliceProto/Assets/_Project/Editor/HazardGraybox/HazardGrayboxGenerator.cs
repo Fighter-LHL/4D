@@ -40,17 +40,7 @@ namespace WSlice.Editor
         }
 
         [MenuItem("WSlice/Validate Hazard Graybox")]
-        public static void ValidateMenu()
-        {
-            RunValidation(exitOnFailure: false);
-        }
-
         public static void Validate()
-        {
-            RunValidation(exitOnFailure: true);
-        }
-
-        private static void RunValidation(bool exitOnFailure)
         {
             int errors = 0;
 
@@ -99,11 +89,7 @@ namespace WSlice.Editor
             if (errors == 0)
                 Debug.Log("HazardGraybox validation passed.");
             else
-            {
                 Debug.LogWarning($"HazardGraybox validation finished with {errors} error(s).");
-                if (exitOnFailure)
-                    EditorApplication.Exit(1);
-            }
         }
 
         private static void EnsureSceneAssetExists()

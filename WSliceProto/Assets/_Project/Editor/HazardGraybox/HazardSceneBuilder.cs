@@ -15,6 +15,7 @@ namespace WSlice.Editor
             cameraObj.transform.rotation = Quaternion.Euler(35f, 0f, 0f);
 
             var ground = GardenEditorUtilities.FindOrCreatePrimitive("Ground", PrimitiveType.Plane);
+            ground.transform.position = new Vector3(3f, -2.5f, 0f);
             ground.transform.localScale = new Vector3(HazardGrayboxRecipe.GroundScaleXZ, 1f, HazardGrayboxRecipe.GroundScaleXZ);
 
             var levelRuntime = GardenEditorUtilities.FindOrCreate(
@@ -37,6 +38,7 @@ namespace WSlice.Editor
 
             var player = GardenEditorUtilities.FindOrCreatePrimitive("Player", PrimitiveType.Capsule);
             player.transform.position = HazardGrayboxRecipe.PlayerStartPosition;
+            GrayboxPlayerVisuals.Ensure(player);
             var playerCharacter = player.GetComponent<PlayerCharacter>() ?? player.AddComponent<PlayerCharacter>();
             playerCharacter.CurrentNodeId = HazardGrayboxRecipe.PlayerStartNodeId;
 
@@ -131,24 +133,25 @@ namespace WSlice.Editor
         private static void BuildWorldGeometry(SliceProfile platformProfile)
         {
             var westPillar = GardenEditorUtilities.FindOrCreatePrimitive("WestPillar", PrimitiveType.Cube);
-            westPillar.transform.position = new Vector3(0f, 0.5f, 0f);
+            westPillar.transform.position = new Vector3(0f, -0.5f, 0f);
             westPillar.transform.localScale = new Vector3(1.5f, 1f, 1.5f);
 
             var eastPillar = GardenEditorUtilities.FindOrCreatePrimitive("EastPillar", PrimitiveType.Cube);
-            eastPillar.transform.position = new Vector3(6f, 0.5f, 0f);
+            eastPillar.transform.position = new Vector3(6f, -0.5f, 0f);
             eastPillar.transform.localScale = new Vector3(1.5f, 1f, 1.5f);
 
             var goalMarker = GardenEditorUtilities.FindOrCreatePrimitive("GoalMarker", PrimitiveType.Cylinder);
-            goalMarker.transform.position = new Vector3(6f, 0.75f, 0f);
-            goalMarker.transform.localScale = new Vector3(0.6f, 0.75f, 0.6f);
+            goalMarker.transform.position = new Vector3(6f, 0.015f, 0f);
+            goalMarker.transform.localScale = new Vector3(0.6f, 0.015f, 0.6f);
+            Object.DestroyImmediate(goalMarker.GetComponent<Collider>());
 
             var hazardZone = GardenEditorUtilities.FindOrCreatePrimitive("HazardZoneMarker", PrimitiveType.Cube);
-            hazardZone.transform.position = new Vector3(3f, 0.15f, 0f);
-            hazardZone.transform.localScale = new Vector3(3f, 0.1f, 2.2f);
+            hazardZone.transform.position = new Vector3(3f, -2.4f, 0f);
+            hazardZone.transform.localScale = new Vector3(4.5f, 0.1f, 2.2f);
 
             var platform = GardenEditorUtilities.FindOrCreatePrimitive("HazardPlatform", PrimitiveType.Cube);
             platform.transform.position = HazardGrayboxRecipe.PlatformBasePosition;
-            platform.transform.localScale = new Vector3(3f, 0.4f, 2f);
+            platform.transform.localScale = new Vector3(4.5f, 0.4f, 2f);
 
             var platformEntity = platform.GetComponent<SliceEntity>() ?? platform.AddComponent<SliceEntity>();
             platformEntity.profile = platformProfile;

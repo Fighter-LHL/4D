@@ -43,6 +43,15 @@ namespace WSlice.Editor
                 Debug.LogError($"StairProfile.SolidRange {stairProfile.SolidRange.Min}-{stairProfile.SolidRange.Max} unexpected");
                 errors++;
             }
+            else
+            {
+                foreach (float w in new[] { 0.75f, 0.8f, 0.9f })
+                {
+                    if (Mathf.Approximately(stairProfile.VisibilityCurve.Evaluate(w), 1f)) continue;
+                    Debug.LogError($"Garden ramp must retain its full support geometry throughout the open range, W={w}.");
+                    errors++;
+                }
+            }
 
             return errors;
         }
@@ -108,7 +117,7 @@ namespace WSlice.Editor
             profile.VisibilityCurve = new AnimationCurve(
                 new Keyframe(0f, 0f),
                 new Keyframe(0.70f, 0f),
-                new Keyframe(0.80f, 1f),
+                new Keyframe(0.75f, 1f),
                 new Keyframe(0.90f, 1f),
                 new Keyframe(1f, 0f));
             profile.SolidityCurve = AnimationCurve.Constant(0f, 1f, 1f);

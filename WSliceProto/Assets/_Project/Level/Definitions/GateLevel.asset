@@ -17,7 +17,7 @@ MonoBehaviour:
   GoalNodeId: Goal
   StartNodeId: Entry
   InitialW: 0
-  TutorialHint: Drag W. Tap objects to interact or the ground to move.
+  TutorialHint: Some objects only work at certain W. Pull the lever at mid-W; shifting W mid-move can fail.
   SnapPoints:
   - 0
   - 0.45
@@ -40,6 +40,7 @@ MonoBehaviour:
   - FromNodeId: GateRoom
     ToNodeId: Goal
     WalkableRange:
-      Min: 0.99
-      Max: 0.99
+      Min: 0.3
+      Max: 0.55
     Bidirectional: 1
+    IsLocked: 1

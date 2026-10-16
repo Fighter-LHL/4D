@@ -20,6 +20,18 @@ namespace WSlice.Editor
                 return;
             }
 
+            var gateEdge = levelDef.Edges.Find(edge => edge.FromNodeId == "GateRoom" && edge.ToNodeId == "Goal");
+            if (gateEdge == null)
+            {
+                Debug.LogError("GateLevel.asset has no GateRoom-to-Goal edge. Aborting generation.");
+                return;
+            }
+            // A narrow W interval is not a lock: the lever must explicitly unlock this edge.
+            gateEdge.IsLocked = true;
+            gateEdge.WalkableRange = new WSlice.Core.WRange { Min = 0.30f, Max = 0.55f };
+            EditorUtility.SetDirty(levelDef);
+            AssetDatabase.SaveAssets();
+
             EnsureSceneAssetExists();
             Scene scene = EditorSceneManager.OpenScene(GateGrayboxRecipe.ScenePath, OpenSceneMode.Single);
 
@@ -39,17 +51,7 @@ namespace WSlice.Editor
         }
 
         [MenuItem("WSlice/Validate Gate Graybox")]
-        public static void ValidateMenu()
-        {
-            RunValidation(exitOnFailure: false);
-        }
-
         public static void Validate()
-        {
-            RunValidation(exitOnFailure: true);
-        }
-
-        private static void RunValidation(bool exitOnFailure)
         {
             int errors = 0;
 
@@ -65,6 +67,15 @@ namespace WSlice.Editor
                 foreach (string error in validation.Errors)
                 {
                     Debug.LogError(error);
+                    errors++;
+                }
+
+                var gateEdge = levelDef.Edges.Find(edge => edge.FromNodeId == "GateRoom" && edge.ToNodeId == "Goal");
+                if (gateEdge == null || !gateEdge.IsLocked
+                    || !Mathf.Approximately(gateEdge.WalkableRange.Min, 0.30f)
+                    || !Mathf.Approximately(gateEdge.WalkableRange.Max, 0.55f))
+                {
+                    Debug.LogError("GateRoom-to-Goal must start explicitly locked with the lever's 0.30-0.55 W range.");
                     errors++;
                 }
             }
@@ -84,11 +95,7 @@ namespace WSlice.Editor
             if (errors == 0)
                 Debug.Log("GateGraybox validation passed.");
             else
-            {
                 Debug.LogWarning($"GateGraybox validation finished with {errors} error(s).");
-                if (exitOnFailure)
-                    EditorApplication.Exit(1);
-            }
         }
 
         private static void EnsureSceneAssetExists()

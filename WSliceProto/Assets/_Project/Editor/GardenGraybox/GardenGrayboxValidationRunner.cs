@@ -13,7 +13,7 @@ namespace WSlice.Editor
 {
     public static class GardenGrayboxValidationRunner
     {
-        public static bool Validate()
+        public static void Validate()
         {
             int errors = GardenProfileFactory.ValidateGardenProfiles();
             int warnings = 0;
@@ -25,9 +25,12 @@ namespace WSlice.Editor
             errors += RequireObject("Ground", typeof(MeshCollider));
             errors += RequireObject("Player", typeof(PlayerCharacter), typeof(MovementController), typeof(LevelPlayerReset));
             errors += RequireObject("GardenWall_A", typeof(SliceEntity));
-            errors += RequireObject("GardenWall_GapSegment", typeof(SliceEntity));
+            errors += RequireObject("GardenWall_B", typeof(MeshRenderer), typeof(BoxCollider));
+            errors += RequireObject("GardenWall_GapSegment", typeof(GraphPassageBarrier));
             errors += RequireObject("HiddenStair", null);
-            errors += RequireObject("Flower", typeof(CapsuleCollider));
+            errors += RequireObject("Stair_1", typeof(SliceEntity), typeof(BoxCollider));
+            errors += RequireObject("FlowerLanding", typeof(BoxCollider));
+            errors += RequireObject("Flower", typeof(BoxCollider));
             errors += RequireObject("Nodes", null);
             errors += RequireObject("LevelRuntime", typeof(LevelRuntimeController), typeof(LevelSessionController));
             errors += RequireObject("PathPreview", typeof(LevelPathPreviewRenderer));
@@ -86,19 +89,23 @@ namespace WSlice.Editor
                 errors++;
             }
 
-            var gap = GameObject.Find("GardenWall_GapSegment")?.GetComponent<SliceEntity>();
-            if (gap != null && gap.profile == null)
+            var gap = GameObject.Find("GardenWall_GapSegment")?.GetComponent<GraphPassageBarrier>();
+            if (gap != null)
             {
-                Debug.LogError("GardenWall_GapSegment SliceEntity.profile is null");
-                errors++;
+                var binding = new SerializedObject(gap);
+                if (binding.FindProperty("levelController").objectReferenceValue != levelRuntime
+                    || binding.FindProperty("fromNodeId").stringValue != "Outside"
+                    || binding.FindProperty("toNodeId").stringValue != "Gap")
+                {
+                    Debug.LogError("Garden entrance barrier must reference the Outside-to-Gap graph edge.");
+                    errors++;
+                }
             }
 
             if (errors == 0 && warnings == 0)
                 Debug.Log("GardenGraybox validation passed.");
             else
                 Debug.LogWarning($"GardenGraybox validation finished with {errors} error(s) and {warnings} warning(s).");
-
-            return errors == 0;
         }
 
         private static int RequireObject(string name, params Type[] expectedComponents)

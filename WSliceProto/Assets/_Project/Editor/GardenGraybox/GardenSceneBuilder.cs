@@ -49,6 +49,8 @@ namespace WSlice.Editor
 
             var player = GardenEditorUtilities.FindOrCreatePrimitive("Player", PrimitiveType.Capsule);
             player.transform.position = new Vector3(0f, 0f, -4f);
+            if (levelDefinition.LevelId != CourtyardLayout.LevelId)
+                GrayboxPlayerVisuals.Ensure(player);
             var playerCharacter = player.GetComponent<PlayerCharacter>() ?? player.AddComponent<PlayerCharacter>();
             playerCharacter.CurrentNodeId = GardenGrayboxRecipe.PlayerStartNodeId;
 
@@ -77,7 +79,7 @@ namespace WSlice.Editor
             pathPreviewSo.FindProperty("yOffset").floatValue = GrayboxLevelRecipe.PathPreviewYOffset;
             pathPreviewSo.ApplyModifiedProperties();
 
-            BuildWorldGeometry(profiles);
+            BuildWorldGeometry(profiles, levelController);
 
             var nodesParent = GardenEditorUtilities.FindOrCreate("Nodes");
             nodesParent.transform.position = Vector3.zero;
@@ -137,39 +139,75 @@ namespace WSlice.Editor
             };
         }
 
-        private static void BuildWorldGeometry(GardenProfiles profiles)
+        private static void BuildWorldGeometry(GardenProfiles profiles, LevelRuntimeController levelController)
         {
             var wallA = GardenEditorUtilities.FindOrCreatePrimitive("GardenWall_A", PrimitiveType.Cube);
-            wallA.transform.position = new Vector3(0f, 1f, 0f);
-            wallA.transform.localScale = new Vector3(4f, 2f, 0.5f);
+            // Keep both landing nodes clear when the entrance closes again.
+            wallA.transform.position = new Vector3(-1.25f, 1f, -3f);
+            wallA.transform.localScale = new Vector3(1.5f, 2f, 0.5f);
             var wallAEntity = wallA.GetComponent<SliceEntity>() ?? wallA.AddComponent<SliceEntity>();
             wallAEntity.profile = profiles.Wall;
             wallAEntity.presenter = wallA.GetComponent<ScalePresenter>() ?? wallA.AddComponent<ScalePresenter>();
             CaptureSliceBases(wallA);
 
+            var wallB = GardenEditorUtilities.FindOrCreatePrimitive("GardenWall_B", PrimitiveType.Cube);
+            wallB.transform.position = new Vector3(1.25f, 1f, -3f);
+            wallB.transform.localScale = new Vector3(1.5f, 2f, 0.5f);
+
             var wallGap = GardenEditorUtilities.FindOrCreatePrimitive("GardenWall_GapSegment", PrimitiveType.Cube);
-            wallGap.transform.position = new Vector3(0f, 1f, -2f);
+            wallGap.transform.position = new Vector3(0f, 1f, -3f);
             wallGap.transform.localScale = new Vector3(1f, 2f, 0.5f);
-            SetupSliceEntityWithPresenters(wallGap, profiles.Gap);
+            // The old GapProfile made a solid wall appear during the walkable interval.
+            // This gate reads the graph directly, so visibility and raycast blocking agree.
+            foreach (var presenter in wallGap.GetComponents<SlicePresenter>())
+                Object.DestroyImmediate(presenter);
+            var oldEntity = wallGap.GetComponent<SliceEntity>();
+            if (oldEntity != null) Object.DestroyImmediate(oldEntity);
+            var barrier = wallGap.GetComponent<GraphPassageBarrier>();
+            if (barrier == null) barrier = wallGap.AddComponent<GraphPassageBarrier>();
+            barrier.Bind(levelController, "Outside", "Gap");
 
             var stairParent = GardenEditorUtilities.FindOrCreate("HiddenStair");
             stairParent.transform.position = Vector3.zero;
 
-            CreateStairCube(stairParent.transform, "Stair_1", new Vector3(2f, 0.25f, 0f), profiles.Stair);
-            CreateStairCube(stairParent.transform, "Stair_2", new Vector3(2f, 0.75f, 0.3f), profiles.Stair);
-            CreateStairCube(stairParent.transform, "Stair_3", new Vector3(2f, 1.25f, 0.6f), profiles.Stair);
+            foreach (string oldStep in new[] { "Stair_2", "Stair_3" })
+            {
+                var oldObject = GameObject.Find(oldStep);
+                if (oldObject != null) Object.DestroyImmediate(oldObject);
+            }
+            BuildRamp(stairParent.transform, profiles.Stair);
+
+            // A permanent landing supports the destination even when the ramp is hidden.
+            var landing = GardenEditorUtilities.FindOrCreatePrimitive("FlowerLanding", PrimitiveType.Cube);
+            landing.transform.SetParent(stairParent.transform);
+            landing.transform.localPosition = GardenGrayboxRecipe.FlowerTopPosition + new Vector3(0f, -0.75f, 0.5f);
+            landing.transform.localScale = new Vector3(1.2f, 1.5f, 1.002f);
 
             var flower = GardenEditorUtilities.FindOrCreatePrimitive("Flower", PrimitiveType.Capsule);
-            flower.transform.position = new Vector3(2f, 1f, 0f);
+            flower.transform.position = GardenGrayboxRecipe.FlowerTopPosition;
+            flower.transform.localScale = new Vector3(0.6f, 0.02f, 0.6f);
+            // CapsuleCollider preserves its radius under nonuniform scaling; use a thin
+            // box matching the marker so the elevated goal stays directly clickable.
+            var capsule = flower.GetComponent<CapsuleCollider>();
+            if (capsule != null) Object.DestroyImmediate(capsule);
+            var flowerCollider = flower.GetComponent<BoxCollider>() ?? flower.AddComponent<BoxCollider>();
+            flowerCollider.center = Vector3.zero;
+            flowerCollider.size = new Vector3(1f, 2f, 1f);
         }
 
-        private static void CreateStairCube(Transform parent, string name, Vector3 localPosition, SliceProfile profile)
+        private static void BuildRamp(Transform parent, SliceProfile profile)
         {
-            var stair = GardenEditorUtilities.FindOrCreatePrimitive(name, PrimitiveType.Cube);
-            stair.transform.SetParent(parent);
-            stair.transform.localPosition = localPosition;
-            stair.transform.localScale = new Vector3(1f, 0.5f, 0.3f);
-            SetupSliceEntityWithPresenters(stair, profile);
+            var ramp = GardenEditorUtilities.FindOrCreatePrimitive("Stair_1", PrimitiveType.Cube);
+            ramp.transform.SetParent(parent);
+            Vector3 start = GardenGrayboxRecipe.FlowerBasePosition;
+            Vector3 end = GardenGrayboxRecipe.FlowerTopPosition;
+            var rotation = Quaternion.LookRotation(end - start, Vector3.up);
+            const float thickness = 0.15f;
+            ramp.transform.localRotation = rotation;
+            // The top face, rather than the cube centre, lies on the movement segment.
+            ramp.transform.localPosition = (start + end) * 0.5f - rotation * Vector3.up * (thickness * 0.5f);
+            ramp.transform.localScale = new Vector3(1.2f, thickness, Vector3.Distance(start, end));
+            SetupSliceEntityWithPresenters(ramp, profile);
         }
 
         private static void SetupSliceEntityWithPresenters(GameObject go, SliceProfile profile)

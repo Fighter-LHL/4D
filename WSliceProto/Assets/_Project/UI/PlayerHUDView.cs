@@ -17,11 +17,8 @@ namespace WSlice.UI
         [SerializeField] private PlayerCharacter character;
         [SerializeField] private LevelTutorialController tutorial;
 
-        private bool _developerSolutionHintsVisible;
-
         public PlayerHUDState LastState { get; private set; } =
-            new PlayerHUDState("Use W and movement to reach the goal.", string.Empty, string.Empty, false, false, false);
-        public bool DeveloperSolutionHintsVisible => _developerSolutionHintsVisible;
+            new PlayerHUDState("Find a W that opens the path.", string.Empty, string.Empty, false, false, false);
 
         private void Start()
         {
@@ -29,11 +26,6 @@ namespace WSlice.UI
         }
 
         private void Update()
-        {
-            Refresh();
-        }
-
-        private void Refresh()
         {
             ResolveReferences();
 
@@ -49,16 +41,8 @@ namespace WSlice.UI
                 hasNextLevel,
                 isFailed,
                 showTutorial,
-                tutorialHint,
-                _developerSolutionHintsVisible);
+                tutorialHint);
             Render(LastState);
-        }
-
-        public void SetDeveloperSolutionHintsVisible(bool visible)
-        {
-            _developerSolutionHintsVisible = visible;
-            if (isActiveAndEnabled)
-                Refresh();
         }
 
         private void ResolveReferences()

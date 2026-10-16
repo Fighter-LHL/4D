@@ -47,7 +47,7 @@ namespace WSlice.Level
                 var to = graph.GetNode(edge.ToNodeId);
                 if (from == null || to == null) continue;
 
-                bool isOpen = edge.WalkableRange.Contains(currentW);
+                bool isOpen = !edge.IsLocked && edge.WalkableRange.Contains(currentW);
                 visuals.Add(new PathEdgeVisual(
                     edge.FromNodeId,
                     edge.ToNodeId,

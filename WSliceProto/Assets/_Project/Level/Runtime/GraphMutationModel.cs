@@ -9,7 +9,7 @@ namespace WSlice.Level
             if (graph == null)
                 return false;
 
-            return graph.SetEdgeWalkableRange(action.FromNodeId, action.ToNodeId, action.WalkableRange);
+            return graph.TryUnlockEdge(action.FromNodeId, action.ToNodeId, action.WalkableRange);
         }
 
         public static int ApplyUnlockSequence(LevelGraphRuntime graph, IReadOnlyList<GraphEdgeUnlockAction> actions)

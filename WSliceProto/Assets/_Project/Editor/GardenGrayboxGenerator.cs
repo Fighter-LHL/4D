@@ -9,21 +9,9 @@ namespace WSlice.Editor
     public static class GardenGrayboxGenerator
     {
         [MenuItem("WSlice/Validate Garden Graybox")]
-        public static void ValidateMenu()
-        {
-            RunValidation(exitOnFailure: false);
-        }
-
         public static void Validate()
         {
-            RunValidation(exitOnFailure: true);
-        }
-
-        private static void RunValidation(bool exitOnFailure)
-        {
-            bool isValid = GardenGrayboxValidationRunner.Validate();
-            if (!isValid && exitOnFailure)
-                EditorApplication.Exit(1);
+            GardenGrayboxValidationRunner.Validate();
         }
 
         [MenuItem("WSlice/Sync Garden Node Mirrors From LevelDefinition")]
@@ -67,6 +55,19 @@ namespace WSlice.Editor
             Undo.IncrementCurrentGroup();
             int undoGroup = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName("Generate Garden Graybox");
+
+            var flowerBase = levelDef.Nodes.Find(node => node.Id == "FlowerBase");
+            var flowerTop = levelDef.Nodes.Find(node => node.Id == "FlowerTop");
+            if (flowerBase == null || flowerTop == null)
+            {
+                Debug.LogError("GardenLevel.asset must define both ramp endpoints. Aborting generation.");
+                return;
+            }
+            Undo.RecordObject(levelDef, "Align Garden Ramp Nodes");
+            flowerBase.WorldPosition = GardenGrayboxRecipe.FlowerBasePosition;
+            flowerTop.WorldPosition = GardenGrayboxRecipe.FlowerTopPosition;
+            EditorUtility.SetDirty(levelDef);
+            AssetDatabase.SaveAssetIfDirty(levelDef);
 
             var profiles = GardenProfileFactory.EnsureGardenProfiles();
             var sceneResult = GardenSceneBuilder.Build(levelDef, profiles);

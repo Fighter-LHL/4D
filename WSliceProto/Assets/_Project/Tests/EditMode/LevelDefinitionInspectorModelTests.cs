@@ -43,6 +43,14 @@ namespace WSlice.Tests.EditMode
             var invalid = LevelDefinitionValidator.Validate(definition);
             Assert.That(
                 LevelDefinitionInspectorModel.BuildStatusLabel(invalid),
+                Is.EqualTo("Invalid (1 error(s), 0 warning(s))"));
+
+            // Each validation is fresh: the earlier empty-goal warning must not
+            // survive after GoalNodeId is changed. Add a real concurrent warning.
+            definition.StartNodeId = string.Empty;
+            var invalidWithWarning = LevelDefinitionValidator.Validate(definition);
+            Assert.That(
+                LevelDefinitionInspectorModel.BuildStatusLabel(invalidWithWarning),
                 Is.EqualTo("Invalid (1 error(s), 1 warning(s))"));
         }
 

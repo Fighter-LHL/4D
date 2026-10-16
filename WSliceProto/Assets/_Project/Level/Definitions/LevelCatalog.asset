@@ -13,23 +13,27 @@ MonoBehaviour:
   m_Name: LevelCatalog
   m_EditorClassIdentifier: 
   Entries:
+  - LevelId: Courtyard_01
+    DisplayName: 回响庭院
+    ThemeHint: 观察空间，让机关留下回响
+    SceneName: CourtyardSlice
   - LevelId: Garden_01
     DisplayName: 封闭花园
-    ThemeHint:
+    ThemeHint: Adjust W to reveal the gap and ramp
     SceneName: GardenGraybox
   - LevelId: Platform_01
     DisplayName: 偏移平台
-    ThemeHint:
+    ThemeHint: Raise W to align the moving platform
     SceneName: PlatformGraybox
   - LevelId: Gate_03
     DisplayName: 机关门
-    ThemeHint:
+    ThemeHint: Interact at mid-W; shifting W mid-move is risky
     SceneName: GateGraybox
   - LevelId: Chambers_04
     DisplayName: 连环密室
-    ThemeHint:
+    ThemeHint: Shift W in sequence to open each corridor
     SceneName: ChambersGraybox
   - LevelId: Hazard_05
     DisplayName: 危险平台
-    ThemeHint:
+    ThemeHint: Align W to cross; shifting W mid-move fails
     SceneName: HazardGraybox

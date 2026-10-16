@@ -71,6 +71,8 @@ namespace WSlice.Editor
             selectRect.offsetMax = Vector2.zero;
 
             var selectView = selectRoot.GetComponent<LevelSelectView>();
+            if (selectRoot.GetComponent<CourtyardDemoEntryView>() == null)
+                selectRoot.AddComponent<CourtyardDemoEntryView>();
             var selectSo = new SerializedObject(selectView);
             selectSo.FindProperty("catalog").objectReferenceValue = catalog;
             selectSo.ApplyModifiedProperties();
@@ -99,6 +101,8 @@ namespace WSlice.Editor
             foreach (var entry in catalog.Entries)
             {
                 if (string.IsNullOrEmpty(entry.SceneName))
+                    continue;
+                if (entry.LevelId == CourtyardLayout.LevelId)
                     continue;
 
                 CreateLevelButton(buttonPanel.transform, selectView, entry);
@@ -130,7 +134,7 @@ namespace WSlice.Editor
             subtitleRect.anchoredPosition = new Vector2(0f, -108f);
             subtitleRect.sizeDelta = new Vector2(640f, 36f);
             var subtitle = subtitleObj.GetComponent<TextMeshProUGUI>();
-            subtitle.text = "Three-level W-Slice graybox demo";
+            subtitle.text = "A courtyard puzzle and five mechanism studies";
             subtitle.fontSize = 20f;
             subtitle.alignment = TextAlignmentOptions.Center;
             subtitle.color = new Color(0.78f, 0.84f, 0.92f, 1f);
@@ -176,7 +180,7 @@ namespace WSlice.Editor
                 UnityEventTools.RemovePersistentListener(button.onClick, 0);
             UnityEventTools.AddPersistentListener(button.onClick, selectView.QuitDemo);
 
-            var labelObj = GardenEditorUtilities.FindOrCreate("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+            var labelObj = GetOrCreateLabel(buttonObj.transform);
             labelObj.transform.SetParent(buttonObj.transform, false);
             var labelRect = labelObj.GetComponent<RectTransform>();
             labelRect.anchorMin = Vector2.zero;
@@ -212,7 +216,7 @@ namespace WSlice.Editor
                 UnityEventTools.RemovePersistentListener(button.onClick, 0);
             UnityEventTools.AddPersistentListener(button.onClick, bridge.OnClick);
 
-            var labelObj = GardenEditorUtilities.FindOrCreate("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+            var labelObj = GetOrCreateLabel(buttonObj.transform);
             labelObj.transform.SetParent(buttonObj.transform, false);
             var labelRect = labelObj.GetComponent<RectTransform>();
             labelRect.anchorMin = Vector2.zero;
@@ -226,6 +230,16 @@ namespace WSlice.Editor
             label.alignment = TextAlignmentOptions.Center;
             label.color = Color.white;
             label.richText = true;
+        }
+
+        private static GameObject GetOrCreateLabel(Transform parent)
+        {
+            var existing = parent.Find("Label");
+            if (existing != null) return existing.gameObject;
+            var label = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+            label.transform.SetParent(parent, false);
+            Undo.RegisterCreatedObjectUndo(label, "Create button label");
+            return label;
         }
 
         private static void EnsureSceneAssetExists()

@@ -22,6 +22,7 @@ namespace WSlice.Editor
 
             ApplyRole(GameObject.Find("Ground"), GrayboxMaterialRole.Ground);
             ApplyRole(GameObject.Find("Player"), GrayboxMaterialRole.Player);
+            ApplyRole(GameObject.Find("PlayerVisual"), GrayboxMaterialRole.Player);
 
             ApplyNamedRoles(
                 GrayboxMaterialRole.Goal,
@@ -31,6 +32,7 @@ namespace WSlice.Editor
             ApplyNamedRoles(
                 GrayboxMaterialRole.Structure,
                 "GardenWall_A",
+                "GardenWall_B",
                 "WestPillar",
                 "EastPillar",
                 "GateFrame",
@@ -49,7 +51,8 @@ namespace WSlice.Editor
             if (stairParent != null)
             {
                 foreach (Transform child in stairParent.transform)
-                    ApplyRole(child.gameObject, GrayboxMaterialRole.Slice);
+                    ApplyRole(child.gameObject, child.name == "FlowerLanding"
+                        ? GrayboxMaterialRole.Structure : GrayboxMaterialRole.Slice);
             }
 
             StylizeEnvironment();

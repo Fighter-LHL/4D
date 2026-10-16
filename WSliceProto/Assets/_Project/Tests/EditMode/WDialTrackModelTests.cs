@@ -16,7 +16,7 @@ namespace WSlice.Tests.EditMode
                 new EdgePreview[0],
                 willBreak: false);
 
-            var state = WDialTrackModel.Build(hud, showDeveloperSolutionOracle: true);
+            var state = WDialTrackModel.Build(hud);
 
             Assert.That(state.SnapTicks.Count, Is.EqualTo(3));
             Assert.That(state.SnapTicks[0], Is.EqualTo(0f).Within(0.0001f));
@@ -34,7 +34,7 @@ namespace WSlice.Tests.EditMode
                 new EdgePreview[0],
                 willBreak: false);
 
-            var state = WDialTrackModel.Build(hud, showDeveloperSolutionOracle: true);
+            var state = WDialTrackModel.Build(hud);
 
             Assert.That(state.CurrentW, Is.EqualTo(0.25f).Within(0.0001f));
             Assert.That(state.TargetW, Is.EqualTo(0.55f).Within(0.0001f));
@@ -54,7 +54,7 @@ namespace WSlice.Tests.EditMode
                 },
                 willBreak: false);
 
-            var state = WDialTrackModel.Build(hud, showDeveloperSolutionOracle: true);
+            var state = WDialTrackModel.Build(hud);
 
             Assert.That(state.EdgeBands.Count, Is.EqualTo(2));
             Assert.That(state.EdgeBands[0].Label, Is.EqualTo("Outside->InsideGarden"));
@@ -65,28 +65,7 @@ namespace WSlice.Tests.EditMode
         }
 
         [Test]
-        public void Build_PlayerDefaultHidesAuthoredSnapTicksAndEdgeRanges()
-        {
-            var hud = CreateHud(
-                0.55f,
-                0.85f,
-                new[] { 0f, 0.55f, 0.85f },
-                new[]
-                {
-                    new EdgePreview("Outside", "InsideGarden", 0.5f, 0.7f, true, false)
-                },
-                willBreak: false);
-
-            var state = WDialTrackModel.Build(hud);
-
-            Assert.That(state.SnapTicks, Is.Empty);
-            Assert.That(state.EdgeBands, Is.Empty);
-            Assert.That(state.CurrentW, Is.EqualTo(0.55f).Within(0.0001f));
-            Assert.That(state.TargetW, Is.EqualTo(0.85f).Within(0.0001f));
-        }
-
-        [Test]
-        public void Build_DangerPredictionIsDeveloperOnly()
+        public void Build_CarriesDangerState()
         {
             var hud = CreateHud(
                 0.55f,
@@ -97,11 +76,7 @@ namespace WSlice.Tests.EditMode
 
             var state = WDialTrackModel.Build(hud);
 
-            Assert.That(state.HasBreakRisk, Is.False);
-
-            var developerState = WDialTrackModel.Build(hud, showDeveloperSolutionOracle: true);
-
-            Assert.That(developerState.HasBreakRisk, Is.True);
+            Assert.That(state.HasBreakRisk, Is.True);
         }
 
         private static HUDState CreateHud(

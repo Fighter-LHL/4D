@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using WSlice.Core;
@@ -99,6 +100,62 @@ namespace WSlice.Tests.EditMode
                 graph.SetEdgeWalkableRange("C", "B", new WRange { Min = 0.3f, Max = 0.5f }),
                 Is.True);
             Assert.IsTrue(graph.CanMove("B", "C", 0.45f));
+        }
+
+        [Test]
+        public void LockedEdge_BlocksBothDirectionsAndPathAtEveryW()
+        {
+            var def = CreateThreeNodeDef();
+            try
+            {
+                def.Edges[0].IsLocked = true;
+                def.Edges[0].WalkableRange = new WRange { Min = 0f, Max = 1f };
+                var graph = new LevelGraphRuntime(def);
+
+                foreach (float w in new[] { 0f, 0.5f, 0.58f, 1f })
+                {
+                    Assert.That(graph.CanMove("A", "B", w), Is.False);
+                    Assert.That(graph.CanMove("B", "A", w), Is.False);
+                    Assert.That(graph.FindPath("A", "C", w), Is.Empty);
+                    Assert.That(graph.GetAvailableEdges(w).Any(edge => edge.FromNodeId == "A"), Is.False);
+                }
+
+                graph.SetEdgeWalkableRange("A", "B", new WRange { Min = 0f, Max = 1f });
+                Assert.That(graph.CanMove("A", "B", 0.5f), Is.False, "Changing W ranges must not bypass a lock.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(def);
+            }
+        }
+
+        [Test]
+        public void Unlock_RespectsDirectionAndCopiesInitialLockState()
+        {
+            var def = CreateThreeNodeDef();
+            try
+            {
+                def.Edges[0].IsLocked = true;
+                def.Edges[0].Bidirectional = false;
+                var graph = new LevelGraphRuntime(def);
+                var range = new WRange { Min = 0.4f, Max = 0.6f };
+
+                Assert.That(graph.TryUnlockEdge("B", "A", range), Is.False);
+                Assert.That(graph.CanMove("A", "B", 0.5f), Is.False);
+                Assert.That(graph.TryUnlockEdge("A", "B", range), Is.True);
+                Assert.That(graph.CanMove("A", "B", 0.5f), Is.True);
+                Assert.That(graph.CanMove("B", "A", 0.5f), Is.False);
+                Assert.That(graph.CanMove("A", "B", 0.8f), Is.False);
+                Assert.That(def.Edges[0].IsLocked, Is.True);
+
+                graph.Load(def);
+                Assert.That(graph.Edges[0].IsLocked, Is.True);
+                Assert.That(graph.CanMove("A", "B", 0.5f), Is.False);
+            }
+            finally
+            {
+                Object.DestroyImmediate(def);
+            }
         }
     }
 }

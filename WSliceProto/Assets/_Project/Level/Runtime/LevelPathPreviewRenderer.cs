@@ -16,15 +16,15 @@ namespace WSlice.Level
 
         private readonly List<EdgeLineBinding> _bindings = new();
         private WState _subscribedWState;
-        private float _lastW = float.NaN;
-        private bool _developerDebugVisible;
 
         public IReadOnlyList<PathEdgeVisual> CurrentVisuals { get; private set; } = Array.Empty<PathEdgeVisual>();
-        public bool DeveloperDebugVisible => _developerDebugVisible;
 
         private void OnEnable()
         {
-            ApplyDeveloperDebugVisibility();
+            ResolveReferences();
+            RebuildBindings();
+            SubscribeW();
+            Refresh();
         }
 
         private void OnDisable()
@@ -35,16 +35,13 @@ namespace WSlice.Level
 
         private void LateUpdate()
         {
-            if (!_developerDebugVisible)
+            if (levelController?.Graph == null || levelController.WState == null)
                 return;
 
-            if (levelController?.WState == null)
-                return;
-
-            float currentW = levelController.WState.CurrentW;
-            if (Mathf.Approximately(currentW, _lastW))
-                return;
-
+            // Unlocks and graph resets can change a route without changing W.
+            SubscribeW();
+            if (_bindings.Count == 0)
+                RebuildBindings();
             Refresh();
         }
 
@@ -57,27 +54,6 @@ namespace WSlice.Level
             }
 
             return false;
-        }
-
-        public void SetDeveloperDebugVisible(bool visible)
-        {
-            _developerDebugVisible = visible;
-            if (isActiveAndEnabled)
-                ApplyDeveloperDebugVisibility();
-        }
-
-        private void ApplyDeveloperDebugVisibility()
-        {
-            UnsubscribeW();
-            ClearBindings();
-
-            if (!_developerDebugVisible)
-                return;
-
-            ResolveReferences();
-            RebuildBindings();
-            SubscribeW();
-            Refresh();
         }
 
         private void ResolveReferences()
@@ -122,14 +98,10 @@ namespace WSlice.Level
 
         private void Refresh()
         {
-            if (!_developerDebugVisible)
-                return;
-
             if (levelController?.Graph == null || levelController.WState == null)
                 return;
 
-            _lastW = levelController.WState.CurrentW;
-            CurrentVisuals = LevelPathPreviewModel.Build(levelController.Graph, _lastW, yOffset);
+            CurrentVisuals = LevelPathPreviewModel.Build(levelController.Graph, levelController.WState.CurrentW, yOffset);
 
             for (int i = 0; i < _bindings.Count; i++)
             {
@@ -192,15 +164,11 @@ namespace WSlice.Level
             foreach (var binding in _bindings)
             {
                 if (binding.LineRenderer != null)
-                {
-                    binding.LineRenderer.enabled = false;
                     Destroy(binding.LineRenderer.gameObject);
-                }
             }
 
             _bindings.Clear();
             CurrentVisuals = Array.Empty<PathEdgeVisual>();
-            _lastW = float.NaN;
         }
 
         private sealed class EdgeLineBinding

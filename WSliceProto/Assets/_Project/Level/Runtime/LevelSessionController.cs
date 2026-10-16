@@ -7,6 +7,7 @@ namespace WSlice.Level
     {
         [SerializeField] private LevelRuntimeController levelController;
         [SerializeField] private MonoBehaviour objectiveSource;
+        [SerializeField] private MonoBehaviour completionCondition;
 
         private LevelSession _session;
         private ILevelObjectiveSource _objective;
@@ -42,6 +43,10 @@ namespace WSlice.Level
                 return;
 
             if (_session.State != LevelSessionState.Playing)
+                return;
+
+            if (completionCondition != null
+                && (completionCondition is not ILevelCompletionCondition condition || !condition.IsSatisfied))
                 return;
 
             string goalNodeId = levelController.Definition != null

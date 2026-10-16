@@ -3,8 +3,6 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using UnityEngine.TestTools.Utils;
-using WSlice.Entities;
 using WSlice.Level;
 using WSlice.Player;
 
@@ -28,7 +26,7 @@ namespace WSlice.Tests.PlayMode
             Assert.That(level, Is.Not.Null);
             Assert.That(bridge, Is.Not.Null);
             Assert.That(level.WState.CurrentW, Is.EqualTo(0f).Within(0.0001f));
-            Assert.That(bridge.transform.localPosition.y, Is.EqualTo(-2f).Within(0.01f));
+            Assert.That(bridge.GetComponent<Renderer>().bounds.max.y, Is.EqualTo(-2f).Within(0.01f));
             yield return null;
         }
 
@@ -43,11 +41,12 @@ namespace WSlice.Tests.PlayMode
             level.WState.Force(0.55f);
             yield return null;
 
-            Assert.That(bridge.transform.localPosition.y, Is.EqualTo(-0.9f).Within(0.05f));
+            Assert.That(bridge.GetComponent<Renderer>().bounds.max.y, Is.EqualTo(0f).Within(0.001f));
+            Assert.That(bridge.GetComponent<Collider>().enabled, Is.True);
         }
 
         [UnityTest]
-        public IEnumerator BridgeReachesBaseAtW1()
+        public IEnumerator BridgeLowersAgainWhenHighWClosesRoute()
         {
             var level = Object.FindFirstObjectByType<LevelRuntimeController>();
             var bridge = GameObject.Find("OffsetBridge");
@@ -57,7 +56,9 @@ namespace WSlice.Tests.PlayMode
             level.WState.Force(1f);
             yield return null;
 
-            Assert.That(bridge.transform.localPosition, Is.EqualTo(new Vector3(3f, 0f, 0f)).Using(Vector3ComparerWithEqualsOperator.Instance));
+            Assert.That(bridge.GetComponent<Renderer>().bounds.max.y, Is.EqualTo(-2f).Within(0.01f));
+            Assert.That(bridge.GetComponent<Collider>().enabled, Is.False);
+            Assert.That(level.Graph.CanMove("West", "East", level.WState.CurrentW), Is.False);
         }
     }
 

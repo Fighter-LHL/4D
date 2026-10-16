@@ -12,6 +12,7 @@ namespace WSlice.Entities
 
         public Vector3 PositionOffsetAtW0;
         public Vector3 PositionOffsetAtW1;
+        public AnimationCurve PositionOffsetProgress = AnimationCurve.Linear(0f, 0f, 1f, 1f);
 
         public WRange SolidRange = new() { Min = 0f, Max = 1f };
         public WRange InteractiveRange = new() { Min = 0f, Max = 1f };

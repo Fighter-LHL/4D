@@ -8,6 +8,6 @@ namespace WSlice.Editor
         public const float GroundScaleXZ = 1.4f;
         public const string PlayerStartNodeId = "West";
         public static readonly UnityEngine.Vector3 PlayerStartPosition = new(0f, 0f, 0f);
-        public static readonly UnityEngine.Vector3 PlatformBasePosition = new(3f, 0f, 0f);
+        public static readonly UnityEngine.Vector3 PlatformBasePosition = new(3f, -0.2f, 0f);
     }
 }

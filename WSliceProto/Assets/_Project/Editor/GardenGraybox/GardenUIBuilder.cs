@@ -105,7 +105,7 @@ namespace WSlice.Editor
             playerHUDText.fontSizeMax = 22f;
             playerHUDText.alignment = TextAlignmentOptions.Top;
             playerHUDText.color = Color.white;
-            playerHUDText.text = "Use W and movement to reach the goal.";
+            playerHUDText.text = "Find a W that opens the path.";
 
             var playerHUDRect = playerHUDObj.GetComponent<RectTransform>();
             playerHUDRect.anchorMin = new Vector2(0.5f, 1f);
@@ -128,13 +128,22 @@ namespace WSlice.Editor
 
         private static void BuildLevelOutcomeOverlay(Transform canvas, GardenSceneBuilder.SceneBuildResult scene)
         {
+            // Old generated overlays were inactive, so GameObject.Find missed them
+            // on regeneration. Rebuild this generated subtree, including inactive
+            // copies, to keep one controller and one set of panel/button objects.
+            foreach (var previous in canvas.GetComponentsInChildren<LevelOutcomeOverlayView>(true))
+            {
+                if (previous != null && previous.transform.parent == canvas && previous.name == "LevelOutcomeOverlay")
+                    Undo.DestroyObjectImmediate(previous.gameObject);
+            }
+
             var overlayRoot = GardenEditorUtilities.FindOrCreate(
                 "LevelOutcomeOverlay",
                 typeof(RectTransform),
                 typeof(Image),
                 typeof(LevelOutcomeOverlayView));
             overlayRoot.transform.SetParent(canvas, false);
-            overlayRoot.SetActive(false);
+            overlayRoot.SetActive(true);
 
             var backdrop = overlayRoot.GetComponent<Image>();
             backdrop.color = new Color(0f, 0f, 0f, 0.62f);
@@ -277,7 +286,6 @@ namespace WSlice.Editor
             debugSo.FindProperty("character").objectReferenceValue = scene.PlayerCharacter;
             debugSo.FindProperty("movement").objectReferenceValue = scene.Movement;
             debugSo.FindProperty("inputRouter").objectReferenceValue = scene.InputRouter;
-            debugSo.FindProperty("showDeveloperDebug").boolValue = false;
             debugSo.ApplyModifiedProperties();
         }
 

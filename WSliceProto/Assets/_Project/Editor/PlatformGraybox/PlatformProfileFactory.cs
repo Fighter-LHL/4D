@@ -44,6 +44,9 @@ namespace WSlice.Editor
             profile.GlowCurve = AnimationCurve.Constant(0f, 1f, 0f);
             profile.PositionOffsetAtW0 = new Vector3(0f, -2f, 0f);
             profile.PositionOffsetAtW1 = Vector3.zero;
+            profile.PositionOffsetProgress = new AnimationCurve(
+                new Keyframe(0f, 0f), new Keyframe(0.45f, 1f),
+                new Keyframe(0.65f, 1f), new Keyframe(1f, 0f));
             profile.SolidRange = new WRange { Min = 0.45f, Max = 0.65f };
             profile.InteractiveRange = new WRange { Min = 0.45f, Max = 0.65f };
         }

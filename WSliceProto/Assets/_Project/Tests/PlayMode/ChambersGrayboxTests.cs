@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Linq;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -66,6 +67,66 @@ namespace WSlice.Tests.PlayMode
             movement.RequestMove(new Vector3(12f, 0f, 0f));
             yield return WaitForMovement(movement);
             Assert.That(character.CurrentNodeId, Is.EqualTo("Goal"));
+        }
+
+        [UnityTest]
+        public IEnumerator DividersMatchGraphVisibilityAndPhysicalPassages()
+        {
+            var level = Object.FindFirstObjectByType<LevelRuntimeController>();
+            var names = new[] { "Divider_LobbyA", "Divider_AB", "Divider_BGoal" };
+            var nodes = new[] { "Lobby", "ChamberA", "ChamberB", "Goal" };
+            foreach (float w in new[] { 0f, 0.2f, 0.35f, 0.55f, 0.65f, 0.8f, 1f })
+            {
+                level.WState.Force(w);
+                yield return null;
+                Physics.SyncTransforms();
+                for (int i = 0; i < names.Length; i++)
+                {
+                    var wall = GameObject.Find(names[i]);
+                    Assert.That(wall, Is.Not.Null);
+                    Assert.That(wall.GetComponent<GraphPassageBarrier>(), Is.Not.Null);
+                    var collider = wall.GetComponent<Collider>();
+                    bool open = level.Graph.CanMove(nodes[i], nodes[i + 1], w);
+                    Assert.That(wall.GetComponent<Renderer>().enabled, Is.EqualTo(!open), $"{names[i]}, W={w}");
+                    Assert.That(collider.enabled, Is.EqualTo(!open), $"{names[i]}, W={w}");
+                    Vector3 start = level.Graph.GetNode(nodes[i]).WorldPosition + Vector3.up * 0.6f;
+                    Vector3 end = level.Graph.GetNode(nodes[i + 1]).WorldPosition + Vector3.up * 0.6f;
+                    var hits = Physics.SphereCastAll(start, 0.2f, (end - start).normalized, Vector3.Distance(start, end));
+                    Assert.That(hits.Any(hit => hit.collider == collider), Is.EqualTo(!open),
+                        $"The player route must not cross a visible solid divider: {names[i]}, W={w}.");
+                }
+            }
+
+            var markers = new[] { "LobbyMarker", "ChamberAMarker", "ChamberBMarker", "GoalMarker" };
+            var ground = GameObject.Find("Ground").GetComponent<Collider>();
+            for (int i = 0; i < markers.Length; i++)
+            {
+                var marker = GameObject.Find(markers[i]);
+                Assert.That(marker, Is.Not.Null);
+                Assert.That(marker.GetComponent<Renderer>().enabled, Is.True);
+                Assert.That(marker.GetComponent<Renderer>().bounds.max.y, Is.LessThanOrEqualTo(0.05f),
+                    "A landing marker must not hide the standing player inside a solid block.");
+                Assert.That(marker.GetComponent<Collider>().bounds.max.y, Is.LessThanOrEqualTo(0.05f),
+                    "A thin marker must not retain an invisible capsule collider above its surface.");
+                Vector3 node = level.Graph.GetNode(nodes[i]).WorldPosition;
+                Assert.That(ground.Raycast(new Ray(node + Vector3.up, Vector3.down), out var hit, 2f), Is.True,
+                    $"Ground must support the landing {nodes[i]}.");
+                Assert.That(hit.point.y, Is.EqualTo(node.y).Within(0.01f));
+            }
+
+            var goal = GameObject.Find("GoalMarker");
+            var goalRenderer = goal.GetComponent<Renderer>();
+            var goalCollider = goal.GetComponent<BoxCollider>();
+            Assert.That(goalRenderer.bounds.max.y - ground.bounds.max.y,
+                Is.EqualTo(0.01f).Within(0.001f),
+                "The exit marker must sit above the ground to avoid coplanar z-fighting.");
+            Assert.That(goalCollider.enabled, Is.True);
+            Assert.That(goalCollider.bounds.max.y,
+                Is.EqualTo(goalRenderer.bounds.max.y).Within(0.001f));
+            var goalRay = new Ray(level.Graph.GetNode("Goal").WorldPosition + Vector3.up, Vector3.down);
+            Assert.That(Physics.Raycast(goalRay, out var goalHit, 2f), Is.True);
+            Assert.That(goalHit.collider, Is.SameAs(goalCollider),
+                "The raised goal surface must remain available for point selection.");
         }
 
         private static IEnumerator WaitForMovement(MovementController movement, float timeoutSeconds = 5f)

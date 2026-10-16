@@ -18,10 +18,10 @@ namespace WSlice.EditorTools
                 ? controller.WState.CurrentW
                 : controller.Definition.InitialW;
 
-            DrawDefinitionGraph(controller.Definition, w);
+            DrawDefinitionGraph(controller.Definition, w, controller.Graph);
         }
 
-        private static void DrawDefinitionGraph(LevelDefinition definition, float w)
+        private static void DrawDefinitionGraph(LevelDefinition definition, float w, LevelGraphRuntime graph)
         {
             foreach (var node in definition.Nodes)
             {
@@ -31,7 +31,7 @@ namespace WSlice.EditorTools
                 Gizmos.DrawSphere(node.WorldPosition, NodeRadius);
             }
 
-            foreach (var edge in definition.Edges)
+            foreach (var edge in graph != null ? graph.Edges : definition.Edges)
             {
                 if (edge == null) continue;
 
@@ -44,7 +44,7 @@ namespace WSlice.EditorTools
                     continue;
                 }
 
-                bool active = edge.WalkableRange.Contains(w);
+                bool active = !edge.IsLocked && edge.WalkableRange.Contains(w);
                 Gizmos.color = active ? Color.green : Color.red;
 
                 if (active)

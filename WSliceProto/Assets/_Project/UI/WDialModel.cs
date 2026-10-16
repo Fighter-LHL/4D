@@ -100,7 +100,8 @@ namespace WSlice.UI
 
             foreach (var edge in graph.Edges)
             {
-                if (edge == null) continue;
+                // A locked route needs an action, so a W band would imply a false solution.
+                if (edge == null || edge.IsLocked) continue;
 
                 float minW = Mathf.Min(edge.WalkableRange.Min, edge.WalkableRange.Max);
                 float maxW = Mathf.Max(edge.WalkableRange.Min, edge.WalkableRange.Max);
@@ -170,6 +171,9 @@ namespace WSlice.UI
                 string current = queue.Dequeue();
                 foreach (var edge in graph.Edges)
                 {
+                    if (edge == null || edge.IsLocked)
+                        continue;
+
                     string next = null;
                     if (edge.FromNodeId == current)
                         next = edge.ToNodeId;

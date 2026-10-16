@@ -10,5 +10,6 @@ namespace WSlice.Level
         public string ToNodeId;
         public WRange WalkableRange;
         public bool Bidirectional = true;
+        public bool IsLocked;
     }
 }
