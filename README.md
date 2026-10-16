@@ -1,10 +1,41 @@
 # 4D — W-Slice Puzzle Prototype
 
-Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0,1]` 控制物体显隐、路径可达性与交互反馈。
+W-Slice 玩法实验。核心机制是 **W-Slice**：标量 `w` 控制当前三维截面，玩家靠沿第四维移动来改变几何。
 
-**当前阶段：** v0.4.0 本机独立应用验收通过。`190dd462` 通过 Unity 7 项校验、EditMode 130/130、PlayMode 74/74（含庭院 10/10）及 macOS 构建；同一应用完成三个启动尺寸目标的代理 GUI 回归，庭院共通关 4 次、旧五关各至少 2 次。五名陌生玩家试玩仍为 **0/5，未执行**。证据、尺寸口径和本机应用路径见[本轮运行记录](docs/releases/v0.4-courtyard-runtime.md)。
+**方向调整（2026-10-15）：** 主线已收敛为纯浏览器小游戏（[`web/geometry-lab/`](web/geometry-lab/)），Unity 工程 `WSliceProto/` 保留为历史参照（停留在 v0.4.0 回响庭院验收状态），不再继续扩展。下文 Unity 相关内容作为历史存档保留。
 
-## 优先试玩：回响庭院
+**当前产品目标：** 让玩家理解 3D 世界是高维结构的截面，并在改变 W 前预测几何变化。当前工作按 mechanic isolation、geometry slice、geometry-driven collision、Impossible Room、playtest 的顺序推进。详见 [`docs/mechanic-validation.md`](docs/mechanic-validation.md)。
+
+## 试玩：W / SLICE 网页小游戏
+
+[`web/geometry-lab/`](web/geometry-lab/) 是当前主线：一个让人在二维屏幕上看懂第四维的网页小游戏，共三章 10 关。
+
+- **第 0 章 扁平国**：先当二维光点，旁边的「全貌」图能看到整个三维世界；
+- **第 1 章 升一维**：同样的关卡底座，你变成三维的，那张图变成「W 地图」（竖直方向就是 W），空中新增随 W 升降的浮球；
+- **第 2 章 只靠截面**：地图收起，只靠当前这一片解谜（含「门」「两间屋子」「潮汐」「踏脚石」）。
+
+暗色发光玻璃美术，五个平行世界「层」各有颜色和花纹，竖直的 W 滑轨，关卡内嵌「先猜再看」的预测题，提示分 3 级，进度自动保存。
+
+```bash
+./scripts/preview-geometry-lab.sh
+# 浏览器打开 http://127.0.0.1:4175（?level=1-2 可直接进入某一关）
+```
+
+只需要 Python 3 和支持 WebGL 的浏览器，无需 npm install 或 CDN。已有 Node.js 18+ 时可运行测试（包括证明每关都必须用到第四维的搜索测试）：
+
+```bash
+node --test web/geometry-lab/tests/*.test.mjs
+```
+
+设计依据、几何定义、文件结构与验证记录见 [游戏说明](docs/browser-geometry-lab.md)。
+
+---
+
+## 历史存档：Unity 原型（v0.4.0 回响庭院）
+
+**历史阶段：** v0.4.0 本机独立应用验收通过。`190dd462` 通过 Unity 7 项校验、EditMode 130/130、PlayMode 74/74（含庭院 10/10）及 macOS 构建；同一应用完成三个启动尺寸目标的代理 GUI 回归，庭院共通关 4 次、旧五关各至少 2 次。五名陌生玩家试玩仍为 **0/5，未执行**。证据、尺寸口径和本机应用路径见[本轮运行记录](docs/releases/v0.4-courtyard-runtime.md)。
+
+### 优先试玩：回响庭院
 
 用 Unity **6000.0.77f1** 打开 `WSliceProto`，进入 `LevelSelect`，点击 **开始：回响庭院**；也可直接打开 `Assets/_Project/Level/Scenes/CourtyardSlice.unity` 后 Play。场景已提交，进入 Play 时创建空间表现，不必先运行生成器。
 
@@ -96,9 +127,9 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceP
 - 关卡生命周期：`LevelSessionState`（NotStarted / Playing / Completed / Failed / Restarting）
 - 切片实体：`SliceProfile` + Presenter（Fade/Scale/Shader）
 - 玩家：tap 移动、W dial、W-aware movement retry
-- 世界交互：`IWorldInteractable`、`WInteractableProfile`、`SliceInteractionModel`、W 区间 HUD hint
+- 世界交互：`IWorldInteractable`、`WInteractableProfile`、`SliceInteractionModel`；玩家反馈不显示精确 W 区间
 - Graph mutation：`LevelGraphMutationController` + restart 回滚（Gate 拉杆）
-- HUD / UI：路线提示、教学提示、`LevelOutcomeOverlay`（Next / Retry / Level Select）
+- HUD / UI：中性切片反馈、`LevelOutcomeOverlay`（Next / Retry / Level Select）；路线、W 区间和 PathPreview 只供显式 Developer Debug 使用
 - 关卡流转：`LevelCatalog`、`LevelSelect` demo 首页、**N** 下一关、**R** 重开（Playing / Completed / Failed）
 - 回响庭院：位置约束机关、显式锁边、跨切片状态、条件完成、可恢复误调与中文按需提示；独立试玩结束后可回首页
 - 原五关回归：Garden → Platform → Gate → Chambers → Hazard
@@ -125,6 +156,8 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceP
 
 ## 文档索引
 
+- [docs/browser-geometry-lab.md](docs/browser-geometry-lab.md) — 浏览器主线小游戏设计与验证说明
+- [docs/mechanic-validation.md](docs/mechanic-validation.md) — 产品假设、实验顺序与 gameplay gates
 - [WSliceProto/README.md](WSliceProto/README.md) — 模块与设计原则
 - [WSliceProto/Validation.md](WSliceProto/Validation.md) — 验证命令与 PR 测试记录规范
 - [docs/releases/v0.4-courtyard-runtime.md](docs/releases/v0.4-courtyard-runtime.md) — 本轮真实测试、构建与 GUI 验收边界
