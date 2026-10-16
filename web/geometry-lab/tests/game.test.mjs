@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   SINGLE, TWINS, CORRIDOR, ROOM, GATE, TWO_ROOMS, dialToW, sliceAtW, corridorSections,
   legalCorridorSpot, tokenInsideSection, wChangeEngulfs, wFootprint, flatShape, flatVariant,
+  blockedWIntervals, exclusionRadius,
 } from '../geometry.mjs';
 import { WalkRun, VisitRun, WIN_RADIUS } from '../game.mjs';
 import { LEVELS_LIST, CHAPTERS, levelById, nextLevel, isUnlocked, planeY } from '../levels.mjs';
@@ -214,4 +215,81 @@ test('prediction sessions accept any trial list', () => {
   assert.equal(session.trial, trials[0]);
   assert.throws(() => new PredictionSession([]), RangeError);
   assert.equal(JSON.parse(JSON.stringify(session)).total, 3);
+});
+
+const allFields = walkLevels.map((level) => level.field);
+
+test('blockedWIntervals matches the section collision on every walking field', () => {
+  for (const field of allFields) {
+    for (let k = 0; k < 160; k += 1) {
+      const pos = [Math.sin(k * 1.3) * field.bounds.x, Math.cos(k * 0.7) * field.bounds.z];
+      const intervals = blockedWIntervals(field, pos);
+      for (let w = -1.97; w <= 1.97; w += 0.06) {
+        if (intervals.some(([lo, hi]) => Math.abs(w - lo) < 1e-4 || Math.abs(w - hi) < 1e-4)) continue;
+        const inside = intervals.some(([lo, hi]) => w > lo && w < hi);
+        assert.equal(inside, tokenInsideSection(corridorSections(w, field), ...pos, field), `pos=${pos} w=${w}`);
+      }
+    }
+  }
+});
+
+test('a sphere never blocks a token whose disc lies outside its floor circle', () => {
+  for (const field of allFields) {
+    for (const body of field.bodies.filter((b) => b.type === 'sphere')) {
+      const edge = exclusionRadius(body, field) + field.tokenRadius;
+      for (let a = 0; a < 12; a += 1) {
+        const at = (r) => [body.center[0] + Math.cos(a) * r, body.center[2] + Math.sin(a) * r];
+        const only = { ...field, bodies: [body] };
+        assert.equal(blockedWIntervals(only, at(edge + 1e-3)).length, 0);
+        assert.equal(blockedWIntervals(only, at(edge - 1e-3)).length, 1);
+      }
+    }
+  }
+});
+
+test('reachDial stops at the edge of a blocked W interval without engulfing', () => {
+  for (const [from, to] of [[0.6, 0.25], [0.6, 0], [0.4, 0.9]]) {
+    const run = new WalkRun(CORRIDOR, '1-2', 0);
+    run.setDial(from);
+    run.pos = from > to ? [-1.3, 0] : [1.3, 0];
+    const result = run.reachDial(to);
+    assert.ok(result.clamped);
+    assert.equal(run.refused, 1);
+    assert.ok(!wChangeEngulfs(CORRIDOR, run.pos, dialToW(from), dialToW(run.dial)));
+    const [lo, hi] = blockedWIntervals(CORRIDOR, run.pos)[0];
+    near(dialToW(run.dial), from > to ? hi : lo, 1e-3);
+  }
+  const free = new WalkRun(CORRIDOR, '1-2', 0);
+  assert.deepEqual(free.reachDial(0.7), { dial: 0.7, clamped: false });
+  assert.equal(free.refused, 0);
+});
+
+test('one W gesture pushing into a wall counts one refusal', () => {
+  const run = new WalkRun(CORRIDOR, '1-2', 0);
+  run.setDial(0.6);
+  run.pos = [-1.3, 0];
+  for (const to of [0.3, 0.25, 0.2, 0.1]) assert.ok(run.reachDial(to).clamped);
+  assert.equal(run.refused, 1);
+  run.endWGesture();
+  run.reachDial(0.2);
+  assert.equal(run.refused, 2);
+});
+
+test('moves during a W animation respect every section up to the target', () => {
+  const run = new WalkRun(CORRIDOR, '1-2', 0);
+  run.setDial(0.6); // W = 0.4: the near wall is gone
+  run.pos = [-1.75, 0];
+  assert.ok(run.setDial(0.5)); // W = 0: the near wall is back, token still clear
+  // The screen still shows W = 0.4, but the wall must already block.
+  run.step(1, 0, 0.3, 0, 0.6);
+  const reach = CORRIDOR.bodies[0].center[0] - CORRIDOR.bodies[0].half[0] - CORRIDOR.tokenRadius;
+  assert.ok(run.pos[0] <= reach + 1e-9, `token entered the wall at x=${run.pos[0]}`);
+  assert.ok(!tokenInsideSection(corridorSections(0, CORRIDOR), ...run.pos, CORRIDOR));
+});
+
+test('both rooms of 2-2 stand at W = 0, each opens on its own side', () => {
+  const kinds = (w, side) => corridorSections(w, TWO_ROOMS).filter((s) => s.id.startsWith(side)).map((s) => s.kind);
+  for (const side of ['left', 'right']) assert.ok(kinds(0, side).every((k) => k === 'box'), `${side} room at W=0`);
+  assert.ok(kinds(-0.5, 'left').every((k) => k === 'empty'));
+  assert.ok(kinds(0.5, 'right').every((k) => k === 'empty'));
 });

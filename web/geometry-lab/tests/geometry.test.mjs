@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SINGLE, TWINS, TRANSFER, CORRIDOR, ROOM, LEVELS, hypersphere, hyperbox, sliceAtW, sliceAtDial, dialToW, surfacePoint, classifyChange, corridorSections, tokenInsideSection, legalCorridorSpot, moveCorridorToken } from '../geometry.mjs';
+import { SINGLE, TWINS, TRANSFER, CORRIDOR, ROOM, LEVELS, hypersphere, hyperbox, sliceAtW, sliceAtDial, dialToW, surfacePoint, classifyChange, corridorSections, tokenInsideSection, legalCorridorSpot, moveCorridorToken, blockedWIntervals } from '../geometry.mjs';
 import { PredictionSession, TRIALS } from '../challenge.mjs';
 
 const near = (actual, expected, tolerance = 1e-10) => assert.ok(Math.abs(actual - expected) < tolerance, `${actual} != ${expected}`);
@@ -215,4 +215,32 @@ test('room is sealed in 3D at W=0 and opens only through the fourth dimension', 
 test('level registry exposes both playable fields', () => {
   assert.equal(LEVELS.corridor, CORRIDOR);
   assert.equal(LEVELS.room, ROOM);
+});
+
+test('sliceAtW provides continuous wEdge inside W bounds and wGhost just outside', () => {
+  const wall = CORRIDOR.bodies[0]; // center W = -1.0, halfW = 1.1 -> [-2.1, 0.1]
+  const deep = sliceAtW(wall, -1.0);
+  near(deep.wEdge, 1);
+  near(deep.wGhost, 0);
+  const nearBoundary = sliceAtW(wall, 0.03);
+  assert.ok(nearBoundary.wEdge > 0 && nearBoundary.wEdge < 0.3);
+  near(nearBoundary.wGhost, 0);
+  const justOutside = sliceAtW(wall, 0.26);
+  assert.equal(justOutside.kind, 'empty');
+  near(justOutside.wEdge, 0);
+  assert.ok(justOutside.wGhost > 0.4 && justOutside.wGhost < 0.6);
+  const farOutside = sliceAtW(wall, 0.6);
+  near(farOutside.wGhost, 0);
+});
+
+test('blockedWIntervals matches tokenInsideSection at sampled positions and W values', () => {
+  for (const pos of [[-2.2, 0], [-1.3, 0], [1.3, 0], [0, -0.55], [0, -0.2]]) {
+    const intervals = blockedWIntervals(CORRIDOR, pos);
+    for (let w = -1.95; w <= 1.95; w += 0.1) {
+      const inInterval = intervals.some(([lo, hi]) => w > lo + 1e-6 && w < hi - 1e-6);
+      const onBoundary = intervals.some(([lo, hi]) => Math.abs(w - lo) < 1e-4 || Math.abs(w - hi) < 1e-4);
+      if (onBoundary) continue;
+      assert.equal(inInterval, tokenInsideSection(corridorSections(w, CORRIDOR), pos[0], pos[1], CORRIDOR), `pos=${pos} w=${w}`);
+    }
+  }
 });

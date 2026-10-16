@@ -1,5 +1,5 @@
 // DOM-free level runtime: everything here is testable under Node.
-import { clampDial, dialToW, sliceAtDial, corridorSections, moveCorridorToken, wChangeEngulfs } from './geometry.mjs';
+import { clampDial, dialToW, wToDial, sliceAtDial, corridorSections, sweptSections, moveCorridorToken, wChangeEngulfs, safeWToward } from './geometry.mjs';
 import { PredictionSession } from './challenge.mjs';
 
 export const WALK_SPEED = 1.55;
@@ -25,6 +25,7 @@ export class WalkRun {
     this.blockedLast = false;
     this.wMoves = 0;
     this.refused = 0;
+    this.refusing = false;
     this.hints = 0;
     this.peeks = 0;
     this.wMin = this.dial;
@@ -45,10 +46,29 @@ export class WalkRun {
       this.refused += 1;
       return false;
     }
+    this.#apply(dial);
+    return true;
+  }
+
+  // Like setDial, but an engulfing request stops just short of the wall.
+  // Pushing into the wall again within one gesture counts one refusal.
+  reachDial(to) {
+    const dial = clampDial(to);
+    if (this.canSetDial(dial)) {
+      this.#apply(dial);
+      return { dial, clamped: false };
+    }
+    if (!this.refusing) this.refused += 1;
+    this.refusing = true;
+    const edge = wToDial(safeWToward(this.level, this.pos, dialToW(this.dial), dialToW(dial)));
+    if (this.canSetDial(edge)) this.#apply(edge);
+    return { dial: this.dial, clamped: true };
+  }
+
+  #apply(dial) {
     this.dial = dial;
     this.wMin = Math.min(this.wMin, dial);
     this.wMax = Math.max(this.wMax, dial);
-    return true;
   }
 
   // One finished W gesture (drag released, key released).
@@ -57,9 +77,15 @@ export class WalkRun {
     this.blockStreak = 0;
   }
 
+  // Every W gesture ends here, whether or not it moved the dial.
+  endWGesture() {
+    this.refusing = false;
+  }
+
   // dirX/dirZ is the held direction; dial is the W actually on screen (it may
   // lag the target while animating — every value in between is safe because
-  // setDial checked the whole interval).
+  // setDial checked the whole interval, and moves are checked against every
+  // section between the shown W and the target).
   step(dirX, dirZ, delta, now, dial = this.dial) {
     const length = Math.hypot(dirX, dirZ);
     if (!length || this.won) {
@@ -67,7 +93,8 @@ export class WalkRun {
       return { travelled: 0, newlyBlocked: false, won: false };
     }
     const scale = (WALK_SPEED * delta) / length;
-    const move = moveCorridorToken(this.sectionsAt(dial), this.pos, dirX * scale, dirZ * scale, this.level);
+    const sections = sweptSections(this.level, dialToW(dial), dialToW(this.dial));
+    const move = moveCorridorToken(sections, this.pos, dirX * scale, dirZ * scale, this.level);
     const travelled = Math.hypot(move.x - this.pos[0], move.z - this.pos[1]);
     if (travelled && !this.startedAt) this.startedAt = now;
     this.distance += travelled;

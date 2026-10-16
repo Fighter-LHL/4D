@@ -50,7 +50,10 @@ export function sliceAtW(body, w) {
   const distance = Math.abs(w - body.center[3]);
   if (body.type === 'box') {
     // A 4D box slice does not shrink: it is either the full 3D box or nothing.
-    const exists = distance <= body.half[3];
+    const margin = body.half[3] - distance;
+    const exists = margin >= 0;
+    const wEdge = exists ? Math.min(1, margin / Math.min(0.35, body.half[3])) : 0;
+    const wGhost = !exists && margin > -0.32 ? 1 + margin / 0.32 : 0;
     return {
       id: body.id,
       type: 'box',
@@ -60,12 +63,17 @@ export function sliceAtW(body, w) {
       radius: 0,
       kind: exists ? 'box' : 'empty',
       volume: exists ? 8 * body.half[0] * body.half[1] * body.half[2] : 0,
+      wEdge,
+      wGhost,
     };
   }
 
   // Factored form avoids cancellation near the tangency boundary.
   const radiusSquared = (body.radius - distance) * (body.radius + distance);
   const radius = Math.sqrt(Math.max(0, radiusSquared));
+  const margin = body.radius - distance;
+  const wEdge = margin > 0 ? Math.min(1, margin / Math.min(0.35, body.radius)) : 0;
+  const wGhost = margin <= 0 && margin > -0.32 ? 1 + margin / 0.32 : 0;
   return {
     id: body.id,
     type: 'sphere',
@@ -74,6 +82,8 @@ export function sliceAtW(body, w) {
     radius,
     kind: radiusSquared > 0 ? 'sphere' : (radiusSquared === 0 ? 'point' : 'empty'),
     volume: (4 / 3) * Math.PI * radius ** 3,
+    wEdge,
+    wGhost,
   };
 }
 
@@ -136,8 +146,9 @@ export const GATE = Object.freeze({
 });
 
 // Chapter 2: two sealed rooms. The left room (start) only opens for
-// W < -0.8; the right room (goal) only opens for W > -0.4. No single W opens
-// both, so the player must step out, park between them and change W again.
+// W < -0.4; the right room (goal) only opens for W > 0.4. Both stand at
+// W = 0, so the player sees them both, but no single W opens both: step out,
+// park between them and change W again.
 const roomWalls = (prefix, cx, w, halfW, alt) => [
   hyperbox(`${prefix}-north`, [cx, 0.75, -0.85, w], [0.97, 0.95, 0.12, halfW], alt),
   hyperbox(`${prefix}-south`, [cx, 0.75, 0.85, w], [0.97, 0.95, 0.12, halfW], alt),
@@ -151,8 +162,8 @@ export const TWO_ROOMS = Object.freeze({
   tokenRadius: 0.22,
   tokenY: 0.22,
   bodies: Object.freeze([
-    ...roomWalls('left', -1.9, 0.7, 1.5, false),
-    ...roomWalls('right', 1.9, -1.3, 0.9, true),
+    ...roomWalls('left', -1.9, 0.9, 1.3, false),
+    ...roomWalls('right', 1.9, -0.9, 1.3, true),
   ]),
 });
 
@@ -197,11 +208,11 @@ export function flatShape(section, y) {
   if (section.kind === 'empty') return null;
   if (section.type === 'box') {
     if (Math.abs(y - section.center[1]) > section.half[1]) return null;
-    return { id: section.id, type: 'box', alt: section.alt, center: [section.center[0], section.center[2]], half: [section.half[0], section.half[2]] };
+    return { id: section.id, type: 'box', alt: section.alt, center: [section.center[0], section.center[2]], half: [section.half[0], section.half[2]], wEdge: section.wEdge ?? 1 };
   }
   const dy = Math.abs(y - section.center[1]);
   const radius = Math.sqrt(Math.max(0, (section.radius - dy) * (section.radius + dy)));
-  return radius > 0 ? { id: section.id, type: 'sphere', alt: section.alt, center: [section.center[0], section.center[2]], radius } : null;
+  return radius > 0 ? { id: section.id, type: 'sphere', alt: section.alt, center: [section.center[0], section.center[2]], radius, wEdge: section.wEdge ?? 1 } : null;
 }
 
 export function corridorSections(w, level = CORRIDOR) {
@@ -256,13 +267,61 @@ export function moveCorridorToken(sections, from, dx, dz, level = CORRIDOR) {
 
 // The token may never end up inside a section. For each body, the W in the
 // crossed interval closest to its center gives its largest section.
-export function wChangeEngulfs(level, pos, fromW, toW) {
+export function sweptSections(level, fromW, toW) {
   const low = Math.min(fromW, toW);
   const high = Math.max(fromW, toW);
-  return level.bodies.some((body) => {
-    const w = Math.max(low, Math.min(high, body.center[3]));
-    return tokenInsideSection([sliceAtW(body, w)], pos[0], pos[1], level);
-  });
+  return level.bodies.map((body) => sliceAtW(body, Math.max(low, Math.min(high, body.center[3]))));
+}
+
+export function wChangeEngulfs(level, pos, fromW, toW) {
+  return tokenInsideSection(sweptSections(level, fromW, toW), pos[0], pos[1], level);
+}
+
+// Exact W intervals in [-2, 2] where a body at pos=(x, z) would engulf the token.
+export function blockedWIntervals(level, pos) {
+  const [x, z] = pos;
+  const out = [];
+  for (const body of level.bodies) {
+    const cw = body.center[3];
+    if (body.type === 'box') {
+      if (!sectionContains(sliceAtW(body, cw), x, z, level)) continue;
+      const lo = Math.max(-2, cw - body.half[3]);
+      const hi = Math.min(2, cw + body.half[3]);
+      if (hi > lo) out.push([lo, hi]);
+    } else {
+      const d3 = Math.hypot(x - body.center[0], level.tokenY - body.center[1], z - body.center[2]);
+      const minR = Math.max(0, d3 - level.tokenRadius);
+      if (minR >= body.radius) continue;
+      const span = Math.sqrt(body.radius * body.radius - minR * minR);
+      const lo = Math.max(-2, cw - span);
+      const hi = Math.min(2, cw + span);
+      if (hi > lo) out.push([lo, hi]);
+    }
+  }
+  return out;
+}
+
+// Floor radius of a sphere's danger zone: the token is safe at every W exactly
+// when its whole disc lies outside this circle.
+export function exclusionRadius(body, level) {
+  const dy = level.tokenY - body.center[1];
+  const reach = Math.sqrt(Math.max(0, (body.radius + level.tokenRadius) ** 2 - dy * dy));
+  return Math.max(0, reach - level.tokenRadius);
+}
+
+export const wToDial = (w) => clampDial(w / DIAL_SPAN + 0.5);
+
+const SAFE_EPS = 1e-4;
+// Furthest W from fromW toward toW that never engulfs the token.
+export function safeWToward(level, pos, fromW, toW) {
+  if (!wChangeEngulfs(level, pos, fromW, toW)) return toW;
+  const up = toW > fromW;
+  let limit = toW;
+  for (const [lo, hi] of blockedWIntervals(level, pos)) {
+    if (up && hi > fromW && lo < limit) limit = Math.max(fromW, lo - SAFE_EPS);
+    if (!up && lo < fromW && hi > limit) limit = Math.min(fromW, hi + SAFE_EPS);
+  }
+  return wChangeEngulfs(level, pos, fromW, limit) ? fromW : limit;
 }
 
 export const PREDICTIONS = Object.freeze({
