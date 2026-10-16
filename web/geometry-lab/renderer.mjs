@@ -129,11 +129,18 @@ void main() {
       float sd = length(p.xz - uStart.xy);
       fl += layerTint * 0.18 * (1.0 - smoothstep(0.012, 0.03, abs(sd - 0.2)));
     }
-    if (uGoal.w > -0.5) {
+    if (uGoal.w > -1.5) {
       float gd = length(p.xz - uGoal.xy);
       float ring = 1.0 - smoothstep(0.012, 0.03, abs(gd - uGoal.z));
-      float fill = 1.0 - smoothstep(uGoal.z * 0.6, uGoal.z, gd);
-      fl += GOLD * (ring * 0.9 + fill * 0.22 + exp(-gd * gd * 6.0) * 0.12) * (uGoal.w > 0.5 ? 1.5 : 1.0);
+      if (uGoal.w > 0.0) {
+        float strength = min(uGoal.w, 1.0);
+        float boost = uGoal.w > 1.5 ? 1.5 : (0.55 + 0.45 * strength);
+        float fill = 1.0 - smoothstep(uGoal.z * 0.6, uGoal.z, gd);
+        fl += GOLD * (ring * 0.9 + fill * 0.22 + exp(-gd * gd * 6.0) * 0.12) * boost;
+      } else {
+        float dash = step(0.45, fract(atan(p.z - uGoal.y, p.x - uGoal.x) * 3.82));
+        fl += GOLD * ring * dash * (-uGoal.w) * 0.7;
+      }
     }
     for (int i = 0; i < 8; i += 1) {
       if (uTrail[i].z <= 0.001) break;
@@ -231,7 +238,10 @@ void main() {
     color = mix(color, g1.rgb, g1.a);
   }
 
-  if (uGoal.w > -0.5) color += GOLD * beam(ro, rd, uGoal.xy, 1.8, 0.06) * (uGoal.w > 0.5 ? 1.0 : 0.65);
+  if (uGoal.w > 0.0) {
+    float boost = uGoal.w > 1.5 ? 1.0 : (0.35 + 0.35 * min(uGoal.w, 1.0));
+    color += GOLD * beam(ro, rd, uGoal.xy, 1.8, 0.06) * boost;
+  }
   if (uToken.w > -0.5) color += mix(TOKEN, ALERT, clamp(uToken.w, 0.0, 1.0)) * beam(ro, rd, uToken.xy, 2.0, 0.055) * 0.9;
 
   float sceneT = min(floorT, bestT);
@@ -318,9 +328,10 @@ export class SliceRenderer {
     gl.uniform3fv(u.uBoxTint, boxTint);
     gl.uniform1f(u.uBoxCount, nb);
 
-    const { field, token } = frame;
+    const { field, token, goalState } = frame;
+    const goalW = !field ? -2 : (token?.won ? 2 : (goalState?.open ? 0.25 + 0.75 * goalState.wEdge : -(goalState?.wGhost ?? 0.5)));
     gl.uniform4f(u.uToken, ...(token ? [token.pos[0], token.pos[1], field.tokenRadius, token.flash] : [0, 0, 0, -1]));
-    gl.uniform4f(u.uGoal, ...(field ? [field.goal[0], field.goal[1], 0.3, token?.won ? 1 : 0] : [0, 0, 0, -1]));
+    gl.uniform4f(u.uGoal, ...(field ? [field.goal[0], field.goal[1], 0.3, goalW] : [0, 0, 0, -2]));
     gl.uniform3f(u.uStart, ...(field ? [field.start[0], field.start[1], 1] : [0, 0, 0]));
     gl.uniform3f(u.uBounds, ...(field ? [field.bounds.x, field.bounds.z, 1] : [0, 0, 0]));
     const trail = new Float32Array(24);

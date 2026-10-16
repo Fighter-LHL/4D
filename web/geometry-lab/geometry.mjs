@@ -99,6 +99,7 @@ export function sliceAtDial(body, dial) {
 export const CORRIDOR = Object.freeze({
   start: Object.freeze([-2.2, 0]),
   goal: Object.freeze([2.2, 0]),
+  goalW: Object.freeze([-0.35, 0.35]),
   bounds: Object.freeze({ x: 2.55, z: 1.12 }),
   tokenRadius: 0.22,
   tokenY: 0.22,
@@ -116,6 +117,7 @@ export const CORRIDOR = Object.freeze({
 export const ROOM = Object.freeze({
   start: Object.freeze([0, 0]),
   goal: Object.freeze([3.1, 0]),
+  goalW: Object.freeze([-0.35, 0.35]),
   bounds: Object.freeze({ x: 3.4, z: 2.2 }),
   tokenRadius: 0.22,
   tokenY: 0.22,
@@ -134,6 +136,7 @@ export const ROOM = Object.freeze({
 export const GATE = Object.freeze({
   start: Object.freeze([-2.2, 0]),
   goal: Object.freeze([2.2, 0]),
+  goalW: Object.freeze([-0.35, 0.35]),
   bounds: Object.freeze({ x: 2.55, z: 1.12 }),
   tokenRadius: 0.22,
   tokenY: 0.22,
@@ -158,6 +161,7 @@ const roomWalls = (prefix, cx, w, halfW, alt) => [
 export const TWO_ROOMS = Object.freeze({
   start: Object.freeze([-1.9, 0]),
   goal: Object.freeze([1.9, 0]),
+  goalW: Object.freeze([-0.35, 0.35]),
   bounds: Object.freeze({ x: 3.2, z: 1.4 }),
   tokenRadius: 0.22,
   tokenY: 0.22,
@@ -167,7 +171,62 @@ export const TWO_ROOMS = Object.freeze({
   ]),
 });
 
-export const LEVELS = Object.freeze({ corridor: CORRIDOR, room: ROOM, gate: GATE, rooms: TWO_ROOMS });
+// Chapter 2: six 4D hyperspheres with staggered W centers. Every sphere is
+// visible at W = 0, and none of the gates are binary on/off boxes — sliding
+// W makes one pair of spheres swell while the opposite pair shrinks and pulls
+// apart, shifting the walkable gap across the floor.
+export const TIDAL = Object.freeze({
+  start: Object.freeze([-2.55, 0]),
+  goal: Object.freeze([2.55, 0]),
+  goalW: Object.freeze([-0.35, 0.35]),
+  bounds: Object.freeze({ x: 2.95, z: 1.2 }),
+  tokenRadius: 0.22,
+  tokenY: 0.22,
+  bodies: Object.freeze([
+    hypersphere('tide-nw', [-1.35, 0.5, -0.62, 0.92], 1.18, true),
+    hypersphere('tide-sw', [-1.35, 0.5, 0.62, 0.82], 1.1, true),
+    hypersphere('tide-core-n', [-0.22, 0.5, -0.48, -0.2], 0.46, false),
+    hypersphere('tide-core-s', [0.22, 0.5, 0.48, 0.2], 0.46, true),
+    hypersphere('tide-ne', [1.35, 0.5, -0.62, -0.82], 1.1, false),
+    hypersphere('tide-se', [1.35, 0.5, 0.62, -0.92], 1.18, false),
+  ]),
+});
+
+// Chapter 2 finale: a three-chamber stepping-stone maze where every body is
+// visible at W = 0. The half of each chamber that lets you enter at the
+// current W is guarded in the target W by a sphere that would swell over you,
+// so you must cross to the safe island in the other half before shifting W.
+export const ISLANDS = Object.freeze({
+  start: Object.freeze([-2.35, -0.75]),
+  goal: Object.freeze([2.25, 0.75]),
+  goalW: Object.freeze([-0.35, 0.35]),
+  bounds: Object.freeze({ x: 2.75, z: 1.35 }),
+  tokenRadius: 0.22,
+  tokenY: 0.22,
+  bodies: Object.freeze([
+    hypersphere('isl-nw-guard', [-1.65, 0.55, -0.68, 0.88], 0.94, true),
+    hyperbox('isl-div-w', [-0.85, 0.75, 0, -0.78], [0.13, 0.95, 1.35, 1.23], false),
+    hypersphere('isl-sc-guard', [0, 0.55, 0.72, -0.85], 1.02, false),
+    hypersphere('isl-core', [0, 0.55, 0.05, 0], 0.48, false),
+    hyperbox('isl-div-e', [0.85, 0.75, 0, 0.78], [0.13, 0.95, 1.35, 1.23], true),
+    hypersphere('isl-ne-guard', [1.75, 0.55, -0.68, 0.65], 0.88, true),
+  ]),
+});
+
+export const goalOpenAt = (level, w) => !level?.goalW || (w >= level.goalW[0] && w <= level.goalW[1]);
+
+export function goalSliceAtW(level, w) {
+  const [lo, hi] = level?.goalW ?? [-2, 2];
+  const cw = (lo + hi) / 2;
+  const halfW = (hi - lo) / 2;
+  const margin = halfW - Math.abs(w - cw);
+  const open = margin >= 0;
+  const wEdge = open ? Math.min(1, margin / Math.min(0.25, halfW)) : 0;
+  const wGhost = !open && margin > -1.8 ? 0.35 + 0.55 * (1 + margin / 1.8) : 0.35;
+  return { open, lo, hi, wEdge, wGhost };
+}
+
+export const LEVELS = Object.freeze({ corridor: CORRIDOR, room: ROOM, gate: GATE, rooms: TWO_ROOMS, tidal: TIDAL, islands: ISLANDS });
 
 // The Flatland chapter reuses a level's (x, z, W) layout but lives entirely
 // at the walking height, so each drawn 2D shape is exactly the collision shape.

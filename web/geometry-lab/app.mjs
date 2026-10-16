@@ -1,4 +1,4 @@
-import { clampDial, dialToW, sliceAtW, wFootprint, flatShape, blockedWIntervals, exclusionRadius, wChangeEngulfs, PREDICTIONS } from './geometry.mjs';
+import { clampDial, dialToW, sliceAtW, wFootprint, flatShape, blockedWIntervals, exclusionRadius, wChangeEngulfs, goalSliceAtW, PREDICTIONS } from './geometry.mjs';
 import { WalkRun, VisitRun } from './game.mjs';
 import { CHAPTERS, LEVELS_LIST, levelById, nextLevel, isUnlocked } from './levels.mjs';
 import { LAYERS, layerBlend, layerIndex, wColor, cssColor } from './layers.mjs';
@@ -158,6 +158,7 @@ function buildFrame() {
     blocked: aids.blocked,
     token: isWalk() ? { pos: run.pos, flash, won: run.won } : null,
     goal: isWalk() ? level.field.goal : null,
+    goalState: isWalk() ? goalSliceAtW(level.field, w) : null,
     bounds: frameBounds(),
     trail: trail.map(([x, z, t]) => [x, z, Math.max(0, 1 - (now - t) / TRAIL_MS) * 0.8]),
     ripples: ripples.map((r) => ({ x: r.x, z: r.z, tint: r.tint, progress: (now - r.t0) / RIPPLE_MS })),
@@ -228,6 +229,7 @@ function tick(time) {
   else previousTime = 0;
 }
 
+let lastGoalHint = 0;
 function stepToken(delta, now) {
   let dx = 0;
   let dz = 0;
@@ -250,6 +252,11 @@ function stepToken(delta, now) {
       }
     }
   }
+  if (result.goalOtherW && result.travelled > 0 && now - lastGoalHint > 1800) {
+    lastGoalHint = now;
+    $('w-rail').classList.add('pulse');
+    toast(isFlat() ? '这里是出口在另一层的投影——把这一层移回出口亮起的位置。' : '这里是出口在另一层的投影——把 W 调回出口亮起的那一层。');
+  }
   if (result.won) win();
 }
 
@@ -264,7 +271,10 @@ function requestDial(value, immediate = false) {
   }
   if (clamped) refuse();
   target = dial;
-  if (immediate || reducedMotion.matches) current = target;
+  if (immediate || reducedMotion.matches) {
+    current = target;
+    if (isWalk() && !run.won && run.step(0, 0, 0, performance.now(), current).won) win();
+  }
   requestFrame();
   return !clamped;
 }
@@ -319,16 +329,20 @@ function buildRailSpans() {
     seen.add(key);
     spans.push({ lo, hi, color: cssColor(wColor(body.center[3])) });
   }
+  if (isWalk() && level.field.goalW) {
+    const [glo, ghi] = level.field.goalW;
+    spans.push({ lo: glo, hi: ghi, color: 'var(--gold)', goal: true });
+  }
   host.replaceChildren(...spans.map((s, idx) => {
     const el = document.createElement('span');
-    el.className = 'rail-span';
+    el.className = `rail-span${s.goal ? ' goal' : ''}`;
     el.dataset.lo = String(s.lo);
     el.dataset.hi = String(s.hi);
     const topPct = (1 - (s.hi + 2) / 4) * 100;
     const bottomPct = ((s.lo + 2) / 4) * 100;
     el.style.top = `${topPct}%`;
     el.style.bottom = `${bottomPct}%`;
-    el.style.left = `${(idx % 2) * 4}px`;
+    el.style.left = s.goal ? '32px' : `${(idx % 2) * 4}px`;
     el.style.color = s.color;
     return el;
   }));
@@ -346,8 +360,11 @@ function updateRail(w = dialToW(current), blocked = wAids().blocked) {
   if (trialTarget !== null) $('rail-target').style.top = `${(1 - trialTarget) * 100}%`;
   const spansHost = $('rail-spans');
   if (spansHost) {
-    spansHost.hidden = !mapVisible();
+    spansHost.hidden = false;
+    const showAll = mapVisible();
     for (const el of spansHost.children) {
+      const isGoal = el.classList.contains('goal');
+      el.hidden = !isGoal && !showAll;
       const lo = Number(el.dataset.lo);
       const hi = Number(el.dataset.hi);
       el.classList.toggle('active', w >= lo && w <= hi);

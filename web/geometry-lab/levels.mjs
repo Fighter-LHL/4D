@@ -1,7 +1,7 @@
 // Chapters and levels. Chapter 0 (Flatland) and chapter 1 share the same
 // (x, z, W) layouts on purpose: the map the Flatlander trusted is exactly the
 // W map one dimension up. Chapter 2 hides the map to test transfer.
-import { SINGLE, TRANSFER, TWINS, CORRIDOR, ROOM, GATE, TWO_ROOMS, flatVariant } from './geometry.mjs';
+import { SINGLE, TRANSFER, TWINS, CORRIDOR, ROOM, GATE, TWO_ROOMS, TIDAL, ISLANDS, flatVariant } from './geometry.mjs';
 
 const trial = (body, from, to, prompt) => Object.freeze({ body, from, to, prompt });
 
@@ -88,8 +88,8 @@ export const LEVELS_LIST = Object.freeze([
     objective: '走到右边的金色出口。',
     hints: [
       '被挡住时，看右边全貌：你的竖直白虚线穿过了哪块玻璃墙？',
-      '蓝墙在下层、橙墙在上层，中间还有一颗紫球——地面虚线标出了它们的位置。',
-      '先调到上层绕过蓝墙，站在地面虚线之外，再调到下层绕过橙墙。',
+      '蓝墙在下层、橙墙在上层，金色出口只在中间层打开。',
+      '先调到上层绕过蓝墙，站在地面虚线之外，再调到下层绕过橙墙，最后回到中间层进入出口。',
     ],
   },
   {
@@ -98,9 +98,9 @@ export const LEVELS_LIST = Object.freeze([
     done: '你从没有门的房间里走出来了。',
     objective: '离开这个房间，走到出口。',
     hints: [
-      '四面墙在你这一层里是封死的。',
+      '四面墙在你这一层里是封死的，而金色出口也在这一层。',
       '全貌里，墙只占了竖直方向中间的一段（紫色）。',
-      '把你的层移到墙的上方（暖橙）或下方（冷蓝），墙就不在你的世界里了。',
+      '把你的层移到墙的上方（暖橙）或下方（冷蓝）走出房间，再移回中间层让出口重新亮起。',
     ],
   },
   {
@@ -128,8 +128,8 @@ export const LEVELS_LIST = Object.freeze([
     objective: '走到右边的金色出口。',
     hints: [
       '和扁平国的「两堵墙」是同一张地图：地面虚线标出了其他 W 层的墙与中间圆球。',
-      '近处蓝墙在 −W（下），远处橙墙在 +W（上）；避开地面虚线才能安全换 W。',
-      '先往上调到 +W 走过第一道虚线，停在空地，再往下调到 −W 走过第二道墙。',
+      '近处蓝墙在 −W（下），远处橙墙在 +W（上），金色出口只在中间层亮起。',
+      '先往上调到 +W 走过第一道虚线，停在空地，再往下调到 −W 走过第二道墙，最后回到中间层进入出口。',
     ],
   },
   {
@@ -138,9 +138,9 @@ export const LEVELS_LIST = Object.freeze([
     done: '三维里没有门，四维里有。',
     objective: '离开这间没有门的屋子。',
     hints: [
-      '四面墙在当前这一片三维空间里是封死的。',
+      '四面墙在当前这一片三维空间里是封死的，金色出口也只在中间层打开。',
       '看右边 W 地图（或滑轨旁边的刻度）：紫色的屋墙只占了中间几层，上下两头都是空的。',
-      '把 W 往暖橙（上）或冷蓝（下）一路调到底，整间屋子就会从这一片里消失。',
+      '把 W 往暖橙（上）或冷蓝（下）一路调到底走出屋子，再把 W 调回中间层让出口亮起。',
     ],
   },
   {
@@ -150,8 +150,8 @@ export const LEVELS_LIST = Object.freeze([
     objective: '穿过这堵墙，到达出口。',
     hints: [
       '中间那段门偏冷色，说明它在 −W 一侧：往 +W 调，它会变淡、消失。',
-      '门消失后，门后会立起一堵暖橙色的墙（它在 +W）——所以不能一路走过去。',
-      '趁门打开时穿过门，停在后墙前，再把 W 往下调回去——门在身后关上，后墙消失。',
+      '门消失后，门后会立起一堵暖橙色的墙（它在 +W），出口也变成了地面虚线环。',
+      '趁门打开时穿过门，停在后墙前，再把 W 往下调回中间层——门在身后关上，后墙消失，出口重新亮起。',
     ],
   },
   {
@@ -160,9 +160,31 @@ export const LEVELS_LIST = Object.freeze([
     done: '你在两间封闭的屋子之间走了一趟。',
     objective: '从左边的屋子，走进右边的屋子。',
     hints: [
-      '两间屋子的墙颜色不同：左屋偏暖橙（在 +W 一侧），右屋偏冷蓝（在 −W 一侧）。',
+      '两间屋子的墙颜色不同：左屋偏暖橙（在 +W 一侧），右屋偏冷蓝（在 −W 一侧），出口只在中间层打开。',
       '先把 W 往下往冷色层调，直到左屋边缘变虚、整间消失；走出去，停在两屋之间的空地上。',
-      '站在两屋之间，再把 W 往上往暖色层调，直到右屋消失，就能走进终点。',
+      '再把 W 往上往暖色层调让右屋消失，走进右屋中央，最后把 W 调回中间层让右屋合拢、出口亮起。',
+    ],
+  },
+  {
+    id: '2-3', chapter: 2, kind: 'walk', view: 'slice', map: 'hidden',
+    title: '潮汐', field: TIDAL,
+    done: '球群在四维里消长，你从缝隙间游了过去。',
+    objective: '借超球的涨缩挤出通路，抵达出口。',
+    hints: [
+      '左边两颗暖色超球偏 +W，右边两颗冷色超球偏 −W；往相反方向调 W，球就会缩小、让出缝隙。',
+      '先把 W 往下往冷色层调，左边两颗暖球会缩小分开；穿过缝隙后，停在中间偏空的一侧。',
+      '在中间空地把 W 往上往暖色层调，右边两颗冷球会缩小分开；穿过后再把 W 调回中间层打开出口。',
+    ],
+  },
+  {
+    id: '2-4', chapter: 2, kind: 'walk', view: 'slice', map: 'hidden',
+    title: '踏脚石', field: ISLANDS,
+    done: '你找准每一处安全的落脚岛，在四维迷宫里穿行自如。',
+    objective: '找准不会让超球膨胀吞没你的空地，分段换 W 抵达出口。',
+    hints: [
+      '起点旁边的暖橙球在 +W 会膨胀——先往南走到左下的安全空地，再把 W 往暖色层调打开左边的蓝墙。',
+      '从南侧走进中庭后，中庭南侧在 −W 会被蓝球占满；趁中间紫球缩小，往北走到中庭北侧的空地。',
+      '在中庭北侧把 W 往冷色层调打开右边的橙墙，走进右庭后再往南走到出口环上，把 W 调回中间层。',
     ],
   },
 ].map(Object.freeze));

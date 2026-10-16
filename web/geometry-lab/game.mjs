@@ -1,5 +1,5 @@
 // DOM-free level runtime: everything here is testable under Node.
-import { clampDial, dialToW, wToDial, sliceAtDial, corridorSections, sweptSections, moveCorridorToken, wChangeEngulfs, safeWToward } from './geometry.mjs';
+import { clampDial, dialToW, wToDial, sliceAtDial, corridorSections, sweptSections, moveCorridorToken, wChangeEngulfs, safeWToward, goalOpenAt } from './geometry.mjs';
 import { PredictionSession } from './challenge.mjs';
 
 export const WALK_SPEED = 1.55;
@@ -40,35 +40,50 @@ export class WalkRun {
     return !wChangeEngulfs(this.level, this.pos, dialToW(from), dialToW(clampDial(to)));
   }
 
-  setDial(to) {
+  setDial(to, now = 0) {
     const dial = clampDial(to);
     if (!this.canSetDial(dial)) {
       this.refused += 1;
       return false;
     }
-    this.#apply(dial);
+    this.#apply(dial, now);
     return true;
   }
 
   // Like setDial, but an engulfing request stops just short of the wall.
   // Pushing into the wall again within one gesture counts one refusal.
-  reachDial(to) {
+  reachDial(to, now = 0) {
     const dial = clampDial(to);
     if (this.canSetDial(dial)) {
-      this.#apply(dial);
-      return { dial, clamped: false };
+      this.#apply(dial, now);
+      return { dial, clamped: false, won: this.won };
     }
     if (!this.refusing) this.refused += 1;
     this.refusing = true;
     const edge = wToDial(safeWToward(this.level, this.pos, dialToW(this.dial), dialToW(dial)));
-    if (this.canSetDial(edge)) this.#apply(edge);
-    return { dial: this.dial, clamped: true };
+    if (this.canSetDial(edge)) this.#apply(edge, now);
+    return { dial: this.dial, clamped: true, won: this.won };
   }
 
-  #apply(dial) {
+  #apply(dial, now = 0) {
     this.dial = dial;
     this.wMin = Math.min(this.wMin, dial);
     this.wMax = Math.max(this.wMax, dial);
+    if (now) this.#checkWin(now, dial);
+  }
+
+  atGoalSpot() {
+    const [gx, gz] = this.level.goal;
+    return Math.hypot(this.pos[0] - gx, this.pos[1] - gz) < WIN_RADIUS;
+  }
+
+  #checkWin(now, dial = this.dial) {
+    if (this.won || !this.atGoalSpot()) return false;
+    if (!goalOpenAt(this.level, dialToW(dial)) || !goalOpenAt(this.level, dialToW(this.dial))) return false;
+    this.won = true;
+    this.finishedAt = now;
+    if (!this.startedAt) this.startedAt = now;
+    return true;
   }
 
   // One finished W gesture (drag released, key released).
@@ -87,10 +102,16 @@ export class WalkRun {
   // setDial checked the whole interval, and moves are checked against every
   // section between the shown W and the target).
   step(dirX, dirZ, delta, now, dial = this.dial) {
-    const length = Math.hypot(dirX, dirZ);
-    if (!length || this.won) {
+    if (this.won) {
       this.blockedLast = false;
-      return { travelled: 0, newlyBlocked: false, won: false };
+      return { travelled: 0, newlyBlocked: false, won: false, goalOtherW: false };
+    }
+    const length = Math.hypot(dirX, dirZ);
+    if (!length) {
+      this.blockedLast = false;
+      const won = this.#checkWin(now, dial);
+      const goalOtherW = !won && this.atGoalSpot() && !goalOpenAt(this.level, dialToW(this.dial));
+      return { travelled: 0, newlyBlocked: false, won, goalOtherW };
     }
     const scale = (WALK_SPEED * delta) / length;
     const sections = sweptSections(this.level, dialToW(dial), dialToW(this.dial));
@@ -106,14 +127,9 @@ export class WalkRun {
       this.blockStreak += 1;
     }
     this.blockedLast = jammed;
-    const [gx, gz] = this.level.goal;
-    const won = Math.hypot(this.pos[0] - gx, this.pos[1] - gz) < WIN_RADIUS;
-    if (won) {
-      this.won = true;
-      this.finishedAt = now;
-      if (!this.startedAt) this.startedAt = now;
-    }
-    return { travelled, newlyBlocked, won };
+    const won = this.#checkWin(now, dial);
+    const goalOtherW = !won && this.atGoalSpot() && !goalOpenAt(this.level, dialToW(this.dial));
+    return { travelled, newlyBlocked, won, goalOtherW };
   }
 
   seconds(now) {

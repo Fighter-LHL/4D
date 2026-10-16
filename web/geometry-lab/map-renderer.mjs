@@ -22,7 +22,7 @@ uniform vec4 uSph[${MAX}];
 uniform vec3 uSphTint[${MAX}];
 uniform float uSphCount;
 uniform vec3 uToken;
-uniform vec3 uGoal;
+uniform vec4 uGoal;
 uniform vec3 uLayers[5];
 uniform vec2 uBlocked[${MAX}];
 uniform float uBlockedCount;
@@ -176,11 +176,23 @@ void main() {
       color += tc * (exp(-kd * kd * 40.0) * 0.65);
       color = mix(color, tc, 1.0 - smoothstep(0.07, 0.1, kd));
     }
+    if (uGoal.w > uGoal.z && uPlane >= uGoal.z && uPlane <= uGoal.w) {
+      float gd = length(pp.xz - uGoal.xy);
+      color += GOLD * (exp(-gd * gd * 32.0) * 0.65);
+      color = mix(color, GOLD, 1.0 - smoothstep(0.08, 0.11, gd));
+    }
   }
   color += front;
 
   float s;
-  if (uGoal.z > 0.5) color += GOLD * column(ro, rd, uGoal.xy, uFrame.y, 0.045, s) * 0.8;
+  if (uGoal.w > uGoal.z) {
+    float gc = column(ro, rd, uGoal.xy, uFrame.y, 0.048, s);
+    if (gc > 0.001) {
+      bool inGoalW = s >= uGoal.z && s <= uGoal.w;
+      float gDash = inGoalW ? 1.0 : step(0.5, fract(s * 7.0));
+      color += GOLD * gc * gDash * (inGoalW ? 0.92 : 0.22);
+    }
+  }
   if (uToken.z > 0.5) {
     float c = column(ro, rd, uToken.xy, uFrame.y, 0.032, s);
     if (c > 0.001) {
@@ -283,8 +295,9 @@ export class MapRenderer {
     gl.uniform4fv(u.uSph, sph);
     gl.uniform3fv(u.uSphTint, sphTint);
     gl.uniform1f(u.uSphCount, ns);
+    const [glo, ghi] = frame.field?.goalW ?? [-2, 2];
     gl.uniform3f(u.uToken, ...(frame.token ? [frame.token.pos[0], frame.token.pos[1], 1 + Math.min(1, frame.token.flash || 0)] : [0, 0, 0]));
-    gl.uniform3f(u.uGoal, ...(frame.goal ? [frame.goal[0], frame.goal[1], 1] : [0, 0, 0]));
+    gl.uniform4f(u.uGoal, ...(frame.goal ? [frame.goal[0], frame.goal[1], glo * S, ghi * S] : [0, 0, 0, -1]));
     gl.uniform3fv(u.uLayers, new Float32Array(frame.layerColors.flat()));
     const blocked = new Float32Array(MAX * 2);
     const intervals = (frame.blocked ?? []).slice(0, MAX);

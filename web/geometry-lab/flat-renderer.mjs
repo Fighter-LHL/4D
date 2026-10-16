@@ -107,19 +107,28 @@ export class FlatRenderer {
       ctx.arc(field.start[0] * s, field.start[1] * s, 0.2 * s, 0, Math.PI * 2);
       ctx.stroke();
       const won = frame.token?.won;
-      const goal = ctx.createRadialGradient(field.goal[0] * s, field.goal[1] * s, 0, field.goal[0] * s, field.goal[1] * s, 0.6 * s);
-      goal.addColorStop(0, cssColor(GOLD, won ? 0.55 : 0.32));
-      goal.addColorStop(1, cssColor(GOLD, 0));
-      ctx.fillStyle = goal;
-      ctx.fillRect((field.goal[0] - 0.6) * s, (field.goal[1] - 0.6) * s, 1.2 * s, 1.2 * s);
-      ctx.shadowColor = cssColor(GOLD, 0.9);
-      ctx.shadowBlur = 16 * ratio;
-      ctx.strokeStyle = cssColor(GOLD, 0.95);
-      ctx.lineWidth = 2 * ratio;
+      const goalOpen = frame.goalState ? frame.goalState.open : true;
+      ctx.save();
+      if (goalOpen) {
+        const wEdge = frame.goalState?.wEdge ?? 1;
+        const goal = ctx.createRadialGradient(field.goal[0] * s, field.goal[1] * s, 0, field.goal[0] * s, field.goal[1] * s, 0.6 * s);
+        goal.addColorStop(0, cssColor(GOLD, won ? 0.55 : (0.18 + 0.16 * wEdge)));
+        goal.addColorStop(1, cssColor(GOLD, 0));
+        ctx.fillStyle = goal;
+        ctx.fillRect((field.goal[0] - 0.6) * s, (field.goal[1] - 0.6) * s, 1.2 * s, 1.2 * s);
+        ctx.shadowColor = cssColor(GOLD, 0.9);
+        ctx.shadowBlur = 16 * ratio;
+        ctx.strokeStyle = cssColor(GOLD, 0.65 + 0.3 * wEdge);
+        ctx.lineWidth = 2 * ratio;
+      } else {
+        ctx.strokeStyle = cssColor(GOLD, frame.goalState?.wGhost ?? 0.5);
+        ctx.lineWidth = 1.6 * ratio;
+        ctx.setLineDash([5 * ratio, 5 * ratio]);
+      }
       ctx.beginPath();
       ctx.arc(field.goal[0] * s, field.goal[1] * s, 0.3 * s, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.shadowBlur = 0;
+      ctx.restore();
     }
 
     for (const r of frame.ripples ?? []) {

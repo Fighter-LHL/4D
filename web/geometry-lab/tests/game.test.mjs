@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  SINGLE, TWINS, CORRIDOR, ROOM, GATE, TWO_ROOMS, dialToW, sliceAtW, corridorSections,
+  SINGLE, TWINS, CORRIDOR, ROOM, GATE, TWO_ROOMS, TIDAL, ISLANDS, dialToW, sliceAtW, corridorSections,
   legalCorridorSpot, tokenInsideSection, wChangeEngulfs, wFootprint, flatShape, flatVariant,
-  blockedWIntervals, exclusionRadius,
+  blockedWIntervals, exclusionRadius, goalOpenAt,
 } from '../geometry.mjs';
 import { WalkRun, VisitRun, WIN_RADIUS } from '../game.mjs';
 import { LEVELS_LIST, CHAPTERS, levelById, nextLevel, isUnlocked, planeY } from '../levels.mjs';
@@ -34,7 +34,8 @@ function solve(level, { fixedDial = null } = {}) {
     const [i, j, d] = queue.shift();
     const x = (i - nx) * STEP;
     const z = (j - nz) * STEP;
-    if (Math.hypot(x - level.goal[0], z - level.goal[1]) < WIN_RADIUS) return true;
+    const w = dialToW(d / (DIALS - 1));
+    if (Math.hypot(x - level.goal[0], z - level.goal[1]) < WIN_RADIUS && goalOpenAt(level, w)) return true;
     const next = [[i + 1, j, d], [i - 1, j, d], [i, j + 1, d], [i, j - 1, d]];
     if (fixedDial === null) next.push([i, j, d + 1], [i, j, d - 1]);
     for (const [a, b, c] of next) {
@@ -51,10 +52,6 @@ function solve(level, { fixedDial = null } = {}) {
 }
 
 const walkLevels = LEVELS_LIST.filter((level) => level.kind === 'walk');
-// Single-room levels are fully open at extreme W (that is the lesson), so for
-// them only W = 0 must be unsolvable. Every other level needs a W change
-// mid-route: no single W solves it.
-const SINGLE_ROOM = new Set(['0-3', '1-3']);
 const CENTER_DIAL = (DIALS - 1) / 2;
 
 for (const level of walkLevels) {
@@ -63,7 +60,6 @@ for (const level of walkLevels) {
     assert.ok(legalCorridorSpot(corridorSections(0, field), ...field.start, field), 'start must be legal at W=0');
     assert.ok(solve(field), 'a route through (x, z, W) must exist');
     assert.ok(!solve(field, { fixedDial: CENTER_DIAL }), 'W = 0 alone must not solve it');
-    if (SINGLE_ROOM.has(level.id)) return;
     for (let d = 0; d < DIALS; d += 1) {
       assert.ok(!solve(field, { fixedDial: d }), `dial ${d / (DIALS - 1)} alone must not solve it`);
     }
@@ -173,10 +169,10 @@ test('visit runs gate predictions behind the observation goal', () => {
 });
 
 test('level table is ordered, unlocks in sequence and keeps maps hidden in chapter 2', () => {
-  assert.deepEqual(LEVELS_LIST.map((l) => l.id), ['0-1', '0-2', '0-3', '1-1', '1-2', '1-3', '2-1', '2-2']);
+  assert.deepEqual(LEVELS_LIST.map((l) => l.id), ['0-1', '0-2', '0-3', '1-1', '1-2', '1-3', '2-1', '2-2', '2-3', '2-4']);
   assert.equal(CHAPTERS.length, 3);
   assert.equal(nextLevel('0-3').id, '1-1');
-  assert.equal(nextLevel('2-2'), null);
+  assert.equal(nextLevel('2-4'), null);
   assert.ok(isUnlocked('0-1', new Set()));
   assert.ok(!isUnlocked('0-2', new Set()));
   assert.ok(isUnlocked('0-2', new Set(['0-1'])));
@@ -190,6 +186,8 @@ test('level table is ordered, unlocks in sequence and keeps maps hidden in chapt
   // Flatland and chapter 1 share the same (x, z, W) layouts.
   assert.deepEqual(levelById('0-2').field.bodies.map((b) => b.center[3]), CORRIDOR.bodies.map((b) => b.center[3]));
   assert.equal(levelById('2-2').field, TWO_ROOMS);
+  assert.equal(levelById('2-3').field, TIDAL);
+  assert.equal(levelById('2-4').field, ISLANDS);
 });
 
 test('W layers cover [-2, 2], crossfade at borders and tint smoothly', () => {
@@ -261,8 +259,23 @@ test('reachDial stops at the edge of a blocked W interval without engulfing', ()
     near(dialToW(run.dial), from > to ? hi : lo, 1e-3);
   }
   const free = new WalkRun(CORRIDOR, '1-2', 0);
-  assert.deepEqual(free.reachDial(0.7), { dial: 0.7, clamped: false });
+  assert.deepEqual(free.reachDial(0.7), { dial: 0.7, clamped: false, won: false });
   assert.equal(free.refused, 0);
+});
+
+test('goal only completes inside its W interval, including when sliding W onto it', () => {
+  const run = new WalkRun(ROOM, '1-3', 0);
+  run.setDial(0.8); // W = 1.2: room is gone, but goal is closed outside [-0.35, 0.35]
+  run.pos = [3.0, 0];
+  const outside = run.step(1, 0, 0.1, 2000);
+  assert.equal(outside.won, false);
+  assert.equal(outside.goalOtherW, true);
+  assert.equal(run.won, false);
+  // Slide W back into the goal interval while standing on the goal ring.
+  run.setDial(0.5);
+  const inside = run.step(0, 0, 0.016, 2500, 0.5);
+  assert.equal(inside.won, true);
+  assert.equal(run.won, true);
 });
 
 test('one W gesture pushing into a wall counts one refusal', () => {
