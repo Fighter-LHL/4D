@@ -1,7 +1,7 @@
 // Chapters and levels. Chapter 0 (Flatland) and chapter 1 share the same
 // (x, z, W) layouts on purpose: the map the Flatlander trusted is exactly the
 // W map one dimension up. Chapter 2 hides the map to test transfer.
-import { SINGLE, TRANSFER, TWINS, CORRIDOR, ROOM, GATE, TWO_ROOMS, TIDAL, ISLANDS, flatVariant } from './geometry.mjs';
+import { SINGLE, TRANSFER, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, flatVariant } from './geometry.mjs';
 
 const trial = (body, from, to, prompt) => Object.freeze({ body, from, to, prompt });
 
@@ -123,24 +123,24 @@ export const LEVELS_LIST = Object.freeze([
   },
   {
     id: '1-2', chapter: 1, kind: 'walk', view: 'slice', map: 'shown',
-    title: '两堵墙', field: CORRIDOR,
-    done: '同一张地图，升了一维。',
-    objective: '走到右边的金色出口。',
+    title: '两堵墙', field: CORRIDOR_3D,
+    done: '同一张底座，空中多了随 W 升降的浮球。',
+    objective: '避开空中随 W 降下的浮球，走到出口。',
     hints: [
-      '和扁平国的「两堵墙」是同一张地图：地面虚线标出了其他 W 层的墙与中间圆球。',
-      '近处蓝墙在 −W（下），远处橙墙在 +W（上），金色出口只在中间层亮起。',
-      '先往上调到 +W 走过第一道虚线，停在空地，再往下调到 −W 走过第二道墙，最后回到中间层进入出口。',
+      '和扁平国的「两堵墙」同一底座，但中庭南侧半空多了一颗偏 +W 的暖色浮球。',
+      '往上调到 +W 绕过近处蓝墙时，南侧浮球会往地面膨胀下沉，而北侧紫球会缩小让出空地。',
+      '从 +W 走进中庭北侧空地，往下调到 −W 让南侧浮球升空消失、远处橙墙打开，走过去再回中间层进入出口。',
     ],
   },
   {
     id: '1-3', chapter: 1, kind: 'walk', view: 'slice', map: 'shown',
-    title: '不可能的密室', field: ROOM,
+    title: '不可能的密室', field: ROOM_3D,
     done: '三维里没有门，四维里有。',
-    objective: '离开这间没有门的屋子。',
+    objective: '离开这间没有门的屋子，绕开室外的浮球抵达出口。',
     hints: [
       '四面墙在当前这一片三维空间里是封死的，金色出口也只在中间层打开。',
-      '看右边 W 地图（或滑轨旁边的刻度）：紫色的屋墙只占了中间几层，上下两头都是空的。',
-      '把 W 往暖橙（上）或冷蓝（下）一路调到底走出屋子，再把 W 调回中间层让出口亮起。',
+      '看右边 W 地图：紫色的屋墙只占中间几层，但室外半空在 +W 和 −W 各守着一颗浮球。',
+      '把 W 往暖橙（上）或冷蓝（下）调到底走出屋子，绕开室外降下的浮球走到金色虚线环上，再把 W 调回中间层。',
     ],
   },
   {
@@ -171,9 +171,9 @@ export const LEVELS_LIST = Object.freeze([
     done: '球群在四维里消长，你从缝隙间游了过去。',
     objective: '借超球的涨缩挤出通路，抵达出口。',
     hints: [
-      '左边两颗暖色超球偏 +W，右边两颗冷色超球偏 −W；往相反方向调 W，球就会缩小、让出缝隙。',
-      '先把 W 往下往冷色层调，左边两颗暖球会缩小分开；穿过缝隙后，停在中间偏空的一侧。',
-      '在中间空地把 W 往上往暖色层调，右边两颗冷球会缩小分开；穿过后再把 W 调回中间层打开出口。',
+      '左边两颗暖色超球偏 +W，右边两颗冷色超球偏 −W；但拉到底时深层超球又会鼓起来封住通道。',
+      '把 W 往下调到适中的冷色层（别拉到底），左边两颗暖球会缩小分开；穿过后从南侧绕过中间的紫球。',
+      '在中间南侧把 W 往上调到适中的暖色层（别拉到底），穿过右边缩小的冷球后，把 W 调回中间层打开出口。',
     ],
   },
   {
@@ -182,9 +182,9 @@ export const LEVELS_LIST = Object.freeze([
     done: '你找准每一处安全的落脚岛，在四维迷宫里穿行自如。',
     objective: '找准不会让超球膨胀吞没你的空地，分段换 W 抵达出口。',
     hints: [
-      '起点旁边的暖橙球在 +W 会膨胀——先往南走到左下的安全空地，再把 W 往暖色层调打开左边的蓝墙。',
-      '从南侧走进中庭后，中庭南侧在 −W 会被蓝球占满；趁中间紫球缩小，往北走到中庭北侧的空地。',
-      '在中庭北侧把 W 往冷色层调打开右边的橙墙，走进右庭后再往南走到出口环上，把 W 调回中间层。',
+      '左隔墙只有南半扇蓝门能在 +W 打开，而西北角的暖橙球在 +W 会膨胀——先往南走到左下空地再升 W。',
+      '从南门进中庭后，右隔墙只有北半扇橙门能在 −W 打开，且中庭南侧在 −W 会被蓝球占满——先往北走到中北空地再降 W。',
+      '从北门进右庭后，往南避开东北角的暖球走到出口虚线环上，再把 W 调回中间层点亮出口。',
     ],
   },
 ].map(Object.freeze));

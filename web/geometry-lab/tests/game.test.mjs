@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  SINGLE, TWINS, CORRIDOR, ROOM, GATE, TWO_ROOMS, TIDAL, ISLANDS, dialToW, sliceAtW, corridorSections,
+  SINGLE, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, dialToW, sliceAtW, corridorSections,
   legalCorridorSpot, tokenInsideSection, wChangeEngulfs, wFootprint, flatShape, flatVariant,
   blockedWIntervals, exclusionRadius, goalOpenAt,
 } from '../geometry.mjs';
@@ -183,8 +183,11 @@ test('level table is ordered, unlocks in sequence and keeps maps hidden in chapt
     for (const hint of level.hints) assert.ok(!/\d/.test(hint), `${level.id} hint has number: ${hint}`);
     assert.ok(Number.isFinite(planeY(level)));
   }
-  // Flatland and chapter 1 share the same (x, z, W) layouts.
+  // Flatland and chapter 1 share the same base (x, z, W) layouts, while 1-2 and 1-3 add 3D-elevated spheres.
   assert.deepEqual(levelById('0-2').field.bodies.map((b) => b.center[3]), CORRIDOR.bodies.map((b) => b.center[3]));
+  assert.deepEqual(levelById('1-2').field.bodies.slice(0, 3), CORRIDOR.bodies);
+  assert.equal(levelById('1-2').field, CORRIDOR_3D);
+  assert.equal(levelById('1-3').field, ROOM_3D);
   assert.equal(levelById('2-2').field, TWO_ROOMS);
   assert.equal(levelById('2-3').field, TIDAL);
   assert.equal(levelById('2-4').field, ISLANDS);
@@ -306,4 +309,22 @@ test('both rooms of 2-2 stand at W = 0, each opens on its own side', () => {
   for (const side of ['left', 'right']) assert.ok(kinds(0, side).every((k) => k === 'box'), `${side} room at W=0`);
   assert.ok(kinds(-0.5, 'left').every((k) => k === 'empty'));
   assert.ok(kinds(0.5, 'right').every((k) => k === 'empty'));
+});
+
+test('2-3 tidal gates only open in their mid-W windows and re-seal at extreme W', () => {
+  assert.equal(legalCorridorSpot(corridorSections(0, TIDAL), -1.4, 0, TIDAL), false);
+  assert.equal(legalCorridorSpot(corridorSections(-0.5, TIDAL), -1.4, 0, TIDAL), true);
+  assert.equal(legalCorridorSpot(corridorSections(-2, TIDAL), -1.4, 0, TIDAL), false);
+  assert.equal(legalCorridorSpot(corridorSections(0, TIDAL), 1.4, 0, TIDAL), false);
+  assert.equal(legalCorridorSpot(corridorSections(0.5, TIDAL), 1.4, 0, TIDAL), true);
+  assert.equal(legalCorridorSpot(corridorSections(2, TIDAL), 1.4, 0, TIDAL), false);
+});
+
+test('2-4 stepping-stone islands refuse W shifts outside the safe pockets', () => {
+  assert.equal(wChangeEngulfs(ISLANDS, ISLANDS.start, 0, 0.6), true);
+  assert.equal(wChangeEngulfs(ISLANDS, [-2.1, 0.75], 0, 0.6), false);
+  assert.equal(wChangeEngulfs(ISLANDS, [0, 0.75], 0.6, -0.6), true);
+  assert.equal(wChangeEngulfs(ISLANDS, [0, -0.75], 0.6, -0.6), false);
+  assert.equal(wChangeEngulfs(ISLANDS, [1.8, -0.75], -0.6, 0), true);
+  assert.equal(wChangeEngulfs(ISLANDS, ISLANDS.goal, -0.6, 0), false);
 });

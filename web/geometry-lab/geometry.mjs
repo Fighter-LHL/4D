@@ -99,7 +99,7 @@ export function sliceAtDial(body, dial) {
 export const CORRIDOR = Object.freeze({
   start: Object.freeze([-2.2, 0]),
   goal: Object.freeze([2.2, 0]),
-  goalW: Object.freeze([-0.35, 0.35]),
+  goalW: Object.freeze([-0.25, 0.25]),
   bounds: Object.freeze({ x: 2.55, z: 1.12 }),
   tokenRadius: 0.22,
   tokenY: 0.22,
@@ -110,6 +110,19 @@ export const CORRIDOR = Object.freeze({
   ]),
 });
 
+// Chapter 1's 3D corridor keeps Flatland's (x, z, W) walls and north pillar,
+// and adds a high-hovering 4D sphere on the south-east of the middle chamber:
+// when W rises to open the near wall, the sphere descends from above to block
+// the south shortcut, so the player must weave to the north-east pocket where
+// the purple pillar has shrunk before lowering W.
+export const CORRIDOR_3D = Object.freeze({
+  ...CORRIDOR,
+  bodies: Object.freeze([
+    ...CORRIDOR.bodies,
+    hypersphere('arch', [0.35, 0.78, 0.52, 0.42], 0.68, true),
+  ]),
+});
+
 // Stage D spike: a room sealed in 3D at W = 0. Four 4D box panels form the
 // walls; all share the same W interval, so sliding |W| away removes the whole
 // room at once. There is no 3D exit — the only way out is through the fourth
@@ -117,7 +130,7 @@ export const CORRIDOR = Object.freeze({
 export const ROOM = Object.freeze({
   start: Object.freeze([0, 0]),
   goal: Object.freeze([3.1, 0]),
-  goalW: Object.freeze([-0.35, 0.35]),
+  goalW: Object.freeze([-0.25, 0.25]),
   bounds: Object.freeze({ x: 3.4, z: 2.2 }),
   tokenRadius: 0.22,
   tokenY: 0.22,
@@ -129,6 +142,19 @@ export const ROOM = Object.freeze({
   ]),
 });
 
+// Chapter 1's 3D room adds two hovering sentinel spheres outside the east wall
+// at W = +-1.05: when the player shifts |W| > 0.9 to erase the room, the
+// sentinel on that side descends into the yard between the room and the exit,
+// so the player must curve around it before returning W to the middle layer.
+export const ROOM_3D = Object.freeze({
+  ...ROOM,
+  bodies: Object.freeze([
+    ...ROOM.bodies,
+    hypersphere('room-orb-n', [2.3, 0.76, -0.55, 1.05], 0.78, true),
+    hypersphere('room-orb-s', [2.3, 0.76, 0.55, -1.05], 0.78, false),
+  ]),
+});
+
 // Chapter 2: a wall whose middle segment (the door) only exists for
 // W <= 0.8, plus a second wall that only exists for W >= 0.4. The door is
 // open exactly where the second wall stands, so the player must pass the
@@ -136,7 +162,7 @@ export const ROOM = Object.freeze({
 export const GATE = Object.freeze({
   start: Object.freeze([-2.2, 0]),
   goal: Object.freeze([2.2, 0]),
-  goalW: Object.freeze([-0.35, 0.35]),
+  goalW: Object.freeze([-0.25, 0.25]),
   bounds: Object.freeze({ x: 2.55, z: 1.12 }),
   tokenRadius: 0.22,
   tokenY: 0.22,
@@ -161,7 +187,7 @@ const roomWalls = (prefix, cx, w, halfW, alt) => [
 export const TWO_ROOMS = Object.freeze({
   start: Object.freeze([-1.9, 0]),
   goal: Object.freeze([1.9, 0]),
-  goalW: Object.freeze([-0.35, 0.35]),
+  goalW: Object.freeze([-0.25, 0.25]),
   bounds: Object.freeze({ x: 3.2, z: 1.4 }),
   tokenRadius: 0.22,
   tokenY: 0.22,
@@ -171,44 +197,49 @@ export const TWO_ROOMS = Object.freeze({
   ]),
 });
 
-// Chapter 2: six 4D hyperspheres with staggered W centers. Every sphere is
-// visible at W = 0, and none of the gates are binary on/off boxes — sliding
-// W makes one pair of spheres swell while the opposite pair shrinks and pulls
-// apart, shifting the walkable gap across the floor.
+// Chapter 2: hyperspheres with staggered W centers. Each gate only opens in a
+// middle W window (-0.82..-0.30 on the left, +0.30..+0.82 on the right):
+// pulling W all the way to +-2 makes the deep guard spheres swell and seal the
+// corridor again, so the player must tune W to the gap rather than slamming
+// the slider to the ends.
 export const TIDAL = Object.freeze({
-  start: Object.freeze([-2.55, 0]),
-  goal: Object.freeze([2.55, 0]),
-  goalW: Object.freeze([-0.35, 0.35]),
-  bounds: Object.freeze({ x: 2.95, z: 1.2 }),
+  start: Object.freeze([-2.6, 0]),
+  goal: Object.freeze([2.6, 0]),
+  goalW: Object.freeze([-0.25, 0.25]),
+  bounds: Object.freeze({ x: 3.0, z: 0.96 }),
   tokenRadius: 0.22,
   tokenY: 0.22,
   bodies: Object.freeze([
-    hypersphere('tide-nw', [-1.35, 0.5, -0.62, 0.92], 1.18, true),
-    hypersphere('tide-sw', [-1.35, 0.5, 0.62, 0.82], 1.1, true),
-    hypersphere('tide-core-n', [-0.22, 0.5, -0.48, -0.2], 0.46, false),
-    hypersphere('tide-core-s', [0.22, 0.5, 0.48, 0.2], 0.46, true),
-    hypersphere('tide-ne', [1.35, 0.5, -0.62, -0.82], 1.1, false),
-    hypersphere('tide-se', [1.35, 0.5, 0.62, -0.92], 1.18, false),
+    hypersphere('tide-nw', [-1.4, 0.5, -0.52, 0.98], 1.24, true),
+    hypersphere('tide-sw', [-1.4, 0.5, 0.52, 0.9], 1.18, true),
+    hypersphere('tide-w-deep', [-1.4, 0.5, 0, -1.55], 0.88, false),
+    hypersphere('tide-core', [0, 0.5, -0.35, 0], 0.5, false),
+    hypersphere('tide-ne', [1.4, 0.5, -0.52, -0.9], 1.18, false),
+    hypersphere('tide-se', [1.4, 0.5, 0.52, -0.98], 1.24, false),
+    hypersphere('tide-e-deep', [1.4, 0.5, 0, 1.55], 0.88, true),
   ]),
 });
 
 // Chapter 2 finale: a three-chamber stepping-stone maze where every body is
-// visible at W = 0. The half of each chamber that lets you enter at the
-// current W is guarded in the target W by a sphere that would swell over you,
-// so you must cross to the safe island in the other half before shifting W.
+// visible at W = 0. The west divider only opens on the south in +W and the
+// east divider only opens on the north in -W, while the entry half of each
+// chamber is guarded in the next W by an expanding sphere — forcing an S-curve
+// across safe stepping-stone islands before each W shift.
 export const ISLANDS = Object.freeze({
   start: Object.freeze([-2.35, -0.75]),
   goal: Object.freeze([2.25, 0.75]),
-  goalW: Object.freeze([-0.35, 0.35]),
+  goalW: Object.freeze([-0.25, 0.25]),
   bounds: Object.freeze({ x: 2.75, z: 1.35 }),
   tokenRadius: 0.22,
   tokenY: 0.22,
   bodies: Object.freeze([
     hypersphere('isl-nw-guard', [-1.65, 0.55, -0.68, 0.88], 0.94, true),
-    hyperbox('isl-div-w', [-0.85, 0.75, 0, -0.78], [0.13, 0.95, 1.35, 1.23], false),
+    hyperbox('isl-wall-wn', [-0.85, 0.75, -0.68, 0], [0.13, 0.95, 0.68, 2.2], false),
+    hyperbox('isl-door-ws', [-0.85, 0.75, 0.68, -0.78], [0.13, 0.95, 0.68, 1.23], false),
     hypersphere('isl-sc-guard', [0, 0.55, 0.72, -0.85], 1.02, false),
-    hypersphere('isl-core', [0, 0.55, 0.05, 0], 0.48, false),
-    hyperbox('isl-div-e', [0.85, 0.75, 0, 0.78], [0.13, 0.95, 1.35, 1.23], true),
+    hypersphere('isl-core', [0, 0.55, 0, 0], 0.52, false),
+    hyperbox('isl-door-en', [0.85, 0.75, -0.68, 0.78], [0.13, 0.95, 0.68, 1.23], true),
+    hyperbox('isl-wall-es', [0.85, 0.75, 0.68, 0], [0.13, 0.95, 0.68, 2.2], false),
     hypersphere('isl-ne-guard', [1.75, 0.55, -0.68, 0.65], 0.88, true),
   ]),
 });
