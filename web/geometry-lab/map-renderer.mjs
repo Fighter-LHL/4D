@@ -24,8 +24,11 @@ uniform float uSphCount;
 uniform vec3 uToken;
 uniform vec3 uGoal;
 uniform vec3 uLayers[5];
+uniform vec2 uBlocked[${MAX}];
+uniform float uBlockedCount;
 
 const vec3 TOKEN = vec3(1.0, 0.93, 0.8);
+const vec3 ALERT = vec3(1.0, 0.38, 0.32);
 const vec3 GOLD = vec3(1.0, 0.8, 0.38);
 ${GLSL_BOX}
 
@@ -169,8 +172,9 @@ void main() {
     color = mix(color, section.rgb, section.a);
     if (uToken.z > 0.5) {
       float kd = length(pp.xz - uToken.xy);
-      color += TOKEN * (exp(-kd * kd * 40.0) * 0.6);
-      color = mix(color, TOKEN, 1.0 - smoothstep(0.07, 0.1, kd));
+      vec3 tc = mix(TOKEN, ALERT, clamp(uToken.z - 1.0, 0.0, 1.0));
+      color += tc * (exp(-kd * kd * 40.0) * 0.65);
+      color = mix(color, tc, 1.0 - smoothstep(0.07, 0.1, kd));
     }
   }
   color += front;
@@ -178,9 +182,21 @@ void main() {
   float s;
   if (uGoal.z > 0.5) color += GOLD * column(ro, rd, uGoal.xy, uFrame.y, 0.045, s) * 0.8;
   if (uToken.z > 0.5) {
-    float c = column(ro, rd, uToken.xy, uFrame.y, 0.03, s);
-    float dash = step(0.5, fract(s * 7.0));
-    color += TOKEN * c * dash * 0.45;
+    float c = column(ro, rd, uToken.xy, uFrame.y, 0.032, s);
+    if (c > 0.001) {
+      // Exact W intervals from blockedWIntervals, shared with the rail.
+      bool blockedAtS = false;
+      float sw = s / uScale;
+      for (int i = 0; i < ${MAX}; i += 1) {
+        if (float(i) >= uBlockedCount) break;
+        if (sw > uBlocked[i].x && sw < uBlocked[i].y) blockedAtS = true;
+      }
+      float dash = blockedAtS ? 1.0 : step(0.5, fract(s * 7.0));
+      float flashAmt = clamp(uToken.z - 1.0, 0.0, 1.0);
+      vec3 tc = blockedAtS ? ALERT : mix(TOKEN, ALERT, flashAmt);
+      float intensity = blockedAtS ? (0.78 + 0.22 * flashAmt) : (0.45 + 0.35 * flashAmt);
+      color += tc * c * dash * intensity;
+    }
   }
   color = pow(max(color, vec3(0.0)), vec3(0.9));
   gl_FragColor = vec4(color, 1.0);
@@ -188,7 +204,7 @@ void main() {
 `;
 
 const NAMES = ['uResolution', 'uEye', 'uFrame', 'uScale', 'uPlane', 'uPlaneTint', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxCount',
-  'uSph', 'uSphTint', 'uSphCount', 'uToken', 'uGoal', 'uLayers'];
+  'uSph', 'uSphTint', 'uSphCount', 'uToken', 'uGoal', 'uLayers', 'uBlocked', 'uBlockedCount'];
 // Same default yaw as the slice view, so both views face the same way.
 const VIEW = { yaw: 0.45, pitch: 0.36, distance: 9.5, minPitch: -0.6, maxPitch: 1.4, minDistance: 4, maxDistance: 22 };
 
@@ -212,9 +228,9 @@ export class MapRenderer {
   }
 
   // Frame the whole map box so the full W extent is always in view.
-  fitTo(bounds) {
+  fitTo(bounds, yaw = 0.45) {
     const radius = Math.hypot(bounds.x, bounds.z, 2 * MAP_SCALE);
-    this.orbit.reset({ distance: radius * 2.3 });
+    this.orbit.reset({ distance: radius * 2.3, yaw });
   }
 
   render(frame) {
@@ -267,9 +283,14 @@ export class MapRenderer {
     gl.uniform4fv(u.uSph, sph);
     gl.uniform3fv(u.uSphTint, sphTint);
     gl.uniform1f(u.uSphCount, ns);
-    gl.uniform3f(u.uToken, ...(frame.token ? [frame.token.pos[0], frame.token.pos[1], 1] : [0, 0, 0]));
+    gl.uniform3f(u.uToken, ...(frame.token ? [frame.token.pos[0], frame.token.pos[1], 1 + Math.min(1, frame.token.flash || 0)] : [0, 0, 0]));
     gl.uniform3f(u.uGoal, ...(frame.goal ? [frame.goal[0], frame.goal[1], 1] : [0, 0, 0]));
     gl.uniform3fv(u.uLayers, new Float32Array(frame.layerColors.flat()));
+    const blocked = new Float32Array(MAX * 2);
+    const intervals = (frame.blocked ?? []).slice(0, MAX);
+    intervals.forEach((pair, i) => blocked.set(pair, i * 2));
+    gl.uniform2fv(u.uBlocked, blocked);
+    gl.uniform1f(u.uBlockedCount, intervals.length);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 }

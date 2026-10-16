@@ -130,9 +130,29 @@ export class FlatRenderer {
       ctx.stroke();
     }
 
+    for (const sec of frame.sections ?? []) {
+      // A present box is drawn whole; a present sphere keeps its danger circle.
+      if (!sec.ghost || (sec.type === 'box' && sec.kind !== 'empty')) continue;
+      const ghost = 0.28 + 0.62 * (sec.wGhost ?? 0);
+      ctx.save();
+      const [x, z] = [sec.center[0], sec.center[2]];
+      ctx.strokeStyle = cssColor(sec.tint, ghost);
+      ctx.lineWidth = 1.5 * ratio;
+      ctx.setLineDash([5 * ratio, 5 * ratio]);
+      ctx.beginPath();
+      if (sec.type === 'sphere') {
+        ctx.arc(x * s, z * s, (sec.maxR || 0.35) * s, 0, Math.PI * 2);
+      } else {
+        ctx.rect((x - sec.half[0]) * s, (z - sec.half[2]) * s, sec.half[0] * 2 * s, sec.half[2] * 2 * s);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
     for (const shape of frame.shapes) {
       ctx.save();
       const [x, z] = shape.center;
+      const wEdge = shape.wEdge ?? 1;
       ctx.beginPath();
       if (shape.type === 'sphere') {
         ctx.arc(x * s, z * s, shape.radius * s, 0, Math.PI * 2);
@@ -143,12 +163,15 @@ export class FlatRenderer {
         ctx.fillStyle = glass;
       } else {
         ctx.rect((x - shape.half[0]) * s, (z - shape.half[1]) * s, shape.half[0] * 2 * s, shape.half[1] * 2 * s);
-        ctx.fillStyle = cssColor(shape.tint, 0.3);
+        ctx.fillStyle = cssColor(shape.tint, 0.14 + 0.2 * wEdge);
       }
       ctx.shadowColor = cssColor(shape.tint, 0.9);
       ctx.shadowBlur = 18 * ratio;
       ctx.fill();
-      ctx.strokeStyle = cssColor(shape.tint, 0.95);
+      if (shape.type === 'box' && wEdge < 0.75) {
+        ctx.setLineDash([6 * ratio, (1 - wEdge) * 6 * ratio]);
+      }
+      ctx.strokeStyle = cssColor(shape.tint, 0.65 + 0.3 * wEdge);
       ctx.lineWidth = 2 * ratio;
       ctx.stroke();
       ctx.restore();

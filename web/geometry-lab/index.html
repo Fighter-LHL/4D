@@ -22,6 +22,7 @@
       <h1 id="wordmark" class="wordmark">W<span>/</span>SLICE</h1>
       <p class="tagline">你只能看见一层。<br>学会换一层，就能走出没有门的房间。</p>
       <button id="play" class="primary big">开始 <span aria-hidden="true">→</span></button>
+      <button id="unlock-all" class="ghost unlock-toggle" type="button" aria-pressed="false">解锁全部关卡</button>
       <p class="title-note">约 10 分钟 · 键盘或触屏 · 无需安装</p>
     </div>
     <nav id="chapter-list" class="chapter-list" aria-label="章节与关卡"></nav>
@@ -69,20 +70,28 @@
           <div class="map-body">
             <div class="map-view">
               <canvas id="map" aria-label="地图：整个关卡的全貌，竖直方向是隐藏的那一维"></canvas>
-              <div class="map-veil" id="map-veil" hidden><p>地图已收起<br><small>只靠你看到的这一片</small></p><button id="peek" class="ghost">窥视 5 秒</button></div>
+              <div class="map-legend" id="map-legend" aria-hidden="true">
+                <span class="leg-item"><i class="leg-plane"></i>发光层 = 你的世界</span>
+                <span class="leg-item" id="leg-token"><i class="leg-line"></i>白虚线 = 换层轨道</span>
+                <span class="leg-item" id="leg-goal"><i class="leg-goal"></i>金柱 = 出口</span>
+              </div>
+              <div class="map-veil" id="map-veil" hidden><p>地图已收起<br><small>看墙的颜色判断它在哪一层</small></p><button id="peek" class="ghost">窥视 5 秒</button></div>
               <div class="map-error" id="map-error" hidden>地图需要 WebGL</div>
             </div>
             <div class="rail" id="w-rail" role="slider" tabindex="0" aria-orientation="vertical" aria-label="切换层" aria-valuemin="-2" aria-valuemax="2" aria-valuenow="0">
-              <span class="rail-label" id="rail-top">+W</span>
+              <span class="rail-label rail-top" id="rail-top">+W</span>
               <div class="rail-track" id="rail-track">
                 <span class="band b4"></span><span class="band b3"></span><span class="band b2"></span><span class="band b1"></span><span class="band b0"></span>
+                <span class="rail-spans" id="rail-spans" aria-hidden="true"></span>
+                <span class="rail-blocks" id="rail-blocks" aria-hidden="true"></span>
                 <span class="rail-target" id="rail-target" hidden></span>
                 <span class="rail-thumb" id="rail-thumb"></span>
               </div>
-              <span class="rail-label" id="rail-bottom">−W</span>
+              <span class="rail-label rail-bottom" id="rail-bottom">−W</span>
             </div>
           </div>
           <div class="layer-readout"><i class="swatch" id="layer-swatch"></i><span id="layer-name"></span><span class="w-value" id="w-value"></span></div>
+          <p class="color-legend" id="color-legend"><span class="cool-tag">● 冷蓝在下 (−W)</span><span class="warm-tag">● 暖橙在上 (+W)</span><span class="legend-sep" id="legend-block-hint" hidden>● 红区 = 墙会包住光点</span></p>
         </section>
 
         <section class="predict" id="predict" hidden aria-labelledby="predict-question">

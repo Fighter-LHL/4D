@@ -1,4 +1,4 @@
-import { clampDial, dialToW, sliceAtW, wFootprint, flatShape, PREDICTIONS } from './geometry.mjs';
+import { clampDial, dialToW, sliceAtW, wFootprint, flatShape, blockedWIntervals, exclusionRadius, wChangeEngulfs, PREDICTIONS } from './geometry.mjs';
 import { WalkRun, VisitRun } from './game.mjs';
 import { CHAPTERS, LEVELS_LIST, levelById, nextLevel, isUnlocked } from './levels.mjs';
 import { LAYERS, layerBlend, layerIndex, wColor, cssColor } from './layers.mjs';
@@ -19,6 +19,7 @@ const W_RATE = 0.32; // dial units per second while a W key is held
 const TRAIL_MS = 1400;
 const RIPPLE_MS = 900;
 const PEEK_MS = 5000;
+const NUDGE_MS = 1600;
 const STORAGE_KEY = 'wslice-progress-v1';
 const choiceButtons = [...document.querySelectorAll('[data-choice]')];
 
@@ -44,6 +45,27 @@ try {
   mapOk = true;
 } catch (error) { console.error('W map unavailable:', error); }
 const flat = new FlatRenderer($('flat'));
+let syncingOrbit = false;
+if (slice && map) {
+  slice.orbit.onChange = () => {
+    slice.draw();
+    if (!syncingOrbit && !isFlat() && mapVisible()) {
+      syncingOrbit = true;
+      map.orbit.yaw = slice.orbit.yaw;
+      map.draw();
+      syncingOrbit = false;
+    }
+  };
+  map.orbit.onChange = () => {
+    map.draw();
+    if (!syncingOrbit && !isFlat()) {
+      syncingOrbit = true;
+      slice.orbit.yaw = map.orbit.yaw;
+      slice.draw();
+      syncingOrbit = false;
+    }
+  };
+}
 
 // ---------- State ----------
 let level = null;
@@ -67,14 +89,17 @@ let flash = 0;
 let hintLevel = 0;
 let mapPeeking = false;
 let peekTimer = 0;
+let nudge = null; // ids of bodies that just refused a W change
+let nudgeTimer = 0;
 let cardOpen = false;
 let lastRefuse = 0;
+let sandboxAll = false;
 const introShown = new Set();
 
 const isWalk = () => level?.kind === 'walk';
 const isFlat = () => level?.view === 'flat';
 const mapVisible = () => level?.map === 'shown' || mapPeeking;
-const railLocked = () => cardOpen || !!reveal || (level?.kind === 'visit' && run.phase !== 'explore');
+const railLocked = () => cardOpen || !!reveal || (level?.kind === 'visit' && run.phase === 'predict' && run.session.state === 'predict');
 const signed = (v) => `${v < -0.004 ? '−' : v > 0.004 ? '+' : ''}${Math.abs(v).toFixed(2)}`;
 
 function updateErrors() {
@@ -100,12 +125,25 @@ function displayBodies() {
 }
 const frameBounds = () => (isWalk() ? level.field.bounds : { x: 2.8, z: 2.0 });
 
+// Chapter 2 hides every W aid unless the player is peeking; a refused W change
+// briefly shows only the bodies that refused it.
+const NO_AIDS = { ghost: () => false, blocked: [] };
+function wAids() {
+  if (!isWalk() || !run) return NO_AIDS;
+  if (mapVisible()) return { ghost: () => true, blocked: blockedWIntervals(level.field, run.pos) };
+  if (!nudge) return NO_AIDS;
+  const bodies = level.field.bodies.filter((b) => nudge.has(b.id));
+  return { ghost: (id) => nudge.has(id), blocked: blockedWIntervals({ ...level.field, bodies }, run.pos) };
+}
+
 function buildFrame() {
   const w = dialToW(current);
   const bodies = displayBodies();
   const y = isWalk() ? level.field.tokenY : bodies[0].center[1];
-  const tinted = bodies.map((body) => ({ body, tint: wColor(body.center[3]) }));
-  const sections = tinted.map(({ body, tint }) => ({ ...sliceAtW(body, w), tint }));
+  const tinted = bodies.map((body) => ({ body, tint: wColor(body.center[3]), foot: wFootprint(body, y) }));
+  const maxR = (body, foot) => (isWalk() && body.type === 'sphere' ? exclusionRadius(body, level.field) : foot.radius ?? 0);
+  const aids = wAids();
+  const sections = tinted.map(({ body, tint, foot }) => ({ ...sliceAtW(body, w), tint, maxR: maxR(body, foot), ghost: aids.ghost(body.id) }));
   const blend = layerBlend(w);
   const now = performance.now();
   while (trail.length && now - trail[0][2] > TRAIL_MS) trail.shift();
@@ -114,8 +152,9 @@ function buildFrame() {
     w,
     sections,
     shapes: sections.map((s) => { const f = flatShape(s, y); return f && { ...f, tint: s.tint }; }).filter(Boolean),
-    footprints: tinted.map(({ body, tint }) => ({ ...wFootprint(body, y), tint })),
+    footprints: tinted.map(({ tint, foot }) => ({ ...foot, tint })),
     field: isWalk() ? level.field : null,
+    blocked: aids.blocked,
     token: isWalk() ? { pos: run.pos, flash, won: run.won } : null,
     goal: isWalk() ? level.field.goal : null,
     bounds: frameBounds(),
@@ -145,14 +184,17 @@ function render() {
   prevVisible = visibleIds(frame.sections);
   if (rippled) { frame = buildFrame(); requestFrame(); }
   // A single drag can pass through "appear" and "vanish", so watch every frame.
-  if (level.kind === 'visit' && level.goal === 'appear-vanish' && run.observe(current)) onObserved();
+  if (level.kind === 'visit' && level.goal === 'appear-vanish' && run.phase === 'explore') {
+    if (frame.sections.some((s) => s.radius > 0)) run.sawVisible = true;
+    if (!railPointer && !wHold && run.observe(current)) onObserved();
+  }
   const li = layerIndex(frame.w);
   if (li !== prevLayer) { sfx.layer(li); prevLayer = li; }
   if (isFlat()) flat.render(frame);
   else if (sliceOk) slice.render(frame);
   if (mapVisible() && mapOk) map.render(frame);
   $('empty-notice').hidden = isWalk() || frame.sections.some((s) => s.kind !== 'empty');
-  updateRail(frame.w);
+  updateRail(frame.w, frame.blocked);
   updateStats();
 }
 
@@ -212,15 +254,18 @@ function stepToken(delta, now) {
 
 // ---------- W control ----------
 function requestDial(value, immediate = false) {
-  const dial = clampDial(value);
-  if (isWalk() && !run.setDial(dial)) {
-    refuse();
-    return false;
+  let dial = clampDial(value);
+  let clamped = false;
+  if (isWalk()) {
+    const fromW = dialToW(run.dial);
+    ({ dial, clamped } = run.reachDial(dial));
+    if (clamped) revealBlockers(fromW, dialToW(clampDial(value)));
   }
+  if (clamped) refuse();
   target = dial;
   if (immediate || reducedMotion.matches) current = target;
   requestFrame();
-  return true;
+  return !clamped;
 }
 
 function refuse() {
@@ -234,11 +279,22 @@ function refuse() {
   requestFrame();
 }
 
+function revealBlockers(fromW, toW) {
+  if (mapVisible()) return;
+  const { field } = level;
+  const ids = field.bodies.filter((b) => wChangeEngulfs({ ...field, bodies: [b] }, run.pos, fromW, toW)).map((b) => b.id);
+  if (!ids.length) return;
+  nudge = new Set(ids);
+  clearTimeout(nudgeTimer);
+  nudgeTimer = setTimeout(() => { nudge = null; if (level) render(); }, NUDGE_MS);
+}
+
 function beginGesture() { if (gestureStart === null) gestureStart = target; }
 function commitW() {
   if (gestureStart === null) return;
   const moved = Math.abs(target - gestureStart) > 1e-6;
   gestureStart = null;
+  if (run && isWalk()) run.endWGesture();
   if (!moved || !run) return;
   if (isWalk()) {
     run.noteWAdjust();
@@ -248,7 +304,37 @@ function commitW() {
   }
 }
 
-function updateRail(w = dialToW(current)) {
+function buildRailSpans() {
+  const host = $('rail-spans');
+  if (!host || !level) return;
+  const seen = new Set();
+  const spans = [];
+  for (const body of displayBodies()) {
+    const halfW = body.type === 'box' ? body.half[3] : body.radius;
+    const lo = Math.max(-2, body.center[3] - halfW);
+    const hi = Math.min(2, body.center[3] + halfW);
+    const key = `${lo.toFixed(2)}:${hi.toFixed(2)}`;
+    if (hi <= lo || seen.has(key)) continue;
+    seen.add(key);
+    spans.push({ lo, hi, color: cssColor(wColor(body.center[3])) });
+  }
+  host.replaceChildren(...spans.map((s, idx) => {
+    const el = document.createElement('span');
+    el.className = 'rail-span';
+    el.dataset.lo = String(s.lo);
+    el.dataset.hi = String(s.hi);
+    const topPct = (1 - (s.hi + 2) / 4) * 100;
+    const bottomPct = ((s.lo + 2) / 4) * 100;
+    el.style.top = `${topPct}%`;
+    el.style.bottom = `${bottomPct}%`;
+    el.style.left = `${(idx % 2) * 4}px`;
+    el.style.color = s.color;
+    return el;
+  }));
+}
+
+let blocksKey = '';
+function updateRail(w = dialToW(current), blocked = wAids().blocked) {
   const rail = $('w-rail');
   $('rail-thumb').style.top = `${(1 - current) * 100}%`;
   rail.setAttribute('aria-valuenow', w.toFixed(2));
@@ -257,6 +343,30 @@ function updateRail(w = dialToW(current)) {
   const trialTarget = level?.kind === 'visit' && run.phase === 'predict' ? run.session.trial.to : null;
   $('rail-target').hidden = trialTarget === null;
   if (trialTarget !== null) $('rail-target').style.top = `${(1 - trialTarget) * 100}%`;
+  const spansHost = $('rail-spans');
+  if (spansHost) {
+    spansHost.hidden = !mapVisible();
+    for (const el of spansHost.children) {
+      const lo = Number(el.dataset.lo);
+      const hi = Number(el.dataset.hi);
+      el.classList.toggle('active', w >= lo && w <= hi);
+    }
+  }
+  const blocksHost = $('rail-blocks');
+  const key = blocked.map(([lo, hi]) => `${lo.toFixed(3)}:${hi.toFixed(3)}`).join('|');
+  if (blocksHost && key !== blocksKey) {
+    blocksKey = key;
+    blocksHost.hidden = blocked.length === 0;
+    const hintEl = $('legend-block-hint');
+    if (hintEl) hintEl.hidden = blocked.length === 0;
+    blocksHost.replaceChildren(...blocked.map(([lo, hi]) => {
+      const el = document.createElement('span');
+      el.className = 'rail-block';
+      el.style.top = `${(1 - (hi + 2) / 4) * 100}%`;
+      el.style.bottom = `${((lo + 2) / 4) * 100}%`;
+      return el;
+    }));
+  }
   const color = cssColor(wColor(w));
   $('layer-swatch').style.color = color;
   $('layer-name').textContent = `第 ${LAYERS[layerIndex(w)].name} 层`;
@@ -318,14 +428,15 @@ function renderChapters() {
   list.replaceChildren(...CHAPTERS.map((chapter) => {
     const levels = LEVELS_LIST.filter((l) => l.chapter === chapter.id);
     const el = document.createElement('section');
-    el.className = `chapter${isUnlocked(levels[0].id, progress) ? '' : ' locked'}`;
+    const chapterOpen = sandboxAll || isUnlocked(levels[0].id, progress);
+    el.className = `chapter${chapterOpen ? '' : ' locked'}`;
     el.innerHTML = `<p class="kicker">第 ${chapter.id} 章 · ${chapter.tag}</p><h2>${chapter.name}</h2><p>${chapter.blurb}</p>`;
     const box = document.createElement('div');
     box.className = 'levels';
     for (const l of levels) {
       const button = document.createElement('button');
       button.className = 'level-button';
-      const open = isUnlocked(l.id, progress);
+      const open = sandboxAll || isUnlocked(l.id, progress);
       button.disabled = !open;
       button.innerHTML = `<span class="num">${l.id}</span><span>${l.title}</span><span class="mark">${progress.has(l.id) ? '✓' : (open ? '→' : '·')}</span>`;
       button.setAttribute('aria-label', `${l.id} ${l.title}${progress.has(l.id) ? '，已完成' : (open ? '' : '，未解锁')}`);
@@ -337,6 +448,11 @@ function renderChapters() {
   }));
   const fresh = progress.size === 0;
   $('play').firstChild.textContent = fresh ? '开始 ' : '继续 ';
+  const unlockBtn = $('unlock-all');
+  if (unlockBtn) {
+    unlockBtn.setAttribute('aria-pressed', String(sandboxAll));
+    unlockBtn.textContent = sandboxAll ? '已解锁全部关卡' : '解锁全部关卡';
+  }
 }
 
 const firstOpenLevel = () => LEVELS_LIST.find((l) => !progress.has(l.id) && isUnlocked(l.id, progress)) ?? LEVELS_LIST[0];
@@ -349,6 +465,8 @@ function leaveLevel() {
   reveal = null;
   clearTimeout(peekTimer);
   mapPeeking = false;
+  clearTimeout(nudgeTimer);
+  nudge = null;
   hideCard(false);
 }
 
@@ -388,11 +506,13 @@ function startLevel(id, { skipIntro = false } = {}) {
   $('scene').hidden = flatView;
   $('flat').hidden = !flatView;
   $('reset-view').hidden = flatView;
-  $('stage-tag').textContent = flatView ? '你的世界 · 二维的一层' : '你的世界 · 三维的一片';
-  $('map-title').textContent = flatView ? '全貌' : 'W 地图';
-  $('map-sub').textContent = flatView ? '竖直方向 = 你看不见的第三维' : '竖直方向 = W（第四维）';
+  $('stage-tag').textContent = flatView ? '你的世界 · 二维俯视 (X-Z)' : '你的世界 · 三维截面 (X-Y-Z)';
+  $('map-title').textContent = flatView ? '全貌 (3D)' : 'W 地图';
+  $('map-sub').textContent = flatView ? '竖直方向 = 高度（第三维）' : '竖直方向 = W（第四维，非高度）';
   $('rail-top').textContent = flatView ? '上' : '+W';
   $('rail-bottom').textContent = flatView ? '下' : '−W';
+  if ($('leg-token')) $('leg-token').hidden = !isWalk();
+  if ($('leg-goal')) $('leg-goal').hidden = !isWalk();
   $('w-rail').setAttribute('aria-label', flatView ? '把你的这一层上下移动' : '沿 W 移动这一片');
   $('w-rail').classList.remove('pulse');
   $('dpad').hidden = !isWalk();
@@ -403,9 +523,10 @@ function startLevel(id, { skipIntro = false } = {}) {
   updateErrors();
   prevVisible = visibleIds(displayBodies().map((b) => sliceAtW(b, dialToW(current))));
   prevLayer = layerIndex(dialToW(current));
+  buildRailSpans();
   updateMapVisibility();
-  map?.fitTo(frameBounds());
-  slice?.resetView({ distance: isWalk() && level.field.bounds.x > 3 ? 8.8 : 7.6 });
+  map?.fitTo(frameBounds(), flatView ? 0.16 : 0.45);
+  slice?.resetView({ distance: isWalk() && level.field.bounds.x > 3 ? 8.8 : 7.6, yaw: 0.45 });
   render();
   const firstOfChapter = LEVELS_LIST.find((l) => l.chapter === level.chapter) === level;
   if (firstOfChapter && !skipIntro && !introShown.has(level.chapter)) {
@@ -418,7 +539,8 @@ const focusStage = () => $(isFlat() ? 'flat' : 'scene').focus({ preventScroll: t
 
 function updateMapVisibility() {
   $('map-veil').hidden = mapVisible() || !mapOk;
-  if (mapVisible()) render();
+  updateRail();
+  if (level) render();
 }
 
 function updateStats() {
@@ -553,6 +675,7 @@ function beginTrial() {
     button.classList.remove('answer');
   });
   setObjective(`${level.predictObjective}金色虚线是要去的位置。`);
+  buildRailSpans();
   current = target = trial.from;
   render();
   choiceButtons[0].focus({ preventScroll: true });
@@ -582,6 +705,7 @@ function finishReveal() {
   $('next-trial').hidden = false;
   $('next-trial').firstChild.textContent = run.session.index === run.session.trials.length - 1 ? '完成 ' : '下一题 ';
   $('next-trial').focus({ preventScroll: true });
+  updateRail();
   updateStats();
 }
 
@@ -663,8 +787,12 @@ document.querySelectorAll('#dpad button').forEach((button) => {
 });
 
 $('play').addEventListener('click', () => { sfxInit(); startLevel(firstOpenLevel().id); });
+$('unlock-all')?.addEventListener('click', () => { sandboxAll = !sandboxAll; renderChapters(); });
 $('back').addEventListener('click', showTitle);
-$('reset-view').addEventListener('click', () => slice?.resetView());
+$('reset-view').addEventListener('click', () => {
+  slice?.resetView();
+  if (level) map?.fitTo(frameBounds(), isFlat() ? 0.16 : 0.45);
+});
 $('sound').addEventListener('click', () => {
   const on = $('sound').getAttribute('aria-pressed') !== 'true';
   $('sound').setAttribute('aria-pressed', String(on));

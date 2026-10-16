@@ -12,9 +12,10 @@ uniform vec3 uEye;
 uniform float uLookY;
 uniform vec4 uSph[${MAX}];
 uniform vec3 uSphTint[${MAX}];
+uniform vec2 uSphGhost[${MAX}];
 uniform float uSphCount;
 uniform vec3 uBoxC[${MAX}];
-uniform vec3 uBoxH[${MAX}];
+uniform vec4 uBoxH[${MAX}];
 uniform vec3 uBoxTint[${MAX}];
 uniform float uBoxCount;
 uniform vec4 uToken;
@@ -72,6 +73,29 @@ vec3 glass(vec3 base, vec3 n, vec3 rd, float edge) {
   return c;
 }
 
+vec4 shadeHit(int kind, float t, vec3 ro, vec3 rd, vec3 hc, vec4 hh, vec3 tint) {
+  vec3 p = ro + rd * t;
+  if (kind == 1) {
+    vec3 n = normalize(p - hc);
+    float lat = acos(clamp(n.y, -1.0, 1.0));
+    float lon = atan(n.z, n.x);
+    float lines = min(abs(sin(lat * 10.0)), abs(sin(lon * 10.0)) * max(sin(lat), 0.2));
+    float grid = (1.0 - smoothstep(0.015, 0.05, lines)) * 0.25;
+    float equator = 1.0 - smoothstep(0.004, 0.012, abs(n.y));
+    vec3 g = glass(tint, n, rd, grid + equator * 0.6);
+    float alpha = 0.7 + 0.25 * pow(1.0 - max(dot(n, -rd), 0.0), 2.0);
+    return vec4(g, alpha);
+  }
+  vec3 n = boxNormal(p, hc, hh.xyz);
+  float wEdge = clamp((hh.w - 0.2) / 0.8, 0.0, 1.0);
+  float edgeDist = boxEdge(p, hc, hh.xyz);
+  float edge = 1.0 - smoothstep(0.0, 0.045, edgeDist);
+  float wThin = (1.0 - wEdge) * (0.5 + 0.5 * sin((p.x + p.y * 1.4 + p.z) * 18.0));
+  vec3 g = glass(tint, n, rd, edge + wThin * 0.35);
+  float alpha = (0.34 + 0.30 * wEdge) + edge * (0.38 + 0.12 * (1.0 - wEdge));
+  return vec4(g, clamp(alpha, 0.0, 0.95));
+}
+
 void main() {
   vec2 uv = (gl_FragCoord.xy * 2.0 - uResolution) / uResolution.y;
   vec3 look = vec3(0.0, uLookY, 0.0);
@@ -125,6 +149,12 @@ void main() {
     for (int i = 0; i < ${MAX}; i += 1) {
       if (float(i) >= uSphCount) break;
       vec4 s = uSph[i];
+      vec2 sg = uSphGhost[i];
+      if (sg.y > 0.001) {
+        float gd = abs(length(p.xz - s.xz) - sg.x);
+        float dash = step(0.45, fract(atan(p.z - s.z, p.x - s.x) * 3.82));
+        fl += uSphTint[i] * sg.y * dash * (1.0 - smoothstep(0.008, 0.03, gd)) * 0.65;
+      }
       if (s.w < 0.0001) continue;
       vec2 o = p.xz - s.xz + vec2(0.22, -0.14) * s.y;
       float pool = exp(-dot(o, o) / (s.w * s.w * 0.8 + 0.05));
@@ -132,12 +162,25 @@ void main() {
     }
     for (int i = 0; i < ${MAX}; i += 1) {
       if (float(i) >= uBoxCount) break;
-      vec3 h = uBoxH[i];
-      if (h.y < 0.001) continue;
+      vec4 h = uBoxH[i];
+      if (h.w < -0.001) {
+        float ghost = -h.w;
+        vec2 d0 = abs(p.xz - uBoxC[i].xz) - h.xz;
+        float outline = 1.0 - smoothstep(0.008, 0.028, abs(max(d0.x, d0.y)));
+        float dash = step(0.42, fract((p.x + p.z) * 5.0));
+        fl += uBoxTint[i] * ghost * outline * dash * 0.55;
+        continue;
+      }
+      if (h.y < 0.001 || h.w < 0.001) continue;
+      float wEdge = clamp((h.w - 0.2) / 0.8, 0.0, 1.0);
       vec2 d = abs(p.xz - uBoxC[i].xz + vec2(0.22, -0.14) * uBoxC[i].y) - h.xz;
       float dist = length(max(d, vec2(0.0)));
-      float pool = exp(-dist * dist / 0.25);
+      float pool = exp(-dist * dist / 0.25) * (0.5 + 0.5 * wEdge);
       fl = fl * (1.0 - pool * 0.4) + uBoxTint[i] * pool * 0.05;
+      vec2 dFloor = abs(p.xz - uBoxC[i].xz) - h.xz;
+      float baseRim = 1.0 - smoothstep(0.006, 0.026, abs(max(dFloor.x, dFloor.y)));
+      float dash = wEdge < 0.99 ? mix(step(0.35, fract((p.x + p.z) * 5.0)), 1.0, wEdge) : 1.0;
+      fl += uBoxTint[i] * baseRim * dash * (0.28 + 0.22 * (1.0 - wEdge));
     }
     if (uToken.w > -0.5) {
       float kd = length(p.xz - uToken.xy);
@@ -151,37 +194,41 @@ void main() {
   float bestT = floorT;
   int kind = 0;
   vec3 hc = vec3(0.0);
-  vec3 hh = vec3(0.0);
+  vec4 hh = vec4(0.0);
   vec3 tint = vec3(0.0);
-  float radius = 0.0;
+  float bestT2 = floorT;
+  int kind2 = 0;
+  vec3 hc2 = vec3(0.0);
+  vec4 hh2 = vec4(0.0);
+  vec3 tint2 = vec3(0.0);
   for (int i = 0; i < ${MAX}; i += 1) {
     if (float(i) >= uSphCount) break;
     float t = hitSphere(ro, rd, uSph[i]);
-    if (t > 0.0 && t < bestT) { bestT = t; kind = 1; hc = uSph[i].xyz; radius = uSph[i].w; tint = uSphTint[i]; }
+    if (t > 0.0 && t < bestT) {
+      bestT2 = bestT; kind2 = kind; hc2 = hc; hh2 = hh; tint2 = tint;
+      bestT = t; kind = 1; hc = uSph[i].xyz; hh = vec4(0.0, 0.0, 0.0, uSph[i].w); tint = uSphTint[i];
+    } else if (t > 0.0 && t < bestT2) {
+      bestT2 = t; kind2 = 1; hc2 = uSph[i].xyz; hh2 = vec4(0.0, 0.0, 0.0, uSph[i].w); tint2 = uSphTint[i];
+    }
   }
   for (int i = 0; i < ${MAX}; i += 1) {
     if (float(i) >= uBoxCount) break;
-    if (uBoxH[i].y < 0.001) continue;
-    vec2 span = boxSpan(ro, rd, uBoxC[i], uBoxH[i]);
-    if (span.x > 0.0 && span.x < bestT) { bestT = span.x; kind = 2; hc = uBoxC[i]; hh = uBoxH[i]; tint = uBoxTint[i]; }
+    if (uBoxH[i].y < 0.001 || uBoxH[i].w < 0.001) continue;
+    vec2 span = boxSpan(ro, rd, uBoxC[i], uBoxH[i].xyz);
+    if (span.x > 0.0 && span.x < bestT) {
+      bestT2 = bestT; kind2 = kind; hc2 = hc; hh2 = hh; tint2 = tint;
+      bestT = span.x; kind = 2; hc = uBoxC[i]; hh = uBoxH[i]; tint = uBoxTint[i];
+    } else if (span.x > 0.0 && span.x < bestT2) {
+      bestT2 = span.x; kind2 = 2; hc2 = uBoxC[i]; hh2 = uBoxH[i]; tint2 = uBoxTint[i];
+    }
   }
-  if (kind == 1) {
-    vec3 p = ro + rd * bestT;
-    vec3 n = normalize(p - hc);
-    float lat = acos(clamp(n.y, -1.0, 1.0));
-    float lon = atan(n.z, n.x);
-    float lines = min(abs(sin(lat * 10.0)), abs(sin(lon * 10.0)) * max(sin(lat), 0.2));
-    float grid = (1.0 - smoothstep(0.015, 0.05, lines)) * 0.25;
-    float equator = 1.0 - smoothstep(0.004, 0.012, abs(n.y));
-    vec3 g = glass(tint, n, rd, grid + equator * 0.6);
-    float alpha = 0.7 + 0.25 * pow(1.0 - max(dot(n, -rd), 0.0), 2.0);
-    color = mix(color, g, alpha);
-  } else if (kind == 2) {
-    vec3 p = ro + rd * bestT;
-    vec3 n = boxNormal(p, hc, hh);
-    float edge = 1.0 - smoothstep(0.0, 0.04, boxEdge(p, hc, hh));
-    vec3 g = glass(tint, n, rd, edge);
-    color = mix(color, g, 0.62 + edge * 0.35);
+  if (kind2 > 0) {
+    vec4 g2 = shadeHit(kind2, bestT2, ro, rd, hc2, hh2, tint2);
+    color = mix(color, g2.rgb, g2.a * 0.85);
+  }
+  if (kind > 0) {
+    vec4 g1 = shadeHit(kind, bestT, ro, rd, hc, hh, tint);
+    color = mix(color, g1.rgb, g1.a);
   }
 
   if (uGoal.w > -0.5) color += GOLD * beam(ro, rd, uGoal.xy, 1.8, 0.06) * (uGoal.w > 0.5 ? 1.0 : 0.65);
@@ -195,7 +242,7 @@ void main() {
 }
 `;
 
-const NAMES = ['uResolution', 'uEye', 'uLookY', 'uSph', 'uSphTint', 'uSphCount', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxCount',
+const NAMES = ['uResolution', 'uEye', 'uLookY', 'uSph', 'uSphTint', 'uSphGhost', 'uSphCount', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxCount',
   'uToken', 'uGoal', 'uStart', 'uBounds', 'uTrail', 'uRipples', 'uRippleTint', 'uLayerA', 'uLayerB', 'uLayerMix'];
 const VIEW = { yaw: 0.45, pitch: 0.5, distance: 7.6, minPitch: 0.05, maxPitch: 1.35, minDistance: 4.5, maxDistance: 14 };
 
@@ -239,28 +286,34 @@ export class SliceRenderer {
 
     const sph = new Float32Array(MAX * 4);
     const sphTint = new Float32Array(MAX * 3);
+    const sphGhost = new Float32Array(MAX * 2);
     const boxC = new Float32Array(MAX * 3);
-    const boxH = new Float32Array(MAX * 3);
+    const boxH = new Float32Array(MAX * 4);
     const boxTint = new Float32Array(MAX * 3);
     let ns = 0;
     let nb = 0;
     for (const s of frame.sections) {
+      const walkGhost = s.ghost ? 0.28 + 0.65 * (s.wGhost ?? 0) : 0;
       if (s.type === 'box' && nb < MAX) {
         boxC.set(s.center, nb * 3);
-        boxH.set(s.kind === 'box' ? s.half : [0, 0, 0], nb * 3);
+        const wState = s.kind === 'box' ? 0.2 + 0.8 * (s.wEdge ?? 1) : (walkGhost > 0 ? -walkGhost : 0);
+        boxH.set([...s.half, wState], nb * 4);
         boxTint.set(s.tint, nb * 3);
         nb += 1;
       } else if (s.type === 'sphere' && ns < MAX) {
+        // The dashed danger circle stays while the sphere is present but smaller.
         sph.set([...s.center, s.radius], ns * 4);
+        sphGhost.set([s.maxR || 0.35, walkGhost], ns * 2);
         sphTint.set(s.tint, ns * 3);
         ns += 1;
       }
     }
     gl.uniform4fv(u.uSph, sph);
     gl.uniform3fv(u.uSphTint, sphTint);
+    gl.uniform2fv(u.uSphGhost, sphGhost);
     gl.uniform1f(u.uSphCount, ns);
     gl.uniform3fv(u.uBoxC, boxC);
-    gl.uniform3fv(u.uBoxH, boxH);
+    gl.uniform4fv(u.uBoxH, boxH);
     gl.uniform3fv(u.uBoxTint, boxTint);
     gl.uniform1f(u.uBoxCount, nb);
 
