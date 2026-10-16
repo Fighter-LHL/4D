@@ -293,7 +293,8 @@ export class SliceRenderer {
     let ns = 0;
     let nb = 0;
     for (const s of frame.sections) {
-      const walkGhost = s.ghost ? 0.28 + 0.65 * (s.wGhost ?? 0) : 0;
+      const ghostAmt = Number(s.ghost) || 0;
+      const walkGhost = ghostAmt * (0.28 + 0.65 * (s.wGhost ?? 0));
       if (s.type === 'box' && nb < MAX) {
         boxC.set(s.center, nb * 3);
         const wState = s.kind === 'box' ? 0.2 + 0.8 * (s.wEdge ?? 1) : (walkGhost > 0 ? -walkGhost : 0);

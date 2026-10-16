@@ -132,8 +132,9 @@ export class FlatRenderer {
 
     for (const sec of frame.sections ?? []) {
       // A present box is drawn whole; a present sphere keeps its danger circle.
-      if (!sec.ghost || (sec.type === 'box' && sec.kind !== 'empty')) continue;
-      const ghost = 0.28 + 0.62 * (sec.wGhost ?? 0);
+      const ghostAmt = Number(sec.ghost) || 0;
+      if (ghostAmt <= 0 || (sec.type === 'box' && sec.kind !== 'empty')) continue;
+      const ghost = ghostAmt * (0.28 + 0.62 * (sec.wGhost ?? 0));
       ctx.save();
       const [x, z] = [sec.center[0], sec.center[2]];
       ctx.strokeStyle = cssColor(sec.tint, ghost);

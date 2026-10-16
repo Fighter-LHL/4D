@@ -184,6 +184,7 @@ test('level table is ordered, unlocks in sequence and keeps maps hidden in chapt
     assert.equal(level.map === 'hidden', level.chapter === 2);
     assert.equal(level.view === 'flat', level.chapter === 0);
     assert.equal(level.hints.length, 3);
+    for (const hint of level.hints) assert.ok(!/\d/.test(hint), `${level.id} hint has number: ${hint}`);
     assert.ok(Number.isFinite(planeY(level)));
   }
   // Flatland and chapter 1 share the same (x, z, W) layouts.

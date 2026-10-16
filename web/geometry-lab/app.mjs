@@ -126,26 +126,27 @@ function displayBodies() {
 const frameBounds = () => (isWalk() ? level.field.bounds : { x: 2.8, z: 2.0 });
 
 // Chapter 2 hides every W aid unless the player is peeking; a refused W change
-// briefly shows only the bodies that refused it.
-const NO_AIDS = { ghost: () => false, blocked: [] };
-function wAids() {
+// briefly shows only the floor outlines of the bodies that refused it.
+const NO_AIDS = { ghost: () => 0, blocked: [] };
+function wAids(now = performance.now()) {
   if (!isWalk() || !run) return NO_AIDS;
-  if (mapVisible()) return { ghost: () => true, blocked: blockedWIntervals(level.field, run.pos) };
-  if (!nudge) return NO_AIDS;
-  const bodies = level.field.bodies.filter((b) => nudge.has(b.id));
-  return { ghost: (id) => nudge.has(id), blocked: blockedWIntervals({ ...level.field, bodies }, run.pos) };
+  if (mapVisible()) return { ghost: () => 1, blocked: blockedWIntervals(level.field, run.pos) };
+  if (!nudge || now >= nudge.until) { nudge = null; return NO_AIDS; }
+  const rem = (nudge.until - now) / NUDGE_MS;
+  const fade = reducedMotion.matches ? 1 : Math.min(1, rem / 0.35);
+  return { ghost: (id) => (nudge.ids.has(id) ? fade : 0), blocked: [] };
 }
 
 function buildFrame() {
   const w = dialToW(current);
   const bodies = displayBodies();
   const y = isWalk() ? level.field.tokenY : bodies[0].center[1];
+  const now = performance.now();
   const tinted = bodies.map((body) => ({ body, tint: wColor(body.center[3]), foot: wFootprint(body, y) }));
   const maxR = (body, foot) => (isWalk() && body.type === 'sphere' ? exclusionRadius(body, level.field) : foot.radius ?? 0);
-  const aids = wAids();
+  const aids = wAids(now);
   const sections = tinted.map(({ body, tint, foot }) => ({ ...sliceAtW(body, w), tint, maxR: maxR(body, foot), ghost: aids.ghost(body.id) }));
   const blend = layerBlend(w);
-  const now = performance.now();
   while (trail.length && now - trail[0][2] > TRAIL_MS) trail.shift();
   while (ripples.length && now - ripples[0].t0 > RIPPLE_MS) ripples.shift();
   return {
@@ -223,7 +224,7 @@ function tick(time) {
   if (isWalk() && !cardOpen && !run.won) stepToken(delta, time);
   if (flash > 0) flash = Math.max(0, flash - delta * 2.4);
   render();
-  if (reveal || wHold || current !== target || ripples.length || pressed.size || flash > 0 || trail.length) requestFrame();
+  if (reveal || wHold || current !== target || ripples.length || pressed.size || flash > 0 || trail.length || nudge) requestFrame();
   else previousTime = 0;
 }
 
@@ -284,7 +285,7 @@ function revealBlockers(fromW, toW) {
   const { field } = level;
   const ids = field.bodies.filter((b) => wChangeEngulfs({ ...field, bodies: [b] }, run.pos, fromW, toW)).map((b) => b.id);
   if (!ids.length) return;
-  nudge = new Set(ids);
+  nudge = { ids: new Set(ids), until: performance.now() + NUDGE_MS };
   clearTimeout(nudgeTimer);
   nudgeTimer = setTimeout(() => { nudge = null; if (level) render(); }, NUDGE_MS);
 }
