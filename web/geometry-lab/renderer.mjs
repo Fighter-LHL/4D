@@ -2,6 +2,7 @@
 // Bodies are frosted glass tinted by where they live in W; the floor carries
 // the pattern of the parallel-world layer the slice is in.
 import { MAX_BODIES_PER_TYPE, createProgram, uniformLocations, fitCanvas, Orbit, watchContext, GLSL_BOX, GLSL_PATTERN } from './gl-core.mjs';
+import { SCENE_DETAILS } from './scene-details.mjs';
 
 const MAX = MAX_BODIES_PER_TYPE;
 
@@ -12,6 +13,7 @@ uniform vec3 uEye;
 uniform float uLookY;
 uniform vec4 uSph[${MAX}];
 uniform vec3 uSphTint[${MAX}];
+uniform float uSphRole[${MAX}];
 uniform vec2 uSphGhost[${MAX}];
 uniform float uSphCount;
 uniform vec3 uBoxC[${MAX}];
@@ -25,6 +27,8 @@ uniform vec4 uItem;
 uniform vec4 uSocket;
 uniform vec4 uLatch;
 uniform vec4 uRelayPorts;
+uniform vec4 uChannel;
+uniform float uProps;
 uniform vec4 uGoal;
 uniform vec3 uStart;
 uniform vec3 uBounds;
@@ -143,69 +147,7 @@ vec3 shadeCrystal(vec3 rd, vec3 n, float edge) {
   return c;
 }
 
-// Monument-Valley-inspired minimalist traveler: slender conical cloak, dark head,
-// and an ivory conical hat/spire, plus the floating sacred octahedron when carrying.
-float hitActor(vec3 ro, vec3 rd, vec2 pos, float yaw, float bob, float carrying, float flashAmt, vec3 layerTint, out vec3 outCol) {
-  outCol = vec3(0.0);
-  vec2 fwd = vec2(sin(yaw), cos(yaw));
-  float tBest = 1e6;
-  int part = 0;
-  vec3 bestN = vec3(0.0, 1.0, 0.0);
-  float cEdge = 0.0;
-
-  vec3 nCone;
-  // Conical cloak
-  float tCloak = hitCone(ro, rd, pos, 0.03 + bob * 0.4, 0.45 + bob * 0.7, 0.165, 0.048, nCone);
-  if (tCloak > 0.0 && tCloak < tBest) { tBest = tCloak; part = 1; bestN = nCone; }
-  // Head sphere
-  vec3 headC = vec3(pos.x, 0.49 + bob * 0.85, pos.y);
-  float tHead = hitSphere(ro, rd, vec4(headC, 0.072));
-  if (tHead > 0.0 && tHead < tBest) {
-    tBest = tHead;
-    part = 2;
-    bestN = normalize(ro + rd * tHead - headC);
-  }
-  // Conical hat / spire (tilted slightly back along -fwd)
-  vec2 hatXZ = pos - fwd * 0.022;
-  float tHat = hitCone(ro, rd, hatXZ, 0.52 + bob, 0.78 + bob, 0.135, 0.012, nCone);
-  if (tHat > 0.0 && tHat < tBest) { tBest = tHat; part = 3; bestN = nCone; }
-
-  if (carrying > 0.5) {
-    vec3 carryC = vec3(pos.x, 0.96 + bob * 1.1, pos.y);
-    vec3 cn;
-    float ce;
-    float tCr = hitCrystal(ro, rd, carryC, 0.17, cn, ce);
-    if (tCr > 0.0 && tCr < tBest) { tBest = tCr; part = 4; bestN = cn; cEdge = ce; }
-  }
-
-  if (part == 0) return -1.0;
-  if (part == 4) {
-    outCol = shadeCrystal(rd, bestN, cEdge);
-    return tBest;
-  }
-  vec3 p = ro + rd * tBest;
-  float sun = max(dot(bestN, SUN_DIR), 0.0);
-  vec3 ivory = mix(IVORY, ALERT, clamp(flashAmt, 0.0, 1.0));
-  if (part == 2) {
-    // Dark minimal head with subtle rim
-    outCol = vec3(0.11, 0.13, 0.22) + ivory * 0.15 * sun;
-    return tBest;
-  }
-  // Tri-tone gouache shading on cloak and conical hat
-  vec3 lit = ivory * 1.02;
-  vec3 mid = mix(ivory * 0.86, layerTint, 0.16);
-  vec3 shd = mix(ivory * 0.64, SHADOW_TINT, 0.38);
-  vec3 col = sun > 0.45 ? mix(mid, lit, (sun - 0.45) / 0.55) : mix(shd, mid, sun / 0.45);
-  if (part == 1) {
-    float hem = 1.0 - smoothstep(0.0, 0.035, p.y - (0.03 + bob * 0.4));
-    col = mix(col, mix(GOLD, layerTint, 0.4), hem * 0.65);
-  } else if (part == 3) {
-    float brim = 1.0 - smoothstep(0.0, 0.03, p.y - (0.52 + bob));
-    col = mix(col, GOLD, brim * 0.55);
-  }
-  outCol = col;
-  return tBest;
-}
+${SCENE_DETAILS}
 
 // Monument-Valley architectural tri-tone shading: distinct sunlit top, warm front
 // wall with cornice & fluted pilasters, and cool-shadowed side wall.
@@ -231,6 +173,16 @@ vec4 shadeHit(int kind, float t, vec3 ro, vec3 rd, vec3 hc, vec4 hh, vec3 tint, 
     float ring2 = 1.0 - smoothstep(0.008, 0.02, abs(abs(n.y) - 0.5));
     c = mix(c, GOLD, eq * 0.48 + ring2 * 0.22);
     c += IVORY * pow(max(dot(reflect(-SUN_DIR, n), -rd), 0.0), 32.0) * 0.22;
+    if (role == 7) {
+      // Mineral shell: broad cut-face shading, with the exact sphere silhouette
+      // and radius left intact so changing W still reads as a true section.
+      vec3 facetN = normalize(floor(n * 4.0 + 0.5));
+      vec3 mineral = mix(vec3(0.39, 0.50, 0.51), tint, 0.20);
+      c = detailLight(mineral, facetN, rd, 0.35);
+      float vein = 1.0 - smoothstep(0.008, 0.035, abs(n.y + n.x * 0.28 - 0.18));
+      c = mix(c, IVORY * 0.85, vein * 0.48);
+      c += pow(1.0 - max(dot(n, -rd), 0.0), 3.0) * vec3(0.10, 0.16, 0.17);
+    }
     float alpha = behindSolid ? 0.48 : 0.90;
     return vec4(c, alpha);
   }
@@ -255,11 +207,11 @@ vec4 shadeHit(int kind, float t, vec3 ro, vec3 rd, vec3 hc, vec4 hh, vec3 tint, 
   } else if (role == 2 || role == 5) {
     // Phase wall: compressed mineral bands. It stays solid exactly where it
     // exists; its edge is crisp so a powered gate behind it never reads open.
-    vec3 mineral = mix(vec3(0.55, 0.47, 0.43), tint, 0.16);
+    vec3 mineral = mix(role == 5 ? vec3(0.37, 0.49, 0.50) : vec3(0.55, 0.47, 0.43), tint, 0.16);
     float bands = 0.5 + 0.5 * sin(p.y * 46.0 + p.z * 4.0);
     c = mix(mineral * 0.64, mineral * 1.14, bands);
     float seam = smoothstep(0.68, 0.99, abs(sin(p.y * 11.0 + p.z * 3.2)));
-    c = mix(c, vec3(0.92, 0.42, 0.33), seam * 0.22);
+    c = mix(c, role == 5 ? IVORY : vec3(0.92, 0.42, 0.33), seam * 0.22);
     float facet = 1.0 - smoothstep(0.0, 0.055, abs(fract((p.y + p.z) * 2.5) - 0.5));
     c = mix(c, mix(mineral, IVORY, 0.60), facet * 0.22);
     c = mix(c, mix(vec3(0.10, 0.11, 0.11), tint, 0.28), bevel * 0.60);
@@ -282,6 +234,20 @@ vec4 shadeHit(int kind, float t, vec3 ro, vec3 rd, vec3 hc, vec4 hh, vec3 tint, 
     c = mix(c, mix(GOLD, ITEM_COL, 0.24), pin * 0.52 + brace * 0.28);
     c = mix(c, IVORY, bevel * 0.32);
     alpha = 0.93;
+  } else if (role == 6) {
+    // Dressed slate blocks give the W channel a different material family
+    // from the bronze mechanisms. Seams are surface ink, not extra geometry.
+    vec3 slate = mix(vec3(0.25, 0.36, 0.38), tint, 0.10);
+    c = archTone(slate, n);
+    float topDist = hc.y + hh.y - p.y;
+    float cap = 1.0 - smoothstep(0.07, 0.10, topDist);
+    float row = floor(p.y / 0.22);
+    float joint = min(abs(fract(p.x / 0.44 + mod(row, 2.0) * 0.5) - 0.5) * 0.44,
+      abs(fract(p.y / 0.22) - 0.5) * 0.22);
+    c *= 0.94 + 0.06 * sin(floor(p.x / 0.44) * 3.1 + row * 2.7);
+    c = mix(c, slate * 0.48, (1.0 - smoothstep(0.003, 0.012, joint)) * (1.0 - cap) * 0.52);
+    c = mix(c, vec3(0.72, 0.79, 0.75), cap * 0.62 + bevel * 0.18);
+    alpha = 0.95;
   } else {
     vec3 base = mix(tint * 0.66 + vec3(0.105, 0.125, 0.122), IVORY * 0.42, 0.10);
     c = archTone(base, n);
@@ -358,6 +324,23 @@ void main() {
       vec2 tile = abs(fract(p.xz * 2.0) - 0.5);
       float seam = 1.0 - smoothstep(0.0, 0.025, 0.5 - max(tile.x, tile.y));
       vec3 fl = mix(deckBase, IVORY, 0.18) * (1.0 - seam * 0.08);
+      if (uSocket.z >= 0.0) {
+        // Quiet, staggered paving instead of a uniform fine grid. No marks
+        // reveal a route sequence or a location where W is safe to change.
+        float row = floor(p.z / 0.48);
+        vec2 cell = vec2(p.x / 0.76 + mod(row, 2.0) * 0.5, p.z / 0.48);
+        vec2 edge = min(fract(cell), 1.0 - fract(cell)) * vec2(0.76, 0.48);
+        float grout = 1.0 - smoothstep(0.004, 0.014, min(edge.x, edge.y));
+        float grain = sin(floor(cell.x) * 7.1 + row * 4.7) * 0.018;
+        fl = mix(deckBase, vec3(0.64, 0.63, 0.55), 0.31) + grain;
+        fl *= 1.0 - grout * 0.22;
+        if (uChannel.w > 0.0 && p.x >= uChannel.x && p.x <= uChannel.y && abs(p.z - uChannel.z) < uChannel.w) {
+          float slab = 1.0 - smoothstep(0.004, 0.018, abs(fract((p.x - uChannel.x) / 0.55) - 0.5) * 0.55);
+          fl = mix(fl, vec3(0.30, 0.39, 0.40), 0.50) * (1.0 - slab * 0.18);
+          float trim = 1.0 - smoothstep(0.008, 0.023, abs(abs(p.z - uChannel.z) - (uChannel.w - 0.08)));
+          fl = mix(fl, vec3(0.63, 0.72, 0.68), trim * 0.30);
+        }
+      }
       if (uBounds.z > 0.5) {
         vec2 out2 = abs(p.xz) - uBounds.xy;
         float maxOut = max(out2.x, out2.y);
@@ -405,6 +388,9 @@ void main() {
         float power = mix(0.20, 0.95, uSocket.w);
         float pool = exp(-d * d * 6.0) * (0.10 + 0.45 * uSocket.w);
         fl += blue * pool * 0.30;
+        // Copper sheath under the existing cable; blue remains its power state.
+        fl = mix(fl, vec3(0.53, 0.33, 0.19), wire(p.xz + vec2(0.0, 0.045), uSocket.xy, uRelayPorts.xy) * 0.60);
+        fl = mix(fl, vec3(0.53, 0.33, 0.19), wire(p.xz - vec2(0.0, 0.045), uSocket.xy, uRelayPorts.xy) * 0.60);
         fl = mix(fl, blue, cable * power * 0.88);
         fl = mix(fl, blue, uSocket.z * (ring * 0.90 + inner * 0.42 + prong * 0.55));
         fl = mix(fl, blue * 0.42, uSocket.z * basin * 0.42);
@@ -491,6 +477,17 @@ void main() {
   }
 
   float solidT = floorT;
+  // Devices are low surface fixtures at existing interaction markers. They
+  // share the nearest-hit pass with the courier and core, never collision.
+  if (uProps > 0.5) {
+    vec3 deviceCol;
+    float dt = hitSocket(ro, rd, deviceCol);
+    if (dt > 0.0 && dt < solidT) { solidT = dt; color = deviceCol; }
+    dt = hitLatch(ro, rd, deviceCol);
+    if (dt > 0.0 && dt < solidT) { solidT = dt; color = deviceCol; }
+    dt = hitReceiver(ro, rd, deviceCol);
+    if (dt > 0.0 && dt < solidT) { solidT = dt; color = deviceCol; }
+  }
   bool hitCharacterOrItem = false;
   if (uActor.w > 0.5) {
     vec3 actorCol;
@@ -529,9 +526,9 @@ void main() {
     float t = hitSphere(ro, rd, uSph[i]);
     if (t > 0.0 && t < bestT) {
       bestT2 = bestT; kind2 = kind; role2 = role; hc2 = hc; hh2 = hh; tint2 = tint;
-      bestT = t; kind = 1; role = 0.0; hc = uSph[i].xyz; hh = vec4(0.0, 0.0, 0.0, uSph[i].w); tint = uSphTint[i];
+      bestT = t; kind = 1; role = uSphRole[i]; hc = uSph[i].xyz; hh = vec4(0.0, 0.0, 0.0, uSph[i].w); tint = uSphTint[i];
     } else if (t > 0.0 && t < bestT2) {
-      bestT2 = t; kind2 = 1; role2 = 0.0; hc2 = uSph[i].xyz; hh2 = vec4(0.0, 0.0, 0.0, uSph[i].w); tint2 = uSphTint[i];
+      bestT2 = t; kind2 = 1; role2 = uSphRole[i]; hc2 = uSph[i].xyz; hh2 = vec4(0.0, 0.0, 0.0, uSph[i].w); tint2 = uSphTint[i];
     }
   }
   for (int i = 0; i < ${MAX}; i += 1) {
@@ -565,8 +562,8 @@ void main() {
 }
 `;
 
-const NAMES = ['uResolution', 'uEye', 'uLookY', 'uSph', 'uSphTint', 'uSphGhost', 'uSphCount', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxRole', 'uBoxCount',
-  'uToken', 'uActor', 'uItem', 'uSocket', 'uLatch', 'uRelayPorts', 'uGoal', 'uStart', 'uBounds', 'uTrail', 'uRipples', 'uRippleTint', 'uLayerA', 'uLayerB', 'uLayerMix'];
+const NAMES = ['uResolution', 'uEye', 'uLookY', 'uSph', 'uSphTint', 'uSphRole', 'uSphGhost', 'uSphCount', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxRole', 'uBoxCount',
+  'uToken', 'uActor', 'uItem', 'uSocket', 'uLatch', 'uRelayPorts', 'uChannel', 'uProps', 'uGoal', 'uStart', 'uBounds', 'uTrail', 'uRipples', 'uRippleTint', 'uLayerA', 'uLayerB', 'uLayerMix'];
 const VIEW = { yaw: 0.66, pitch: 0.58, distance: 12.2, minPitch: 0.2, maxPitch: 1.35, minDistance: 7.5, maxDistance: 20 };
 
 export class SliceRenderer {
@@ -649,6 +646,7 @@ export class SliceRenderer {
 
     const sph = new Float32Array(MAX * 4);
     const sphTint = new Float32Array(MAX * 3);
+    const sphRole = new Float32Array(MAX);
     const sphGhost = new Float32Array(MAX * 2);
     const boxC = new Float32Array(MAX * 3);
     const boxH = new Float32Array(MAX * 4);
@@ -683,11 +681,13 @@ export class SliceRenderer {
         sph.set([...s.center, s.radius], ns * 4);
         sphGhost.set([s.maxR || 0.35, walkGhost], ns * 2);
         sphTint.set(s.tint, ns * 3);
+        sphRole[ns] = s.role ?? 0;
         ns += 1;
       }
     }
     gl.uniform4fv(u.uSph, sph);
     gl.uniform3fv(u.uSphTint, sphTint);
+    gl.uniform1fv(u.uSphRole, sphRole);
     gl.uniform2fv(u.uSphGhost, sphGhost);
     gl.uniform1f(u.uSphCount, ns);
     gl.uniform3fv(u.uBoxC, boxC);
@@ -701,6 +701,17 @@ export class SliceRenderer {
     gl.uniform4f(u.uToken, ...(token ? [token.pos[0], token.pos[1], field.tokenRadius, token.flash] : [0, 0, 0, -1]));
     gl.uniform4f(u.uActor, ...(token ? [token.yaw ?? 1.57, token.bob ?? 0, token.carrying ? 1 : 0, 1] : [0, 0, 0, 0]));
     gl.uniform4f(u.uItem, ...itemUniform);
+    gl.uniform1f(u.uProps, field?.item ? 1 : 0);
+    // Material inlay follows the authored channel walls, not a second route
+    // definition or a safety hint. It never changes with the active W.
+    const channel = frame.sections.filter(s => s.type === 'box' && s.role === 6);
+    if (channel.length === 2) {
+      const [a, b] = channel;
+      gl.uniform4f(u.uChannel, Math.min(a.center[0] - a.half[0], b.center[0] - b.half[0]),
+        Math.max(a.center[0] + a.half[0], b.center[0] + b.half[0]),
+        (a.center[2] + b.center[2]) / 2,
+        (Math.abs(a.center[2] - b.center[2]) - a.half[2] - b.half[2]) / 2);
+    } else gl.uniform4f(u.uChannel, 0, 0, 0, -1);
     const relay = frame.relay;
     for (const [name, device, active] of [['uSocket', relay?.socket, relay?.powered], ['uLatch', relay?.latch, relay?.latched]]) {
       const visible = device ? (Math.abs(frame.w - device.w) <= device.wReach ? 1 : 0.28) : -1;
