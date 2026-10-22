@@ -85,6 +85,7 @@ LAB_PORT=4180 ./scripts/preview-geometry-lab.sh   # 端口被占用时
 | `layers.mjs` | 五层平行世界的颜色、花纹与渐变 |
 | `gl-core.mjs` | WebGL 公共部分：着色器编译、画布尺寸上限、拖动 / 缩放视角、公共 GLSL |
 | `renderer.mjs` | 主画面：当前三维截面的解析光线追踪 |
+| `scene-details.mjs` | 旅人及机关的解析造型，仅用于显示，不参与碰撞 |
 | `map-renderer.mjs` | W 地图：(x, W, z) 中的玻璃体、切片平面与平面上的精确截面 |
 | `flat-renderer.mjs` | 扁平国：Canvas2D 俯视画面 |
 | `app.mjs` | 界面装配：屏幕切换、输入、按需渲染循环、卡片、提示、窥视、进度、音效 |

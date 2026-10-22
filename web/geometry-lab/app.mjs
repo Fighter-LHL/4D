@@ -33,8 +33,10 @@ const BODY_ROLES = Object.freeze({
   'station-divider-mid': 4,
   'station-divider-s': 4,
   'station-middle-door': 5,
-  'station-channel-n': 4,
-  'station-channel-s': 4,
+  'station-channel-n': 6,
+  'station-channel-s': 6,
+  'station-exit-n': 7,
+  'station-exit-s': 7,
 });
 const roleOf = (id) => BODY_ROLES[id] ?? 0;
 const DEVICE_FEEDBACK = Object.freeze({
@@ -907,6 +909,9 @@ function hideCard(refocus = true) {
 }
 
 function win() {
+  // A previous W/obstacle notice no longer describes the delivered core.
+  clearTimeout(toastTimer);
+  $('toast').classList.remove('show');
   progress.add(level.id);
   saveProgress();
   sfx.win();

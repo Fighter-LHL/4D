@@ -16,7 +16,7 @@ W-Slice 玩法实验。核心机制是 **W-Slice**：标量 `w` 控制当前三�
 - **三章 10 关对照流程**：第 0 章「扁平国」、第 1 章「升一维」、第 2 章「只靠截面」（已移除默认流程中的强制预测答题与考试式计分文案）；
 - **原理实验室（`?level=lab`，可选）**：保留原 6 道截面变化预测题与截面公式说明，供自愿体验。
 
-墨青色机关庭院、青绿晶核与黄铜回廊，连续 W 色带和竖直滑轨帮助观察截面变化。中转站用门体材质、线路与状态栏区分供电、相位墙阻挡和回廊保持开启；提示分 3 级，进度自动保存。
+墨青色机关庭院、青绿晶核与黄铜回廊。旅人有披肩、背包和抱持姿态；插座、回廊拉杆与接收托架采用不同造型，铜质机关和石砌 W 通道区分两条路线。连续 W 色带和竖直滑轨帮助观察截面变化。中转站用门体材质、线路与状态栏区分供电、相位墙阻挡和回廊保持开启；提示分 3 级，进度自动保存。
 
 六状态图板位于 [`web/geometry-lab/states.html`](web/geometry-lab/states.html)（预览地址 `/states.html`），[设计与验证记录](web/geometry-lab/docs/station-redesign.md)单独保留，关卡内只呈现当前状态。
 
@@ -33,7 +33,7 @@ W-Slice 玩法实验。核心机制是 **W-Slice**：标量 `w` 控制当前三�
 node --test web/geometry-lab/tests/*.test.mjs
 ```
 
-设计依据、几何定义、文件结构与验证记录见 [游戏说明](docs/browser-geometry-lab.md)。新关卡的路线、恢复与试玩修正见 [两种办法验证记录](web/geometry-lab/docs/station-two-routes.md)。
+设计依据、几何定义、文件结构与验证记录见 [游戏说明](docs/browser-geometry-lab.md)。新关卡的路线、恢复与试玩修正见 [两种办法验证记录](web/geometry-lab/docs/station-two-routes.md)，造型与材质更新见 [视觉丰富记录](web/geometry-lab/docs/station-visual-depth.md)。
 
 ---
 
