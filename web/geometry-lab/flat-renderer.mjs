@@ -59,6 +59,20 @@ export class FlatRenderer {
     this.draw();
   }
 
+  project(point) {
+    const { canvas, frame } = this;
+    if (!frame) return null;
+    const box = canvas.getBoundingClientRect();
+    if (!box.width || !box.height) return null;
+    const { field } = frame;
+    const ex = (field ? field.bounds.x : 2.8) + 0.45;
+    const ez = (field ? field.bounds.z : 2.0) + 0.45;
+    const s = Math.min(box.width / (2 * ex), box.height / (2 * ez));
+    const xPct = (0.5 + (point[0] * s) / box.width) * 100;
+    const yPct = (0.5 + (point[2] * s) / box.height) * 100;
+    return { x: xPct, y: yPct };
+  }
+
   draw() {
     const { canvas, ctx, frame } = this;
     if (!frame || canvas.offsetParent === null) return;
@@ -196,19 +210,43 @@ export class FlatRenderer {
 
     if (frame.token) {
       const [x, z] = frame.token.pos;
+      const yaw = frame.token.yaw ?? Math.PI / 2;
+      const r = field.tokenRadius * s;
       const color = mixRGB(TOKEN, ALERT, Math.min(1, frame.token.flash));
       const halo = ctx.createRadialGradient(x * s, z * s, 0, x * s, z * s, 0.8 * s);
       halo.addColorStop(0, cssColor(color, 0.35));
       halo.addColorStop(1, cssColor(color, 0));
       ctx.fillStyle = halo;
       ctx.fillRect((x - 0.8) * s, (z - 0.8) * s, 1.6 * s, 1.6 * s);
-      ctx.shadowColor = cssColor(color, 1);
-      ctx.shadowBlur = 20 * ratio;
-      ctx.fillStyle = cssColor(color, 1);
+      ctx.save();
+      ctx.translate(x * s, z * s);
+      ctx.rotate(Math.atan2(Math.cos(yaw), Math.sin(yaw)));
+      // Directional pointer nose
+      ctx.fillStyle = cssColor(color, 0.95);
       ctx.beginPath();
-      ctx.arc(x * s, z * s, field.tokenRadius * s, 0, Math.PI * 2);
+      ctx.moveTo(r * 1.45, 0);
+      ctx.lineTo(r * 0.65, -r * 0.55);
+      ctx.lineTo(r * 0.65, r * 0.55);
+      ctx.closePath();
+      ctx.fill();
+      // Character body
+      ctx.shadowColor = cssColor(color, 1);
+      ctx.shadowBlur = 18 * ratio;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.92, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
+      // Visor & eyes
+      ctx.fillStyle = '#0d162c';
+      ctx.beginPath();
+      ctx.arc(r * 0.28, 0, r * 0.45, -1.1, 1.1);
+      ctx.fill();
+      ctx.fillStyle = '#7affea';
+      ctx.beginPath();
+      ctx.arc(r * 0.38, -r * 0.2, r * 0.13, 0, Math.PI * 2);
+      ctx.arc(r * 0.38, r * 0.2, r * 0.13, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
     ctx.restore();
   }

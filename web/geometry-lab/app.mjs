@@ -1,6 +1,7 @@
-import { clampDial, dialToW, sliceAtW, wFootprint, flatShape, blockedWIntervals, exclusionRadius, wChangeEngulfs, goalSliceAtW, PREDICTIONS } from './geometry.mjs';
+import { clampDial, dialToW, sliceAtW, wFootprint, flatShape, blockedWIntervals, exclusionRadius, wChangeEngulfs, goalSliceAtW, itemSectionAtW, itemFootprint, ITEM_TINT, PREDICTIONS } from './geometry.mjs';
 import { WalkRun, VisitRun } from './game.mjs';
-import { CHAPTERS, LEVELS_LIST, levelById, nextLevel, isUnlocked } from './levels.mjs';
+import { CHAPTERS, LEVELS_LIST, STATION_LEVEL, levelById, nextLevel, isUnlocked } from './levels.mjs';
+import { screenToWorldMove } from './controls.mjs';
 import { LAYERS, layerBlend, layerIndex, wColor, cssColor } from './layers.mjs';
 import { SliceRenderer } from './renderer.mjs';
 import { MapRenderer } from './map-renderer.mjs';
@@ -49,6 +50,7 @@ let syncingOrbit = false;
 if (slice && map) {
   slice.orbit.onChange = () => {
     slice.draw();
+    updateWorldTags();
     if (!syncingOrbit && !isFlat() && mapVisible()) {
       syncingOrbit = true;
       map.orbit.yaw = slice.orbit.yaw;
@@ -62,6 +64,7 @@ if (slice && map) {
       syncingOrbit = true;
       slice.orbit.yaw = map.orbit.yaw;
       slice.draw();
+      updateWorldTags();
       syncingOrbit = false;
     }
   };
@@ -86,6 +89,9 @@ const ripples = [];
 let prevVisible = new Set();
 let prevLayer = null;
 let flash = 0;
+let actorYaw = Math.PI / 2;
+let actorBob = 0;
+let walkPhase = 0;
 let hintLevel = 0;
 let mapPeeking = false;
 let peekTimer = 0;
@@ -120,7 +126,7 @@ const setObjective = (text) => { $('objective').textContent = text; };
 
 // ---------- Frame building ----------
 function displayBodies() {
-  if (isWalk()) return level.field.bodies;
+  if (isWalk()) return run.activeField().bodies;
   return trialActive ? [run.session.trial.body] : level.bodies;
 }
 const frameBounds = () => (isWalk() ? level.field.bounds : { x: 2.8, z: 2.0 });
@@ -130,7 +136,8 @@ const frameBounds = () => (isWalk() ? level.field.bounds : { x: 2.8, z: 2.0 });
 const NO_AIDS = { ghost: () => 0, blocked: [] };
 function wAids(now = performance.now()) {
   if (!isWalk() || !run) return NO_AIDS;
-  if (mapVisible()) return { ghost: () => 1, blocked: blockedWIntervals(level.field, run.pos) };
+  const activeField = run.activeField();
+  if (mapVisible()) return { ghost: () => 1, blocked: blockedWIntervals(activeField, run.pos) };
   if (!nudge || now >= nudge.until) { nudge = null; return NO_AIDS; }
   const rem = (nudge.until - now) / NUDGE_MS;
   const fade = reducedMotion.matches ? 1 : Math.min(1, rem / 0.35);
@@ -140,12 +147,20 @@ function wAids(now = performance.now()) {
 function buildFrame() {
   const w = dialToW(current);
   const bodies = displayBodies();
+  const activeField = isWalk() && run ? run.activeField() : (isWalk() ? level.field : null);
   const y = isWalk() ? level.field.tokenY : bodies[0].center[1];
   const now = performance.now();
   const tinted = bodies.map((body) => ({ body, tint: wColor(body.center[3]), foot: wFootprint(body, y) }));
-  const maxR = (body, foot) => (isWalk() && body.type === 'sphere' ? exclusionRadius(body, level.field) : foot.radius ?? 0);
+  const maxR = (body, foot) => (isWalk() && body.type === 'sphere' ? exclusionRadius(body, activeField) : foot.radius ?? 0);
   const aids = wAids(now);
   const sections = tinted.map(({ body, tint, foot }) => ({ ...sliceAtW(body, w), tint, maxR: maxR(body, foot), ghost: aids.ghost(body.id) }));
+  const footprints = tinted.map(({ tint, foot }) => ({ ...foot, tint }));
+  if (isWalk() && run?.item) {
+    const itemSec = itemSectionAtW(level.field, run.itemState(), w);
+    if (itemSec) sections.push({ ...itemSec, ghost: mapVisible() ? itemSec.ghost : 0 });
+    const itemFoot = itemFootprint(level.field, run.itemState());
+    if (itemFoot) footprints.push(itemFoot);
+  }
   const blend = layerBlend(w);
   while (trail.length && now - trail[0][2] > TRAIL_MS) trail.shift();
   while (ripples.length && now - ripples[0].t0 > RIPPLE_MS) ripples.shift();
@@ -153,12 +168,13 @@ function buildFrame() {
     w,
     sections,
     shapes: sections.map((s) => { const f = flatShape(s, y); return f && { ...f, tint: s.tint }; }).filter(Boolean),
-    footprints: tinted.map(({ tint, foot }) => ({ ...foot, tint })),
-    field: isWalk() ? level.field : null,
+    footprints,
+    field: activeField,
     blocked: aids.blocked,
-    token: isWalk() ? { pos: run.pos, flash, won: run.won } : null,
+    token: isWalk() ? { pos: run.pos, flash, won: run.won, carrying: run.carrying, yaw: actorYaw, bob: actorBob } : null,
     goal: isWalk() ? level.field.goal : null,
     goalState: isWalk() ? goalSliceAtW(level.field, w) : null,
+    relay: isWalk() ? run.relayState() : null,
     bounds: frameBounds(),
     trail: trail.map(([x, z, t]) => [x, z, Math.max(0, 1 - (now - t) / TRAIL_MS) * 0.8]),
     ripples: ripples.map((r) => ({ x: r.x, z: r.z, tint: r.tint, progress: (now - r.t0) / RIPPLE_MS })),
@@ -169,6 +185,140 @@ function buildFrame() {
 }
 
 const visibleIds = (sections) => new Set(sections.filter((s) => s.kind !== 'empty').map((s) => s.id));
+
+function placeTag(el, pt, text, faint = false) {
+  if (!el) return;
+  if (!pt) { el.hidden = true; return; }
+  el.hidden = false;
+  el.textContent = text;
+  el.classList.toggle('faint', faint);
+  el.style.left = `${pt.x.toFixed(1)}%`;
+  el.style.top = `${pt.y.toFixed(1)}%`;
+}
+
+function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
+  const actorEl = $('actor-tag');
+  const itemEl = $('item-tag');
+  const goalEl = $('goal-tag');
+  const socketEl = $('socket-tag');
+  const latchEl = $('latch-tag');
+  socketEl.hidden = true;
+  latchEl.hidden = true;
+  if (!actorEl || !itemEl || !goalEl) return;
+  if (!isWalk() || !run || !frame || cardOpen) {
+    actorEl.hidden = true;
+    itemEl.hidden = true;
+    goalEl.hidden = true;
+    return;
+  }
+  const view = isFlat() ? flat : slice;
+  if (!view?.project) return;
+  const moved = run.distance > 0.25;
+  if (!moved) {
+    const actorPt = view.project([run.pos[0], 0.88 + actorBob, run.pos[1]]);
+    placeTag(actorEl, actorPt, '你 · WASD 移动', false);
+  } else {
+    actorEl.hidden = true;
+  }
+
+  if (frame.relay) {
+    const { socket, latch, powered, latched } = frame.relay;
+    const nearSocket = Math.hypot(run.pos[0] - socket.x, run.pos[1] - socket.z) <= socket.reach;
+    const nearLatch = Math.hypot(run.pos[0] - latch.x, run.pos[1] - latch.z) <= latch.reach;
+    const socketHere = Math.abs(frame.w - socket.w) <= socket.wReach;
+    const latchHere = Math.abs(frame.w - latch.w) <= latch.wReach;
+    placeTag(socketEl, view.project([socket.x, nearSocket ? 1.25 : 0.18, socket.z]),
+      powered ? (nearSocket && socketHere ? '供电中 · F 取回' : '插座 · 供电中') : (socketHere ? '蓝层插座' : '插座 · 蓝层'), !socketHere);
+    placeTag(latchEl, view.project([latch.x, nearLatch ? 1.1 : 0.18, latch.z]),
+      latched ? '回廊已打开' : (latchHere ? '回廊开关' : '开关 · 中间层'), !latchHere);
+  }
+
+  if (level.field.item && run.item && !run.carrying && !run.won && !run.socketPowered()) {
+    const itemSec = itemSectionAtW(level.field, run.itemState(), frame.w);
+    const visible = itemSec && itemSec.radius > 0;
+    const nearSpot = Math.hypot(run.pos[0] - run.item.x, run.pos[1] - run.item.z) <= level.field.item.pickupRadius;
+    const itemPt = view.project([run.item.x, 0.62, run.item.z]);
+    if (visible && (nearSpot || !moved)) {
+      placeTag(itemEl, itemPt, nearSpot ? '按 空格 拿起' : '晶核', false);
+    } else if (!visible && mapVisible()) {
+      placeTag(itemEl, itemPt, `留在 W ${signed(run.item.w)}`, true);
+    } else {
+      itemEl.hidden = true;
+    }
+  } else {
+    itemEl.hidden = true;
+  }
+
+  const [gx, gz] = level.field.goal;
+  const goalOpen = frame.goalState ? frame.goalState.open : true;
+  if (!moved || !goalOpen || level.field.relay) {
+    const goalPt = view.project([gx, 0.28, gz]);
+    const goalName = level.field.item ? '接收台' : '出口';
+    placeTag(goalEl, goalPt, goalOpen ? goalName : `${goalName}（在中间层）`, !goalOpen);
+  } else {
+    goalEl.hidden = true;
+  }
+}
+
+function updateActionButton() {
+  const btn = $('action-btn');
+  if (!btn) return;
+  if (!isWalk() || !level?.field?.item || !run || run.won || cardOpen) {
+    btn.hidden = true;
+    return;
+  }
+  const state = run.canInteract(current);
+  if (state.action === 'latch' || state.action === 'dock') {
+    btn.hidden = false;
+    btn.disabled = false;
+    btn.textContent = state.action === 'latch' ? '拉开回廊 (空格 / F)' : '放入插座 (空格 / F)';
+  } else if (run.carrying) {
+    btn.hidden = false;
+    btn.disabled = false;
+    btn.textContent = '放下晶核 (空格 / F)';
+  } else if (state.action === 'pickup') {
+    btn.hidden = false;
+    btn.disabled = false;
+    btn.textContent = run.socketPowered() ? '取回晶核 (空格 / F)' : '拿起晶核 (空格 / F)';
+  } else if (state.action === 'blocked') {
+    btn.hidden = false;
+    btn.disabled = false;
+    btn.textContent = '这里容不下你和晶核';
+  } else {
+    btn.hidden = true;
+  }
+}
+
+function handleInteract() {
+  if (!isWalk() || !level?.field?.item || !run || run.won || cardOpen) return;
+  sfxInit();
+  const res = run.interact(performance.now(), current);
+  if (res.action === 'docked' || res.action === 'latched') {
+    sfx.appear();
+    buildRailSpans();
+    toast(res.action === 'docked' ? '插座接通了。' : '回廊已打开。', 'good');
+  } else if (res.action === 'picked') {
+    sfx.appear();
+    buildRailSpans();
+    if (res.won) win();
+    else toast('拿起晶核。', 'good');
+  } else if (res.action === 'dropped') {
+    sfx.vanish();
+    buildRailSpans();
+    if (res.won) win();
+    else toast('晶核留在这一层。');
+  } else if (res.reason === 'tight') {
+    flash = 1;
+    sfx.refused();
+    toast('这里容不下你和晶核。', 'warn');
+  } else if (res.reason === 'other-w') {
+    sfx.blocked();
+    toast('晶核不在当前层。', 'warn');
+  } else if (res.reason === 'far') {
+    toast('靠近晶核后可拿起。');
+  }
+  render();
+}
 
 function render() {
   if (!level) return;
@@ -196,6 +346,8 @@ function render() {
   else if (sliceOk) slice.render(frame);
   if (mapVisible() && mapOk) map.render(frame);
   $('empty-notice').hidden = isWalk() || frame.sections.some((s) => s.kind !== 'empty');
+  updateWorldTags(frame);
+  updateActionButton();
   updateRail(frame.w, frame.blocked);
   updateStats();
 }
@@ -234,28 +386,39 @@ function stepToken(delta, now) {
   let dx = 0;
   let dz = 0;
   pressed.forEach((key) => { const d = MOVE_DIRS[key]; if (d) { dx += d[0]; dz += d[1]; } });
+  [dx, dz] = screenToWorldMove(dx, dz, isFlat() ? 0 : (slice?.orbit.yaw ?? 0));
+  if (dx || dz) {
+    actorYaw = Math.atan2(dx, dz);
+  }
   const result = run.step(dx, dz, delta, now, current);
   if (result.travelled) {
+    walkPhase += result.travelled * 9.5;
+    actorBob = reducedMotion.matches ? 0 : Math.abs(Math.sin(walkPhase)) * 0.04;
     const last = trail.at(-1);
     if (!last || Math.hypot(run.pos[0] - last[0], run.pos[1] - last[1]) > 0.08) {
       trail.push([run.pos[0], run.pos[1], now]);
       if (trail.length > 16) trail.shift();
     }
+  } else {
+    actorBob = 0;
   }
   if (result.newlyBlocked) {
     flash = 1;
     sfx.blocked();
-    if (run.blockStreak >= 3) {
+    if (run.carrying) {
+      toast('抱着晶核过不去。', 'warn');
+    } else if (run.blockStreak >= 3) {
       $('w-rail').classList.add('pulse');
-      if (run.blockStreak === 3 && level.chapter < 2) {
-        toast(isFlat() ? '被挡住了？试试把你的这一层上下移动。' : '被挡住了？试试改变 W。');
-      }
     }
+  }
+  if (result.goalNeedsItem && result.travelled > 0 && now - lastGoalHint > 1800) {
+    lastGoalHint = now;
+    toast('接收台还没有晶核。');
   }
   if (result.goalOtherW && result.travelled > 0 && now - lastGoalHint > 1800) {
     lastGoalHint = now;
     $('w-rail').classList.add('pulse');
-    toast(isFlat() ? '这里是出口在另一层的投影——把这一层移回出口亮起的位置。' : '这里是出口在另一层的投影——把 W 调回出口亮起的那一层。');
+    toast(level.field.item ? '接收台在另一层。' : '出口在另一层。');
   }
   if (result.won) win();
 }
@@ -284,7 +447,11 @@ function refuse() {
   const now = performance.now();
   if (now - lastRefuse > 700) {
     sfx.refused();
-    toast(isFlat() ? '换到那一层，墙会出现在光点身上——先挪开光点。' : '这个 W 会把光点包进墙里——先挪开光点。', 'warn');
+    if (run?.carrying) {
+      toast('这次换层会让晶核碰到障碍。', 'warn');
+    } else {
+      toast('这次换层会碰到障碍。', 'warn');
+    }
   }
   lastRefuse = now;
   requestFrame();
@@ -292,7 +459,7 @@ function refuse() {
 
 function revealBlockers(fromW, toW) {
   if (mapVisible()) return;
-  const { field } = level;
+  const field = run.activeField();
   const ids = field.bodies.filter((b) => wChangeEngulfs({ ...field, bodies: [b] }, run.pos, fromW, toW)).map((b) => b.id);
   if (!ids.length) return;
   nudge = { ids: new Set(ids), until: performance.now() + NUDGE_MS };
@@ -332,6 +499,12 @@ function buildRailSpans() {
   if (isWalk() && level.field.goalW) {
     const [glo, ghi] = level.field.goalW;
     spans.push({ lo: glo, hi: ghi, color: 'var(--gold)', goal: true });
+  }
+  if (isWalk() && level.field.item && run?.item && !run.carrying) {
+    const reach = level.field.item.wReach;
+    const ilo = Math.max(-2, run.item.w - reach);
+    const ihi = Math.min(2, run.item.w + reach);
+    if (ihi > ilo) spans.push({ lo: ilo, hi: ihi, color: cssColor(ITEM_TINT), goal: true });
   }
   host.replaceChildren(...spans.map((s, idx) => {
     const el = document.createElement('span');
@@ -443,7 +616,23 @@ $('w-rail').addEventListener('keyup', (event) => {
 // ---------- Screens ----------
 function renderChapters() {
   const list = $('chapter-list');
-  list.replaceChildren(...CHAPTERS.map((chapter) => {
+  const featured = document.createElement('section');
+  featured.className = 'chapter featured';
+  featured.innerHTML = `
+    <div class="featured-copy">
+      <p class="kicker">新关卡 · 空间解谜</p>
+      <h2>${STATION_LEVEL.title}</h2>
+      <p>${STATION_LEVEL.objective}</p>
+    </div>
+    <div class="featured-actions">
+      <button type="button" class="primary" data-start="station">${progress.has('station') ? '再玩一次：中转站 →' : '开始：中转站 →'}</button>
+      <button type="button" class="ghost" data-start="fetch">无门取物 →</button>
+    </div>
+  `;
+  featured.querySelector('[data-start="fetch"]').addEventListener('click', () => startLevel('fetch'));
+  featured.querySelector('[data-start="station"]').addEventListener('click', () => startLevel('station'));
+
+  const cards = CHAPTERS.map((chapter) => {
     const levels = LEVELS_LIST.filter((l) => l.chapter === chapter.id);
     const el = document.createElement('section');
     const chapterOpen = sandboxAll || isUnlocked(levels[0].id, progress);
@@ -463,9 +652,9 @@ function renderChapters() {
     }
     el.append(box);
     return el;
-  }));
-  const fresh = progress.size === 0;
-  $('play').firstChild.textContent = fresh ? '开始 ' : '继续 ';
+  });
+  list.replaceChildren(featured, ...cards);
+  $('play').firstChild.textContent = '试玩中转站 ';
   const unlockBtn = $('unlock-all');
   if (unlockBtn) {
     unlockBtn.setAttribute('aria-pressed', String(sandboxAll));
@@ -485,6 +674,9 @@ function leaveLevel() {
   mapPeeking = false;
   clearTimeout(nudgeTimer);
   nudge = null;
+  clearTimeout(toastTimer);
+  $('toast').classList.remove('show');
+  $('toast').textContent = '';
   hideCard(false);
 }
 
@@ -499,26 +691,41 @@ function showTitle() {
 
 function keysHelp() {
   const w = isFlat() ? '换层' : '移动 W';
+  const itemKey = isWalk() && level?.field?.item ? '<br><kbd>空格</kbd> / <kbd>F</kbd> 拿放晶核 / 操作机关' : '';
   return isWalk()
-    ? `<kbd>↑↓←→</kbd> / <kbd>WASD</kbd> 移动 · <kbd>Q</kbd> <kbd>E</kbd> 或拖动滑轨${w} · <kbd>H</kbd> 提示 · 拖动画面可以转视角`
+    ? `<kbd>↑↓←→</kbd> / <kbd>WASD</kbd> 按画面方向移动<br><kbd>Q</kbd> <kbd>E</kbd> 或拖动滑轨${w}${itemKey}<br>拖动画面转视角 · 滚轮缩放 · <kbd>R</kbd> 重来 · <kbd>H</kbd> 提示`
     : `<kbd>↑</kbd> <kbd>↓</kbd> / <kbd>Q</kbd> <kbd>E</kbd> 或拖动滑轨${w} · <kbd>H</kbd> 提示`;
+}
+
+function resetCamera() {
+  map?.fitTo(frameBounds(), isFlat() ? 0.16 : 0.66);
+  slice?.resetView({ distance: isWalk() && level.field.bounds.x > 3 ? 13.4 : 11.8, yaw: 0.66, pitch: 0.58 });
 }
 
 function startLevel(id, { skipIntro = false } = {}) {
   leaveLevel();
   level = levelById(id);
   const chapter = CHAPTERS[level.chapter];
-  run = isWalk() ? new WalkRun(level.field, level.id, performance.now()) : new VisitRun(level.bodies, level.goal, level.trials, level.id);
+  const trials = level.forceTrials ? level.trials : [];
+  run = isWalk() ? new WalkRun(level.field, level.id, performance.now()) : new VisitRun(level.bodies, level.goal, trials, level.id);
   current = target = isWalk() ? 0.5 : level.startDial;
   trail = [];
   ripples.length = 0;
   flash = 0;
+  lastGoalHint = 0;
+  lastRefuse = 0;
+  actorBob = 0;
+  walkPhase = 0;
+  if (isWalk()) {
+    const targetPt = level.field.item ? level.field.item.start : level.field.goal;
+    actorYaw = Math.atan2(targetPt[0] - level.field.start[0], targetPt[1] - level.field.start[1]);
+  }
   hintLevel = 0;
   choice = null;
   trialActive = false;
   $('title-screen').hidden = true;
   $('game-screen').hidden = false;
-  $('level-chapter').textContent = `${level.id} · ${chapter.name}`;
+  $('level-chapter').textContent = level.standalone ? '独立场景' : `${level.id} · ${chapter.name}`;
   $('level-title').textContent = level.title;
   const flatView = isFlat();
   $('scene').hidden = flatView;
@@ -543,10 +750,14 @@ function startLevel(id, { skipIntro = false } = {}) {
   prevLayer = layerIndex(dialToW(current));
   buildRailSpans();
   updateMapVisibility();
-  map?.fitTo(frameBounds(), flatView ? 0.16 : 0.45);
-  slice?.resetView({ distance: isWalk() && level.field.bounds.x > 3 ? 8.8 : 7.6, yaw: 0.45 });
+  resetCamera();
   render();
-  const firstOfChapter = LEVELS_LIST.find((l) => l.chapter === level.chapter) === level;
+  if (level.forceTrials) {
+    run.phase = 'predict';
+    beginTrial();
+    return;
+  }
+  const firstOfChapter = !level.standalone && LEVELS_LIST.find((l) => l.chapter === level.chapter) === level;
   if (firstOfChapter && !skipIntro && !introShown.has(level.chapter)) {
     introShown.add(level.chapter);
     showCard({ ...chapter.intro, actions: [['开始', 'primary', () => hideCard()]] });
@@ -564,9 +775,15 @@ function updateMapVisibility() {
 function updateStats() {
   if (!run) return;
   if (isWalk()) {
-    $('stats').textContent = `被挡 ${run.blocked} · W 调整 ${run.wMoves}${level.map === 'hidden' ? ` · 窥视 ${run.peeks}` : ''}`;
+    if (level.field?.item) {
+      $('stats').textContent = run.carrying ? '抱着晶核' : (run.socketPowered() ? '插座供电中' : '空手');
+    } else {
+      $('stats').textContent = '';
+    }
+  } else if (run.session) {
+    $('stats').textContent = run.phase === 'explore' ? '观察中' : `实验 ${run.session.records.length} / ${run.session.trials.length}`;
   } else {
-    $('stats').textContent = run.phase === 'explore' ? '观察中' : `预测 ${run.session.records.length} / ${run.session.trials.length}`;
+    $('stats').textContent = '自由观察';
   }
 }
 
@@ -609,23 +826,36 @@ function win() {
   pressed.clear();
   wHold = 0;
   $('w-rail').classList.remove('pulse');
-  const now = performance.now();
-  let stats;
-  if (isWalk()) {
-    stats = `用时 ${run.seconds(now)} 秒 · 移动 ${run.distance.toFixed(1)} · 被挡 ${run.blocked} 次 · W 调整 ${run.wMoves} 次 · 提示 ${run.hints}`;
-    if (level.map === 'hidden') stats += ` · 窥视地图 ${run.peeks} 次`;
-  } else {
-    stats = `预测 ${run.session.score} / ${run.session.trials.length} 正确 · 提示 ${run.hints}`;
+  updateActionButton();
+  let stats = '';
+  if (!isWalk()) {
+    if (run.session) stats = `完成 ${run.session.trials.length} 组截面实验`;
     $('predict').hidden = true;
   }
   const next = nextLevel(level.id);
-  const chapterEnd = !next || next.chapter !== level.chapter;
-  const actions = [[chapterEnd ? '继续 →' : '下一关 →', 'primary', () => (chapterEnd ? showWhy() : startLevel(next.id))]];
-  actions.push(['再来一次', 'ghost', () => startLevel(level.id, { skipIntro: true })]);
-  if (isWalk()) actions.push(['留在这里看看', 'ghost', () => hideCard()]);
+  const chapterEnd = !level.standalone && (!next || next.chapter !== level.chapter);
+  const actions = [];
+  if (level.id === 'fetch') {
+    actions.push(['下一站：中转站 →', 'primary', () => startLevel('station')]);
+    actions.push(['再来一次', 'ghost', () => startLevel(level.id, { skipIntro: true })]);
+    actions.push(['留在这里看看', 'ghost', () => hideCard()]);
+  } else if (level.id === 'station') {
+    actions.push(['再玩一次', 'primary', () => startLevel('station', { skipIntro: true })]);
+    actions.push(['回到关卡', 'ghost', showTitle]);
+  } else if (level.id === 'lab') {
+    actions.push(['查看截面公式', 'primary', () => showWhy()]);
+    actions.push(['再来一次', 'ghost', () => startLevel(level.id, { skipIntro: true })]);
+    actions.push(['回到章节', 'ghost', () => showTitle()]);
+  } else {
+    actions.push([next ? '下一关 →' : '回到章节', 'primary', () => (next ? startLevel(next.id) : showTitle())]);
+    if (chapterEnd) actions.push(['原理说明（可选）', 'ghost', () => showWhy()]);
+    actions.push(['再来一次', 'ghost', () => startLevel(level.id, { skipIntro: true })]);
+    if (isWalk()) actions.push(['留在这里看看', 'ghost', () => hideCard()]);
+  }
   actions.push(['保存记录 ↓', 'ghost', download]);
-  showCard({ kicker: '完成', title: level.done, stats, actions });
-  setObjective(!isWalk() ? '已完成。' : `已完成——${isFlat() ? '把这一层移回去' : '把 W 滑回去'}，看看墙还在不在。`);
+  const body = level.id === 'station' ? '接收台亮了，晶核已经送达。' : '';
+  showCard({ kicker: '完成', title: level.done, body, stats, actions });
+  setObjective(level.field?.item ? '晶核已送达。' : '已完成。');
 }
 
 function showWhy() {
@@ -647,6 +877,7 @@ function download() {
 // ---------- Hints & map peek ----------
 function updateHintButton() {
   $('hint-count').textContent = `${hintLevel}/3`;
+  $('hint-label').textContent = ['观察提示', '再给一点提示', '查看解法', '重看解法'][Math.min(hintLevel, 3)];
 }
 function showHint() {
   if (!level || cardOpen) return;
@@ -668,8 +899,12 @@ $('peek').addEventListener('click', () => {
   peekTimer = setTimeout(() => { mapPeeking = false; updateMapVisibility(); }, PEEK_MS);
 });
 
-// ---------- Predictions (visit levels) ----------
+// ---------- Predictions (Principle Lab / optional trials) ----------
 function onObserved() {
+  if (run.won) {
+    win();
+    return;
+  }
   sfx.win();
   toast('做到了。接下来：先猜，再看。', 'good');
   setTimeout(beginTrial, reducedMotion.matches ? 0 : 500);
@@ -754,8 +989,15 @@ window.addEventListener('keydown', (event) => {
   if (!level || $('game-screen').hidden || cardOpen) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   const key = event.key;
+  if (event.target.closest?.('button') && (key === ' ' || key === 'Enter')) return;
   if (event.target.closest?.('#w-rail') && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(key)) return;
-  if (key === 'h' || key === 'H') { showHint(); return; }
+  if (key === 'h' || key === 'H') { if (!event.repeat) showHint(); return; }
+  if (key === 'r' || key === 'R') { if (!event.repeat) startLevel(level.id, { skipIntro: true }); return; }
+  if (isWalk() && level?.field?.item && (key === ' ' || key === 'f' || key === 'F')) {
+    event.preventDefault();
+    if (!event.repeat) handleInteract();
+    return;
+  }
   const visitArrow = !isWalk() && (key === 'ArrowUp' || key === 'ArrowDown');
   if (key in W_KEYS || visitArrow) {
     event.preventDefault();
@@ -804,13 +1046,15 @@ document.querySelectorAll('#dpad button').forEach((button) => {
   button.addEventListener('lostpointercapture', release);
 });
 
-$('play').addEventListener('click', () => { sfxInit(); startLevel(firstOpenLevel().id); });
+$('play').addEventListener('click', () => { sfxInit(); startLevel('station'); });
+$('play-fetch').addEventListener('click', () => { sfxInit(); startLevel('fetch'); });
+$('play-chapters')?.addEventListener('click', () => { sfxInit(); startLevel(firstOpenLevel().id); });
+$('open-lab')?.addEventListener('click', () => { sfxInit(); startLevel('lab'); });
+$('action-btn')?.addEventListener('click', () => { handleInteract(); focusStage(); });
 $('unlock-all')?.addEventListener('click', () => { sandboxAll = !sandboxAll; renderChapters(); });
 $('back').addEventListener('click', showTitle);
-$('reset-view').addEventListener('click', () => {
-  slice?.resetView();
-  if (level) map?.fitTo(frameBounds(), isFlat() ? 0.16 : 0.45);
-});
+$('restart').addEventListener('click', () => { if (level) startLevel(level.id, { skipIntro: true }); });
+$('reset-view').addEventListener('click', () => { if (level) { resetCamera(); focusStage(); } });
 $('sound').addEventListener('click', () => {
   const on = $('sound').getAttribute('aria-pressed') !== 'true';
   $('sound').setAttribute('aria-pressed', String(on));
