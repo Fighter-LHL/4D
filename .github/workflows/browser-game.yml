@@ -1,0 +1,24 @@
+name: Browser game
+
+on:
+  push:
+    branches: [main]
+    paths: ['web/geometry-lab/**', '.github/workflows/browser-game.yml']
+  pull_request:
+    paths: ['web/geometry-lab/**', '.github/workflows/browser-game.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  browser-game:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Geometry, controls and lifecycle tests
+        run: node --test web/geometry-lab/tests/*.test.mjs
+      - name: JavaScript syntax
+        run: for f in web/geometry-lab/*.mjs; do node --check "$f"; done

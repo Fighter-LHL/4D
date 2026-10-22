@@ -8,11 +8,11 @@ export const LAYER_SPAN = 0.8;
 const EDGE = 0.1; // crossfade width, in layer units, on each side of a border
 
 export const LAYERS = Object.freeze([
-  { name: '−2', color: [0.32, 0.5, 1.0], pattern: 0 },
-  { name: '−1', color: [0.22, 0.8, 0.92], pattern: 1 },
-  { name: '0', color: [0.74, 0.72, 1.0], pattern: 2 },
-  { name: '+1', color: [1.0, 0.74, 0.4], pattern: 3 },
-  { name: '+2', color: [1.0, 0.47, 0.38], pattern: 4 },
+  { name: '−2', color: [0.31, 0.55, 1.0], pattern: 0 },
+  { name: '−1', color: [0.21, 0.83, 0.82], pattern: 1 },
+  { name: '0', color: [0.72, 0.86, 0.878], pattern: 2 },
+  { name: '+1', color: [1.0, 0.76, 0.4], pattern: 3 },
+  { name: '+2', color: [1.0, 0.56, 0.30], pattern: 4 },
 ].map(Object.freeze));
 
 const clampW = (w) => Math.max(W_MIN, Math.min(W_MAX, w));

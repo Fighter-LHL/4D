@@ -17,6 +17,7 @@ uniform float uSphCount;
 uniform vec3 uBoxC[${MAX}];
 uniform vec4 uBoxH[${MAX}];
 uniform vec3 uBoxTint[${MAX}];
+uniform float uBoxRole[${MAX}];
 uniform float uBoxCount;
 uniform vec4 uToken;
 uniform vec4 uActor;
@@ -34,15 +35,17 @@ uniform vec4 uLayerA;
 uniform vec4 uLayerB;
 uniform float uLayerMix;
 
-const vec3 BG_LOW = vec3(0.13, 0.15, 0.26);
-const vec3 BG_HIGH = vec3(0.24, 0.22, 0.36);
-const vec3 IVORY = vec3(0.98, 0.95, 0.90);
-const vec3 SHADOW_TINT = vec3(0.16, 0.18, 0.32);
-const vec3 TOKEN = vec3(0.99, 0.95, 0.88);
-const vec3 ALERT = vec3(0.96, 0.42, 0.38);
-const vec3 GOLD = vec3(0.98, 0.80, 0.42);
-const vec3 ITEM_COL = vec3(0.28, 0.94, 0.78);
-const vec3 SUN_DIR = vec3(-0.48, 0.78, 0.40);
+const vec3 BG_LOW = vec3(0.014, 0.030, 0.037);
+const vec3 BG_HIGH = vec3(0.042, 0.070, 0.079);
+const vec3 IVORY = vec3(0.94, 0.92, 0.84);
+const vec3 SHADOW_TINT = vec3(0.035, 0.065, 0.080);
+const vec3 TOKEN = vec3(0.98, 0.94, 0.85);
+const vec3 ALERT = vec3(0.96, 0.42, 0.36);
+const vec3 GOLD = vec3(0.96, 0.77, 0.42);
+const vec3 ITEM_COL = vec3(0.30, 0.94, 0.78);
+const vec3 SUN_DIR = vec3(-0.52, 0.74, 0.40);
+const vec3 SUN_COL = vec3(1.0, 0.87, 0.68);
+const vec3 COOL_COL = vec3(0.32, 0.72, 0.82);
 ${GLSL_BOX}
 ${GLSL_PATTERN}
 
@@ -215,45 +218,97 @@ vec3 archTone(vec3 base, vec3 n) {
   return n.x < -0.1 || n.z > 0.1 ? leftCol : rightCol;
 }
 
-vec4 shadeHit(int kind, float t, vec3 ro, vec3 rd, vec3 hc, vec4 hh, vec3 tint, bool behindSolid) {
+vec4 shadeHit(int kind, float t, vec3 ro, vec3 rd, vec3 hc, vec4 hh, vec3 tint, int role, bool behindSolid) {
   vec3 p = ro + rd * t;
   if (kind == 1) {
     vec3 n = normalize(p - hc);
     float sun = max(dot(n, SUN_DIR), 0.0);
-    vec3 topCol = mix(tint, IVORY, 0.38);
-    vec3 shdCol = mix(tint * 0.62, SHADOW_TINT, 0.38);
+    vec3 topCol = mix(tint, IVORY, 0.34);
+    vec3 shdCol = mix(tint * 0.58, SHADOW_TINT, 0.34);
     vec3 c = mix(shdCol, topCol, smoothstep(-0.2, 0.65, dot(n, SUN_DIR)));
+    c *= 0.90 + 0.10 * sun;
     float eq = 1.0 - smoothstep(0.008, 0.022, abs(n.y));
     float ring2 = 1.0 - smoothstep(0.008, 0.02, abs(abs(n.y) - 0.5));
-    c = mix(c, GOLD, eq * 0.55 + ring2 * 0.25);
-    c += IVORY * pow(max(dot(reflect(-SUN_DIR, n), -rd), 0.0), 32.0) * 0.25;
-    float alpha = behindSolid ? 0.52 : 0.92;
+    c = mix(c, GOLD, eq * 0.48 + ring2 * 0.22);
+    c += IVORY * pow(max(dot(reflect(-SUN_DIR, n), -rd), 0.0), 32.0) * 0.22;
+    float alpha = behindSolid ? 0.48 : 0.90;
     return vec4(c, alpha);
   }
   vec3 n = boxNormal(p, hc, hh.xyz);
   float wEdge = clamp((hh.w - 0.2) / 0.8, 0.0, 1.0);
   float edgeDist = boxEdge(p, hc, hh.xyz);
-  float bevel = 1.0 - smoothstep(0.0, 0.028, edgeDist);
-  vec3 c = archTone(tint, n);
-  if (n.y > 0.5) {
-    // Recessed capstone border on the top of each wall
-    float inner = 1.0 - smoothstep(0.005, 0.016, abs(edgeDist - 0.045));
-    c = mix(c, IVORY, bevel * 0.45 + inner * 0.25);
+  float bevel = 1.0 - smoothstep(0.0, 0.030, edgeDist);
+  vec3 c;
+  float alpha = 0.90;
+
+  if (role == 1) {
+    // Powered gate: dark conductor bronze with cool capacitive ribs and pins.
+    vec3 copper = vec3(0.44, 0.245, 0.165);
+    vec3 base = mix(copper, tint * 0.42, 0.15);
+    float ribs = smoothstep(0.52, 0.96, abs(sin(p.z * 38.0 + p.y * 2.2)));
+    float pins = smoothstep(0.86, 0.99, abs(sin(p.x * 22.0 + p.z * 7.0)));
+    c = archTone(base, n) * (0.80 + 0.20 * ribs);
+    c = mix(c, vec3(0.27, 0.84, 0.93), ribs * 0.12 * (0.55 + 0.45 * wEdge));
+    c = mix(c, vec3(0.72, 0.92, 0.95), pins * 0.07);
+    c = mix(c, IVORY, bevel * 0.20);
+    alpha = 0.94;
+  } else if (role == 2) {
+    // Phase wall: compressed mineral bands. It stays solid exactly where it
+    // exists; its edge is crisp so a powered gate behind it never reads open.
+    vec3 mineral = mix(vec3(0.55, 0.47, 0.43), tint, 0.16);
+    float bands = 0.5 + 0.5 * sin(p.y * 46.0 + p.z * 4.0);
+    c = mix(mineral * 0.64, mineral * 1.14, bands);
+    float seam = smoothstep(0.68, 0.99, abs(sin(p.y * 11.0 + p.z * 3.2)));
+    c = mix(c, vec3(0.92, 0.42, 0.33), seam * 0.22);
+    float facet = 1.0 - smoothstep(0.0, 0.055, abs(fract((p.y + p.z) * 2.5) - 0.5));
+    c = mix(c, mix(mineral, IVORY, 0.60), facet * 0.22);
+    c = mix(c, mix(vec3(0.10, 0.11, 0.11), tint, 0.28), bevel * 0.60);
+    float topEdge = 1.0 - smoothstep(0.0, 0.04, (hc.y + hh.y) - p.y);
+    c = mix(c, mix(tint, IVORY, 0.54), topEdge * 0.32);
+    // Energised frame: power reaches the north opening even while this
+    // mineral wall is still solid at the current W.
+    float sideEdge = 1.0 - smoothstep(0.018, 0.055, min(abs(p.z - (hc.z - hh.z)), abs(p.z - (hc.z + hh.z))));
+    float lintel = 1.0 - smoothstep(0.018, 0.060, abs((hc.y + hh.y) - p.y - 0.018));
+    float energised = (sideEdge + lintel * 0.55) * uSocket.w;
+    c = mix(c, vec3(0.30, 0.86, 0.96), energised * 0.82);
+    alpha = 0.91;
+  } else if (role == 3) {
+    // Manual return gate: brass frame, with a lock bar at the centre.
+    vec3 brass = vec3(0.44, 0.33, 0.16);
+    vec3 base = mix(brass, tint * 0.32, 0.16);
+    c = archTone(base, n);
+    float pin = 1.0 - smoothstep(0.018, 0.060, abs(p.z - hc.z));
+    float brace = 1.0 - smoothstep(0.012, 0.038, abs((hc.y + hh.y) - p.y - 0.10));
+    c = mix(c, mix(GOLD, ITEM_COL, 0.24), pin * 0.52 + brace * 0.28);
+    c = mix(c, IVORY, bevel * 0.32);
+    alpha = 0.93;
   } else {
-    // Architectural cornice band near the top of the wall + subtle vertical fluting
-    float topDist = (hc.y + hh.y) - p.y;
-    float cornice = 1.0 - smoothstep(0.0, 0.055, topDist);
-    float corniceLine = 1.0 - smoothstep(0.004, 0.014, abs(topDist - 0.065));
-    float flute = sin((p.x + p.z) * 14.0) * 0.03;
-    c += flute * c;
-    c = mix(c, mix(tint, IVORY, 0.42), cornice * 0.45 + corniceLine * 0.35 + bevel * 0.28);
+    vec3 base = mix(tint * 0.66 + vec3(0.105, 0.125, 0.122), IVORY * 0.42, 0.10);
+    c = archTone(base, n);
+    if (n.y > 0.5) {
+      float inner = 1.0 - smoothstep(0.005, 0.016, abs(edgeDist - 0.045));
+      c = mix(c, IVORY, bevel * 0.42 + inner * 0.22);
+    } else {
+      float topDist = (hc.y + hh.y) - p.y;
+      float cornice = 1.0 - smoothstep(0.0, 0.055, topDist);
+      float corniceLine = 1.0 - smoothstep(0.004, 0.014, abs(topDist - 0.065));
+      float flute = sin((p.x + p.z) * 14.0) * 0.026;
+      c += flute * c;
+      c = mix(c, mix(tint, IVORY, 0.38), cornice * 0.42 + corniceLine * 0.32 + bevel * 0.26);
+    }
+    if (wEdge < 0.95) {
+      float stripe = 0.5 + 0.5 * sin((p.x + p.y * 1.6 + p.z) * 20.0);
+      c = mix(c, IVORY, (1.0 - wEdge) * stripe * 0.22);
+    }
+    if (role == 4) {
+      // The permanent divider gets a cool shadow line at its foot.
+      float foot = 1.0 - smoothstep(0.0, 0.05, p.y);
+      c = mix(c, COOL_COL * 0.55, foot * 0.20);
+    }
+    alpha = 0.86 + 0.10 * wEdge;
   }
-  if (wEdge < 0.95) {
-    float stripe = 0.5 + 0.5 * sin((p.x + p.y * 1.6 + p.z) * 20.0);
-    c = mix(c, IVORY, (1.0 - wEdge) * stripe * 0.28);
-  }
-  float baseAlpha = 0.55 + 0.39 * wEdge;
-  float alpha = behindSolid ? min(baseAlpha, 0.46) : baseAlpha;
+
+  if (behindSolid) alpha = min(alpha, 0.48);
   return vec4(c, clamp(alpha, 0.0, 0.96));
 }
 
@@ -268,10 +323,11 @@ void main() {
   vec3 ro = uEye;
   vec3 layerTint = mix(uLayerA.rgb, uLayerB.rgb, uLayerMix);
   float skyGrad = clamp(uv.y * 0.55 + 0.5, 0.0, 1.0);
-  vec3 skyLow = mix(BG_LOW, layerTint * 0.38, 0.35);
-  vec3 skyHigh = mix(BG_HIGH, mix(layerTint, IVORY, 0.35) * 0.52, 0.42);
+  vec3 skyLow = mix(BG_LOW, layerTint * 0.20, 0.28);
+  vec3 skyHigh = mix(BG_HIGH, mix(layerTint, IVORY, 0.30) * 0.34, 0.34);
   vec3 bg = mix(skyLow, skyHigh, skyGrad);
-  bg += mix(layerTint, GOLD, 0.4) * 0.12 * exp(-length(uv - vec2(-0.35, 0.42)) * 1.6);
+  bg += SUN_COL * 0.055 * exp(-length(uv - vec2(-0.52, 0.44)) * 1.55);
+  bg += layerTint * 0.018 * exp(-length(uv - vec2(0.55, -0.28)) * 2.2);
   vec3 color = bg;
 
   // Sculpted 3D floating architectural plinth instead of an infinite dark grid.
@@ -284,7 +340,7 @@ void main() {
     floorT = plinthSpan.x;
     vec3 p = ro + rd * floorT;
     vec3 pn = boxNormal(p, plinthC, plinthH);
-    vec3 deckBase = mix(vec3(0.24, 0.26, 0.38), layerTint * 0.55 + vec3(0.18, 0.19, 0.28), 0.62);
+    vec3 deckBase = mix(vec3(0.105, 0.140, 0.148), layerTint * 0.26 + vec3(0.038, 0.058, 0.062), 0.52);
     if (pn.y < 0.5) {
       // Cliff sides of the floating island: tri-tone masonry + upper cornice lip
       vec3 sideCol = archTone(deckBase, pn);
@@ -309,7 +365,7 @@ void main() {
         float borderLine = 1.0 - smoothstep(0.006, 0.022, abs(maxOut));
         fl = mix(fl, mix(deckBase, IVORY, 0.36), rimBand * 0.35 + borderLine * 0.45);
       }
-      fl = mix(fl, mix(uLayerA.rgb, uLayerB.rgb, uLayerMix) * 0.9 + IVORY * 0.2, (pa * (1.0 - uLayerMix) + pb * uLayerMix) * 0.16);
+      fl = mix(fl, mix(uLayerA.rgb, uLayerB.rgb, uLayerMix) * 0.68 + IVORY * 0.14, (pa * (1.0 - uLayerMix) + pb * uLayerMix) * 0.11);
       if (uStart.z > 0.5) {
         float sd = length(p.xz - uStart.xy);
         fl = mix(fl, IVORY, 0.28 * (1.0 - smoothstep(0.01, 0.025, abs(sd - 0.2))));
@@ -338,24 +394,41 @@ void main() {
         fl = mix(fl, ITEM_COL, iRing * iDash * 0.75);
       }
       if (uSocket.z >= 0.0) {
-        vec3 blue = vec3(0.22, 0.80, 0.96);
+        vec3 blue = vec3(0.28, 0.79, 0.92);
         float d = length(p.xz - uSocket.xy);
-        float ring = 1.0 - smoothstep(0.012, 0.03, abs(d - 0.34));
-        float inset = 1.0 - smoothstep(0.15, 0.2, d);
+        float ring = 1.0 - smoothstep(0.012, 0.030, abs(d - 0.34));
+        float inner = 1.0 - smoothstep(0.012, 0.028, abs(d - 0.22));
+        float basin = 1.0 - smoothstep(0.08, 0.19, d);
+        float ang = atan(p.z - uSocket.y, p.x - uSocket.x);
+        float prong = smoothstep(0.58, 0.92, abs(sin(ang * 1.5))) * (1.0 - smoothstep(0.10, 0.17, d));
         float cable = wire(p.xz, uSocket.xy, uRelayPorts.xy);
-        float power = mix(0.24, 0.95, uSocket.w);
-        fl = mix(fl, blue, cable * power);
-        fl = mix(fl, blue, uSocket.z * (ring * 0.95 + inset * 0.55));
-        float pin = 1.0 - smoothstep(0.035, 0.065, length(p.xz - uRelayPorts.xy));
-        fl = mix(fl, mix(blue * 0.5, IVORY, uSocket.w), pin);
+        float power = mix(0.20, 0.95, uSocket.w);
+        float pool = exp(-d * d * 6.0) * (0.10 + 0.45 * uSocket.w);
+        fl += blue * pool * 0.30;
+        fl = mix(fl, blue, cable * power * 0.88);
+        fl = mix(fl, blue, uSocket.z * (ring * 0.90 + inner * 0.42 + prong * 0.55));
+        fl = mix(fl, blue * 0.42, uSocket.z * basin * 0.42);
+        float pin = 1.0 - smoothstep(0.032, 0.060, length(p.xz - uRelayPorts.xy));
+        fl = mix(fl, mix(blue * 0.35, IVORY, uSocket.w), pin * 0.85);
+        // Powered threshold: a cool bar across the actual north opening.
+        float gap = 1.0 - smoothstep(0.44, 0.54, abs(p.z - uRelayPorts.y));
+        float bar = 1.0 - smoothstep(0.045, 0.095, abs(abs(p.x) - 0.17));
+        fl = mix(fl, blue, gap * bar * (0.10 + 0.72 * uSocket.w));
       }
       if (uLatch.z >= 0.0) {
         vec2 q = abs(p.xz - uLatch.xy);
-        float plate = 1.0 - smoothstep(0.01, 0.028, abs(max(q.x, q.y) - 0.23));
-        float handle = wire(p.xz, uLatch.xy + vec2(-0.12, -0.1 + uLatch.w * 0.2), uLatch.xy + vec2(0.12, -0.1 + uLatch.w * 0.2));
+        float plate = 1.0 - smoothstep(0.010, 0.028, abs(max(q.x, q.y) - 0.23));
+        float inner = 1.0 - smoothstep(0.010, 0.026, abs(max(q.x, q.y) - 0.15));
+        float handle = wire(p.xz, uLatch.xy + vec2(-0.12, -0.10 + uLatch.w * 0.20), uLatch.xy + vec2(0.12, -0.10 + uLatch.w * 0.20));
+        float lock = 1.0 - smoothstep(0.030, 0.060, length(p.xz - uLatch.xy - vec2(0.0, 0.055)));
         float cable = wire(p.xz, uLatch.xy, uRelayPorts.zw);
-        fl = mix(fl, GOLD, cable * mix(0.22, 0.85, uLatch.w));
-        fl = mix(fl, mix(GOLD, ITEM_COL, uLatch.w), (plate + handle) * uLatch.z);
+        fl = mix(fl, GOLD, cable * mix(0.16, 0.88, uLatch.w));
+        fl = mix(fl, mix(GOLD, ITEM_COL, uLatch.w * 0.55), (plate * 0.85 + inner * 0.30 + handle * 0.60) * uLatch.z);
+        fl = mix(fl, mix(ALERT * 0.75, GOLD, uLatch.w), lock * uLatch.z * 0.55);
+        // Latched threshold: warm-gold bar stays open across the south opening.
+        float rgap = 1.0 - smoothstep(0.50, 0.60, abs(p.z - uRelayPorts.w));
+        float rbar = 1.0 - smoothstep(0.045, 0.095, abs(abs(p.x) - 0.17));
+        fl = mix(fl, mix(GOLD, ITEM_COL, 0.32), rgap * rbar * (0.10 + 0.72 * uLatch.w));
       }
       for (int i = 0; i < 8; i += 1) {
         if (uTrail[i].z <= 0.001) break;
@@ -412,7 +485,7 @@ void main() {
         float footRing = 1.0 - smoothstep(0.007, 0.022, abs(kd - uToken.z));
         fl = mix(fl, ringCol, footRing * (uActor.z > 0.5 ? 0.85 : 0.55));
       }
-      fl = mix(fl, fl * vec3(0.54, 0.56, 0.72), shadow);
+      fl = mix(fl, fl * vec3(0.50, 0.56, 0.62), shadow);
       color = fl;
     }
   }
@@ -441,11 +514,13 @@ void main() {
 
   float bestT = solidT;
   int kind = 0;
+  float role = 0.0;
   vec3 hc = vec3(0.0);
   vec4 hh = vec4(0.0);
   vec3 tint = vec3(0.0);
   float bestT2 = solidT;
   int kind2 = 0;
+  float role2 = 0.0;
   vec3 hc2 = vec3(0.0);
   vec4 hh2 = vec4(0.0);
   vec3 tint2 = vec3(0.0);
@@ -453,29 +528,34 @@ void main() {
     if (float(i) >= uSphCount) break;
     float t = hitSphere(ro, rd, uSph[i]);
     if (t > 0.0 && t < bestT) {
-      bestT2 = bestT; kind2 = kind; hc2 = hc; hh2 = hh; tint2 = tint;
-      bestT = t; kind = 1; hc = uSph[i].xyz; hh = vec4(0.0, 0.0, 0.0, uSph[i].w); tint = uSphTint[i];
+      bestT2 = bestT; kind2 = kind; role2 = role; hc2 = hc; hh2 = hh; tint2 = tint;
+      bestT = t; kind = 1; role = 0.0; hc = uSph[i].xyz; hh = vec4(0.0, 0.0, 0.0, uSph[i].w); tint = uSphTint[i];
     } else if (t > 0.0 && t < bestT2) {
-      bestT2 = t; kind2 = 1; hc2 = uSph[i].xyz; hh2 = vec4(0.0, 0.0, 0.0, uSph[i].w); tint2 = uSphTint[i];
+      bestT2 = t; kind2 = 1; role2 = 0.0; hc2 = uSph[i].xyz; hh2 = vec4(0.0, 0.0, 0.0, uSph[i].w); tint2 = uSphTint[i];
     }
   }
   for (int i = 0; i < ${MAX}; i += 1) {
     if (float(i) >= uBoxCount) break;
     if (uBoxH[i].y < 0.001 || uBoxH[i].w < 0.001) continue;
     vec2 span = boxSpan(ro, rd, uBoxC[i], uBoxH[i].xyz);
-    if (span.x > 0.0 && span.x < bestT) {
-      bestT2 = bestT; kind2 = kind; hc2 = hc; hh2 = hh; tint2 = tint;
-      bestT = span.x; kind = 2; hc = uBoxC[i]; hh = uBoxH[i]; tint = uBoxTint[i];
-    } else if (span.x > 0.0 && span.x < bestT2) {
-      bestT2 = span.x; kind2 = 2; hc2 = uBoxC[i]; hh2 = uBoxH[i]; tint2 = uBoxTint[i];
+    // The unpowered conductor gate sits a hair inside the phase wall. Bias it
+    // forward in the visual hit order so the closed brass ribs stay readable;
+    // collision never uses this offset.
+    float gateBias = (uBoxRole[i] > 0.5 && uBoxRole[i] < 1.5) ? 0.035 : 0.0;
+    float tBox = span.x - gateBias;
+    if (tBox > 0.0 && tBox < bestT) {
+      bestT2 = bestT; kind2 = kind; role2 = role; hc2 = hc; hh2 = hh; tint2 = tint;
+      bestT = tBox; kind = 2; role = uBoxRole[i]; hc = uBoxC[i]; hh = uBoxH[i]; tint = uBoxTint[i];
+    } else if (tBox > 0.0 && tBox < bestT2) {
+      bestT2 = tBox; kind2 = 2; role2 = uBoxRole[i]; hc2 = uBoxC[i]; hh2 = uBoxH[i]; tint2 = uBoxTint[i];
     }
   }
   if (kind2 > 0) {
-    vec4 g2 = shadeHit(kind2, bestT2, ro, rd, hc2, hh2, tint2, hitCharacterOrItem);
+    vec4 g2 = shadeHit(kind2, bestT2, ro, rd, hc2, hh2, tint2, int(role2), hitCharacterOrItem);
     color = mix(color, g2.rgb, g2.a * 0.88);
   }
   if (kind > 0) {
-    vec4 g1 = shadeHit(kind, bestT, ro, rd, hc, hh, tint, hitCharacterOrItem);
+    vec4 g1 = shadeHit(kind, bestT, ro, rd, hc, hh, tint, int(role), hitCharacterOrItem);
     color = mix(color, g1.rgb, g1.a);
   }
 
@@ -485,7 +565,7 @@ void main() {
 }
 `;
 
-const NAMES = ['uResolution', 'uEye', 'uLookY', 'uSph', 'uSphTint', 'uSphGhost', 'uSphCount', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxCount',
+const NAMES = ['uResolution', 'uEye', 'uLookY', 'uSph', 'uSphTint', 'uSphGhost', 'uSphCount', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxRole', 'uBoxCount',
   'uToken', 'uActor', 'uItem', 'uSocket', 'uLatch', 'uRelayPorts', 'uGoal', 'uStart', 'uBounds', 'uTrail', 'uRipples', 'uRippleTint', 'uLayerA', 'uLayerB', 'uLayerMix'];
 const VIEW = { yaw: 0.66, pitch: 0.58, distance: 12.2, minPitch: 0.2, maxPitch: 1.35, minDistance: 7.5, maxDistance: 20 };
 
@@ -573,6 +653,7 @@ export class SliceRenderer {
     const boxC = new Float32Array(MAX * 3);
     const boxH = new Float32Array(MAX * 4);
     const boxTint = new Float32Array(MAX * 3);
+    const boxRole = new Float32Array(MAX);
     let ns = 0;
     let nb = 0;
     let itemUniform = [0, 0, 0, 0];
@@ -595,6 +676,7 @@ export class SliceRenderer {
         const wState = s.kind === 'box' ? 0.2 + 0.8 * (s.wEdge ?? 1) : (walkGhost > 0 ? -walkGhost : 0);
         boxH.set([s.half[0] - eps, visHalfY, s.half[2] - eps, wState], nb * 4);
         boxTint.set(s.tint, nb * 3);
+        boxRole[nb] = s.role ?? 0;
         nb += 1;
       } else if (s.type === 'sphere' && ns < MAX) {
         // The dashed danger circle stays while the sphere is present but smaller.
@@ -611,6 +693,7 @@ export class SliceRenderer {
     gl.uniform3fv(u.uBoxC, boxC);
     gl.uniform4fv(u.uBoxH, boxH);
     gl.uniform3fv(u.uBoxTint, boxTint);
+    gl.uniform1fv(u.uBoxRole, boxRole);
     gl.uniform1f(u.uBoxCount, nb);
 
     const { field, token, goalState } = frame;

@@ -23,6 +23,17 @@ const PEEK_MS = 5000;
 const NUDGE_MS = 1600;
 const STORAGE_KEY = 'wslice-progress-v1';
 const choiceButtons = [...document.querySelectorAll('[data-choice]')];
+// Material roles for the renderer. These never affect collision; they only let
+// the scene show which station body is a power gate, a phase wall or a latch.
+const BODY_ROLES = Object.freeze({
+  'station-power-door': 1,
+  'station-phase-door': 2,
+  'station-return-door': 3,
+  'station-divider-n': 4,
+  'station-divider-mid': 4,
+  'station-divider-s': 4,
+});
+const roleOf = (id) => BODY_ROLES[id] ?? 0;
 
 // ---------- Progress ----------
 const progress = (() => {
@@ -153,11 +164,11 @@ function buildFrame() {
   const tinted = bodies.map((body) => ({ body, tint: wColor(body.center[3]), foot: wFootprint(body, y) }));
   const maxR = (body, foot) => (isWalk() && body.type === 'sphere' ? exclusionRadius(body, activeField) : foot.radius ?? 0);
   const aids = wAids(now);
-  const sections = tinted.map(({ body, tint, foot }) => ({ ...sliceAtW(body, w), tint, maxR: maxR(body, foot), ghost: aids.ghost(body.id) }));
+  const sections = tinted.map(({ body, tint, foot }) => ({ ...sliceAtW(body, w), role: roleOf(body.id), tint, maxR: maxR(body, foot), ghost: aids.ghost(body.id) }));
   const footprints = tinted.map(({ tint, foot }) => ({ ...foot, tint }));
   if (isWalk() && run?.item) {
     const itemSec = itemSectionAtW(level.field, run.itemState(), w);
-    if (itemSec) sections.push({ ...itemSec, ghost: mapVisible() ? itemSec.ghost : 0 });
+    if (itemSec) sections.push({ ...itemSec, role: 0, ghost: mapVisible() ? itemSec.ghost : 0 });
     const itemFoot = itemFootprint(level.field, run.itemState());
     if (itemFoot) footprints.push(itemFoot);
   }
@@ -223,24 +234,28 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
 
   if (frame.relay) {
     const { socket, latch, powered, latched } = frame.relay;
-    const nearSocket = Math.hypot(run.pos[0] - socket.x, run.pos[1] - socket.z) <= socket.reach;
-    const nearLatch = Math.hypot(run.pos[0] - latch.x, run.pos[1] - latch.z) <= latch.reach;
+    const socketDist = Math.hypot(run.pos[0] - socket.x, run.pos[1] - socket.z);
+    const latchDist = Math.hypot(run.pos[0] - latch.x, run.pos[1] - latch.z);
     const socketHere = Math.abs(frame.w - socket.w) <= socket.wReach;
     const latchHere = Math.abs(frame.w - latch.w) <= latch.wReach;
-    placeTag(socketEl, view.project([socket.x, nearSocket ? 1.25 : 0.18, socket.z]),
-      powered ? (nearSocket && socketHere ? '供电中 · F 取回' : '插座 · 供电中') : (socketHere ? '蓝层插座' : '插座 · 蓝层'), !socketHere);
-    placeTag(latchEl, view.project([latch.x, nearLatch ? 1.1 : 0.18, latch.z]),
-      latched ? '回廊已打开' : (latchHere ? '回廊开关' : '开关 · 中间层'), !latchHere);
+    // Labels are local: the mechanism itself carries the state at a distance.
+    const socketNear = socketDist <= 1.55;
+    const latchNear = latchDist <= 1.55;
+    placeTag(socketEl, socketNear && socketHere ? view.project([socket.x, 0.92, socket.z]) : null,
+      powered ? '供电中' : '蓝层插座');
+    placeTag(latchEl, latchNear && latchHere ? view.project([latch.x, 0.92, latch.z]) : null,
+      latched ? '回廊已打开' : '回廊开关');
   }
 
   if (level.field.item && run.item && !run.carrying && !run.won && !run.socketPowered()) {
     const itemSec = itemSectionAtW(level.field, run.itemState(), frame.w);
     const visible = itemSec && itemSec.radius > 0;
-    const nearSpot = Math.hypot(run.pos[0] - run.item.x, run.pos[1] - run.item.z) <= level.field.item.pickupRadius;
+    const itemDist = Math.hypot(run.pos[0] - run.item.x, run.pos[1] - run.item.z);
+    const nearSpot = itemDist <= level.field.item.pickupRadius;
     const itemPt = view.project([run.item.x, 0.62, run.item.z]);
     if (visible && (nearSpot || !moved)) {
       placeTag(itemEl, itemPt, nearSpot ? '按 空格 拿起' : '晶核', false);
-    } else if (!visible && mapVisible()) {
+    } else if (!visible && mapVisible() && (!moved || itemDist < 3.2)) {
       placeTag(itemEl, itemPt, `留在 W ${signed(run.item.w)}`, true);
     } else {
       itemEl.hidden = true;
@@ -251,7 +266,8 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
 
   const [gx, gz] = level.field.goal;
   const goalOpen = frame.goalState ? frame.goalState.open : true;
-  if (!moved || !goalOpen || level.field.relay) {
+  const goalDist = Math.hypot(run.pos[0] - gx, run.pos[1] - gz);
+  if (!moved || goalDist < 1.7 || (!level.field.relay && !goalOpen)) {
     const goalPt = view.project([gx, 0.28, gz]);
     const goalName = level.field.item ? '接收台' : '出口';
     placeTag(goalEl, goalPt, goalOpen ? goalName : `${goalName}（在中间层）`, !goalOpen);
@@ -741,7 +757,9 @@ function startLevel(id, { skipIntro = false } = {}) {
   $('reset-view').hidden = flatView;
   $('stage-tag').textContent = flatView ? '你的世界 · 二维俯视 (X-Z)' : '你的世界 · 三维截面 (X-Y-Z)';
   $('map-title').textContent = flatView ? '全貌 (3D)' : 'W 地图';
+  $('map-kicker').textContent = flatView ? '三维全貌' : '四维全貌';
   $('map-sub').textContent = flatView ? '竖直方向 = 高度（第三维）' : '竖直方向 = W（第四维，非高度）';
+  $('map-note').textContent = isWalk() ? '拖动滑轨换层 · 红区表示当前截面会把角色包进墙里' : '拖动滑轨观察截面变化';
   $('rail-top').textContent = flatView ? '上' : '+W';
   $('rail-bottom').textContent = flatView ? '下' : '−W';
   if ($('leg-token')) $('leg-token').hidden = !isWalk();
@@ -776,23 +794,54 @@ const focusStage = () => $(isFlat() ? 'flat' : 'scene').focus({ preventScroll: t
 
 function updateMapVisibility() {
   $('map-veil').hidden = mapVisible() || !mapOk;
+  $('map-note').hidden = !mapVisible();
   updateRail();
   if (level) render();
 }
 
 function updateStats() {
   if (!run) return;
+  updateMechanisms();
+  const stats = $('stats');
   if (isWalk()) {
     if (level.field?.item) {
-      $('stats').textContent = run.carrying ? '抱着晶核' : (run.socketPowered() ? '插座供电中' : '空手');
+      const powered = run.socketPowered();
+      stats.textContent = run.carrying ? '携带晶核' : (powered ? '插座供电中' : '空手');
+      stats.dataset.state = run.carrying ? 'carry' : (powered ? 'power' : 'empty');
     } else {
-      $('stats').textContent = '';
+      stats.textContent = '';
+      stats.dataset.state = 'empty';
     }
   } else if (run.session) {
-    $('stats').textContent = run.phase === 'explore' ? '观察中' : `实验 ${run.session.records.length} / ${run.session.trials.length}`;
+    stats.textContent = run.phase === 'explore' ? '观察中' : `实验 ${run.session.records.length} / ${run.session.trials.length}`;
+    stats.dataset.state = 'empty';
   } else {
-    $('stats').textContent = '自由观察';
+    stats.textContent = '自由观察';
+    stats.dataset.state = 'empty';
   }
+}
+
+function updateMechanisms() {
+  const panel = $('mechanisms');
+  if (!panel) return;
+  if (!isWalk() || !level?.field?.relay || !run) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  const powered = run.socketPowered();
+  const latched = run.relayLatched;
+  const phase = level.field.bodies.find((body) => body.id === 'station-phase-door');
+  const phaseOpen = phase ? sliceAtW(phase, dialToW(current)).kind === 'empty' : false;
+  const power = $('mech-power');
+  const phaseRow = $('mech-phase');
+  const latch = $('mech-latch');
+  power.dataset.state = powered ? 'on' : 'off';
+  power.querySelector('.mech-val').textContent = powered ? '已接通' : '未接通';
+  phaseRow.dataset.state = phaseOpen ? 'open' : 'solid';
+  phaseRow.querySelector('.mech-val').textContent = phaseOpen ? '已让开' : '实心';
+  latch.dataset.state = latched ? 'latched' : 'closed';
+  latch.querySelector('.mech-val').textContent = latched ? '已锁存' : '关闭';
 }
 
 // ---------- Cards ----------
@@ -896,7 +945,13 @@ function showHint() {
   toast(level.hints[Math.max(0, hintLevel - 1)], '', 6000);
   updateHintButton();
 }
-$('hint').addEventListener('click', showHint);
+$('hint').addEventListener('click', (event) => {
+  const fromPointer = event.detail > 0;
+  showHint();
+  // A mouse click must hand movement back to the stage. Keyboard activation
+  // keeps focus on the button so Tab / Enter / Space still work normally.
+  if (fromPointer) focusStage();
+});
 $('peek').addEventListener('click', () => {
   if (!run || mapPeeking) return;
   run.peeks += 1;
@@ -1068,6 +1123,9 @@ $('sound').addEventListener('click', () => {
   $('sound').setAttribute('aria-pressed', String(on));
   sfxSetMuted(!on);
 });
+for (const id of ['scene', 'flat']) {
+  $(id).addEventListener('pointerdown', () => { if (!cardOpen) focusStage(); });
+}
 document.addEventListener('pointerdown', sfxInit, { once: true });
 
 // ?level=1-2 opens a level directly (for playtests and shared links).
