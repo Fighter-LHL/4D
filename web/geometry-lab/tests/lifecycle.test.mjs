@@ -18,11 +18,12 @@ test('leaving a moving or rippling level cancels frames and cannot restart on th
   let scheduled = 0;
   let rendered = 0;
   const node = { classList: { remove() {} }, focus() {} };
+  const hintPanel = { hidden: false };
   const context = vm.createContext({
     document: { hidden: false },
     requestAnimationFrame(callback) { pending.set(++scheduled, callback); return scheduled; },
     cancelAnimationFrame(id) { pending.delete(id); },
-    clearTimeout() {}, $: () => node, hideCard() {}, renderChapters() {},
+    clearTimeout() {}, $: (id) => id === 'hint-panel' ? hintPanel : node, hideCard() {}, renderChapters() {},
     render() { rendered += 1; },
   });
   vm.runInContext(`
@@ -41,8 +42,40 @@ test('leaving a moving or rippling level cancels frames and cannot restart on th
   staleCallback(1000); // Also guard callbacks that were already dispatched.
   vm.runInContext('requestFrame()', context);
   assert.equal(pending.size, 0);
+  assert.equal(hintPanel.hidden, true, 'the hint panel closes when leaving');
   assert.equal(scheduled, 1, 'no new animation frames on the title');
   assert.equal(rendered, 0);
   vm.runInContext('level = {}; requestFrame()', context);
   assert.equal(pending.size, 1, 'a newly entered level can animate again');
+});
+
+test('hints persist independently of toast messages; reopening never reveals another hint', () => {
+  const nodes = new Map();
+  const node = () => ({ hidden: false, textContent: '', attributes: {}, children: [],
+    setAttribute(key, value) { this.attributes[key] = value; },
+    replaceChildren(...children) { this.children = children; },
+  });
+  const get = (id) => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
+  get('hint-panel').hidden = true;
+  const context = vm.createContext({ $: get, document: { createElement: node } });
+  vm.runInContext(`
+    let level = { hints: ['观察线索', '进一步提示', '完整解法'] }, cardOpen = false;
+    let hintLevel = 0, run = { hints: 0 };
+    ${['updateHintButton', 'revealHint', 'showHint'].map(functionSource).join('\n')}
+    showHint();
+  `, context);
+  assert.equal(get('hint-panel').hidden, false);
+  assert.equal(get('hint-history').children[0].textContent, '观察线索');
+  get('toast').textContent = '拿起晶核。';
+  assert.equal(get('hint-history').children.length, 1, 'operation feedback cannot replace the hint');
+  vm.runInContext('showHint(); showHint()', context);
+  assert.equal(get('hint-panel').hidden, false);
+  assert.equal(vm.runInContext('run.hints', context), 1, 'reopening is not a new reveal');
+  vm.runInContext('revealHint()', context);
+  assert.deepEqual(get('hint-history').children.map((item) => item.textContent), ['观察线索', '进一步提示']);
+  assert.equal(get('hint-next').textContent, '查看完整解法');
+  vm.runInContext('revealHint(); showHint(); showHint()', context);
+  assert.equal(get('hint-history').children.length, 3);
+  assert.equal(get('hint-next').hidden, true);
+  assert.equal(vm.runInContext('run.hints', context), 3);
 });

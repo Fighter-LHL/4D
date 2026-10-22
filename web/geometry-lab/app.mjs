@@ -34,6 +34,12 @@ const BODY_ROLES = Object.freeze({
   'station-divider-s': 4,
 });
 const roleOf = (id) => BODY_ROLES[id] ?? 0;
+const DEVICE_FEEDBACK = Object.freeze({
+  'latch-other-w': '回廊开关不在当前 W。',
+  'socket-other-w': '插座不在当前 W。',
+  'socket-empty': '插座里还没有晶核。',
+  'latch-open': '回廊已打开，会保持开启。',
+});
 
 // ---------- Progress ----------
 const progress = (() => {
@@ -254,7 +260,10 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
     const nearSpot = itemDist <= level.field.item.pickupRadius;
     const itemPt = view.project([run.item.x, 0.62, run.item.z]);
     if (visible && (nearSpot || !moved)) {
-      placeTag(itemEl, itemPt, nearSpot ? '按 空格 拿起' : '晶核', false);
+      const interaction = run.canInteract(current);
+      const label = interaction.action === 'pickup' ? '按 空格 拿起'
+        : interaction.reason === 'tight' ? '这里空间不足' : '晶核';
+      placeTag(itemEl, itemPt, nearSpot ? label : '晶核', false);
     } else if (!visible && mapVisible() && (!moved || itemDist < 3.2)) {
       placeTag(itemEl, itemPt, `留在 W ${signed(run.item.w)}`, true);
     } else {
@@ -300,6 +309,10 @@ function updateActionButton() {
     btn.hidden = false;
     btn.disabled = false;
     btn.textContent = '这里容不下你和晶核';
+  } else if (DEVICE_FEEDBACK[state.reason]) {
+    btn.hidden = false;
+    btn.disabled = true;
+    btn.textContent = DEVICE_FEEDBACK[state.reason];
   } else {
     btn.hidden = true;
   }
@@ -327,6 +340,8 @@ function handleInteract() {
     flash = 1;
     sfx.refused();
     toast('这里容不下你和晶核。', 'warn');
+  } else if (DEVICE_FEEDBACK[res.reason]) {
+    toast(DEVICE_FEEDBACK[res.reason]);
   } else if (res.reason === 'other-w') {
     sfx.blocked();
     toast('晶核不在当前层。', 'warn');
@@ -423,7 +438,7 @@ function stepToken(delta, now) {
     flash = 1;
     sfx.blocked();
     if (run.carrying) {
-      toast('抱着晶核过不去。', 'warn');
+      toast('前方有障碍，过不去。', 'warn');
     } else if (run.blockStreak >= 3) {
       $('w-rail').classList.add('pulse');
     }
@@ -701,6 +716,7 @@ function leaveLevel() {
   clearTimeout(toastTimer);
   $('toast').classList.remove('show');
   $('toast').textContent = '';
+  $('hint-panel').hidden = true;
   hideCard(false);
 }
 
@@ -933,16 +949,31 @@ function download() {
 
 // ---------- Hints & map peek ----------
 function updateHintButton() {
-  $('hint-count').textContent = `${hintLevel}/3`;
-  $('hint-label').textContent = ['观察提示', '再给一点提示', '查看解法', '重看解法'][Math.min(hintLevel, 3)];
+  const open = !$('hint-panel').hidden;
+  $('hint-count').textContent = `${hintLevel}/${level?.hints.length ?? 3}`;
+  $('hint-label').textContent = open ? '收起提示' : hintLevel ? '重看提示' : '观察提示';
+  $('hint').setAttribute('aria-expanded', String(open));
 }
-function showHint() {
+function revealHint() {
   if (!level || cardOpen) return;
   if (hintLevel < level.hints.length) {
     hintLevel += 1;
     run.hints += 1;
   }
-  toast(level.hints[Math.max(0, hintLevel - 1)], '', 6000);
+  $('hint-history').replaceChildren(...level.hints.slice(0, hintLevel).map((text) => {
+    const item = document.createElement('li');
+    item.textContent = text;
+    return item;
+  }));
+  $('hint-panel').hidden = false;
+  $('hint-next').hidden = hintLevel >= level.hints.length;
+  $('hint-next').textContent = hintLevel === level.hints.length - 1 ? '查看完整解法' : '再给一点提示';
+  updateHintButton();
+}
+function showHint() {
+  if (!level || cardOpen) return;
+  if (!hintLevel) { revealHint(); return; }
+  $('hint-panel').hidden = !$('hint-panel').hidden;
   updateHintButton();
 }
 $('hint').addEventListener('click', (event) => {
@@ -951,6 +982,15 @@ $('hint').addEventListener('click', (event) => {
   // A mouse click must hand movement back to the stage. Keyboard activation
   // keeps focus on the button so Tab / Enter / Space still work normally.
   if (fromPointer) focusStage();
+});
+$('hint-next').addEventListener('click', (event) => {
+  revealHint();
+  if (event.detail > 0 || $('hint-next').hidden) focusStage();
+});
+$('hint-close').addEventListener('click', () => {
+  $('hint-panel').hidden = true;
+  updateHintButton();
+  focusStage();
 });
 $('peek').addEventListener('click', () => {
   if (!run || mapPeeking) return;
@@ -1052,6 +1092,13 @@ window.addEventListener('keydown', (event) => {
   if (!level || $('game-screen').hidden || cardOpen) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   const key = event.key;
+  if (key === 'Escape' && !$('hint-panel').hidden) {
+    event.preventDefault();
+    $('hint-panel').hidden = true;
+    updateHintButton();
+    focusStage();
+    return;
+  }
   if (event.target.closest?.('button') && (key === ' ' || key === 'Enter')) return;
   if (event.target.closest?.('#w-rail') && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(key)) return;
   if (key === 'h' || key === 'H') { if (!event.repeat) showHint(); return; }
@@ -1065,6 +1112,7 @@ window.addEventListener('keydown', (event) => {
   if (key in W_KEYS || visitArrow) {
     event.preventDefault();
     if (event.repeat || railLocked()) return;
+    focusStage();
     sfxInit();
     wHold = W_KEYS[key] ?? (key === 'ArrowUp' ? 1 : -1);
     heldWKey = key;
@@ -1074,6 +1122,7 @@ window.addEventListener('keydown', (event) => {
   }
   if (isWalk() && MOVE_DIRS[key]) {
     event.preventDefault();
+    focusStage();
     sfxInit();
     pressed.add(key);
     requestFrame();

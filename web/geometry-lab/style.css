@@ -217,6 +217,17 @@ button:disabled { cursor: default; opacity: 0.42; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.warn { border-color: rgba(255, 118, 99, 0.52); color: #ffd8d1; }
 .toast.good { border-color: rgba(95, 224, 194, 0.46); color: #c8f5ea; }
+.hint-panel {
+  position: absolute; z-index: 4; top: 40px; right: 14px;
+  width: min(330px, calc(100% - 28px)); max-height: calc(100% - 140px); overflow: auto;
+  padding: 14px 16px; border: 1px solid var(--line-2); border-radius: 10px;
+  background: rgba(5, 15, 18, 0.97); box-shadow: var(--shadow); font-size: 12px; line-height: 1.7;
+}
+.hint-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hint-head button { padding: 4px 8px; }
+#hint-history { margin: 12px 0; padding-left: 20px; }
+#hint-history li + li { margin-top: 10px; }
+#hint-next { padding: 7px 10px; }
 .empty-notice { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 13px; color: var(--muted); font-size: 13px; pointer-events: none; }
 .empty-notice p { margin: 0; }
 .empty-ring { width: 58px; height: 58px; border-radius: 50%; border: 1px dashed var(--line-2); }

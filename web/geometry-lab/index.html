@@ -48,7 +48,7 @@
         <div class="tools">
           <button id="restart" class="ghost tool" title="重新开始这一关 (R)"><span class="tool-key">R</span>重来</button>
           <button id="reset-view" class="ghost tool" aria-label="视角复位" title="恢复初始视角">视角复位</button>
-          <button id="hint" class="ghost tool"><span id="hint-label">观察提示</span> <span id="hint-count" class="count"></span></button>
+          <button id="hint" class="ghost tool" aria-controls="hint-panel" aria-expanded="false"><span id="hint-label">观察提示</span> <span id="hint-count" class="count"></span></button>
           <button id="sound" class="ghost icon" aria-pressed="true" aria-label="音效开关" title="音效">♪</button>
         </div>
       </div>
@@ -68,6 +68,11 @@
         </div>
         <button id="action-btn" class="primary action-btn" type="button" hidden>拿起物体</button>
         <p class="toast" id="toast" role="status" aria-live="polite"></p>
+        <section id="hint-panel" class="hint-panel" aria-labelledby="hint-heading" hidden>
+          <div class="hint-head"><b id="hint-heading">已查看的提示</b><button id="hint-close" class="ghost" aria-label="收起提示">收起</button></div>
+          <ol id="hint-history" aria-live="polite"></ol>
+          <button id="hint-next" class="ghost">再给一点提示</button>
+        </section>
         <div class="empty-notice" id="empty-notice" hidden><span class="empty-ring"></span><p>这一层，什么都没有碰到。</p></div>
         <div class="dpad" id="dpad" hidden aria-label="移动角色">
           <button data-dir="ArrowUp" class="d-up" aria-label="向前">▲</button><button data-dir="ArrowLeft" class="d-left" aria-label="向左">◀</button><button data-dir="ArrowRight" class="d-right" aria-label="向右">▶</button><button data-dir="ArrowDown" class="d-down" aria-label="向后">▼</button>
