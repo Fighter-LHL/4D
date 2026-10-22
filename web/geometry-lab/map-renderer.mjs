@@ -78,7 +78,7 @@ void main() {
   vec3 up = cross(right, forward);
   vec3 rd = normalize(forward * 2.4 + right * uv.x + up * uv.y);
   vec3 ro = uEye;
-  vec3 color = mix(vec3(0.02, 0.03, 0.06), vec3(0.05, 0.07, 0.13), clamp(uv.y * 0.5 + 0.6, 0.0, 1.0));
+  vec3 color = mix(vec3(0.008, 0.018, 0.022), vec3(0.028, 0.048, 0.054), clamp(uv.y * 0.5 + 0.6, 0.0, 1.0));
 
   vec2 frame = boxSpan(ro, rd, vec3(0.0), uFrame);
   if (frame.y < 0.0) { gl_FragColor = vec4(pow(color, vec3(0.9)), 1.0); return; }
@@ -95,9 +95,9 @@ void main() {
     color += layerColor(pb.y) * (0.07 + border * 0.12);
   } else if (nb.y < 0.0) {
     vec2 cell = abs(fract(pb.xz * 2.0 + 0.5) - 0.5);
-    color += vec3(0.08, 0.1, 0.16) * (1.0 - smoothstep(0.0, 0.03 * tFar, min(cell.x, cell.y) * 0.5));
+    color += vec3(0.055, 0.080, 0.086) * (1.0 - smoothstep(0.0, 0.03 * tFar, min(cell.x, cell.y) * 0.5));
   }
-  color += vec3(0.35, 0.4, 0.55) * edgeB * 0.5;
+  color += vec3(0.36, 0.46, 0.48) * edgeB * 0.5;
 
   float tPlane = abs(rd.y) > 0.0001 ? (uPlane - ro.y) / rd.y : -1.0;
   vec3 pp = ro + rd * tPlane;

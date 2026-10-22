@@ -11,7 +11,13 @@ class PreviewHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
 
+class PreviewServer(ThreadingHTTPServer):
+    # A cold browser requests the module graph concurrently. The default queue
+    # of five can reset module connections before the handler accepts them.
+    request_queue_size = 64
+
+
 if __name__ == "__main__":
     handler = partial(PreviewHandler, directory=sys.argv[2])
-    with ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), handler) as server:
+    with PreviewServer(("127.0.0.1", int(sys.argv[1])), handler) as server:
         server.serve_forever()

@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#060a14">
-  <meta name="description" content="一个关于第四维的网页小游戏：你只能看见一层。">
-  <title>W / SLICE · 你只能看见一层</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23070b16'/%3E%3Cpath d='m12 18 8 28 12-22 12 22 8-28' fill='none' stroke='%23bdb8ff' stroke-width='5'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#061014">
+  <meta name="description" content="W / SLICE：一个关于第四维的网页小游戏。你只能看见一层。">
+  <title>W / SLICE</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23071014'/%3E%3Cpath d='m12 18 8 28 12-22 12 22 8-28' fill='none' stroke='%23a7e4d6' stroke-width='5'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
@@ -35,13 +35,22 @@
 
   <section id="game-screen" class="screen game-screen" hidden>
     <header class="topbar">
-      <button id="back" class="ghost" aria-label="返回章节">← <span class="hide-narrow">章节</span></button>
-      <div class="level-id"><span id="level-chapter"></span><b id="level-title"></b></div>
+      <div class="topbar-ident">
+        <button id="back" class="ghost back" aria-label="返回章节">← <span class="hide-narrow">章节</span></button>
+        <div class="level-id"><span id="level-chapter"></span><b id="level-title"></b></div>
+      </div>
+      <div class="mission">
+        <span class="mission-kicker">目标</span>
+        <p class="objective" id="objective"></p>
+      </div>
       <div class="topbar-right">
-        <span id="stats" class="stats" aria-live="off"></span>
-        <button id="restart" class="ghost" title="重新开始这一关 (R)">重来</button>
-        <button id="hint" class="ghost"><span id="hint-label">提示</span> <span id="hint-count"></span></button>
-        <button id="sound" class="ghost icon" aria-pressed="true" aria-label="音效开关" title="音效">♪</button>
+        <span id="stats" class="stats" data-state="empty" aria-live="off"></span>
+        <div class="tools">
+          <button id="restart" class="ghost tool" title="重新开始这一关 (R)"><span class="tool-key">R</span>重来</button>
+          <button id="reset-view" class="ghost tool" aria-label="视角复位" title="恢复初始视角">视角复位</button>
+          <button id="hint" class="ghost tool"><span id="hint-label">观察提示</span> <span id="hint-count" class="count"></span></button>
+          <button id="sound" class="ghost icon" aria-pressed="true" aria-label="音效开关" title="音效">♪</button>
+        </div>
       </div>
     </header>
 
@@ -57,10 +66,8 @@
           <span class="world-tag socket" id="socket-tag" hidden>蓝层插座</span>
           <span class="world-tag latch" id="latch-tag" hidden>回廊开关</span>
         </div>
-        <p class="objective" id="objective"></p>
         <button id="action-btn" class="primary action-btn" type="button" hidden>拿起物体</button>
         <p class="toast" id="toast" role="status" aria-live="polite"></p>
-        <button id="reset-view" class="ghost corner" aria-label="视角复位" title="恢复初始视角">视角复位</button>
         <div class="empty-notice" id="empty-notice" hidden><span class="empty-ring"></span><p>这一层，什么都没有碰到。</p></div>
         <div class="dpad" id="dpad" hidden aria-label="移动角色">
           <button data-dir="ArrowUp" class="d-up" aria-label="向前">▲</button><button data-dir="ArrowLeft" class="d-left" aria-label="向左">◀</button><button data-dir="ArrowRight" class="d-right" aria-label="向右">▶</button><button data-dir="ArrowDown" class="d-down" aria-label="向后">▼</button>
@@ -80,14 +87,20 @@
 
       <aside class="side">
         <section class="map-panel" aria-labelledby="map-title">
-          <div class="map-head"><b id="map-title">全貌</b><small id="map-sub"></small></div>
+          <div class="map-head">
+            <div class="map-heading">
+              <p class="panel-kicker" id="map-kicker">空间全貌</p>
+              <b id="map-title">W 地图</b>
+            </div>
+            <small id="map-sub">竖直方向 = W</small>
+          </div>
           <div class="map-body">
             <div class="map-view">
               <canvas id="map" aria-label="地图：整个关卡的全貌，竖直方向是隐藏的那一维"></canvas>
               <div class="map-legend" id="map-legend" aria-hidden="true">
-                <span class="leg-item"><i class="leg-plane"></i>发光层 = 你的世界</span>
-                <span class="leg-item" id="leg-token"><i class="leg-line"></i>白虚线 = 换层轨道</span>
-                <span class="leg-item" id="leg-goal"><i class="leg-goal"></i>金段 = 出口所在层</span>
+                <span class="leg-item"><i class="leg-plane"></i>当前截面</span>
+                <span class="leg-item" id="leg-token"><i class="leg-line"></i>换层轨道</span>
+                <span class="leg-item" id="leg-goal"><i class="leg-goal"></i>出口层</span>
               </div>
               <div class="map-veil" id="map-veil" hidden><p>地图已收起<br><small>看墙的颜色判断它在哪一层</small></p><button id="peek" class="ghost">查看空间结构</button></div>
               <div class="map-error" id="map-error" hidden>地图需要 WebGL</div>
@@ -106,6 +119,26 @@
           </div>
           <div class="layer-readout"><i class="swatch" id="layer-swatch"></i><span id="layer-name"></span><span class="w-value" id="w-value"></span></div>
           <p class="color-legend" id="color-legend"><span class="cool-tag">● 冷蓝在下 (−W)</span><span class="warm-tag">● 暖橙在上 (+W)</span><span class="legend-sep" id="legend-block-hint" hidden>● 红区 = 墙会撞上你</span></p>
+          <p class="map-note" id="map-note">拖动滑轨观察截面变化</p>
+        </section>
+
+        <section class="mechanisms" id="mechanisms" hidden aria-labelledby="mech-title">
+          <div class="mech-head">
+            <p class="panel-kicker">机构读法</p>
+            <b id="mech-title">机关状态</b>
+          </div>
+          <div class="mech-list">
+            <div class="mech-row" id="mech-power" data-state="off">
+              <span class="mech-glyph power" aria-hidden="true"></span><span class="mech-name">供电</span><span class="mech-val">未接通</span>
+            </div>
+            <div class="mech-row" id="mech-phase" data-state="solid">
+              <span class="mech-glyph phase" aria-hidden="true"></span><span class="mech-name">相位墙</span><span class="mech-val">实心</span>
+            </div>
+            <div class="mech-row" id="mech-latch" data-state="closed">
+              <span class="mech-glyph latch" aria-hidden="true"></span><span class="mech-name">回廊</span><span class="mech-val">关闭</span>
+            </div>
+          </div>
+          <p class="mech-note">材质会随状态改变</p>
         </section>
 
         <section class="predict" id="predict" hidden aria-labelledby="predict-question">

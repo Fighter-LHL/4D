@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#061014">
+  <meta name="description" content="W / SLICE 中转站的六状态设计图板：逐帧解释供电、相位墙与回廊的实际状态。">
+  <title>W / SLICE · 中转站六状态图板</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23071014'/%3E%3Cpath d='m12 18 8 28 12-22 12 22 8-28' fill='none' stroke='%23a7e4d6' stroke-width='5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+  <style>
+    :root {
+      --board-line: rgba(158, 198, 192, 0.16);
+      --board-line-2: rgba(158, 198, 192, 0.3);
+      --phase: #ff8f6e;
+      --bronze: #8d5f3f;
+    }
+    html { scroll-behavior: smooth; }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(158, 198, 192, 0.024) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(158, 198, 192, 0.024) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.7), transparent 70%);
+    }
+    .board { max-width: 1336px; margin: 0 auto; padding: 62px 46px 76px; }
+    .board-head { padding-bottom: 34px; border-bottom: 1px solid var(--board-line); }
+    .board-kicker { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+    .board-kicker .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 9px var(--mint); }
+    .head-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr); align-items: end; gap: 32px 56px; margin-top: 24px; }
+    .board h1 { margin: 0; max-width: 13ch; font-size: clamp(45px, 5.8vw, 82px); font-weight: 650; letter-spacing: -0.045em; line-height: 0.98; text-wrap: balance; }
+    .board h1 span { color: var(--mint-soft); }
+    .lede { margin: 0 0 4px; max-width: 46ch; font-size: 15.5px; line-height: 1.85; color: #bccbc6; }
+    .lede b { color: var(--ivory); font-weight: 600; }
+    .head-meta { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 28px; font: 10px var(--mono); letter-spacing: 0.1em; color: var(--faint); text-transform: uppercase; }
+    .head-meta span { display: inline-flex; align-items: center; gap: 7px; }
+    .head-meta i { width: 14px; height: 1px; background: var(--board-line-2); }
+
+    .grammar { display: grid; grid-template-columns: minmax(0, 1.1fr) repeat(4, minmax(0, 1fr)); gap: 20px 24px; align-items: start; padding: 22px 0 24px; border-bottom: 1px solid var(--board-line); }
+    .grammar-copy p { margin: 0; max-width: 26ch; font-size: 12.5px; line-height: 1.75; color: var(--muted); }
+    .grammar-copy b { display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: var(--ivory); }
+    .mat { min-width: 0; }
+    .mat i { display: block; height: 7px; margin-bottom: 10px; border-radius: 2px; border: 1px solid var(--board-line); }
+    .mat b { display: block; font-size: 12px; font-weight: 600; color: #dbe5e0; }
+    .mat span { display: block; margin-top: 3px; font-size: 10.5px; line-height: 1.55; color: var(--faint); }
+    .mat.power i { background: repeating-linear-gradient(90deg, rgba(87, 201, 230, 0.95) 0 3px, rgba(87, 201, 230, 0.18) 3px 7px); box-shadow: 0 0 12px rgba(87, 201, 230, 0.22); }
+    .mat.phase i { background: repeating-linear-gradient(135deg, rgba(255, 143, 110, 0.9) 0 4px, rgba(255, 143, 110, 0.16) 4px 9px); border-color: rgba(255, 143, 110, 0.4); }
+    .mat.latch i { background: linear-gradient(90deg, transparent 0 38%, rgba(240, 201, 120, 0.9) 38% 40%, transparent 40% 58%, rgba(240, 201, 120, 0.9) 58% 60%, transparent 60%); border-color: rgba(240, 201, 120, 0.34); }
+    .mat.gate i { background: linear-gradient(180deg, rgba(141, 95, 63, 0.95), rgba(76, 48, 34, 0.95)); border-color: rgba(141, 95, 63, 0.5); }
+
+    .states { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 58px 40px; padding: 46px 0 12px; }
+    .state { margin: 0; min-width: 0; }
+    .shot { position: relative; display: block; overflow: hidden; border-radius: 12px; border: 1px solid var(--board-line); background: #041013; box-shadow: 0 26px 60px -44px rgba(0, 0, 0, 0.95); }
+    .shot img { display: block; width: 100%; height: auto; transition: transform 0.35s ease; }
+    .shot::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.22); pointer-events: none; }
+    .shot .open { position: absolute; right: 10px; bottom: 10px; padding: 5px 8px; border-radius: 6px; background: rgba(4, 12, 15, 0.9); border: 1px solid var(--board-line-2); font: 9.5px var(--mono); color: var(--mint-soft); opacity: 0; transition: opacity 0.2s ease; }
+    .shot:hover img, .shot:focus-visible img { transform: scale(1.012); }
+    .shot:hover .open, .shot:focus-visible .open { opacity: 1; }
+    .state-head { display: flex; align-items: baseline; gap: 12px; margin-top: 16px; }
+    .state-num { font: 10px var(--mono); letter-spacing: 0.1em; color: var(--mint); }
+    .state-head h2 { margin: 0; font-size: clamp(20px, 2vw, 25px); font-weight: 620; letter-spacing: -0.015em; }
+    .state-w { margin-left: auto; padding: 3px 7px; border: 1px solid var(--board-line); border-radius: 5px; font: 10px var(--mono); color: var(--muted); white-space: nowrap; }
+    .state-sub { margin: 7px 0 0; max-width: 56ch; font-size: 12.5px; line-height: 1.7; color: var(--faint); }
+    .state dl { display: flex; flex-direction: column; gap: 9px; margin: 15px 0 0; padding-top: 13px; border-top: 1px solid var(--board-line); }
+    .state dl > div { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 12px; align-items: start; }
+    .state dt { padding-top: 2px; font: 9.5px var(--mono); letter-spacing: 0.08em; color: var(--faint); }
+    .state dd { margin: 0; font-size: 12.5px; line-height: 1.75; color: #c6d2cd; }
+    .state dd b { color: var(--ivory); font-weight: 600; }
+    .state dd code { font: 11px var(--mono); color: var(--mint-soft); }
+    .state dt.phase { color: var(--phase); }
+    .state dt.latch { color: var(--gold); }
+
+    .hinge { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 20px; align-items: center; margin-top: -18px; padding: 14px 0; border-top: 1px dashed var(--board-line); border-bottom: 1px dashed var(--board-line); }
+    .hinge p { margin: 0; font-size: 11.5px; line-height: 1.7; color: var(--faint); }
+    .hinge p:last-child { text-align: right; }
+    .hinge span { font: 9.5px var(--mono); letter-spacing: 0.12em; color: var(--gold); white-space: nowrap; }
+
+    .verify { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 30px 56px; margin-top: 32px; padding: 32px 0 0; border-top: 1px solid var(--board-line); }
+    .verify h2 { margin: 8px 0 10px; font-size: clamp(25px, 2.6vw, 34px); font-weight: 620; letter-spacing: -0.025em; }
+    .verify-copy p { margin: 0; max-width: 44ch; font-size: 12.5px; line-height: 1.8; color: var(--muted); }
+    .verify-copy a { color: var(--mint-soft); text-decoration: none; border-bottom: 1px solid rgba(167, 228, 214, 0.35); }
+    .verify-copy a:hover { border-bottom-color: var(--mint-soft); }
+    .ledger { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--board-line); border: 1px solid var(--board-line); border-radius: 10px; overflow: hidden; }
+    .ledger-cell { padding: 16px 18px; background: #081419; }
+    .ledger-cell b { display: block; font: 600 27px/1.1 var(--mono); letter-spacing: -0.03em; color: var(--ivory); }
+    .ledger-cell span { display: block; margin-top: 5px; font-size: 10.5px; color: var(--faint); }
+    .layout-strip { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; gap: 26px; margin-top: 10px; }
+    .layout-strip figure { margin: 0; }
+    .layout-strip img { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--board-line); }
+    .layout-strip figcaption { display: flex; justify-content: space-between; gap: 12px; margin-top: 7px; font: 9.5px var(--mono); color: var(--faint); }
+
+    .footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-top: 46px; padding-top: 20px; border-top: 1px solid var(--board-line); }
+    .footer p { margin: 0; font: 10px var(--mono); color: var(--faint); }
+    .footer-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .footer .primary { font-size: 12px; padding: 9px 14px; }
+
+    @media (max-width: 1080px) {
+      .board { padding: 46px 30px 64px; }
+      .head-grid { grid-template-columns: 1fr; gap: 18px; }
+      .grammar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grammar-copy { grid-column: 1 / -1; }
+      .states { gap: 46px 28px; }
+      .verify { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 900px) {
+      .states { grid-template-columns: 1fr; }
+      .hinge { grid-column: auto; grid-template-columns: 1fr; gap: 8px; margin-top: 0; }
+      .hinge p:last-child { text-align: left; }
+    }
+    @media (max-width: 600px) {
+      .board { padding: 34px 18px 50px; }
+      .board h1 { font-size: clamp(38px, 12vw, 54px); }
+      .lede { font-size: 14px; }
+      .grammar { grid-template-columns: 1fr 1fr; gap: 16px; }
+      .states { padding-top: 34px; gap: 40px; }
+      .state dl > div { grid-template-columns: 38px minmax(0, 1fr); gap: 9px; }
+      .ledger { grid-template-columns: 1fr 1fr; }
+      .layout-strip { grid-template-columns: 1fr; }
+      .footer { align-items: flex-start; flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .shot img, .shot .open { transition: none; }
+    }
+  </style>
+</head>
+<body data-entry="states">
+  <main class="board">
+    <header class="board-head">
+      <p class="kicker board-kicker"><span class="dot"></span>W / SLICE · 中转站 · FIELD BOARD / 06 STATES</p>
+      <div class="head-grid">
+        <h1>同一座中转站，<br><span>六种读法。</span></h1>
+        <p class="lede">六帧按真实键盘流程连续采集：拿取、送电、换层、锁存、取回。每一帧都保留当时的 <b>W 位置、机关状态和碰撞事实</b>，用来检查材质与因果是否读得出来。</p>
+      </div>
+      <div class="head-meta">
+        <span><i></i>独立场景 / 第 1 章</span>
+        <span><i></i>1440 × 900 实机截图</span>
+        <span><i></i>六帧连续通关</span>
+        <span><i></i>图板不进入主游戏流程</span>
+      </div>
+    </header>
+
+    <section class="grammar" aria-label="材质语法">
+      <div class="grammar-copy">
+        <b>材质即状态</b>
+        <p>颜色只做辅助；门扇是否出现、墙带是否仍有截面、门槛是否留存，才是碰撞事实。</p>
+      </div>
+      <div class="mat power"><i></i><b>冷蓝线路</b><span>插座与北门同线。亮起表示供电已抵达。</span></div>
+      <div class="mat phase"><i></i><b>红纹矿墙</b><span>相位墙。只在自己占据的 W 范围里实心。</span></div>
+      <div class="mat latch"><i></i><b>黄铜回廊</b><span>手动拉开后锁存，断电也不回收。</span></div>
+      <div class="mat gate"><i></i><b>暗铜门扇</b><span>北门未通电时的实体门，挡在相位墙前。</span></div>
+    </section>
+
+    <section class="states" aria-label="六状态逐帧说明">
+      <article class="state" id="state-1">
+        <a class="shot" href="./assets/station-states/01-initial.png" target="_blank" rel="noreferrer">
+          <img src="./assets/station-states/01-initial.png" alt="中转站初始状态：角色与晶核在左侧，北门为暗铜门扇，接收台在右前方。" width="1440" height="900">
+          <span class="open">打开原图 ↗</span>
+        </a>
+        <div class="state-head"><span class="state-num">01 / 06</span><h2>初始</h2><span class="state-w">W 0.00</span></div>
+        <p class="state-sub">直接进入中转站关卡。空手，晶核留在左前空地，北门与回廊都还关着。</p>
+        <dl>
+          <div><dt>触发</dt><dd>打开 <code>?level=station</code>，不经过标题页或状态播放器。</dd></div>
+          <div><dt>画面</dt><dd>北门是<b>暗铜门扇</b>；蓝线未亮；金色的接收台在隔墙另一侧。侧栏机构读数为“未接通 / 实心 / 关闭”。</dd></div>
+          <div><dt>碰撞</dt><dd>北通路同时被未通电的供电门与同层相位墙封住。晶核仍在远处，尚未进入携带半径。</dd></div>
+        </dl>
+      </article>
+
+      <article class="state" id="state-2">
+        <a class="shot" href="./assets/station-states/02-carry.png" target="_blank" rel="noreferrer">
+          <img src="./assets/station-states/02-carry.png" alt="携带状态：角色拿起青色晶核，状态栏变为携带晶核。" width="1440" height="900">
+          <span class="open">打开原图 ↗</span>
+        </a>
+        <div class="state-head"><span class="state-num">02 / 06</span><h2>携带</h2><span class="state-w">W 0.00</span></div>
+        <p class="state-sub">靠近晶核后按空格或 F。晶核跟着角色移动，但角色占的空间也变大了。</p>
+        <dl>
+          <div><dt>触发</dt><dd>走到晶核旁，<b>空格 / F</b> 拿起。提示后直接按空格也不会再升级提示。</dd></div>
+          <div><dt>画面</dt><dd>角色手中出现青色晶核，顶部状态变为“携带晶核”，动作按钮改为“放下晶核”；原地的晶核标签收起，避免重复遮挡。</dd></div>
+          <div><dt>碰撞</dt><dd>携带半径为 <code>0.40</code>（空手 <code>0.22</code>）。北门的两层阻挡都还在，不能靠“拿着东西”挤过去。</dd></div>
+        </dl>
+      </article>
+
+      <article class="state" id="state-3">
+        <a class="shot" href="./assets/station-states/03-powered-solid.png" target="_blank" rel="noreferrer">
+          <img src="./assets/station-states/03-powered-solid.png" alt="蓝层供电状态：插座亮起，北门露出红纹相位墙和冷蓝通电框，仍然无法通过。" width="1440" height="900">
+          <span class="open">打开原图 ↗</span>
+        </a>
+        <div class="state-head"><span class="state-num">03 / 06</span><h2>供电，但相位墙仍在</h2><span class="state-w">W −1.09</span></div>
+        <p class="state-sub">晶核放入蓝层插座。供电门打开，但同层的相位墙没有消失——供电不等于这一层就能过。</p>
+        <dl>
+          <div><dt>触发</dt><dd>把晶核带到蓝层插座，<b>W ≈ −1.1</b>，按空格放入。</dd></div>
+          <div><dt>画面</dt><dd>插座与蓝线亮起；暗铜门扇消失，露出<b>红纹相位墙</b>，墙缘出现冷蓝通电框。侧栏变为“已接通 / 实心 / 关闭”。</dd></div>
+          <div><dt>碰撞</dt><dd>供电门已从碰撞体移除，但相位墙在 <code>W −2.0 … +0.7</code> 仍有截面；此刻北通路依旧封死。</dd></div>
+        </dl>
+      </article>
+
+      <article class="state" id="state-4">
+        <a class="shot" href="./assets/station-states/04-warm-open.png" target="_blank" rel="noreferrer">
+          <img src="./assets/station-states/04-warm-open.png" alt="暖层可穿状态：W 升到约 0.8，相位墙消失，北门成为可通过的空洞。" width="1440" height="900">
+          <span class="open">打开原图 ↗</span>
+        </a>
+        <div class="state-head"><span class="state-num">04 / 06</span><h2>暖层可穿</h2><span class="state-w">W +0.76</span></div>
+        <p class="state-sub">晶核留在插座，角色独自换层。越过相位墙的 W 上界后，北门才真正空出来。</p>
+        <dl>
+          <div><dt>触发</dt><dd>保持插座通电，角色空手把 W 推到暖层 <b>W ≈ +0.8</b>。</dd></div>
+          <div><dt>画面</dt><dd>红纹相位墙在当前截面消失，北门成为贯通空洞；场景与地图平面转暖。侧栏变为“已接通 / 已让开 / 关闭”。</dd></div>
+          <div><dt>碰撞</dt><dd>相位墙占据到 <code>W +0.70</code>；<code>+0.76</code> 已在范围外。供电门仍因插座通电而移除，所以此层可通过。</dd></div>
+        </dl>
+      </article>
+
+      <div class="hinge" aria-hidden="true">
+        <p>同一套供电网络，两个不同的 W 截面。</p>
+        <span>POWER ≠ PASSAGE</span>
+        <p>03 仍被相位墙截住；04 越界后才通行。</p>
+      </div>
+
+      <article class="state" id="state-5">
+        <a class="shot" href="./assets/station-states/05-corridor-open.png" target="_blank" rel="noreferrer">
+          <img src="./assets/station-states/05-corridor-open.png" alt="回廊保持开启：角色站在另一侧的回廊开关上，门扇消失，地面留下金色门槛。" width="1440" height="900">
+          <span class="open">打开原图 ↗</span>
+        </a>
+        <div class="state-head"><span class="state-num">05 / 06</span><h2>回廊保持开启</h2><span class="state-w">W −0.04</span></div>
+        <p class="state-sub">穿过北门后，在另一侧中间层拉开回廊。门扇消失，金色门槛留在地上，之后不再关闭。</p>
+        <dl>
+          <div><dt>触发</dt><dd>到另一侧的回廊开关旁，<b>W ≈ 0</b>，按空格拉开。</dd></div>
+          <div><dt>画面</dt><dd>回廊门扇消失，地面留下金色门槛；角色脚下的开关亮起。侧栏变为“已接通 / 实心 / 已锁存”。</dd></div>
+          <div><dt>碰撞</dt><dd>回廊门被锁存并从碰撞体移除；相位墙在 W0 重新实心，但回去的路已由回廊打开。</dd></div>
+        </dl>
+      </article>
+
+      <article class="state" id="state-6">
+        <a class="shot" href="./assets/station-states/06-retrieved.png" target="_blank" rel="noreferrer">
+          <img src="./assets/station-states/06-retrieved.png" alt="取回晶核后：蓝线熄灭，北门恢复暗铜门扇和红纹相位墙，回廊仍保持开启。" width="1440" height="900">
+          <span class="open">打开原图 ↗</span>
+        </a>
+        <div class="state-head"><span class="state-num">06 / 06</span><h2>取回后：北门关，回廊留</h2><span class="state-w">W −1.07</span></div>
+        <p class="state-sub">从回廊返回蓝层取回晶核。供电立即切断，北门重新关闭；回廊是锁存机构，不受断电影响。</p>
+        <dl>
+          <div><dt>触发</dt><dd>经回廊回到插座，<b>W ≈ −1.1</b>，按空格取回晶核。</dd></div>
+          <div><dt>画面</dt><dd>插座与蓝线熄灭，北门恢复<b>暗铜门扇</b>，红纹相位墙仍在；回廊门扇保持消失，金色门槛不灭。侧栏变为“未接通 / 实心 / 已锁存”。</dd></div>
+          <div><dt>碰撞</dt><dd>取回晶核立即恢复供电门碰撞；回廊锁存不受断电影响。此后带晶核回到 W0，穿过已开的回廊送达接收台。</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="verify" aria-label="验证记录">
+      <div class="verify-copy">
+        <p class="kicker">VERIFICATION LEDGER</p>
+        <h2>运行验证记录。</h2>
+        <p>六帧来自同一次连续键盘通关，第六帧之后继续走到接收台并触发胜利。完整记录、修改文件和未验证项见 <a href="./docs/station-redesign.md">设计说明</a>。</p>
+      </div>
+      <div class="ledger">
+        <div class="ledger-cell"><b>51 / 51</b><span>Node 几何与生命周期测试</span></div>
+        <div class="ledger-cell"><b>3</b><span>1440×900 / 1280×720 / 834×760 布局核对</span></div>
+        <div class="ledger-cell"><b>0</b><span>浏览器 console / page error</span></div>
+        <div class="ledger-cell"><b>0</b><span>静止、退回标题后新增 RAF</span></div>
+      </div>
+      <div class="layout-strip">
+        <figure>
+          <img src="./assets/station-states/layout-1280.png" alt="1280×720 布局：场景与侧栏均完整，无纵向滚动。" width="1280" height="720">
+          <figcaption><span>1280 × 720</span><span>场景 / 地图 / 机构读数同屏</span></figcaption>
+        </figure>
+        <figure>
+          <img src="./assets/station-states/layout-834.png" alt="834×760 窄面板布局：场景、W 地图和机关状态仍可读。" width="834" height="760">
+          <figcaption><span>834 × 760</span><span>窄面板仍保留关键机关</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p>W / SLICE · 中转站六状态图板 · 设计说明页，不进入主游戏流程</p>
+      <div class="footer-actions">
+        <a class="ghost" href="./docs/station-redesign.md">设计记录</a>
+        <a class="primary" href="./index.html?level=station">进入可玩的中转站 <span aria-hidden="true">→</span></a>
+      </div>
+    </footer>
+  </main>
+</body>
+</html>
