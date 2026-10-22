@@ -447,6 +447,43 @@ test('WalkRun pickup, 4D placed position persistence across W, and goal delivery
   assert.equal(json.completed, true);
 });
 
+test('dropping during a W transition stores the visible slice, and returning recovers the core', () => {
+  const run = new WalkRun(STATION_ROOM, 'station');
+  run.pos = STATION_ROOM.item.start.slice(0, 2);
+  assert.equal(run.interact().action, 'picked');
+  assert.ok(run.setDial(wToDial(1.1)));
+  const drop = run.interact(1200, wToDial(0));
+  assert.equal(drop.action, 'dropped');
+  near(drop.item.w, 0);
+  assert.equal(itemSectionAtW(STATION_ROOM, run.itemState(), 0).kind, 'sphere');
+  assert.equal(run.canInteract().reason, 'other-w');
+  assert.ok(run.setDial(wToDial(0)));
+  assert.equal(run.interact(1400).action, 'picked');
+});
+
+test('core map ellipsoid agrees with spatial sections at the map height', () => {
+  for (const field of [FETCH_ROOM, STATION_ROOM]) {
+    const state = { x: 0.8, z: 0.3, w: -0.2, carrying: false };
+    for (const y of [0.1, field.tokenY, field.item.y, 0.6]) {
+      const foot = itemFootprint(field, state, y);
+      for (let i = 0; i <= 100; i += 1) {
+        const w = state.w - 0.9 + i * 0.018;
+        const section = itemSectionAtW(field, state, w);
+        const dy = y - section.center[1];
+        const sectionR2 = section.kind === 'sphere' ? Math.max(0, section.radius ** 2 - dy ** 2) : 0;
+        const mapR2 = foot.exists ? Math.max(0, foot.radius ** 2 * (1 - ((w - foot.center[2]) / foot.wRadius) ** 2)) : 0;
+        near(mapR2, sectionR2);
+      }
+    }
+    const centerCut = itemFootprint(field, state, field.item.y);
+    near(centerCut.wRadius, field.item.wReach);
+    const atMapHeight = itemFootprint(field, state);
+    assert.ok(atMapHeight.wRadius > 0.5, 'the visible core at W offset 0.5 intersects the map');
+    assert.equal(itemFootprint(field, { ...state, carrying: true }).exists, false,
+      'the raised carried core is above the map height, not a false solid at floor height');
+  }
+});
+
 test('station gates require power and a W change; an opened return passage carries the core', () => {
   assert.equal(levelById('station').field, STATION_ROOM);
   assert.equal(nextLevel('fetch').id, 'station');

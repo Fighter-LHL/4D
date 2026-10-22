@@ -354,11 +354,12 @@ function render() {
 
 // ---------- Loop ----------
 function requestFrame() {
-  if (!frameId && !document.hidden) frameId = requestAnimationFrame(tick);
+  if (level && !frameId && !document.hidden) frameId = requestAnimationFrame(tick);
 }
 
 function tick(time) {
   frameId = 0;
+  if (!level) { previousTime = 0; return; }
   const delta = previousTime ? Math.min((time - previousTime) / 1000, 0.05) : 1 / 60;
   previousTime = time;
   if (reveal) {
@@ -665,6 +666,13 @@ function renderChapters() {
 const firstOpenLevel = () => LEVELS_LIST.find((l) => !progress.has(l.id) && isUnlocked(l.id, progress)) ?? LEVELS_LIST[0];
 
 function leaveLevel() {
+  if (frameId) cancelAnimationFrame(frameId);
+  frameId = 0;
+  previousTime = 0;
+  trail = [];
+  ripples.length = 0;
+  flash = 0;
+  railPointer = null;
   pressed.clear();
   wHold = 0;
   heldWKey = null;
