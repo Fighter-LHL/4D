@@ -74,6 +74,21 @@ export class WalkRun {
       && Math.abs(dialToW(this.dial) - device.w) <= device.wReach;
   }
 
+  #unavailableInteraction(reason, dial) {
+    // Explain a failed pickup in terms of the nearby device. Reachable cores
+    // are checked first, so a device never hides a valid pickup.
+    const relay = this.level.relay;
+    if (relay) {
+      for (const name of ['latch', 'socket']) {
+        const device = relay[name];
+        if (Math.hypot(this.pos[0] - device.x, this.pos[1] - device.z) > device.reach) continue;
+        if (name === 'latch' && this.relayLatched) return { action: null, reason: 'latch-open' };
+        return { action: null, reason: this.#atDevice(device, dial) ? 'socket-empty' : `${name}-other-w` };
+      }
+    }
+    return { action: null, reason };
+  }
+
   itemState() {
     if (!this.item) return null;
     return { ...this.item, carrying: this.carrying };
@@ -130,9 +145,9 @@ export class WalkRun {
     if (this.carrying && relay && this.#atDevice(relay.socket, dial)) return { action: 'dock', reason: null };
     if (this.carrying) return { action: 'drop', reason: null };
     const w = dialToW(dial);
-    if (Math.abs(w - this.item.w) >= spec.wReach) return { action: null, reason: 'other-w' };
+    if (Math.abs(w - this.item.w) >= spec.wReach) return this.#unavailableInteraction('other-w', dial);
     if (Math.hypot(this.pos[0] - this.item.x, this.pos[1] - this.item.z) > spec.pickupRadius) {
-      return { action: null, reason: 'far' };
+      return this.#unavailableInteraction('far', dial);
     }
     // Picking up a docked core cuts power. Test the geometry AFTER that
     // change, including the whole visible/target W interval, before committing.

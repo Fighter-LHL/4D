@@ -514,6 +514,29 @@ function walkTo(run, x, z) {
   assert.fail('waypoint was not reached');
 }
 
+test('failed interaction names the nearby device, while a reachable core still takes priority', () => {
+  const run = new WalkRun(STATION_ROOM, 'station');
+  const { latch, socket } = STATION_ROOM.relay;
+  run.pos = [latch.x, latch.z];
+  assert.ok(run.setDial(wToDial(1.1)));
+  const stored = { ...run.item };
+  assert.equal(run.interact().reason, 'latch-other-w');
+  assert.deepEqual(run.item, stored, 'a rejected device interaction does not move the core');
+  assert.equal(run.relayLatched, false);
+  assert.ok(run.setDial(wToDial(0)));
+  assert.equal(run.canInteract(wToDial(1.1)).reason, 'latch-other-w', 'visible W must reach the device');
+  assert.equal(run.interact().action, 'latched');
+  assert.equal(run.interact().reason, 'latch-open');
+
+  run.item = { x: latch.x, z: latch.z, w: 0 };
+  assert.equal(run.interact().action, 'picked', 'an already open latch does not hide a nearby core');
+  run.interact();
+  run.pos = [socket.x, socket.z];
+  assert.equal(run.interact().reason, 'socket-other-w');
+  assert.ok(run.setDial(wToDial(socket.w)));
+  assert.equal(run.interact().reason, 'socket-empty');
+});
+
 test('station full physical route: dock, cross W, release latch, retrieve and deliver', () => {
   const run = new WalkRun(STATION_ROOM, 'station', 1000);
   assert.notEqual(run.canInteract().action, 'latch', 'the latch cannot be used remotely');
