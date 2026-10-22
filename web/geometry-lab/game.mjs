@@ -161,7 +161,7 @@ export class WalkRun {
       return { action: 'docked', won: false };
     }
     if (check.action === 'drop') {
-      const w = dialToW(this.dial);
+      const w = dialToW(dial);
       this.carrying = false;
       this.drops += 1;
       this.item = { x: this.pos[0], z: this.pos[1], w };

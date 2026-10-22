@@ -347,17 +347,25 @@ export function itemSectionAtW(level, itemState, w) {
   };
 }
 
-export function itemFootprint(level, itemState) {
+export function itemFootprint(level, itemState, y = level?.tokenY) {
   const item = level?.item;
   if (!item || !itemState) return null;
+  // Like wFootprint, intersect at the map's physical Y height. The core has
+  // different spatial and W semi-axes, so this is an ellipsoid, not a ball.
+  finite(y, 'y');
+  const centerY = itemState.carrying ? 0.52 : item.y;
+  const dy = y - centerY;
+  const factorSq = 1 - (dy / item.radius) ** 2;
+  const factor = Math.sqrt(Math.max(0, factorSq));
   return {
     id: item.id,
     type: 'sphere',
     isItem: true,
     alt: false,
     center: [itemState.x, itemState.z, itemState.w],
-    radius: item.radius,
-    exists: true,
+    radius: item.radius * factor,
+    wRadius: item.wReach * factor,
+    exists: factorSq > 0,
     tint: ITEM_TINT,
   };
 }

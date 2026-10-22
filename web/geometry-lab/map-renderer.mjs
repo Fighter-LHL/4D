@@ -19,6 +19,7 @@ uniform vec3 uBoxH[${MAX}];
 uniform vec3 uBoxTint[${MAX}];
 uniform float uBoxCount;
 uniform vec4 uSph[${MAX}];
+uniform float uSphWRadius[${MAX}];
 uniform vec3 uSphTint[${MAX}];
 uniform float uSphCount;
 uniform vec3 uToken;
@@ -32,10 +33,10 @@ const vec3 ALERT = vec3(1.0, 0.38, 0.32);
 const vec3 GOLD = vec3(1.0, 0.8, 0.38);
 ${GLSL_BOX}
 
-// Ellipsoid (ball in footprint space, squashed by uScale along Y).
-vec2 ballSpan(vec3 ro, vec3 rd, vec4 s) {
-  if (s.w <= 0.00001) return vec2(-1.0);
-  vec3 radii = vec3(s.w, s.w * uScale, s.w);
+// W may have a different semi-axis from the spatial X/Z directions.
+vec2 ballSpan(vec3 ro, vec3 rd, vec4 s, float wRadius) {
+  if (s.w <= 0.00001 || wRadius <= 0.00001) return vec2(-1.0);
+  vec3 radii = vec3(s.w, wRadius * uScale, s.w);
   vec3 o = (ro - s.xyz) / radii;
   vec3 d = rd / radii;
   float a = dot(d, d);
@@ -132,13 +133,13 @@ void main() {
   }
   for (int i = 0; i < ${MAX}; i += 1) {
     if (float(i) >= uSphCount) break;
-    vec2 span = ballSpan(ro, rd, uSph[i]);
+    vec2 span = ballSpan(ro, rd, uSph[i], uSphWRadius[i]);
     if (span.y < 0.0) continue;
     float a = max(span.x, tNear);
     float b = min(span.y, tFar);
     if (b <= a) continue;
     vec3 tint = uSphTint[i];
-    vec3 radii = vec3(uSph[i].w, uSph[i].w * uScale, uSph[i].w);
+    vec3 radii = vec3(uSph[i].w, uSphWRadius[i] * uScale, uSph[i].w);
     vec3 n = normalize((ro + rd * a - uSph[i].xyz) / (radii * radii));
     float fres = pow(1.0 - abs(dot(n, rd)), 2.5);
     float fThick = max(0.0, min(b, cut) - a);
@@ -148,8 +149,8 @@ void main() {
     if (a < cut) front += tint * fres * 0.6; else back += tint * fres * 0.6;
     if (onPlane) {
       vec3 q = pp - uSph[i].xyz;
-      float dy = q.y / uScale;
-      float rr2 = uSph[i].w * uSph[i].w - dy * dy;
+      float dy = q.y / (uScale * uSphWRadius[i]);
+      float rr2 = uSph[i].w * uSph[i].w * (1.0 - dy * dy);
       if (rr2 > 0.0) {
         float dist = length(q.xz);
         float rr = sqrt(rr2);
@@ -216,7 +217,7 @@ void main() {
 `;
 
 const NAMES = ['uResolution', 'uEye', 'uFrame', 'uScale', 'uPlane', 'uPlaneTint', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxCount',
-  'uSph', 'uSphTint', 'uSphCount', 'uToken', 'uGoal', 'uLayers', 'uBlocked', 'uBlockedCount'];
+  'uSph', 'uSphWRadius', 'uSphTint', 'uSphCount', 'uToken', 'uGoal', 'uLayers', 'uBlocked', 'uBlockedCount'];
 // Same default yaw as the slice view, so both views face the same way.
 const VIEW = { yaw: 0.45, pitch: 0.36, distance: 9.5, minPitch: -0.6, maxPitch: 1.4, minDistance: 4, maxDistance: 22 };
 
@@ -268,6 +269,7 @@ export class MapRenderer {
     const boxH = new Float32Array(MAX * 3);
     const boxTint = new Float32Array(MAX * 3);
     const sph = new Float32Array(MAX * 4);
+    const sphWRadius = new Float32Array(MAX);
     const sphTint = new Float32Array(MAX * 3);
     let nb = 0;
     let ns = 0;
@@ -284,6 +286,7 @@ export class MapRenderer {
         nb += 1;
       } else if (f.type === 'sphere' && ns < MAX) {
         sph.set([f.center[0], f.center[2] * S, f.center[1], f.radius], ns * 4);
+        sphWRadius[ns] = f.wRadius ?? f.radius;
         sphTint.set(f.tint, ns * 3);
         ns += 1;
       }
@@ -293,6 +296,7 @@ export class MapRenderer {
     gl.uniform3fv(u.uBoxTint, boxTint);
     gl.uniform1f(u.uBoxCount, nb);
     gl.uniform4fv(u.uSph, sph);
+    gl.uniform1fv(u.uSphWRadius, sphWRadius);
     gl.uniform3fv(u.uSphTint, sphTint);
     gl.uniform1f(u.uSphCount, ns);
     const [glo, ghi] = frame.field?.goalW ?? [-2, 2];
