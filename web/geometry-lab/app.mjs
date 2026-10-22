@@ -1,6 +1,6 @@
 import { clampDial, dialToW, sliceAtW, wFootprint, flatShape, blockedWIntervals, exclusionRadius, wChangeEngulfs, goalSliceAtW, itemSectionAtW, itemFootprint, ITEM_TINT, PREDICTIONS } from './geometry.mjs';
 import { WalkRun, VisitRun } from './game.mjs';
-import { CHAPTERS, LEVELS_LIST, STATION_LEVEL, levelById, nextLevel, isUnlocked } from './levels.mjs';
+import { CHAPTERS, LEVELS_LIST, STATION_ROUTES_LEVEL, levelById, nextLevel, isUnlocked } from './levels.mjs';
 import { screenToWorldMove } from './controls.mjs';
 import { LAYERS, layerBlend, layerIndex, wColor, cssColor } from './layers.mjs';
 import { SliceRenderer } from './renderer.mjs';
@@ -32,6 +32,9 @@ const BODY_ROLES = Object.freeze({
   'station-divider-n': 4,
   'station-divider-mid': 4,
   'station-divider-s': 4,
+  'station-middle-door': 5,
+  'station-channel-n': 4,
+  'station-channel-s': 4,
 });
 const roleOf = (id) => BODY_ROLES[id] ?? 0;
 const DEVICE_FEEDBACK = Object.freeze({
@@ -653,16 +656,18 @@ function renderChapters() {
   featured.innerHTML = `
     <div class="featured-copy">
       <p class="kicker">新关卡 · 空间解谜</p>
-      <h2>${STATION_LEVEL.title}</h2>
-      <p>${STATION_LEVEL.objective}</p>
+      <h2>${STATION_ROUTES_LEVEL.title}</h2>
+      <p>${STATION_ROUTES_LEVEL.objective}</p>
     </div>
     <div class="featured-actions">
-      <button type="button" class="primary" data-start="station">${progress.has('station') ? '再玩一次：中转站 →' : '开始：中转站 →'}</button>
+      <button type="button" class="primary" data-start="station-routes">${progress.has('station-routes') ? '再玩一次：两种办法 →' : '开始：两种办法 →'}</button>
+      <button type="button" class="ghost" data-start="station">原版中转站 →</button>
       <button type="button" class="ghost" data-start="fetch">无门取物 →</button>
     </div>
   `;
   featured.querySelector('[data-start="fetch"]').addEventListener('click', () => startLevel('fetch'));
   featured.querySelector('[data-start="station"]').addEventListener('click', () => startLevel('station'));
+  featured.querySelector('[data-start="station-routes"]').addEventListener('click', () => startLevel('station-routes'));
 
   const cards = CHAPTERS.map((chapter) => {
     const levels = LEVELS_LIST.filter((l) => l.chapter === chapter.id);
@@ -686,7 +691,7 @@ function renderChapters() {
     return el;
   });
   list.replaceChildren(featured, ...cards);
-  $('play').firstChild.textContent = '试玩中转站 ';
+  $('play').firstChild.textContent = '试玩两种办法 ';
   const unlockBtn = $('unlock-all');
   if (unlockBtn) {
     unlockBtn.setAttribute('aria-pressed', String(sandboxAll));
@@ -855,9 +860,18 @@ function updateMechanisms() {
   power.dataset.state = powered ? 'on' : 'off';
   power.querySelector('.mech-val').textContent = powered ? '已接通' : '未接通';
   phaseRow.dataset.state = phaseOpen ? 'open' : 'solid';
+  phaseRow.querySelector('.mech-name').textContent = level.id === 'station-routes' ? '北门相位墙' : '相位墙';
   phaseRow.querySelector('.mech-val').textContent = phaseOpen ? '已让开' : '实心';
   latch.dataset.state = latched ? 'latched' : 'closed';
   latch.querySelector('.mech-val').textContent = latched ? '已锁存' : '关闭';
+  const middle = level.field.bodies.find((body) => body.id === 'station-middle-door');
+  const middleRow = $('mech-middle');
+  middleRow.hidden = !middle;
+  if (middle) {
+    const open = sliceAtW(middle, dialToW(current)).kind === 'empty';
+    middleRow.dataset.state = open ? 'open' : 'solid';
+    middleRow.querySelector('.mech-val').textContent = open ? '已让开' : '实心';
+  }
 }
 
 // ---------- Cards ----------
@@ -913,7 +927,12 @@ function win() {
     actions.push(['再来一次', 'ghost', () => startLevel(level.id, { skipIntro: true })]);
     actions.push(['留在这里看看', 'ghost', () => hideCard()]);
   } else if (level.id === 'station') {
-    actions.push(['再玩一次', 'primary', () => startLevel('station', { skipIntro: true })]);
+    actions.push(['下一站：两种办法 →', 'primary', () => startLevel('station-routes')]);
+    actions.push(['再玩一次', 'ghost', () => startLevel('station', { skipIntro: true })]);
+    actions.push(['回到关卡', 'ghost', showTitle]);
+  } else if (level.id === 'station-routes') {
+    actions.push(['试试另一种办法', 'primary', () => startLevel('station-routes', { skipIntro: true })]);
+    actions.push(['留在这里看看', 'ghost', () => hideCard()]);
     actions.push(['回到关卡', 'ghost', showTitle]);
   } else if (level.id === 'lab') {
     actions.push(['查看截面公式', 'primary', () => showWhy()]);
@@ -926,7 +945,9 @@ function win() {
     if (isWalk()) actions.push(['留在这里看看', 'ghost', () => hideCard()]);
   }
   actions.push(['保存记录 ↓', 'ghost', download]);
-  const body = level.id === 'station' ? '接收台亮了，晶核已经送达。' : '';
+  const body = level.id === 'station-routes'
+    ? (run.socketUses ? '这次使用了插座。下一次，试试不供电就把晶核送过去。' : '这次没有使用插座。也可以先把回廊准备好，再回来运送。')
+    : level.id === 'station' ? '接收台亮了，晶核已经送达。' : '';
   showCard({ kicker: '完成', title: level.done, body, stats, actions });
   setObjective(level.field?.item ? '晶核已送达。' : '已完成。');
 }
@@ -1158,7 +1179,7 @@ document.querySelectorAll('#dpad button').forEach((button) => {
   button.addEventListener('lostpointercapture', release);
 });
 
-$('play').addEventListener('click', () => { sfxInit(); startLevel('station'); });
+$('play').addEventListener('click', () => { sfxInit(); startLevel('station-routes'); });
 $('play-fetch').addEventListener('click', () => { sfxInit(); startLevel('fetch'); });
 $('play-chapters')?.addEventListener('click', () => { sfxInit(); startLevel(firstOpenLevel().id); });
 $('open-lab')?.addEventListener('click', () => { sfxInit(); startLevel('lab'); });

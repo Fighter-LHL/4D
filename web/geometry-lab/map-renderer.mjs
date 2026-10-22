@@ -1,9 +1,9 @@
 // The W map: the whole level in (x, W, z) with W drawn vertically. Every
 // body becomes a glass volume showing all the W it occupies; the current
 // slice is a glowing plane, and the exact section is painted onto it.
-import { createProgram, uniformLocations, fitCanvas, Orbit, watchContext, GLSL_BOX } from './gl-core.mjs';
+import { MAX_BODIES_PER_TYPE, createProgram, uniformLocations, fitCanvas, Orbit, watchContext, GLSL_BOX } from './gl-core.mjs';
 
-const MAX = 8;
+const MAX = MAX_BODIES_PER_TYPE;
 export const MAP_SCALE = 1.0; // screen units per unit of W
 
 const FRAGMENT = `

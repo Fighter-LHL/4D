@@ -1,9 +1,9 @@
 // The player's view: the current 3D section, ray-traced analytically.
 // Bodies are frosted glass tinted by where they live in W; the floor carries
 // the pattern of the parallel-world layer the slice is in.
-import { createProgram, uniformLocations, fitCanvas, Orbit, watchContext, GLSL_BOX, GLSL_PATTERN } from './gl-core.mjs';
+import { MAX_BODIES_PER_TYPE, createProgram, uniformLocations, fitCanvas, Orbit, watchContext, GLSL_BOX, GLSL_PATTERN } from './gl-core.mjs';
 
-const MAX = 8;
+const MAX = MAX_BODIES_PER_TYPE;
 
 const FRAGMENT = `
 precision highp float;
@@ -252,7 +252,7 @@ vec4 shadeHit(int kind, float t, vec3 ro, vec3 rd, vec3 hc, vec4 hh, vec3 tint, 
     c = mix(c, vec3(0.72, 0.92, 0.95), pins * 0.07);
     c = mix(c, IVORY, bevel * 0.20);
     alpha = 0.94;
-  } else if (role == 2) {
+  } else if (role == 2 || role == 5) {
     // Phase wall: compressed mineral bands. It stays solid exactly where it
     // exists; its edge is crisp so a powered gate behind it never reads open.
     vec3 mineral = mix(vec3(0.55, 0.47, 0.43), tint, 0.16);
@@ -269,7 +269,7 @@ vec4 shadeHit(int kind, float t, vec3 ro, vec3 rd, vec3 hc, vec4 hh, vec3 tint, 
     // mineral wall is still solid at the current W.
     float sideEdge = 1.0 - smoothstep(0.018, 0.055, min(abs(p.z - (hc.z - hh.z)), abs(p.z - (hc.z + hh.z))));
     float lintel = 1.0 - smoothstep(0.018, 0.060, abs((hc.y + hh.y) - p.y - 0.018));
-    float energised = (sideEdge + lintel * 0.55) * uSocket.w;
+    float energised = (sideEdge + lintel * 0.55) * uSocket.w * (role == 2 ? 1.0 : 0.0);
     c = mix(c, vec3(0.30, 0.86, 0.96), energised * 0.82);
     alpha = 0.91;
   } else if (role == 3) {

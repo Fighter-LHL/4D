@@ -306,6 +306,35 @@ export const STATION_ROOM = Object.freeze({
   ]),
 });
 
+// A separate station with two transport plans. The middle entrance and exit
+// never open at the same W. Between them is a roomy, reversible W-change bay.
+// The powered north passage / persistent south passage remain another plan.
+// Collision still comes only from the actual sections, without route flags.
+export const STATION_ROUTES_ROOM = Object.freeze({
+  ...STATION_ROOM,
+  start: Object.freeze([-1.9, 0.25]),
+  goal: Object.freeze([3.0, 1.65]),
+  bounds: Object.freeze({ x: 3.7, z: 2.8 }),
+  item: Object.freeze({ ...STATION_ROOM.item, start: Object.freeze([-1.25, 0, 0]) }),
+  relay: Object.freeze({
+    ...STATION_ROOM.relay,
+    socket: Object.freeze({ ...STATION_ROOM.relay.socket, x: -0.95, z: -1.65 }),
+    latch: Object.freeze({ ...STATION_ROOM.relay.latch, x: 0.8, z: 1.65 }),
+  }),
+  bodies: Object.freeze([
+    hyperbox('station-divider-n', [0, 0.75, -2.6, 0], [0.16, 0.95, 0.35, 2.2]),
+    hyperbox('station-divider-s', [0, 0.75, 2.6, 0], [0.16, 0.95, 0.35, 2.2]),
+    hyperbox('station-power-door', [0, 0.75, -1.65, 0], [0.16, 0.95, 0.6, 2.2], true),
+    hyperbox('station-phase-door', [0, 0.75, -1.65, -0.65], [0.17, 0.95, 0.6, 1.35]),
+    hyperbox('station-return-door', [0, 0.75, 1.65, 0], [0.16, 0.95, 0.6, 2.2], true),
+    hyperbox('station-middle-door', [0, 0.75, 0, -0.65], [0.17, 0.95, 1.05, 1.35]),
+    hyperbox('station-channel-n', [1.1, 0.75, -0.95, 0], [1.1, 0.95, 0.1, 2.2]),
+    hyperbox('station-channel-s', [1.1, 0.75, 0.95, 0], [1.1, 0.95, 0.1, 2.2]),
+    hypersphere('station-exit-n', [2.55, 0.55, -0.4, 1.35], 0.85, true),
+    hypersphere('station-exit-s', [2.55, 0.55, 0.4, 1.35], 0.85, true),
+  ]),
+});
+
 export function relayField(level, powered, latched) {
   if (!level.relay) return level;
   const { poweredGate, shortcutGate } = level.relay;

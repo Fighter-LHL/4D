@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  SINGLE, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, FETCH_ROOM, STATION_ROOM, relayField, wToDial, dialToW, sliceAtW, corridorSections,
+  SINGLE, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, FETCH_ROOM, STATION_ROOM, STATION_ROUTES_ROOM, relayField, wToDial, dialToW, sliceAtW, corridorSections,
   legalCorridorSpot, tokenInsideSection, wChangeEngulfs, wFootprint, flatShape, flatVariant,
   blockedWIntervals, exclusionRadius, goalOpenAt, fieldWithRadius, itemSectionAtW, itemFootprint,
 } from '../geometry.mjs';
 import { WalkRun, VisitRun, WIN_RADIUS, WALK_SPEED } from '../game.mjs';
-import { LEVELS_LIST, CHAPTERS, FETCH_LEVEL, LAB_LEVEL, levelById, nextLevel, isUnlocked, planeY } from '../levels.mjs';
+import { LEVELS_LIST, EXTRA_LEVELS, CHAPTERS, FETCH_LEVEL, LAB_LEVEL, levelById, nextLevel, isUnlocked, planeY } from '../levels.mjs';
+import { MAX_BODIES_PER_TYPE } from '../gl-core.mjs';
 import { LAYERS, layerIndex, layerBlend, wColor } from '../layers.mjs';
 import { PredictionSession } from '../challenge.mjs';
 
@@ -594,4 +595,101 @@ test('removing a power source cannot close its gate around the traveler', () => 
   assert.equal(run.interact().action, 'blocked');
   assert.ok(run.socketPowered());
   assert.ok(legalCorridorSpot(run.sectionsAt(), ...run.pos, run.activeField()));
+});
+
+
+test('two-plan station: direct carrying route and reversible bay use real movement', () => {
+  const field = STATION_ROUTES_ROOM;
+  const run = new WalkRun(field, 'station-routes', 1000);
+  walkTo(run, -1.25, 0);
+  assert.equal(run.interact().action, 'picked');
+  assert.ok(run.setDial(wToDial(1.1)));
+  walkTo(run, 0, 0);
+  assert.equal(run.setDial(wToDial(0)), false, 'cannot close the entrance on the core');
+  walkTo(run, 0.95, 0);
+  assert.ok(run.setDial(wToDial(-0.8)));
+  assert.equal(run.interact().action, 'dropped');
+  const stored = { ...run.item };
+  assert.ok(run.setDial(wToDial(1.1)));
+  assert.deepEqual(run.item, stored, 'the core stays at its own W');
+  walkTo(run, -1.25, 0);
+  walkTo(run, 0.95, 0);
+  assert.ok(run.setDial(wToDial(-0.8)));
+  assert.equal(run.interact().action, 'picked', 'a mistaken drop can be recovered');
+  walkTo(run, 2.55, 0);
+  assert.equal(run.setDial(wToDial(1.1)), false, 'exit spheres cannot grow over the carrier');
+  walkTo(run, 0.95, 0);
+  assert.ok(run.setDial(wToDial(1.1)));
+  walkTo(run, -1.25, 0);
+  walkTo(run, 0.95, 0);
+  assert.ok(run.setDial(wToDial(-0.8)));
+  walkTo(run, 2.85, 0);
+  walkTo(run, 2.85, 1.65);
+  walkTo(run, ...field.goal);
+  assert.equal(run.won, false, 'delivery still uses the receiver W');
+  assert.ok(run.setDial(wToDial(0), 90000));
+  assert.equal(run.won, true);
+  assert.deepEqual(run.toJSON().relay, { powered: false, latched: false, socketUses: 0 });
+});
+
+test('two-plan station: power, latch, retrieve and wide-route delivery remain independent', () => {
+  const field = STATION_ROUTES_ROOM;
+  const run = new WalkRun(field, 'station-routes', 1000);
+  walkTo(run, -1.25, 0);
+  assert.equal(run.interact().action, 'picked');
+  walkTo(run, -0.95, -1.65);
+  assert.ok(run.setDial(wToDial(-1.1)));
+  assert.equal(run.interact().action, 'docked');
+  // Retrieving early is reversible; it does not consume the power source.
+  assert.equal(run.interact().action, 'picked');
+  assert.equal(run.interact().action, 'docked');
+  assert.ok(run.setDial(wToDial(1.1)));
+  walkTo(run, 0.8, -1.65);
+  assert.ok(run.setDial(wToDial(0)));
+  walkTo(run, 2.9, -1.65);
+  walkTo(run, 2.9, 1.65);
+  walkTo(run, 0.8, 1.65);
+  assert.equal(run.interact().action, 'latched');
+  walkTo(run, -0.95, 1.65);
+  walkTo(run, -0.95, -1.65);
+  assert.ok(run.setDial(wToDial(-1.1)));
+  assert.equal(run.interact().action, 'picked');
+  assert.equal(run.socketPowered(), false);
+  assert.equal(run.relayLatched, true);
+  assert.ok(run.setDial(wToDial(0)));
+  walkTo(run, -0.95, 1.65);
+  walkTo(run, 1, 1.65);
+  walkTo(run, ...field.goal);
+  assert.equal(run.won, true);
+});
+
+test('two-plan station needs an in-route W change without power, even with receiver W unrestricted', () => {
+  const field = { ...fieldWithRadius(STATION_ROUTES_ROOM, STATION_ROUTES_ROOM.carriedRadius), goalW: [-2, 2] };
+  assert.ok(solve(field), 'the carried core can cross without using either device');
+  for (let d = 0; d < DIALS; d += 1) {
+    assert.equal(solve(field, { fixedDial: d }), false, `fixed W sample ${d} cannot bypass the channel`);
+  }
+  const wide = fieldWithRadius(relayField(STATION_ROUTES_ROOM, false, true), STATION_ROUTES_ROOM.carriedRadius);
+  assert.ok(solve(wide, { fixedDial: CENTER_DIAL }), 'prepared route needs no W adjustment while transporting');
+  // A region, not a single precise waypoint: the carried core can change
+  // through the entire W range throughout this rectangle.
+  for (const x of [0.6, 0.75, 0.95, 1.1, 1.3]) {
+    for (const z of [-0.35, 0, 0.35]) {
+      assert.equal(wChangeEngulfs(field, [x, z], -2, 2), false, `safe bay ${x},${z}`);
+    }
+  }
+});
+
+test('all levels including carried cores fit both WebGL renderers; new station is independently available', () => {
+  for (const level of [...LEVELS_LIST, ...EXTRA_LEVELS]) {
+    const bodies = level.field?.bodies ?? level.bodies;
+    const boxes = bodies.filter((body) => body.type === 'box').length;
+    const spheres = bodies.filter((body) => body.type === 'sphere').length + (level.field?.item ? 1 : 0);
+    assert.ok(boxes <= MAX_BODIES_PER_TYPE, `${level.id}: invisible box collision`);
+    assert.ok(spheres <= MAX_BODIES_PER_TYPE, `${level.id}: invisible sphere collision`);
+  }
+  assert.equal(levelById('station-routes').field, STATION_ROUTES_ROOM);
+  assert.equal(nextLevel('station').id, 'station-routes');
+  assert.ok(isUnlocked('station-routes', new Set()));
+  assert.notEqual(levelById('station').field, STATION_ROUTES_ROOM, 'original station is preserved');
 });

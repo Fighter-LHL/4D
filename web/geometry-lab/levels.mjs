@@ -1,7 +1,7 @@
 // Chapters and levels. Chapter 0 (Flatland) and chapter 1 share the same
 // (x, z, W) layouts on purpose: the map the Flatlander trusted is exactly the
 // W map one dimension up. Chapter 2 hides the map to test transfer.
-import { SINGLE, TRANSFER, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, FETCH_ROOM, STATION_ROOM, flatVariant } from './geometry.mjs';
+import { SINGLE, TRANSFER, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, FETCH_ROOM, STATION_ROOM, STATION_ROUTES_ROOM, flatVariant } from './geometry.mjs';
 
 const trial = (body, from, to, prompt) => Object.freeze({ body, from, to, prompt });
 
@@ -32,6 +32,18 @@ export const STATION_LEVEL = Object.freeze({
     '蓝色插座和隔墙上的门，由同一条线路相连。',
     '插座在蓝层。晶核留在那里时，你可以独自去其他层。',
     '把晶核放进蓝层插座，去暖层穿过通电的门；在另一侧的中间层拉开回廊，再回来取晶核送到接收台。',
+  ],
+});
+
+export const STATION_ROUTES_LEVEL = Object.freeze({
+  id: 'station-routes', chapter: 1, standalone: true, kind: 'walk', view: 'slice', map: 'shown',
+  title: '中转站·两种办法', field: STATION_ROUTES_ROOM,
+  objective: '把晶核送到接收台。运送路线由你决定。',
+  done: '晶核送到了。还有另一种办法。',
+  hints: [
+    '三处开口各不相同：一处连着线路，一处通向球体，一处带着机械锁。',
+    '晶核可以留在蓝色插座继续供电。也可以抱着它走中间通道，留意门后能安全改变 W 的空地。',
+    '直接运送：调到暖侧，携核进入中间通道；走过入口后，在两道侧墙之间的空地转向冷侧，让出口球体缩小，再去接收台回到 W=0。另一种办法：在蓝侧插座供电，空手从北门穿过；离开北门后回到 W=0，绕过中间通道到南侧开关打开回廊，再返回取核，沿回廊运送。',
   ],
 });
 
@@ -249,7 +261,7 @@ export const LEVELS_LIST = Object.freeze([
   },
 ].map(Object.freeze));
 
-export const EXTRA_LEVELS = Object.freeze([FETCH_LEVEL, STATION_LEVEL, LAB_LEVEL]);
+export const EXTRA_LEVELS = Object.freeze([FETCH_LEVEL, STATION_LEVEL, STATION_ROUTES_LEVEL, LAB_LEVEL]);
 
 export const levelById = (id) =>
   EXTRA_LEVELS.find((level) => level.id === id)
@@ -258,7 +270,8 @@ export const levelById = (id) =>
 
 export function nextLevel(id) {
   if (id === 'fetch') return STATION_LEVEL;
-  if (id === 'station') return LEVELS_LIST[0];
+  if (id === 'station') return STATION_ROUTES_LEVEL;
+  if (id === 'station-routes') return LEVELS_LIST[0];
   const index = LEVELS_LIST.findIndex((level) => level.id === id);
   return index >= 0 ? LEVELS_LIST[index + 1] ?? null : null;
 }
