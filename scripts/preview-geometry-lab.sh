@@ -12,4 +12,4 @@ fi
 
 echo "W-Slice Geometry Lab: http://127.0.0.1:$LAB_PORT"
 echo "Stop with Ctrl+C. This serves only web/geometry-lab on the local machine."
-exec python3 -m http.server "$LAB_PORT" --bind 127.0.0.1 --directory "$LAB_ROOT/web/geometry-lab"
+exec python3 "$LAB_ROOT/scripts/serve-geometry-lab.py" "$LAB_PORT" "$LAB_ROOT/web/geometry-lab"

@@ -1,9 +1,69 @@
 // Chapters and levels. Chapter 0 (Flatland) and chapter 1 share the same
 // (x, z, W) layouts on purpose: the map the Flatlander trusted is exactly the
 // W map one dimension up. Chapter 2 hides the map to test transfer.
-import { SINGLE, TRANSFER, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, flatVariant } from './geometry.mjs';
+import { SINGLE, TRANSFER, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, FETCH_ROOM, STATION_ROOM, flatVariant } from './geometry.mjs';
 
 const trial = (body, from, to, prompt) => Object.freeze({ body, from, to, prompt });
+
+export const FETCH_LEVEL = Object.freeze({
+  id: 'fetch',
+  chapter: 1,
+  standalone: true,
+  kind: 'walk',
+  view: 'slice',
+  map: 'shown',
+  title: '无门取物',
+  field: FETCH_ROOM,
+  done: '房间仍然锁着，但里面的东西已经带出来了。',
+  objective: '把屋里的东西带到这里。门打不开。',
+  hints: [
+    '换层时，留意不同颜色的墙有什么变化。',
+    '晶核让你占的空间变大了。看看房间的其他边界。',
+    '带着物体先往屋内南侧挪一步（或先放下物体探路），再把 W 往暖橙（上）调让南墙整面打开，从南侧绕回屋外的金色接收台后把 W 调回中间层。',
+  ],
+});
+
+export const STATION_LEVEL = Object.freeze({
+  id: 'station', chapter: 1, standalone: true, kind: 'walk', view: 'slice', map: 'shown',
+  title: '中转站', field: STATION_ROOM,
+  objective: '把晶核送到隔墙另一侧的接收台。',
+  done: '晶核送到了。回廊也留了下来。',
+  hints: [
+    '蓝色插座和隔墙上的门，由同一条线路相连。',
+    '插座在蓝层。晶核留在那里时，你可以独自去其他层。',
+    '把晶核放进蓝层插座，去暖层穿过通电的门；在另一侧的中间层拉开回廊，再回来取晶核送到接收台。',
+  ],
+});
+
+export const LAB_LEVEL = Object.freeze({
+  id: 'lab',
+  chapter: 1,
+  standalone: true,
+  kind: 'visit',
+  view: 'slice',
+  map: 'shown',
+  forceTrials: true,
+  title: '原理实验室',
+  done: '你完成了全部截面预测实验。',
+  bodies: [SINGLE],
+  goal: 'appear-vanish',
+  startDial: 0.04,
+  objective: '自由拖动滑轨观察超球截面，或直接开始 6 道截面变化预测。',
+  predictObjective: '先猜，再看。',
+  trials: [
+    trial(SINGLE, 0.04, 0.28, '把这一层往上移到标记处，会发生什么？'),
+    trial(SINGLE, 0.28, 0.5, '继续往上，截面会怎样？'),
+    trial(SINGLE, 0.76, 0.96, '从这里再往上，截面还会留下吗？'),
+    trial(SINGLE, 0.5, 0.76, '从中心往上移到标记处，这个球会怎样？'),
+    trial(SINGLE, 0.3, 0.7, '只比较起点和终点，球的大小会怎样？'),
+    trial(TRANSFER, 0.48, 0.61, '这枚超球偏向 +W 一侧。往上移呢？'),
+  ],
+  hints: [
+    '越靠近超球在 W 轴上的中心，切出来的三维球就越大。',
+    '当切片离开超球的 W 范围时，三维截面就会缩成一点并消失。',
+    '超球截面半径遵循 r = √(R² − (W − W₀)²)，四维方块截面则要么完整存在、要么消失。',
+  ],
+});
 
 export const CHAPTERS = Object.freeze([
   {
@@ -46,12 +106,12 @@ export const CHAPTERS = Object.freeze([
     id: 2,
     name: '只靠截面',
     tag: 'NO MAP',
-    blurb: '地图收起来，只靠你看到的这一片。',
+    blurb: '地图默认收起，需要时可随时查看空间结构。',
     axis: 'W',
     intro: {
       kicker: '第 2 章 · 只靠截面',
       title: '地图收起来了。',
-      body: '这一章，W 地图默认隐藏。你只能看到当前这一片三维世界。真的需要时可以窥视地图，但会被记下来。',
+      body: '这一章，W 地图默认收起，只显示当前这一片三维世界。需要时可以随时展开查看空间结构。',
     },
     why: {
       kicker: '你已经在用第四维思考',
@@ -87,8 +147,8 @@ export const LEVELS_LIST = Object.freeze([
     done: '你从「上下」绕过了两堵墙。',
     objective: '走到右边的金色出口。',
     hints: [
-      '被挡住时，看右边全貌：你的竖直白虚线穿过了哪块玻璃墙？',
-      '蓝墙在下层、橙墙在上层，金色出口只在中间层打开。',
+      '两堵墙的颜色不同。换层时，比较它们各自的变化。',
+      '一堵墙让路时，另一堵墙可能还在。出口也有它所在的层。',
       '先调到上层绕过蓝墙，站在地面虚线之外，再调到下层绕过橙墙，最后回到中间层进入出口。',
     ],
   },
@@ -149,8 +209,8 @@ export const LEVELS_LIST = Object.freeze([
     done: '门在你身后关上了。',
     objective: '穿过这堵墙，到达出口。',
     hints: [
-      '中间那段门偏冷色，说明它在 −W 一侧：往 +W 调，它会变淡、消失。',
-      '门消失后，门后会立起一堵暖橙色的墙（它在 +W），出口也变成了地面虚线环。',
+      '门和门后那堵墙，颜色并不相同。',
+      '让一处通路打开时，留意另一处有什么变化。',
       '趁门打开时穿过门，停在后墙前，再把 W 往下调回中间层——门在身后关上，后墙消失，出口重新亮起。',
     ],
   },
@@ -161,7 +221,7 @@ export const LEVELS_LIST = Object.freeze([
     objective: '从左边的屋子，走进右边的屋子。',
     hints: [
       '两间屋子的墙颜色不同：左屋偏暖橙（在 +W 一侧），右屋偏冷蓝（在 −W 一侧），出口只在中间层打开。',
-      '先把 W 往下往冷色层调，直到左屋边缘变虚、整间消失；走出去，停在两屋之间的空地上。',
+      '两间屋子不会在同一个方向打开。留意两屋之间那片空地。',
       '再把 W 往上往暖色层调让右屋消失，走进右屋中央，最后把 W 调回中间层让右屋合拢、出口亮起。',
     ],
   },
@@ -171,8 +231,8 @@ export const LEVELS_LIST = Object.freeze([
     done: '球群在四维里消长，你从缝隙间游了过去。',
     objective: '借超球的涨缩挤出通路，抵达出口。',
     hints: [
-      '左边两颗暖色超球偏 +W，右边两颗冷色超球偏 −W；但拉到底时深层超球又会鼓起来封住通道。',
-      '把 W 往下调到适中的冷色层（别拉到底），左边两颗暖球会缩小分开；穿过后从南侧绕过中间的紫球。',
+      '往同一个方向换层，两侧的球会有相反的变化。',
+      '把滑轨拉到底，空隙不一定最大。留意途中出现的缝隙。',
       '在中间南侧把 W 往上调到适中的暖色层（别拉到底），穿过右边缩小的冷球后，把 W 调回中间层打开出口。',
     ],
   },
@@ -180,23 +240,31 @@ export const LEVELS_LIST = Object.freeze([
     id: '2-4', chapter: 2, kind: 'walk', view: 'slice', map: 'hidden',
     title: '踏脚石', field: ISLANDS,
     done: '你找准每一处安全的落脚岛，在四维迷宫里穿行自如。',
-    objective: '找准不会让超球膨胀吞没你的空地，分段换 W 抵达出口。',
+    objective: '穿过三座院落，抵达金色出口。',
     hints: [
-      '左隔墙只有南半扇蓝门能在 +W 打开，而西北角的暖橙球在 +W 会膨胀——先往南走到左下空地再升 W。',
-      '从南门进中庭后，右隔墙只有北半扇橙门能在 −W 打开，且中庭南侧在 −W 会被蓝球占满——先往北走到中北空地再降 W。',
+      '隔墙的开口交错着。不是每一处空地都适合换层。',
+      '换层受阻时，看看脚边是哪颗球正在变大。',
       '从北门进右庭后，往南避开东北角的暖球走到出口虚线环上，再把 W 调回中间层点亮出口。',
     ],
   },
 ].map(Object.freeze));
 
-export const levelById = (id) => LEVELS_LIST.find((level) => level.id === id) ?? null;
+export const EXTRA_LEVELS = Object.freeze([FETCH_LEVEL, STATION_LEVEL, LAB_LEVEL]);
+
+export const levelById = (id) =>
+  EXTRA_LEVELS.find((level) => level.id === id)
+  ?? LEVELS_LIST.find((level) => level.id === id)
+  ?? null;
 
 export function nextLevel(id) {
+  if (id === 'fetch') return STATION_LEVEL;
+  if (id === 'station') return LEVELS_LIST[0];
   const index = LEVELS_LIST.findIndex((level) => level.id === id);
   return index >= 0 ? LEVELS_LIST[index + 1] ?? null : null;
 }
 
 export function isUnlocked(id, done) {
+  if (EXTRA_LEVELS.some((level) => level.id === id)) return true;
   const index = LEVELS_LIST.findIndex((level) => level.id === id);
   return index === 0 || (index > 0 && done.has(LEVELS_LIST[index - 1].id));
 }

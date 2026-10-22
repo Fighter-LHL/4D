@@ -244,6 +244,124 @@ export const ISLANDS = Object.freeze({
   ]),
 });
 
+// Standalone scenario "无门取物": the player starts in the west yard outside a
+// sealed room containing a 4D object. The west door opens in -W, but its jambs
+// leave a half-gap of 0.33: wide enough for an empty-handed player (r = 0.22),
+// too narrow when carrying the object (r = 0.40). Inside, a +W guard sphere
+// blocks shifting directly to +W at the pickup spot while carrying, so the
+// player must step to the south side of the room (or set the object down first)
+// before shifting to +W where the wide south wall opens.
+export const FETCH_ROOM = Object.freeze({
+  start: Object.freeze([-2.15, 0]),
+  goal: Object.freeze([-1.85, 0.95]),
+  goalW: Object.freeze([-0.25, 0.25]),
+  bounds: Object.freeze({ x: 3.1, z: 2.15 }),
+  tokenRadius: 0.22,
+  carriedRadius: 0.40,
+  tokenY: 0.22,
+  item: Object.freeze({
+    id: 'relic',
+    start: Object.freeze([0.85, 0, 0]),
+    y: 0.30,
+    radius: 0.22,
+    wReach: 0.75,
+    pickupRadius: 0.58,
+  }),
+  bodies: Object.freeze([
+    hyperbox('fetch-west-n', [-0.3, 0.75, -1.24, 0], [0.12, 0.95, 0.91, 2.2], false),
+    hyperbox('fetch-west-s', [-0.3, 0.75, 0.70, 0], [0.12, 0.95, 0.37, 2.2], false),
+    hyperbox('fetch-west-door', [-0.3, 0.75, 0, 0.80], [0.12, 0.95, 0.33, 1.35], false),
+    hyperbox('fetch-north', [0.85, 0.75, -0.95, 0], [1.03, 0.95, 0.12, 2.2], false),
+    hyperbox('fetch-east', [2.0, 0.75, -0.54, 0], [0.12, 0.95, 1.61, 2.2], false),
+    hyperbox('fetch-south', [0.85, 0.75, 0.95, -0.65], [1.03, 0.95, 0.12, 1.35], true),
+    hypersphere('fetch-room-orb', [0.85, 0.55, -0.73, 0.95], 0.50, true),
+  ]),
+});
+
+// Relay station: two gaps in a divider that spans every W. The north gap
+// needs power AND a +W slice; the south gap stays shut until its east-side
+// latch is released. Both gates are actual bodies, removed when opened.
+export const STATION_ROOM = Object.freeze({
+  start: Object.freeze([-2.55, 0.9]),
+  goal: Object.freeze([2.55, 1.25]),
+  goalW: Object.freeze([-0.25, 0.25]),
+  bounds: Object.freeze({ x: 3.35, z: 2.4 }),
+  tokenRadius: 0.22,
+  carriedRadius: 0.40,
+  tokenY: 0.22,
+  item: Object.freeze({ id: 'relay-core', start: Object.freeze([-1.8, 0.4, 0]), y: 0.30, radius: 0.22, wReach: 0.75, pickupRadius: 0.58 }),
+  relay: Object.freeze({
+    socket: Object.freeze({ x: -1.7, z: -1.2, w: -1.1, wReach: 0.25, reach: 0.58 }),
+    latch: Object.freeze({ x: 1.15, z: 1.0, w: 0, wReach: 0.30, reach: 0.58 }),
+    poweredGate: 'station-power-door',
+    shortcutGate: 'station-return-door',
+  }),
+  bodies: Object.freeze([
+    hyperbox('station-divider-n', [0, 0.75, -2.0, 0], [0.16, 0.95, 0.4, 2.2]),
+    hyperbox('station-divider-mid', [0, 0.75, -0.1, 0], [0.16, 0.95, 0.5, 2.2]),
+    hyperbox('station-divider-s', [0, 0.75, 2.0, 0], [0.16, 0.95, 0.4, 2.2]),
+    hyperbox('station-power-door', [0, 0.75, -1.1, 0], [0.16, 0.95, 0.5, 2.2], true),
+    hyperbox('station-phase-door', [0, 0.75, -1.1, -0.65], [0.17, 0.95, 0.5, 1.35]),
+    hyperbox('station-return-door', [0, 0.75, 1.0, 0], [0.16, 0.95, 0.6, 2.2], true),
+  ]),
+});
+
+export function relayField(level, powered, latched) {
+  if (!level.relay) return level;
+  const { poweredGate, shortcutGate } = level.relay;
+  return { ...level, bodies: level.bodies.filter((body) =>
+    !(powered && body.id === poweredGate) && !(latched && body.id === shortcutGate)) };
+}
+
+export function fieldWithRadius(level, radius = level?.tokenRadius) {
+  if (!level || !Number.isFinite(radius) || radius === level.tokenRadius) return level;
+  return Object.freeze({ ...level, tokenRadius: radius });
+}
+
+export const ITEM_TINT = Object.freeze([0.28, 0.98, 0.76]);
+
+export function itemSectionAtW(level, itemState, w) {
+  const item = level?.item;
+  if (!item || !itemState) return null;
+  finite(w, 'W');
+  const d = itemState.carrying ? 0 : Math.abs(w - itemState.w);
+  const ratioSq = (item.wReach - d) * (item.wReach + d) / (item.wReach * item.wReach);
+  const radius = ratioSq > 0 ? item.radius * Math.sqrt(ratioSq) : 0;
+  const margin = item.wReach - d;
+  const wEdge = margin > 0 ? Math.min(1, margin / Math.min(0.25, item.wReach)) : 0;
+  const wGhost = margin <= 0 && margin > -0.45 ? 1 + margin / 0.45 : 0;
+  return {
+    id: item.id,
+    type: 'sphere',
+    isItem: true,
+    alt: false,
+    center: [itemState.x, itemState.carrying ? 0.52 : item.y, itemState.z],
+    radius,
+    maxR: item.radius,
+    kind: ratioSq > 0 ? 'sphere' : (ratioSq === 0 ? 'point' : 'empty'),
+    volume: (4 / 3) * Math.PI * radius ** 3,
+    wEdge,
+    wGhost,
+    tint: ITEM_TINT,
+    ghost: itemState.carrying ? 0 : 1,
+  };
+}
+
+export function itemFootprint(level, itemState) {
+  const item = level?.item;
+  if (!item || !itemState) return null;
+  return {
+    id: item.id,
+    type: 'sphere',
+    isItem: true,
+    alt: false,
+    center: [itemState.x, itemState.z, itemState.w],
+    radius: item.radius,
+    exists: true,
+    tint: ITEM_TINT,
+  };
+}
+
 export const goalOpenAt = (level, w) => !level?.goalW || (w >= level.goalW[0] && w <= level.goalW[1]);
 
 export function goalSliceAtW(level, w) {
@@ -257,7 +375,7 @@ export function goalSliceAtW(level, w) {
   return { open, lo, hi, wEdge, wGhost };
 }
 
-export const LEVELS = Object.freeze({ corridor: CORRIDOR, room: ROOM, gate: GATE, rooms: TWO_ROOMS, tidal: TIDAL, islands: ISLANDS });
+export const LEVELS = Object.freeze({ corridor: CORRIDOR, room: ROOM, gate: GATE, rooms: TWO_ROOMS, tidal: TIDAL, islands: ISLANDS, fetch: FETCH_ROOM });
 
 // The Flatland chapter reuses a level's (x, z, W) layout but lives entirely
 // at the walking height, so each drawn 2D shape is exactly the collision shape.

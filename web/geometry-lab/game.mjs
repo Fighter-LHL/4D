@@ -1,5 +1,5 @@
 // DOM-free level runtime: everything here is testable under Node.
-import { clampDial, dialToW, wToDial, sliceAtDial, corridorSections, sweptSections, moveCorridorToken, wChangeEngulfs, safeWToward, goalOpenAt } from './geometry.mjs';
+import { clampDial, dialToW, wToDial, sliceAtDial, corridorSections, sweptSections, legalCorridorSpot, moveCorridorToken, wChangeEngulfs, safeWToward, goalOpenAt, fieldWithRadius, relayField } from './geometry.mjs';
 import { PredictionSession } from './challenge.mjs';
 
 export const WALK_SPEED = 1.55;
@@ -8,10 +8,14 @@ const round = (value, digits = 3) => Number(value.toFixed(digits));
 
 // A walking level: the token moves on the floor, and only the current 3D
 // section decides where it may go. W changes that would swallow the token
-// are refused.
+// (or a carried object) are refused.
 export class WalkRun {
   constructor(level, levelId, now = 0) {
     this.level = level;
+    this.field = level;
+    this.carriedField = level.carriedRadius ? fieldWithRadius(level, level.carriedRadius) : level;
+    this.relayLatched = false;
+    this.socketUses = 0;
     this.levelId = levelId;
     this.pos = [...level.start];
     this.dial = 0.5;
@@ -30,14 +34,57 @@ export class WalkRun {
     this.peeks = 0;
     this.wMin = this.dial;
     this.wMax = this.dial;
+    this.carrying = false;
+    this.pickups = 0;
+    this.drops = 0;
+    this.item = level.item
+      ? { x: level.item.start[0], z: level.item.start[1], w: level.item.start[2] ?? 0 }
+      : null;
+  }
+
+  activeField() {
+    return this.carrying ? this.carriedField : this.field;
+  }
+
+  socketPowered() {
+    const socket = this.level.relay?.socket;
+    return Boolean(socket && this.item && !this.carrying
+      && Math.hypot(this.item.x - socket.x, this.item.z - socket.z) < 1e-6
+      && Math.abs(this.item.w - socket.w) < 1e-6);
+  }
+
+  relayState() {
+    if (!this.level.relay) return null;
+    const port = (id) => {
+      const body = this.level.bodies.find((entry) => entry.id === id);
+      return [body.center[0], body.center[2]];
+    };
+    return { ...this.level.relay, powered: this.socketPowered(), latched: this.relayLatched,
+      powerPort: port(this.level.relay.poweredGate), returnPort: port(this.level.relay.shortcutGate) };
+  }
+
+  #refreshField() {
+    this.field = relayField(this.level, this.socketPowered(), this.relayLatched);
+    this.carriedField = fieldWithRadius(this.field, this.level.carriedRadius);
+  }
+
+  #atDevice(device, dial) {
+    return Math.hypot(this.pos[0] - device.x, this.pos[1] - device.z) <= device.reach
+      && Math.abs(dialToW(dial) - device.w) <= device.wReach
+      && Math.abs(dialToW(this.dial) - device.w) <= device.wReach;
+  }
+
+  itemState() {
+    if (!this.item) return null;
+    return { ...this.item, carrying: this.carrying };
   }
 
   sectionsAt(dial = this.dial) {
-    return corridorSections(dialToW(dial), this.level);
+    return corridorSections(dialToW(dial), this.field);
   }
 
   canSetDial(to, from = this.dial) {
-    return !wChangeEngulfs(this.level, this.pos, dialToW(from), dialToW(clampDial(to)));
+    return !wChangeEngulfs(this.activeField(), this.pos, dialToW(from), dialToW(clampDial(to)));
   }
 
   setDial(to, now = 0) {
@@ -60,7 +107,7 @@ export class WalkRun {
     }
     if (!this.refusing) this.refused += 1;
     this.refusing = true;
-    const edge = wToDial(safeWToward(this.level, this.pos, dialToW(this.dial), dialToW(dial)));
+    const edge = wToDial(safeWToward(this.activeField(), this.pos, dialToW(this.dial), dialToW(dial)));
     if (this.canSetDial(edge)) this.#apply(edge, now);
     return { dial: this.dial, clamped: true, won: this.won };
   }
@@ -69,17 +116,91 @@ export class WalkRun {
     this.dial = dial;
     this.wMin = Math.min(this.wMin, dial);
     this.wMax = Math.max(this.wMax, dial);
+    if (this.carrying && this.item) {
+      this.item.w = dialToW(dial);
+    }
     if (now) this.#checkWin(now, dial);
+  }
+
+  canInteract(dial = this.dial) {
+    const spec = this.level.item;
+    if (!spec || !this.item || this.won) return { action: null, reason: 'none' };
+    const relay = this.level.relay;
+    if (relay && !this.relayLatched && this.#atDevice(relay.latch, dial)) return { action: 'latch', reason: null };
+    if (this.carrying && relay && this.#atDevice(relay.socket, dial)) return { action: 'dock', reason: null };
+    if (this.carrying) return { action: 'drop', reason: null };
+    const w = dialToW(dial);
+    if (Math.abs(w - this.item.w) >= spec.wReach) return { action: null, reason: 'other-w' };
+    if (Math.hypot(this.pos[0] - this.item.x, this.pos[1] - this.item.z) > spec.pickupRadius) {
+      return { action: null, reason: 'far' };
+    }
+    // Picking up a docked core cuts power. Test the geometry AFTER that
+    // change, including the whole visible/target W interval, before committing.
+    const pickupField = fieldWithRadius(relayField(this.level, false, this.relayLatched), this.level.carriedRadius);
+    const sections = sweptSections(pickupField, w, dialToW(this.dial));
+    if (!legalCorridorSpot(sections, this.pos[0], this.pos[1], pickupField)) {
+      return { action: 'blocked', reason: 'tight' };
+    }
+    return { action: 'pickup', reason: null };
+  }
+
+  interact(now = 0, dial = this.dial) {
+    const check = this.canInteract(dial);
+    if (check.action === 'latch') {
+      this.relayLatched = true;
+      this.#refreshField();
+      return { action: 'latched', won: false };
+    }
+    if (check.action === 'dock') {
+      const { x, z, w } = this.level.relay.socket;
+      this.carrying = false;
+      this.item = { x, z, w };
+      this.drops += 1;
+      this.socketUses += 1;
+      this.#refreshField();
+      return { action: 'docked', won: false };
+    }
+    if (check.action === 'drop') {
+      const w = dialToW(this.dial);
+      this.carrying = false;
+      this.drops += 1;
+      this.item = { x: this.pos[0], z: this.pos[1], w };
+      this.#refreshField();
+      const won = this.#checkWin(now, dial);
+      return { action: 'dropped', item: { ...this.item }, won };
+    }
+    if (check.action === 'pickup') {
+      if (!this.startedAt && now) this.startedAt = now;
+      this.carrying = true;
+      this.pickups += 1;
+      this.item = { x: this.pos[0], z: this.pos[1], w: dialToW(this.dial) };
+      this.#refreshField();
+      const won = this.#checkWin(now, dial);
+      return { action: 'picked', item: { ...this.item }, won };
+    }
+    return { action: check.action, reason: check.reason, won: false };
   }
 
   atGoalSpot() {
     const [gx, gz] = this.level.goal;
+    if (this.level.item) {
+      if (!this.item) return false;
+      const targetPos = this.carrying ? this.pos : [this.item.x, this.item.z];
+      return Math.hypot(targetPos[0] - gx, targetPos[1] - gz) < WIN_RADIUS;
+    }
     return Math.hypot(this.pos[0] - gx, this.pos[1] - gz) < WIN_RADIUS;
   }
 
   #checkWin(now, dial = this.dial) {
     if (this.won || !this.atGoalSpot()) return false;
-    if (!goalOpenAt(this.level, dialToW(dial)) || !goalOpenAt(this.level, dialToW(this.dial))) return false;
+    const w = dialToW(this.dial);
+    if (!goalOpenAt(this.level, dialToW(dial)) || !goalOpenAt(this.level, w)) return false;
+    if (this.level.item) {
+      const itemW = this.carrying ? w : this.item.w;
+      if (!goalOpenAt(this.level, itemW)) return false;
+      this.carrying = false;
+      this.item = { x: this.level.goal[0], z: this.level.goal[1], w };
+    }
     this.won = true;
     this.finishedAt = now;
     if (!this.startedAt) this.startedAt = now;
@@ -104,22 +225,29 @@ export class WalkRun {
   step(dirX, dirZ, delta, now, dial = this.dial) {
     if (this.won) {
       this.blockedLast = false;
-      return { travelled: 0, newlyBlocked: false, won: false, goalOtherW: false };
+      return { travelled: 0, newlyBlocked: false, won: false, goalOtherW: false, goalNeedsItem: false };
     }
+    const active = this.activeField();
     const length = Math.hypot(dirX, dirZ);
     if (!length) {
       this.blockedLast = false;
       const won = this.#checkWin(now, dial);
       const goalOtherW = !won && this.atGoalSpot() && !goalOpenAt(this.level, dialToW(this.dial));
-      return { travelled: 0, newlyBlocked: false, won, goalOtherW };
+      const goalNeedsItem = !won && Boolean(this.level.item) && !this.atGoalSpot()
+        && Math.hypot(this.pos[0] - this.level.goal[0], this.pos[1] - this.level.goal[1]) < WIN_RADIUS;
+      return { travelled: 0, newlyBlocked: false, won, goalOtherW, goalNeedsItem };
     }
     const scale = (WALK_SPEED * delta) / length;
-    const sections = sweptSections(this.level, dialToW(dial), dialToW(this.dial));
-    const move = moveCorridorToken(sections, this.pos, dirX * scale, dirZ * scale, this.level);
+    const sections = sweptSections(this.field, dialToW(dial), dialToW(this.dial));
+    const move = moveCorridorToken(sections, this.pos, dirX * scale, dirZ * scale, active);
     const travelled = Math.hypot(move.x - this.pos[0], move.z - this.pos[1]);
     if (travelled && !this.startedAt) this.startedAt = now;
     this.distance += travelled;
     this.pos = [move.x, move.z];
+    if (this.carrying && this.item) {
+      this.item.x = move.x;
+      this.item.z = move.z;
+    }
     const jammed = travelled === 0;
     const newlyBlocked = jammed && !this.blockedLast;
     if (newlyBlocked) {
@@ -129,7 +257,9 @@ export class WalkRun {
     this.blockedLast = jammed;
     const won = this.#checkWin(now, dial);
     const goalOtherW = !won && this.atGoalSpot() && !goalOpenAt(this.level, dialToW(this.dial));
-    return { travelled, newlyBlocked, won, goalOtherW };
+    const goalNeedsItem = !won && Boolean(this.level.item) && !this.atGoalSpot()
+      && Math.hypot(this.pos[0] - this.level.goal[0], this.pos[1] - this.level.goal[1]) < WIN_RADIUS;
+    return { travelled, newlyBlocked, won, goalOtherW, goalNeedsItem };
   }
 
   seconds(now) {
@@ -138,7 +268,7 @@ export class WalkRun {
   }
 
   toJSON() {
-    return {
+    const out = {
       schemaVersion: 2,
       experiment: 'w-slice-game',
       level: this.levelId,
@@ -153,19 +283,27 @@ export class WalkRun {
       mapPeeks: this.peeks,
       seconds: this.seconds(this.finishedAt),
     };
+    if (this.level.item) {
+      out.pickups = this.pickups;
+      out.drops = this.drops;
+      out.item = { x: round(this.item.x), z: round(this.item.z), w: round(this.item.w), carrying: this.carrying };
+    }
+    if (this.level.relay) out.relay = { powered: this.socketPowered(), latched: this.relayLatched, socketUses: this.socketUses };
+    return out;
   }
 }
 
-// An observation level: a visitor passes through the slice. First the player
-// reaches an observation goal by moving W, then answers inline predictions.
+// An observation level: a visitor passes through the slice. When trials are
+// omitted (main flow), meeting the observation goal completes the level
+// directly; when trials are provided (Principle Lab), it enters prediction.
 export class VisitRun {
-  constructor(bodies, goal, trials, levelId) {
+  constructor(bodies, goal, trials = [], levelId = '') {
     this.bodies = bodies;
     this.goal = goal;
     this.levelId = levelId;
     this.phase = 'explore';
     this.sawVisible = false;
-    this.session = new PredictionSession(trials);
+    this.session = trials?.length ? new PredictionSession(trials) : null;
     this.hints = 0;
     this.peeks = 0;
   }
@@ -181,17 +319,21 @@ export class VisitRun {
     } else if (this.goal === 'together') {
       met = visible.every(Boolean);
     }
-    if (met) this.phase = 'predict';
+    if (met) this.phase = this.session ? 'predict' : 'done';
     return met;
   }
 
   submit(choice) {
-    if (this.phase !== 'predict') throw new Error('Not predicting');
+    if (this.phase !== 'predict' || !this.session) throw new Error('Not predicting');
     return this.session.submit(choice);
   }
 
   // Returns false once the last prediction is done.
   next() {
+    if (!this.session) {
+      this.phase = 'done';
+      return false;
+    }
     const more = this.session.next();
     if (!more) this.phase = 'done';
     return more;
@@ -208,7 +350,7 @@ export class VisitRun {
       completed: this.won,
       hints: this.hints,
       mapPeeks: this.peeks,
-      predictions: this.session.toJSON(),
+      predictions: this.session ? this.session.toJSON() : null,
     };
   }
 }

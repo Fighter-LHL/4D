@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  SINGLE, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, dialToW, sliceAtW, corridorSections,
+  SINGLE, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, FETCH_ROOM, STATION_ROOM, relayField, wToDial, dialToW, sliceAtW, corridorSections,
   legalCorridorSpot, tokenInsideSection, wChangeEngulfs, wFootprint, flatShape, flatVariant,
-  blockedWIntervals, exclusionRadius, goalOpenAt,
+  blockedWIntervals, exclusionRadius, goalOpenAt, fieldWithRadius, itemSectionAtW, itemFootprint,
 } from '../geometry.mjs';
-import { WalkRun, VisitRun, WIN_RADIUS } from '../game.mjs';
-import { LEVELS_LIST, CHAPTERS, levelById, nextLevel, isUnlocked, planeY } from '../levels.mjs';
+import { WalkRun, VisitRun, WIN_RADIUS, WALK_SPEED } from '../game.mjs';
+import { LEVELS_LIST, CHAPTERS, FETCH_LEVEL, LAB_LEVEL, levelById, nextLevel, isUnlocked, planeY } from '../levels.mjs';
 import { LAYERS, layerIndex, layerBlend, wColor } from '../layers.mjs';
 import { PredictionSession } from '../challenge.mjs';
 
@@ -30,8 +30,8 @@ function solve(level, { fixedDial = null } = {}) {
   const seen = new Uint8Array(W * H * DIALS);
   const queue = [[startI, startJ, startD]];
   seen[key(startI, startJ, startD)] = 1;
-  while (queue.length) {
-    const [i, j, d] = queue.shift();
+  for (let head = 0; head < queue.length; head += 1) {
+    const [i, j, d] = queue[head];
     const x = (i - nx) * STEP;
     const z = (j - nz) * STEP;
     const w = dialToW(d / (DIALS - 1));
@@ -327,4 +327,211 @@ test('2-4 stepping-stone islands refuse W shifts outside the safe pockets', () =
   assert.equal(wChangeEngulfs(ISLANDS, [0, -0.75], 0.6, -0.6), false);
   assert.equal(wChangeEngulfs(ISLANDS, [1.8, -0.75], -0.6, 0), true);
   assert.equal(wChangeEngulfs(ISLANDS, ISLANDS.goal, -0.6, 0), false);
+});
+
+test('visit runs without forced trials complete directly on observation; LAB_LEVEL keeps 6 trials', () => {
+  const level = levelById('0-1');
+  const direct = new VisitRun(level.bodies, level.goal, [], level.id);
+  assert.equal(direct.session, null);
+  assert.equal(direct.observe(0.5), false);
+  assert.equal(direct.observe(0.98), true);
+  assert.equal(direct.phase, 'done');
+  assert.equal(direct.won, true);
+
+  assert.equal(levelById('lab'), LAB_LEVEL);
+  assert.equal(LAB_LEVEL.trials.length, 6);
+  assert.ok(!CHAPTERS[2].intro.body.includes('记下来'));
+});
+
+test('FETCH_ROOM ("无门取物"): empty-handed entry, carrying blocks narrow west gap, wide +W exit solves it', () => {
+  assert.equal(levelById('fetch'), FETCH_LEVEL);
+  assert.equal(FETCH_LEVEL.objective, '把屋里的东西带到这里。门打不开。');
+  const emptyField = { ...FETCH_ROOM, goal: [FETCH_ROOM.item.start[0], FETCH_ROOM.item.start[1]], goalW: [-0.25, 0.25] };
+  assert.ok(!solve(emptyField, { fixedDial: CENTER_DIAL }), 'room is sealed at W=0');
+  assert.ok(solve(emptyField), 'empty-handed player can enter the room via W shifts');
+
+  const carriedField = fieldWithRadius(FETCH_ROOM, FETCH_ROOM.carriedRadius);
+  // The narrow west doorway at x = -0.3, z in [-0.33, 0.33] opens in -W (W = -0.9),
+  // allowing empty-handed passage (r = 0.22) but blocking carried passage (r = 0.40).
+  const minusWSections = corridorSections(-0.9, FETCH_ROOM);
+  assert.equal(legalCorridorSpot(minusWSections, -0.3, 0, FETCH_ROOM), true);
+  for (let z = -0.5; z <= 0.5; z += 0.04) {
+    assert.equal(legalCorridorSpot(minusWSections, -0.3, z, carriedField), false, `west doorway must block carried object at z=${z}`);
+  }
+  // No single fixed W can take the carried object from inside the room to the active receiving pad.
+  const carryToGoal = {
+    ...carriedField,
+    start: [FETCH_ROOM.item.start[0], FETCH_ROOM.item.start[1]],
+    goal: FETCH_ROOM.goal,
+    goalW: FETCH_ROOM.goalW,
+  };
+  for (let d = 0; d < DIALS; d += 1) {
+    assert.ok(!solve(carryToGoal, { fixedDial: d }), `single dial ${d} must not extract and deliver the object`);
+  }
+
+  // At the pickup spot [0.85, 0], shifting directly to +W (W = 0.95) is safe empty-handed
+  // but engulfed by fetch-room-orb when carrying the object; stepping south to [0.85, 0.35] clears it.
+  assert.equal(wChangeEngulfs(FETCH_ROOM, [0.85, 0], 0, 0.95), false);
+  assert.equal(wChangeEngulfs(carriedField, [0.85, 0], 0, 0.95), true);
+  assert.equal(wChangeEngulfs(carriedField, [0.85, 0.35], 0, 0.95), false);
+
+  // From the south interior spot [0.85, 0.35], a player carrying the object can shift to +W,
+  // exit through the wide south wall, curve around to the receiving pad, and return W to 0.
+  const carryEscape = {
+    ...carriedField,
+    start: [0.85, 0.35],
+    goal: FETCH_ROOM.goal,
+    goalW: FETCH_ROOM.goalW,
+  };
+  assert.ok(solve(carryEscape), 'carried object can exit via +W south opening and reach the receiving pad');
+});
+
+test('WalkRun pickup, 4D placed position persistence across W, and goal delivery', () => {
+  const run = new WalkRun(FETCH_ROOM, 'fetch', 1000);
+  assert.equal(run.carrying, false);
+  // Standing on the receiving pad without the object does not win.
+  run.pos = [...FETCH_ROOM.goal];
+  const emptyAtGoal = run.step(0, 0, 0.016, 1100);
+  assert.equal(emptyAtGoal.won, false);
+  assert.equal(emptyAtGoal.goalNeedsItem, true);
+
+  // Move to the item inside the room at W = 0 and pick it up.
+  run.pos = [0.85, 0];
+  assert.equal(run.canInteract().action, 'pickup');
+  const picked = run.interact(1200);
+  assert.equal(picked.action, 'picked');
+  assert.equal(run.carrying, true);
+  assert.equal(run.activeField().tokenRadius, FETCH_ROOM.carriedRadius);
+
+  // Shifting directly to +W (dial 0.74 -> W = 0.96) at [0.85, 0] is refused while carrying!
+  assert.equal(run.setDial(0.74), false);
+
+  // Put the item down at [0.85, 0.35] at W = -0.2 (dial 0.45): it stays at that 4D coordinate.
+  run.pos = [0.85, 0.35];
+  assert.ok(run.setDial(0.45));
+  const dropped = run.interact(1400);
+  assert.equal(dropped.action, 'dropped');
+  assert.equal(run.carrying, false);
+  near(run.item.w, -0.2);
+
+  // Shift W far away to +1.2 (dial 0.8): the dropped item's 3D cross-section vanishes and cannot be picked up.
+  assert.ok(run.setDial(0.8));
+  const farSlice = itemSectionAtW(FETCH_ROOM, run.itemState(), dialToW(0.8));
+  assert.equal(farSlice.kind, 'empty');
+  assert.equal(run.canInteract().reason, 'other-w');
+  // Its 4D footprint on the W map still records its exact (x, z, w).
+  const foot = itemFootprint(FETCH_ROOM, run.itemState());
+  near(foot.center[0], 0.85);
+  near(foot.center[1], 0.35);
+  near(foot.center[2], -0.2);
+
+  // Return W to -0.2 (dial 0.45): the item reappears in this slice and can be picked back up.
+  assert.ok(run.setDial(0.45));
+  const nearSlice = itemSectionAtW(FETCH_ROOM, run.itemState(), dialToW(0.45));
+  assert.equal(nearSlice.kind, 'sphere');
+  assert.equal(run.interact(1600).action, 'picked');
+  assert.equal(run.carrying, true);
+
+  // Shift to +W (dial 0.72 -> W = 0.88) from the safe south spot [0.85, 0.35], carry to goal, and return to W = 0.
+  assert.ok(run.setDial(0.72));
+  run.pos = [...FETCH_ROOM.goal];
+  run.item.x = run.pos[0];
+  run.item.z = run.pos[1];
+  assert.equal(run.step(0, 0, 0.016, 1800).won, false); // still at W = 0.88, outside goalW
+  assert.ok(run.setDial(0.5, 2000)); // return to W = 0
+  assert.equal(run.won, true);
+  assert.equal(run.carrying, false); // placed on the receiving pad
+  const json = run.toJSON();
+  assert.equal(json.pickups, 2);
+  assert.equal(json.drops, 1);
+  assert.equal(json.completed, true);
+});
+
+test('station gates require power and a W change; an opened return passage carries the core', () => {
+  assert.equal(levelById('station').field, STATION_ROOM);
+  assert.equal(nextLevel('fetch').id, 'station');
+  assert.ok(isUnlocked('station', new Set()));
+  assert.ok(!solve(STATION_ROOM), 'a fully closed divider cannot be bypassed at any W');
+  const powered = relayField(STATION_ROOM, true, false);
+  assert.ok(solve(powered), 'power provides a route when W may change');
+  for (let d = 0; d < DIALS; d += 1) {
+    assert.ok(!solve(powered, { fixedDial: d }), `constant W ${d} cannot both cross and deliver`);
+  }
+  const carrying = fieldWithRadius(relayField(STATION_ROOM, false, false), STATION_ROOM.carriedRadius);
+  assert.ok(!solve(carrying), 'taking the core before opening the return passage closes every route');
+  const returned = fieldWithRadius(relayField(STATION_ROOM, false, true), STATION_ROOM.carriedRadius);
+  assert.ok(solve(returned, { fixedDial: CENTER_DIAL }), 'the unlocked wide passage permits carrying at the destination W');
+});
+
+function walkTo(run, x, z) {
+  for (let step = 0; step < 1000; step += 1) {
+    const dx = x - run.pos[0];
+    const dz = z - run.pos[1];
+    const distance = Math.hypot(dx, dz);
+    if (distance < 1e-5 || run.won) return;
+    const delta = Math.min(0.025, distance / WALK_SPEED);
+    const result = run.step(dx, dz, delta, 1000 + run.distance * 1000);
+    assert.ok(result.travelled > 1e-8, `blocked on the way to ${x}, ${z} from ${run.pos}`);
+    assert.ok(legalCorridorSpot(run.sectionsAt(), ...run.pos, run.activeField()));
+  }
+  assert.fail('waypoint was not reached');
+}
+
+test('station full physical route: dock, cross W, release latch, retrieve and deliver', () => {
+  const run = new WalkRun(STATION_ROOM, 'station', 1000);
+  assert.notEqual(run.canInteract().action, 'latch', 'the latch cannot be used remotely');
+  walkTo(run, -1.8, 0.4);
+  assert.equal(run.interact(1100).action, 'picked');
+  walkTo(run, -1.7, -1.2);
+  assert.equal(run.canInteract().action, 'drop', 'the socket cannot dock in the wrong layer');
+  assert.ok(run.setDial(wToDial(-1.1)));
+  assert.equal(run.canInteract(wToDial(0)).action, 'drop', 'shown W must also have reached the socket');
+  assert.equal(run.interact(1200).action, 'docked');
+  assert.equal(run.socketPowered(), true);
+  assert.equal(run.activeField().bodies.some((b) => b.id === STATION_ROOM.relay.poweredGate), false);
+  const stored = { ...run.item };
+  assert.ok(run.setDial(wToDial(1.1)));
+  assert.deepEqual(run.item, stored, 'the power source stays in the blue layer');
+  assert.ok(run.socketPowered(), 'leaving that layer does not cut power');
+  walkTo(run, 0, -1.1);
+  assert.equal(run.setDial(wToDial(0)), false, 'closing the W curtain over the traveler is refused');
+  walkTo(run, 1.15, -1.1);
+  walkTo(run, 1.15, 1.0);
+  assert.notEqual(run.canInteract().action, 'latch', 'the switch is only present in its own slice');
+  assert.ok(run.setDial(wToDial(0)));
+  assert.equal(run.interact(1300).action, 'latched');
+  walkTo(run, -1.7, 1.0);
+  walkTo(run, -1.7, -1.2);
+  assert.ok(run.setDial(wToDial(-1.1)));
+  assert.equal(run.interact(1400).action, 'picked');
+  assert.equal(run.socketPowered(), false);
+  assert.ok(run.activeField().bodies.some((b) => b.id === STATION_ROOM.relay.poweredGate));
+  assert.equal(run.activeField().bodies.some((b) => b.id === STATION_ROOM.relay.shortcutGate), false);
+  walkTo(run, -1.7, 1.0);
+  walkTo(run, 1.5, 1.0);
+  assert.ok(run.setDial(wToDial(0)));
+  walkTo(run, ...STATION_ROOM.goal);
+  assert.ok(run.won);
+  assert.deepEqual(run.toJSON().relay, { powered: false, latched: true, socketUses: 1 });
+  assert.equal(run.pickups, 2);
+  const reset = new WalkRun(STATION_ROOM, 'station');
+  assert.equal(reset.relayLatched, false);
+  assert.equal(reset.socketPowered(), false);
+  assert.equal(reset.activeField().bodies.length, STATION_ROOM.bodies.length);
+});
+
+test('removing a power source cannot close its gate around the traveler', () => {
+  const spec = { ...STATION_ROOM, relay: { ...STATION_ROOM.relay,
+    socket: { ...STATION_ROOM.relay.socket, x: -0.5, z: -1.1, w: 1.1 } } };
+  const run = new WalkRun(spec, 'near-gate-test');
+  walkTo(run, -1.8, 0.4);
+  run.interact();
+  assert.ok(run.setDial(wToDial(1.1)));
+  walkTo(run, -1.0, -1.1);
+  assert.equal(run.interact().action, 'docked');
+  walkTo(run, 0, -1.1);
+  assert.equal(run.canInteract().action, 'blocked');
+  assert.equal(run.interact().action, 'blocked');
+  assert.ok(run.socketPowered());
+  assert.ok(legalCorridorSpot(run.sectionsAt(), ...run.pos, run.activeField()));
 });

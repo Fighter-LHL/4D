@@ -20,10 +20,15 @@
     <div class="title-copy">
       <p class="kicker">A SMALL GAME ABOUT THE FOURTH DIMENSION</p>
       <h1 id="wordmark" class="wordmark">W<span>/</span>SLICE</h1>
-      <p class="tagline">你只能看见一层。<br>学会换一层，就能走出没有门的房间。</p>
-      <button id="play" class="primary big">开始 <span aria-hidden="true">→</span></button>
-      <button id="unlock-all" class="ghost unlock-toggle" type="button" aria-pressed="false">解锁全部关卡</button>
-      <p class="title-note">约 10 分钟 · 键盘或触屏 · 无需安装</p>
+      <p class="tagline">你只能看见一层。<br>一枚晶核，两条通路。试着把它送到另一边。</p>
+      <div class="title-actions">
+        <button id="play" class="primary big">试玩中转站 <span aria-hidden="true">→</span></button>
+        <button id="play-fetch" class="ghost">无门取物</button>
+        <button id="play-chapters" class="ghost">从序章开始</button>
+        <button id="open-lab" class="ghost">原理实验室（可选）</button>
+        <button id="unlock-all" class="ghost unlock-toggle" type="button" aria-pressed="false">解锁全部关卡</button>
+      </div>
+      <p class="title-note">键盘或触屏 · 无需安装</p>
     </div>
     <nav id="chapter-list" class="chapter-list" aria-label="章节与关卡"></nav>
   </section>
@@ -34,7 +39,8 @@
       <div class="level-id"><span id="level-chapter"></span><b id="level-title"></b></div>
       <div class="topbar-right">
         <span id="stats" class="stats" aria-live="off"></span>
-        <button id="hint" class="ghost">提示 <span id="hint-count"></span></button>
+        <button id="restart" class="ghost" title="重新开始这一关 (R)">重来</button>
+        <button id="hint" class="ghost"><span id="hint-label">提示</span> <span id="hint-count"></span></button>
         <button id="sound" class="ghost icon" aria-pressed="true" aria-label="音效开关" title="音效">♪</button>
       </div>
     </header>
@@ -44,11 +50,19 @@
         <canvas id="scene" tabindex="0" aria-label="你的世界：当前的三维截面"></canvas>
         <canvas id="flat" tabindex="0" aria-label="你的世界：二维的一层" hidden></canvas>
         <div class="stage-tag"><i class="live"></i><span id="stage-tag">你的世界</span></div>
+        <div class="world-tags" id="world-tags" aria-hidden="true">
+          <span class="world-tag actor" id="actor-tag" hidden>▼ 你</span>
+          <span class="world-tag item" id="item-tag" hidden>◆ 能量晶核</span>
+          <span class="world-tag goal" id="goal-tag" hidden>◎ 接收台</span>
+          <span class="world-tag socket" id="socket-tag" hidden>蓝层插座</span>
+          <span class="world-tag latch" id="latch-tag" hidden>回廊开关</span>
+        </div>
         <p class="objective" id="objective"></p>
+        <button id="action-btn" class="primary action-btn" type="button" hidden>拿起物体</button>
         <p class="toast" id="toast" role="status" aria-live="polite"></p>
-        <button id="reset-view" class="ghost icon corner" aria-label="重置视角" title="重置视角">↺</button>
+        <button id="reset-view" class="ghost corner" aria-label="视角复位" title="恢复初始视角">视角复位</button>
         <div class="empty-notice" id="empty-notice" hidden><span class="empty-ring"></span><p>这一层，什么都没有碰到。</p></div>
-        <div class="dpad" id="dpad" hidden aria-label="移动光点">
+        <div class="dpad" id="dpad" hidden aria-label="移动角色">
           <button data-dir="ArrowUp" class="d-up" aria-label="向前">▲</button><button data-dir="ArrowLeft" class="d-left" aria-label="向左">◀</button><button data-dir="ArrowRight" class="d-right" aria-label="向右">▶</button><button data-dir="ArrowDown" class="d-down" aria-label="向后">▼</button>
         </div>
         <div class="render-error" id="render-error" role="alert" hidden>当前浏览器无法显示三维画面。请使用支持 WebGL 的浏览器并开启硬件加速。</div>
@@ -75,7 +89,7 @@
                 <span class="leg-item" id="leg-token"><i class="leg-line"></i>白虚线 = 换层轨道</span>
                 <span class="leg-item" id="leg-goal"><i class="leg-goal"></i>金段 = 出口所在层</span>
               </div>
-              <div class="map-veil" id="map-veil" hidden><p>地图已收起<br><small>看墙的颜色判断它在哪一层</small></p><button id="peek" class="ghost">窥视 5 秒</button></div>
+              <div class="map-veil" id="map-veil" hidden><p>地图已收起<br><small>看墙的颜色判断它在哪一层</small></p><button id="peek" class="ghost">查看空间结构</button></div>
               <div class="map-error" id="map-error" hidden>地图需要 WebGL</div>
             </div>
             <div class="rail" id="w-rail" role="slider" tabindex="0" aria-orientation="vertical" aria-label="切换层" aria-valuemin="-2" aria-valuemax="2" aria-valuenow="0">
@@ -91,7 +105,7 @@
             </div>
           </div>
           <div class="layer-readout"><i class="swatch" id="layer-swatch"></i><span id="layer-name"></span><span class="w-value" id="w-value"></span></div>
-          <p class="color-legend" id="color-legend"><span class="cool-tag">● 冷蓝在下 (−W)</span><span class="warm-tag">● 暖橙在上 (+W)</span><span class="legend-sep" id="legend-block-hint" hidden>● 红区 = 墙会包住光点</span></p>
+          <p class="color-legend" id="color-legend"><span class="cool-tag">● 冷蓝在下 (−W)</span><span class="warm-tag">● 暖橙在上 (+W)</span><span class="legend-sep" id="legend-block-hint" hidden>● 红区 = 墙会撞上你</span></p>
         </section>
 
         <section class="predict" id="predict" hidden aria-labelledby="predict-question">
