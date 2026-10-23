@@ -126,11 +126,8 @@ namespace WSlice.UI
             if (graph == null || movement == null || character == null)
                 return null;
 
-            if (!movement.HasLastTargetNode)
-                return null;
-
             string currentNodeId = character.CurrentNodeId;
-            string targetNodeId = movement.LastTargetNodeId;
+            string targetNodeId = movement.HintTargetNodeId;
             if (string.IsNullOrEmpty(currentNodeId) || string.IsNullOrEmpty(targetNodeId))
                 return null;
 
