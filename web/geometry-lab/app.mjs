@@ -28,6 +28,8 @@ const choiceButtons = [...document.querySelectorAll('[data-choice]')];
 // Material roles for the renderer. These never affect collision; they only let
 // the scene show which station body is a power gate, a phase wall or a latch.
 const BODY_ROLES = Object.freeze({
+  'gate-phase-wall': 2,
+  'gate-orb': 7,
   'station-power-door': 1,
   'station-phase-door': 2,
   'station-return-door': 3,
@@ -373,6 +375,7 @@ function atReceiver() {
 }
 
 function completionAction() {
+  if (level.id === 'gate' || level.id === 'gate-blind') return { label: '进入两种办法', level: 'station-routes' };
   if (level.id === 'station-routes') return stationNextAction(stationSeals);
   if (level.id === 'fetch') return { label: '下一站：中转站', level: 'station' };
   if (level.id === 'station') return { label: '下一站：两种办法', level: 'station-routes' };
@@ -782,7 +785,6 @@ function renderChapters() {
     return el;
   });
   list.replaceChildren(featured, ...cards);
-  $('play').firstChild.textContent = '试玩两种办法 ';
   const unlockBtn = $('unlock-all');
   if (unlockBtn) {
     unlockBtn.setAttribute('aria-pressed', String(sandboxAll));
@@ -1019,6 +1021,17 @@ function win() {
   wHold = 0;
   $('w-rail').classList.remove('pulse');
   if (isWalk()) {
+    if (level.id === 'gate' || level.id === 'gate-blind') {
+      const next = completionAction();
+      const actions = [[next.label, 'primary', () => startLevel(next.level)]];
+      if (level.id === 'gate') {
+        actions.push(['再走一次，地图收起', 'ghost', () => startLevel('gate-blind')]);
+      }
+      setObjective('已到达出口。');
+      showCard({ kicker: '到达出口', title: level.done, actions });
+      updateActionButton();
+      return;
+    }
     stationSeals = rememberStationRun(sealStorage, stationSeals, run);
     $('receiver-seals').innerHTML = sealMarkup();
     updateActionButton();
@@ -1278,7 +1291,8 @@ document.querySelectorAll('#dpad button').forEach((button) => {
   button.addEventListener('lostpointercapture', release);
 });
 
-$('play').addEventListener('click', () => { sfxInit(); startLevel('station-routes'); });
+$('play').addEventListener('click', () => { sfxInit(); startLevel('gate'); });
+$('play-routes').addEventListener('click', () => { sfxInit(); startLevel('station-routes'); });
 $('play-fetch').addEventListener('click', () => { sfxInit(); startLevel('fetch'); });
 $('play-chapters')?.addEventListener('click', () => { sfxInit(); startLevel(firstOpenLevel().id); });
 $('open-lab')?.addEventListener('click', () => { sfxInit(); startLevel('lab'); });

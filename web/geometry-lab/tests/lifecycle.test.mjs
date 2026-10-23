@@ -212,3 +212,29 @@ test('hints persist independently of toast messages; reopening never reveals ano
   assert.equal(get('hint-next').hidden, true);
   assert.equal(vm.runInContext('run.hints', context), 3);
 });
+
+test('slice gate cards explicitly enter the station or the unscored hidden-map replay', () => {
+  const cards = [], transitions = [];
+  const node = { classList: { remove() {} } };
+  const context = vm.createContext({
+    $: () => node, level: levelById('gate'), run: { won: true },
+    progress: new Set(), saveProgress() {}, sfx: { win() {} }, clearTimeout() {},
+    toastTimer: 0, pressed: new Set(), wHold: 0,
+    showCard: (card) => cards.push(card), setObjective() {}, updateActionButton() {},
+    startLevel: (id) => transitions.push(id),
+    nextLevel() { throw new Error('gate must not enter the prologue chain'); },
+  });
+  vm.runInContext(`const isWalk = () => true; ${functionSource('completionAction')} ${functionSource('win')} win();`, context);
+  assert.equal(cards[0].title, '球没有消失，你换到了它外面的一层。');
+  assert.equal(cards[0].stats, undefined);
+  assert.deepEqual(Array.from(cards[0].actions, ([label]) => label), ['进入两种办法', '再走一次，地图收起']);
+  cards[0].actions[0][2]();
+  cards[0].actions[1][2]();
+  assert.deepEqual(transitions, ['station-routes', 'gate-blind']);
+  context.level = levelById('gate-blind');
+  vm.runInContext('win()', context);
+  assert.equal(cards[1].stats, undefined);
+  assert.equal(cards[1].actions.length, 1);
+  cards[1].actions[0][2]();
+  assert.equal(transitions.at(-1), 'station-routes');
+});

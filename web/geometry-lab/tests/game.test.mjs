@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  SINGLE, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, FETCH_ROOM, STATION_ROOM, STATION_ROUTES_ROOM, relayField, wToDial, dialToW, sliceAtW, corridorSections,
+  SINGLE, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, GATE_ROOM, FETCH_ROOM, STATION_ROOM, STATION_ROUTES_ROOM, relayField, wToDial, dialToW, sliceAtW, corridorSections,
   legalCorridorSpot, tokenInsideSection, wChangeEngulfs, wFootprint, flatShape, flatVariant,
   blockedWIntervals, exclusionRadius, goalOpenAt, fieldWithRadius, itemSectionAtW, itemFootprint,
 } from '../geometry.mjs';
@@ -751,4 +751,83 @@ test('all levels including carried cores fit both WebGL renderers; new station i
   assert.equal(nextLevel('station').id, 'station-routes');
   assert.ok(isUnlocked('station-routes', new Set()));
   assert.notEqual(levelById('station').field, STATION_ROUTES_ROOM, 'original station is preserved');
+});
+
+test('slice gate has a changing-W solution but none of 51 fixed-W samples reaches its middle-layer exit', () => {
+  assert.ok(solve(GATE_ROOM));
+  for (let d = 0; d < DIALS; d += 1) {
+    assert.equal(solve(GATE_ROOM, { fixedDial: d }), false, `fixed W sample ${d}`);
+  }
+  // goalW is deliberately part of this room's puzzle: the cold passage is
+  // walkable, but finishing there requires a return to the middle layer.
+  assert.ok(solve({ ...GATE_ROOM, goalW: [-2, 2] }, { fixedDial: 0 }));
+});
+
+test('slice gate west yard allows the entire slider sweep across a region', () => {
+  for (const x of [-2.7, -2.45, -2.2, -1.95, -1.7]) {
+    for (const z of [-0.6, -0.3, 0, 0.3, 0.6]) {
+      assert.equal(wChangeEngulfs(GATE_ROOM, [x, z], -2, 2), false, `yard ${x},${z}`);
+      for (let d = 0; d < DIALS; d += 1) {
+        assert.ok(legalCorridorSpot(corridorSections(dialToW(d / (DIALS - 1)), GATE_ROOM), x, z, GATE_ROOM));
+      }
+    }
+  }
+  const run = new WalkRun(GATE_ROOM, 'gate');
+  for (const w of [-2, 2, -2, 0]) assert.ok(run.setDial(wToDial(w)));
+  assert.equal(run.refused, 0);
+});
+
+test('slice gate ball grows, shrinks and vanishes; middle slab is solid throughout goalW', () => {
+  const orb = GATE_ROOM.bodies.find((body) => body.id === 'gate-orb');
+  const wall = GATE_ROOM.bodies.find((body) => body.id === 'gate-phase-wall');
+  assert.ok(orb.center[3] > 0);
+  assert.equal(sliceAtW(orb, -2).kind, 'empty');
+  assert.ok(sliceAtW(orb, 0).radius < sliceAtW(orb, orb.center[3]).radius);
+  assert.ok(sliceAtW(orb, 1.5).radius < sliceAtW(orb, orb.center[3]).radius);
+  assert.equal(sliceAtW(orb, 2).kind, 'empty');
+  for (const w of [...GATE_ROOM.goalW, 0]) assert.equal(sliceAtW(wall, w).kind, 'box');
+  assert.equal(sliceAtW(wall, -1).kind, 'empty');
+});
+
+test('slice gate refuses engulfing corridor changes, including a sweep with empty endpoints', () => {
+  for (const x of [-0.2, 0, 0.2]) {
+    for (const z of [-0.25, 0, 0.25]) {
+      const run = new WalkRun({ ...GATE_ROOM, start: [x, z] }, 'gate');
+      run.dial = wToDial(-1);
+      assert.ok(legalCorridorSpot(run.sectionsAt(), ...run.pos, GATE_ROOM));
+      assert.equal(run.setDial(wToDial(0.8)), false);
+      assert.equal(run.dial, wToDial(-1));
+      assert.ok(legalCorridorSpot(corridorSections(2, GATE_ROOM), x, z, GATE_ROOM));
+      assert.equal(run.setDial(wToDial(2)), false, 'cannot sweep through the ball to another empty layer');
+    }
+  }
+  for (const z of [-0.25, 0, 0.25]) {
+    assert.equal(wChangeEngulfs(GATE_ROOM, [1.55, z], -1, 0), true);
+    assert.equal(wChangeEngulfs(GATE_ROOM, [2.1, z], -1, 0), false);
+  }
+});
+
+test('both slice gate variants share geometry and finish through real movement outside the slab', () => {
+  for (const id of ['gate', 'gate-blind']) {
+    const level = levelById(id);
+    assert.equal(level.field, GATE_ROOM);
+    assert.equal(level.map, id === 'gate' ? 'shown' : 'hidden');
+    assert.equal(level.hints.length, 3);
+    assert.equal(level.objective, '走到东边的出口。');
+    assert.ok(isUnlocked(id, new Set()));
+    assert.ok(!LEVELS_LIST.includes(level));
+    assert.equal(nextLevel(id), null, 'completion uses explicit standalone navigation');
+    assert.equal(level.field.item, undefined);
+    assert.equal(level.field.relay, undefined);
+    const run = new WalkRun(level.field, id, 1000);
+    assert.ok(run.setDial(wToDial(-1)));
+    walkTo(run, 0, 0);
+    assert.equal(run.setDial(wToDial(0.8)), false);
+    walkTo(run, 1.55, 0);
+    assert.equal(run.setDial(wToDial(0)), false);
+    walkTo(run, ...GATE_ROOM.goal);
+    assert.equal(run.won, false);
+    assert.ok(run.setDial(wToDial(0), 90000));
+    assert.equal(run.won, true);
+  }
 });

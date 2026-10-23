@@ -244,6 +244,26 @@ export const ISLANDS = Object.freeze({
   ]),
 });
 
+// A small, independent slice toy before the station. The west yard stays
+// outside every body's swept volume. Permanent side walls narrow the east
+// passage: a warm-offset ball grows across it and a middle-W slab closes it.
+// After passing the slab, the player must return to goalW beyond its footprint.
+// No item, relay or authored route participates in collision.
+export const GATE_ROOM = Object.freeze({
+  start: Object.freeze([-2.35, 0]),
+  goal: Object.freeze([2.85, 0]),
+  goalW: Object.freeze([-0.25, 0.25]),
+  bounds: Object.freeze({ x: 3.35, z: 1.65 }),
+  tokenRadius: 0.22,
+  tokenY: 0.22,
+  bodies: Object.freeze([
+    hyperbox('gate-north', [0.65, 0.65, -1.2, 0], [1.65, 0.85, 0.55, 2.2]),
+    hyperbox('gate-south', [0.65, 0.65, 1.2, 0], [1.65, 0.85, 0.55, 2.2]),
+    hypersphere('gate-orb', [0, 0.55, 0, 0.8], 0.95, true),
+    hyperbox('gate-phase-wall', [1.55, 0.75, 0, 0], [0.13, 0.95, 0.66, 0.55]),
+  ]),
+});
+
 // Standalone scenario "无门取物": the player starts in the west yard outside a
 // sealed room containing a 4D object. The west door opens in -W, but its jambs
 // leave a half-gap of 0.33: wide enough for an empty-handed player (r = 0.22),

@@ -20,9 +20,10 @@
     <div class="title-copy">
       <p class="kicker">A SMALL GAME ABOUT THE FOURTH DIMENSION</p>
       <h1 id="wordmark" class="wordmark">W<span>/</span>SLICE</h1>
-      <p class="tagline">你只能看见一层。<br>一枚晶核，两条通路。试着把它送到另一边。</p>
+      <p class="tagline">你只能看见一层。<br>先走过球门，再去庭院试试两种办法。</p>
       <div class="title-actions">
-        <button id="play" class="primary big">试玩两种办法 <span aria-hidden="true">→</span></button>
+        <button id="play" class="primary big">先走球门 <span aria-hidden="true">→</span></button>
+        <button id="play-routes" class="ghost">试玩两种办法</button>
         <button id="play-fetch" class="ghost">无门取物</button>
         <button id="play-chapters" class="ghost">从序章开始</button>
         <button id="open-lab" class="ghost">原理实验室（可选）</button>
@@ -115,7 +116,7 @@
                 <span class="leg-item" id="leg-token"><i class="leg-line"></i>换层轨道</span>
                 <span class="leg-item" id="leg-goal"><i class="leg-goal"></i>出口层</span>
               </div>
-              <div class="map-veil" id="map-veil" hidden><p>地图已收起<br><small>看墙的颜色判断它在哪一层</small></p><button id="peek" class="ghost">查看空间结构</button></div>
+              <div class="map-veil" id="map-veil" hidden><p>地图已收起</p><button id="peek" class="ghost">查看空间结构</button></div>
               <div class="map-error" id="map-error" hidden>地图需要 WebGL</div>
             </div>
             <div class="rail" id="w-rail" role="slider" tabindex="0" aria-orientation="vertical" aria-label="切换层" aria-valuemin="-2" aria-valuemax="2" aria-valuenow="0">

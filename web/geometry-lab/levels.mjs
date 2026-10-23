@@ -1,9 +1,25 @@
 // Chapters and levels. Chapter 0 (Flatland) and chapter 1 share the same
 // (x, z, W) layouts on purpose: the map the Flatlander trusted is exactly the
 // W map one dimension up. Chapter 2 hides the map to test transfer.
-import { SINGLE, TRANSFER, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, FETCH_ROOM, STATION_ROOM, STATION_ROUTES_ROOM, flatVariant } from './geometry.mjs';
+import { SINGLE, TRANSFER, TWINS, CORRIDOR, CORRIDOR_3D, ROOM, ROOM_3D, GATE, TWO_ROOMS, TIDAL, ISLANDS, GATE_ROOM, FETCH_ROOM, STATION_ROOM, STATION_ROUTES_ROOM, flatVariant } from './geometry.mjs';
 
 const trial = (body, from, to, prompt) => Object.freeze({ body, from, to, prompt });
+
+export const GATE_LEVEL = Object.freeze({
+  id: 'gate', chapter: 1, standalone: true, kind: 'walk', view: 'slice', map: 'shown',
+  title: '球门', field: GATE_ROOM,
+  objective: '走到东边的出口。',
+  done: '球没有消失，你换到了它外面的一层。',
+  hints: Object.freeze([
+    '拨动滑轨时，看看球的大小和板墙有什么变化。',
+    '球和板墙都让开以后，出口也未必在这一层。先穿过去，离开板墙再换层。',
+    '在空地把滑轨拨向冷蓝端，让球和板墙让开。沿窄道走到板墙另一侧，离开它的范围后回到中间层，再走到东边的出口。',
+  ]),
+});
+
+export const GATE_BLIND_LEVEL = Object.freeze({
+  ...GATE_LEVEL, id: 'gate-blind', title: '球门·地图收起', map: 'hidden',
+});
 
 export const FETCH_LEVEL = Object.freeze({
   id: 'fetch',
@@ -261,7 +277,7 @@ export const LEVELS_LIST = Object.freeze([
   },
 ].map(Object.freeze));
 
-export const EXTRA_LEVELS = Object.freeze([FETCH_LEVEL, STATION_LEVEL, STATION_ROUTES_LEVEL, LAB_LEVEL]);
+export const EXTRA_LEVELS = Object.freeze([GATE_LEVEL, GATE_BLIND_LEVEL, FETCH_LEVEL, STATION_LEVEL, STATION_ROUTES_LEVEL, LAB_LEVEL]);
 
 export const levelById = (id) =>
   EXTRA_LEVELS.find((level) => level.id === id)

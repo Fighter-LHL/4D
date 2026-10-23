@@ -5,6 +5,9 @@ import { MAX_BODIES_PER_TYPE, createProgram, uniformLocations, fitCanvas, Orbit,
 import { SCENE_DETAILS } from './scene-details.mjs';
 
 const MAX = MAX_BODIES_PER_TYPE;
+// Only permanent corridor sides can reveal the courier's footing. Phase
+// walls and balls keep their normal appearance, including at a refused W.
+const FOOTING_WALLS = new Set(['gate-north', 'gate-south', 'station-channel-n', 'station-channel-s']);
 
 const FRAGMENT = `
 precision highp float;
@@ -20,6 +23,7 @@ uniform vec3 uBoxC[${MAX}];
 uniform vec4 uBoxH[${MAX}];
 uniform vec3 uBoxTint[${MAX}];
 uniform float uBoxRole[${MAX}];
+uniform float uBoxFooting[${MAX}];
 uniform float uBoxCount;
 uniform vec4 uToken;
 uniform vec4 uActor;
@@ -296,6 +300,16 @@ vec4 shadeHit(int kind, float t, vec3 ro, vec3 rd, vec3 hc, vec4 hh, vec3 tint, 
   return vec4(c, clamp(alpha, 0.0, 0.96));
 }
 
+// Fade only a wall that actually lies on the camera-to-foot ray. A wall
+// behind the courier must stay opaque even if it overlaps the screen window.
+float footingOcclusion(vec3 center, vec3 halfSize) {
+  vec3 toFoot = vec3(uToken.x, 0.02, uToken.y) - uEye;
+  float distance = length(toFoot);
+  vec2 span = boxSpan(uEye, toFoot / distance, center, halfSize);
+  if (span.x <= 0.0 || span.x >= distance) return 0.0;
+  return smoothstep(0.0, 0.12, min(span.y, distance) - span.x);
+}
+
 void main() {
   vec2 uv = (gl_FragCoord.xy * 2.0 - uResolution) / uResolution.y;
   vec3 look = vec3(0.0, uLookY, 0.0);
@@ -305,6 +319,21 @@ void main() {
   // Telephoto lens (4.3) gives Monument Valley's clean near-isometric proportions.
   vec3 rd = normalize(forward * 4.3 + right * uv.x + up * uv.y);
   vec3 ro = uEye;
+  // A soft camera-space window includes the existing foot ring and the floor
+  // immediately around it. It follows the actual token, never a safe W spot.
+  float footingWindow = 0.0;
+  float footingDepth = 0.0;
+  if (uActor.w > 0.5) {
+    vec3 foot = vec3(uToken.x, 0.02, uToken.y) - ro;
+    vec3 head = vec3(uActorPos.x, 0.78, uActorPos.y) - ro;
+    footingDepth = dot(foot, forward);
+    vec2 a = vec2(dot(foot, right), dot(foot, up)) * 4.3 / footingDepth;
+    vec2 b = vec2(dot(head, right), dot(head, up)) * 4.3 / dot(head, forward);
+    vec2 ab = b - a;
+    float along = clamp(dot(uv - a, ab) / max(dot(ab, ab), 0.00001), 0.0, 1.0);
+    float radius = (uToken.z + 0.24) * 4.3 / footingDepth;
+    footingWindow = 1.0 - smoothstep(radius * 0.70, radius, length(uv - a - ab * along));
+  }
   vec3 layerTint = mix(uLayerA.rgb, uLayerB.rgb, uLayerMix);
   float skyGrad = clamp(uv.y * 0.55 + 0.5, 0.0, 1.0);
   vec3 skyLow = mix(BG_LOW, layerTint * 0.20, 0.28);
@@ -575,12 +604,14 @@ void main() {
   float bestT = solidT;
   int kind = 0;
   float role = 0.0;
+  float footing = 0.0;
   vec3 hc = vec3(0.0);
   vec4 hh = vec4(0.0);
   vec3 tint = vec3(0.0);
   float bestT2 = solidT;
   int kind2 = 0;
   float role2 = 0.0;
+  float footing2 = 0.0;
   vec3 hc2 = vec3(0.0);
   vec4 hh2 = vec4(0.0);
   vec3 tint2 = vec3(0.0);
@@ -588,10 +619,12 @@ void main() {
     if (float(i) >= uSphCount) break;
     float t = hitSphere(ro, rd, uSph[i]);
     if (t > 0.0 && t < bestT) {
-      bestT2 = bestT; kind2 = kind; role2 = role; hc2 = hc; hh2 = hh; tint2 = tint;
+      bestT2 = bestT; kind2 = kind; role2 = role; footing2 = footing; hc2 = hc; hh2 = hh; tint2 = tint;
       bestT = t; kind = 1; role = uSphRole[i]; hc = uSph[i].xyz; hh = vec4(0.0, 0.0, 0.0, uSph[i].w); tint = uSphTint[i];
+      footing = 0.0;
     } else if (t > 0.0 && t < bestT2) {
       bestT2 = t; kind2 = 1; role2 = uSphRole[i]; hc2 = uSph[i].xyz; hh2 = vec4(0.0, 0.0, 0.0, uSph[i].w); tint2 = uSphTint[i];
+      footing2 = 0.0;
     }
   }
   for (int i = 0; i < ${MAX}; i += 1) {
@@ -604,18 +637,22 @@ void main() {
     float gateBias = (uBoxRole[i] > 0.5 && uBoxRole[i] < 1.5) ? 0.035 : 0.0;
     float tBox = span.x - gateBias;
     if (tBox > 0.0 && tBox < bestT) {
-      bestT2 = bestT; kind2 = kind; role2 = role; hc2 = hc; hh2 = hh; tint2 = tint;
+      bestT2 = bestT; kind2 = kind; role2 = role; footing2 = footing; hc2 = hc; hh2 = hh; tint2 = tint;
       bestT = tBox; kind = 2; role = uBoxRole[i]; hc = uBoxC[i]; hh = uBoxH[i]; tint = uBoxTint[i];
+      footing = uBoxFooting[i];
     } else if (tBox > 0.0 && tBox < bestT2) {
       bestT2 = tBox; kind2 = 2; role2 = uBoxRole[i]; hc2 = uBoxC[i]; hh2 = uBoxH[i]; tint2 = uBoxTint[i];
+      footing2 = uBoxFooting[i];
     }
   }
   if (kind2 > 0) {
     vec4 g2 = shadeHit(kind2, bestT2, ro, rd, hc2, hh2, tint2, int(role2), hitCharacterOrItem);
+    if (footing2 > 0.5) g2.a *= 1.0 - 0.90 * footingWindow * footingOcclusion(hc2, hh2.xyz);
     color = mix(color, g2.rgb, g2.a * 0.88);
   }
   if (kind > 0) {
     vec4 g1 = shadeHit(kind, bestT, ro, rd, hc, hh, tint, int(role), hitCharacterOrItem);
+    if (footing > 0.5) g1.a *= 1.0 - 0.90 * footingWindow * footingOcclusion(hc, hh.xyz);
     color = mix(color, g1.rgb, g1.a);
   }
 
@@ -625,7 +662,7 @@ void main() {
 }
 `;
 
-const NAMES = ['uResolution', 'uEye', 'uLookY', 'uSph', 'uSphTint', 'uSphRole', 'uSphGhost', 'uSphCount', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxRole', 'uBoxCount',
+const NAMES = ['uResolution', 'uEye', 'uLookY', 'uSph', 'uSphTint', 'uSphRole', 'uSphGhost', 'uSphCount', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxRole', 'uBoxFooting', 'uBoxCount',
   'uToken', 'uActor', 'uActorPos', 'uItem', 'uSocket', 'uLatch', 'uRelayPorts', 'uRelayUsed', 'uPowerFx', 'uLatchFx', 'uStation', 'uEntrance', 'uChannel', 'uProps', 'uGoal', 'uStart', 'uBounds', 'uTrail', 'uRipples', 'uRippleTint', 'uLayerA', 'uLayerB', 'uLayerMix'];
 const VIEW = { yaw: 0.66, pitch: 0.58, distance: 12.2, minPitch: 0.2, maxPitch: 1.35, minDistance: 7.5, maxDistance: 20 };
 
@@ -715,6 +752,7 @@ export class SliceRenderer {
     const boxH = new Float32Array(MAX * 4);
     const boxTint = new Float32Array(MAX * 3);
     const boxRole = new Float32Array(MAX);
+    const boxFooting = new Float32Array(MAX);
     let ns = 0;
     let nb = 0;
     let itemUniform = [0, 0, 0, 0];
@@ -738,6 +776,7 @@ export class SliceRenderer {
         boxH.set([s.half[0] - eps, visHalfY, s.half[2] - eps, wState], nb * 4);
         boxTint.set(s.tint, nb * 3);
         boxRole[nb] = s.role ?? 0;
+        boxFooting[nb] = FOOTING_WALLS.has(s.id) ? 1 : 0;
         nb += 1;
       } else if (s.type === 'sphere' && ns < MAX) {
         // The dashed danger circle stays while the sphere is present but smaller.
@@ -757,6 +796,7 @@ export class SliceRenderer {
     gl.uniform4fv(u.uBoxH, boxH);
     gl.uniform3fv(u.uBoxTint, boxTint);
     gl.uniform1fv(u.uBoxRole, boxRole);
+    gl.uniform1fv(u.uBoxFooting, boxFooting);
     gl.uniform1f(u.uBoxCount, nb);
 
     const { field, token, goalState } = frame;
