@@ -553,3 +553,234 @@ test('overlapping earned rewards, growth and relic activations retain shared voi
     assert.equal(audio.compressor.threshold.value, -18);
   }
 });
+
+test('secret seals play exactly the W entries received and opening never manufactures the missing ritual', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  const pitches = [];
+  let previous = [];
+  for (const [index, layer] of [2, 0, 1].entries()) {
+    const first = context.sources.length;
+    audio.handle([{ type: 'secret_seal', id: 'prism-coil', stage: index + 1, from: 'relay', to: 'rift', node: 'relay', layer }]);
+    const seal = context.sources.slice(first);
+    assert.equal(seal.filter(source => !source.buffer).length, 2, 'one W entry produces one tone');
+    assert.equal(seal.filter(source => source.buffer).length, 1);
+    assert.ok(seal.every(source => source.startAt === context.currentTime));
+    assert.ok(previous.every(source => stopped(source, context)));
+    assert.ok([...audio.voices].every(voice => voice.group === 'secret_seal'));
+    pitches.push(seal[0].frequency.value);
+    context.currentTime += 3;
+    audio.syncWave(null);
+    assert.equal(context.sources.length, first + seal.length, 'elapsed wall time does not fill a missing seal');
+    previous = seal;
+  }
+  assert.deepEqual(pitches, [659.25, 293.66, 440], 'the ritual preserves the actual W order');
+  const first = context.sources.length;
+  audio.handle([{ type: 'secret_open', id: 'prism-coil', from: 'relay', to: 'rift', layer: 1 }]);
+  const gate = context.sources.slice(first);
+  assert.ok(previous.every(source => stopped(source, context)));
+  assert.equal(gate.length, 5);
+  assert.ok(gate.some(source => source.stopAt > context.currentTime + .4));
+  assert.ok([...audio.voices].every(voice => voice.group === 'secret_open'), 'opening is a physical gate cue, not a risk victory');
+});
+
+test('rift warnings have three distinct paired threats and follow only the current model clock', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  const pitches = [];
+  let previous = [];
+  for (const step of [1, 2, 3]) {
+    const wave = { node: 'rift', variant: 'rift', step, steps: 3,
+      layer: step - 1, safeLayers: [step - 1], dangerLayers: [step % 3, (step + 1) % 3], duration: 2.8, remaining: 2.8 };
+    const first = context.sources.length;
+    audio.handle([{ type: 'warning', ...wave }]);
+    audio.syncWave(wave);
+    const cue = context.sources.slice(first);
+    assert.ok(previous.every(source => stopped(source, context)), 'the previous threat must be gone before the next stage');
+    assert.equal(cue.filter(source => !source.buffer).length, 4, 'two dangerous W layers retain a paired pulse');
+    assert.ok(cue.every(source => source.startAt === context.currentTime));
+    pitches.push(cue[0].frequency.value);
+    context.currentTime += 10;
+    audio.syncWave(wave);
+    assert.equal(context.sources.length, first + cue.length, 'wall time cannot advance a rift countdown');
+    const beatFirst = context.sources.length;
+    audio.syncWave({ ...wave, remaining: .1 });
+    const urgent = context.sources.slice(beatFirst);
+    assert.equal(urgent.length, 4, 'a late frame produces one pair, not a backlog');
+    assert.ok(urgent.every(source => source.startAt === context.currentTime && source.stopAt < context.currentTime + .1));
+    audio.handle([{ type: 'dodge', node: 'rift', step, steps: 3, layer: step - 1 }]);
+    assert.ok(urgent.every(source => stopped(source, context)));
+    assert.ok([...audio.voices].every(voice => !['reward', 'ascension'].includes(voice.group)), 'passing a partial wave earns no victory');
+    previous = context.sources.slice(beatFirst);
+  }
+  assert.equal(new Set(pitches).size, 3);
+});
+
+test('a new threat removes reward and completion flourishes while retaining committed power', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  audio.handle([{ type: 'reward', challenge: 'rift', risky: true }, { type: 'bank', value: 9 }]);
+  const celebration = [...context.sources];
+  const first = context.sources.length;
+  audio.handle([{ type: 'power', from: 'bell', to: 'bloom', layer: 2 }]);
+  const power = context.sources.slice(first);
+  audio.handle([{ type: 'warning', variant: 'rift', node: 'rift', duration: 2.8 }]);
+  assert.ok(celebration.every(source => stopped(source, context)));
+  assert.ok(power.every(source => !source.disconnected), 'the warning does not erase a real power arrival');
+  const count = context.sources.length;
+  audio.handle([{ type: 'unlock', node: 'exit' }]);
+  const unlock = context.sources.slice(count);
+  audio.handle([{ type: 'warning', variant: 'rift', node: 'rift', duration: 2.8 }]);
+  assert.ok(unlock.every(source => stopped(source, context)), 'even a scheduled exit flourish yields to a fresh challenge');
+});
+
+test('rift clear releases its final threat while the reward event supplies one victory motif', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  const reward = { type: 'reward', challenge: 'rift', risky: true, tier: 3, value: 9, node: 'rift' };
+  audio.handle([reward]);
+  const baselineTones = context.sources.filter(source => !source.buffer).length;
+  audio.handle([{ type: 'restart' }]);
+  const warningFirst = context.sources.length;
+  audio.syncWave({ node: 'rift', variant: 'rift', step: 3, steps: 3, dangerLayers: [0, 1], safeLayers: [2], duration: 2.8, remaining: .2 });
+  const warning = context.sources.slice(warningFirst);
+  const first = context.sources.length;
+  audio.handle([{ type: 'rift_clear', node: 'rift', value: 9 }, reward]);
+  const success = context.sources.slice(first);
+  assert.ok(warning.every(source => stopped(source, context)));
+  assert.equal(audio.waveCue, null);
+  assert.equal(success.filter(source => !source.buffer).length, baselineTones, 'rift clear must not duplicate the reward melody');
+  assert.equal(success.filter(source => source.buffer).length, 2, 'one exhale plus one reward impact');
+  assert.ok([...audio.voices].every(voice => ['reward', 'rift_release'].includes(voice.group)));
+  const count = context.sources.length;
+  context.currentTime += 10;
+  audio.syncWave(null);
+  assert.equal(context.sources.length, count, 'the scene resolution waits for ascension, never an audio timeout');
+});
+
+test('ascension follows three physical events and the final scene has a wider resolved tail', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  let previous = [];
+  let final = [];
+  for (const stage of [1, 2, 3]) {
+    const first = context.sources.length;
+    audio.handle([{ type: 'ascension', stage, from: 'rift', to: ['hub', 'relay', 'exit'][stage - 1], layer: 2 }]);
+    final = context.sources.slice(first);
+    assert.ok(previous.every(source => stopped(source, context)));
+    assert.ok(final.every(source => source.startAt === context.currentTime), 'no later growth is scheduled on wall time');
+    assert.ok([...audio.voices].every(voice => voice.group === 'ascension'));
+    if (stage < 3) {
+      context.currentTime += 3;
+      audio.syncWave(null);
+      assert.equal(context.sources.length, first + final.length);
+    }
+    previous = final;
+  }
+  assert.equal(final.filter(source => !source.buffer).length, 8, 'one resolved chord plus a high crystal, no second arpeggio');
+  assert.ok(final.some(source => source.stopAt > context.currentTime + 1.1));
+  const pans = [...audio.voices].flatMap(voice => voice.nodes.filter(node => node.pan?.value).map(node => node.pan.value));
+  assert.ok(pans.includes(-.66) && pans.includes(.66), 'the grown scene expands the resolution across stereo space');
+});
+
+test('ordinary failure preserves committed seals, opened routes and ascension but cancels risk victory', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  for (const event of [
+    { type: 'secret_seal', stage: 1, node: 'relay', layer: 0 },
+    { type: 'secret_open', from: 'relay', to: 'rift', layer: 1 },
+    { type: 'ascension', stage: 3, from: 'rift', to: 'exit', layer: 2 },
+  ]) {
+    audio.handle([{ type: 'restart' }, { type: 'reward', challenge: 'rift', risky: true }]);
+    const reward = [...audio.voices].flatMap(voice => voice.sources);
+    const first = context.sources.length;
+    audio.handle([event]);
+    const committed = context.sources.slice(first);
+    audio.handle([{ type: 'fail', node: 'hub' }]);
+    assert.ok(reward.every(source => stopped(source, context)));
+    assert.ok(committed.length > 0 && committed.every(source => !source.disconnected));
+    const count = context.sources.length;
+    context.currentTime += 5;
+    audio.syncWave(null);
+    assert.equal(context.sources.length, count, 'committed tails cannot resurrect cancelled reward music');
+  }
+});
+
+test('secret and rift sounds honor mute, pause and every room or run boundary without replay', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  const events = [
+    { type: 'secret_open', from: 'relay', to: 'rift', layer: 2 },
+    { type: 'secret_seal', stage: 1, node: 'hub', layer: 0 },
+    { type: 'rift_clear', node: 'rift' },
+    { type: 'reward', risky: true, challenge: 'rift' },
+    { type: 'ascension', stage: 3, to: 'exit', layer: 1 },
+  ];
+  for (const boundary of ['mute', 'pause', 'room', 'restart', 'lose']) {
+    const first = context.sources.length;
+    audio.handle(events);
+    const sounds = context.sources.slice(first);
+    assert.ok(sounds.length > 0);
+    if (boundary === 'mute') audio.setEnabled(false);
+    else if (boundary === 'pause') audio.syncWave(null, true);
+    else audio.handle([{ type: boundary }]);
+    assert.ok(sounds.every(source => stopped(source, context)), boundary);
+    const beforeResume = context.sources.length;
+    if (boundary === 'mute' || boundary === 'pause') {
+      audio.handle(events);
+      assert.equal(context.sources.length, beforeResume);
+    }
+    audio.setEnabled(true);
+    audio.syncWave(null, false);
+    assert.equal(context.sources.length, beforeResume, 'unblocking does not replay old hidden-route or victory sounds');
+  }
+});
+
+test('secret and rift bursts retain pitch clamps, shared voice limits and master headroom', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  for (const [layer, expected] of [[-99, 293.66], [Infinity, 659.25], [NaN, 293.66]]) {
+    const first = context.sources.length;
+    audio.handle([{ type: 'secret_seal', layer }]);
+    assert.equal(context.sources[first].frequency.value, expected);
+  }
+  for (let i = 0; i < 100; i++) {
+    audio.handle([
+      { type: 'reward', risky: true, challenge: 'rift', tier: Infinity },
+      { type: 'rift_clear', node: 'rift' },
+      { type: 'ascension', stage: 3, to: 'exit', layer: i % 3 },
+      { type: 'resonance', stage: 3, to: 'relay', layer: i % 3 },
+      { type: 'secret_open', from: 'relay', to: 'rift', layer: i % 3 },
+      { type: 'secret_seal', stage: 1, node: 'hub', layer: i % 3 },
+    ]);
+    assert.ok(audio.voices.size <= 24);
+    assert.ok(context.sources.filter(source => !source.disconnected).length <= 48);
+    assert.equal(audio.master.gain.value, .65);
+    assert.equal(audio.compressor.threshold.value, -18);
+    assert.ok([...audio.voices].every(voice => voice.start >= context.currentTime && Number.isFinite(voice.end)));
+  }
+});

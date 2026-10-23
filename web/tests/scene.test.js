@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SceneRenderer } from '../src/scene.js';
 import { GameModel } from '../src/model.js';
-import { start, advance, travel, activateAll, openVault, seedFor } from './model-helpers.js';
+import { start, advance, travel, activateAll, openVault, seedFor, finishRoom } from './model-helpers.js';
 
 function scene(reducedMotion = false) {
   const calls = [];
@@ -226,4 +226,148 @@ test('a committed crossing cannot turn a different parallel grown bridge into a 
   renderer.setState(snapshot); renderer.drawConnections();
   assert.equal(calls.some(call => call.method === 'fill' && call.fill === '#e3f0cc'), false);
   renderer.destroy();
+});
+
+function hiddenGarden() {
+  let seed = 0;
+  while (new GameModel(seed).snapshot().roomPlan[1].id !== 'cascade') seed++;
+  const model = start('shadow', seed);
+  finishRoom(model); assert.equal(model.chooseRelic('weave'), true);
+  travel(model, 'dew', true); assert.equal(model.interact(), true);
+  assert.equal(model.useAbility('shadow'), true); travel(model, 'hub');
+  assert.equal(model.useAbility('weave'), true);
+  assert.equal(model.snapshot().hiddenRoutes.find(route => route.id === 'shadow-weave').eligible, true);
+  return model;
+}
+
+function openHiddenGarden(model) {
+  const route = model.snapshot().hiddenRoutes.find(item => item.id === 'shadow-weave');
+  for (const layer of [(route.sequence[0] + 1) % 3, ...route.sequence]) model.setW(model.snapshot().layers[layer].center);
+  assert.equal(model.snapshot().hiddenRoutes.find(item => item.id === route.id).unlocked, true);
+  return route;
+}
+
+function completeRift(model) {
+  travel(model, 'rift'); assert.equal(model.interact(), true);
+  while (model.snapshot().wave) {
+    const wave = model.snapshot().wave, safe = wave.safeLayers[0];
+    if (model.snapshot().layer === safe) model.setW(model.snapshot().layers[(safe + 1) % 3].center);
+    model.setW(model.snapshot().layers[safe].center);
+    advance(model, wave.remaining + .001);
+  }
+  assert.equal(model.snapshot().rift.status, 'cleared');
+  advance(model, 1.2);
+  assert.equal(model.snapshot().rift.ascension, 3);
+}
+
+test('sealed build routes show only hollow previews and cannot expose a shrine hit target', () => {
+  const { renderer, calls } = scene();
+  const model = start('shadow');
+  renderer.setState(model.snapshot());
+  const rift = renderer.node('rift');
+  assert.equal(rift.locked, true);
+  renderer.drawHiddenRoutes(); renderer.drawIsland(rift);
+  assert.equal(calls.some(call => call.method === 'fill'), false, 'a locked route and shrine have no filled platform');
+  assert.ok(calls.some(call => call.method === 'setLineDash' && call.args[0].length > 0));
+  assert.equal(renderer.hitTest({ clientX: rift.x, clientY: rift.y }), null);
+  const earned = hiddenGarden(); openHiddenGarden(earned);
+  renderer.setState(earned.snapshot());
+  const open = renderer.node('rift');
+  assert.equal(renderer.hitTest({ clientX: open.x, clientY: open.y })?.id, 'rift');
+  travel(earned, 'rift'); earned.interact(); renderer.setState(earned.snapshot());
+  assert.equal(renderer.hitTest({ clientX: open.x, clientY: open.y }), null, 'all routes seal during a trial');
+  renderer.destroy();
+});
+
+test('real W seal events light their entry island and secret surfaces obey layer and trial locks', () => {
+  const { renderer, calls } = scene();
+  const model = hiddenGarden();
+  model.drainEvents(); const route = openHiddenGarden(model);
+  renderer.setState(model.snapshot()); renderer.pushEvents(model.drainEvents());
+  const seals = renderer.effects.filter(effect => effect.kind === 'seal_turn');
+  assert.deepEqual(seals.map(effect => effect.layer), route.sequence);
+  assert.ok(seals.every(effect => effect.x === renderer.node('hub').x && effect.y === renderer.node('hub').y));
+  renderer.drawConnections();
+  assert.ok(calls.some(call => call.method === 'fill' && call.fill === '#e9dafa'));
+  model.setW(model.snapshot().layers[(route.edge.layer + 1) % 3].center);
+  calls.length = 0; renderer.setState(model.snapshot()); renderer.drawConnections();
+  assert.equal(calls.some(call => call.method === 'fill' && call.fill === '#e9dafa'), false);
+  travel(model, 'rift'); model.interact();
+  calls.length = 0; renderer.setState(model.snapshot()); renderer.drawConnections(); renderer.drawWave();
+  assert.equal(calls.some(call => call.method === 'fill' && call.fill === '#e9dafa'), false);
+  assert.ok(calls.some(call => call.method === 'stroke' && call.stroke === '#d36d59'));
+  renderer.destroy();
+});
+
+test('rift warning stays unsafe until a fresh supported entry and turns unsafe again after leaving', () => {
+  const model = hiddenGarden(); openHiddenGarden(model); travel(model, 'rift');
+  const safeLayer = model.snapshot().rift.sequence[0];
+  const safeW = model.snapshot().layers[safeLayer].center;
+  const otherW = model.snapshot().layers[(safeLayer + 1) % 3].center;
+  model.setW(safeW); assert.equal(model.interact(), true);
+  assert.equal(model.snapshot().wave.entered, false);
+  const { renderer, calls } = scene();
+  const color = () => {
+    calls.length = 0; renderer.setState(model.snapshot()); renderer.drawWave();
+    return calls.find(call => call.method === 'fillText').fill;
+  };
+  assert.equal(color(), '#9f4938', 'already occupying a safe slice does not satisfy the trial');
+  model.setW(.34); model.setW(safeW);
+  assert.equal(color(), '#9f4938', 'a gap excursion does not count as a new entity-layer entry');
+  model.setW(otherW); model.setW(safeW);
+  assert.equal(model.snapshot().wave.entered, true);
+  assert.equal(color(), '#247b65', 'a real supported layer entry earns the safe ring');
+  model.setW(otherW);
+  assert.equal(color(), '#9f4938', 'the earned entry flag cannot make a dangerous layer safe');
+  model.setW(.34);
+  assert.equal(color(), '#9f4938', 'a supported entry cannot make an unsupported gap safe');
+  renderer.destroy();
+});
+
+test('high-risk success permanently unfolds the shrine and gate while the physical exit still needs every mechanism', () => {
+  const model = hiddenGarden(); openHiddenGarden(model); model.drainEvents(); completeRift(model);
+  const { renderer, calls } = scene(); renderer.setState(model.snapshot()); renderer.pushEvents(model.drainEvents());
+  const ascensions = renderer.effects.filter(effect => effect.kind === 'ascension_signal');
+  assert.deepEqual(ascensions.map(effect => effect.stage), [1, 2, 3]);
+  assert.deepEqual(ascensions.map(effect => effect.to), ['hub', 'relay', 'exit'].map(id => ({ x: renderer.node(id).x, y: renderer.node(id).y })));
+  assert.deepEqual(ascensions.map(effect => effect.layer), [...model.snapshot().rift.sequence.slice(0, 2), model.snapshot().rift.exitEdge.layer]);
+  assert.equal(renderer.shake, 0); assert.equal(renderer.flash, 0);
+  const edge = model.snapshot().edges.find(item => item.kind === 'ascension');
+  assert.equal(edge.open, false, 'two mechanisms still missing after this optional route');
+  model.setW(model.snapshot().layers[edge.layer].center); renderer.setState(model.snapshot()); renderer.drawConnections();
+  assert.equal(calls.some(call => call.method === 'fill' && call.fill === '#fff0b8'), false);
+  renderer.pushEvents([{ type: 'fail', node: 'rift' }]);
+  assert.ok(renderer.effects.every(effect => !effect.celebration));
+  calls.length = 0; renderer.drawRift(renderer.node('rift'));
+  renderer.drawAscendedArchitecture(renderer.node('exit'), 86); renderer.drawAscensionCanopy();
+  assert.ok(calls.some(call => call.method === 'fill' && call.fill === '#fff1c6'), 'permanent shrine wings remain after cues clear');
+  assert.ok(calls.some(call => call.method === 'fill' && call.fill === '#ead8a4'), 'golden pillars stay raised');
+  assert.ok(calls.some(call => call.method === 'quadraticCurveTo'), 'earned canopy persists');
+  activateAll(model); model.setW(model.snapshot().layers[edge.layer].center);
+  calls.length = 0; renderer.setState(model.snapshot()); renderer.drawConnections();
+  assert.ok(calls.some(call => call.method === 'fill' && call.fill === '#fff0b8'), 'actual exit W now holds a solid ascension bridge');
+  model.setW(model.snapshot().layers[(edge.layer + 1) % 3].center);
+  calls.length = 0; renderer.setState(model.snapshot()); renderer.drawConnections();
+  assert.equal(calls.some(call => call.method === 'fill' && call.fill === '#fff0b8'), false);
+  renderer.setState(state(3)); calls.length = 0;
+  renderer.drawAscensionCanopy(); renderer.drawAscendedArchitecture(renderer.node('exit'), 86);
+  assert.equal(calls.length, 0, 'a fresh room never inherits the ascended garden');
+  renderer.destroy();
+});
+
+test('hidden-route and three-wave success cues are finite, bounded, paused and readable with reduced motion', () => {
+  const model = hiddenGarden(); model.drainEvents(); openHiddenGarden(model); completeRift(model);
+  const events = model.drainEvents().filter(event => ['secret_seal', 'secret_open', 'rift_clear', 'ascension'].includes(event.type));
+  for (const reduced of [false, true]) {
+    const { renderer } = scene(reduced); renderer.setState(model.snapshot()); renderer.pushEvents(events);
+    const before = renderer.effects.map(effect => effect.age);
+    renderer.render(0); renderer.render(0); assert.deepEqual(renderer.effects.map(effect => effect.age), before);
+    assert.equal(renderer.flash, 0); assert.equal(renderer.shake, 0);
+    if (reduced) assert.ok(renderer.particles.length <= 30);
+    for (let i = 0; i < 40; i++) renderer.pushEvents(events);
+    assert.ok(renderer.effects.length <= 36); assert.ok(renderer.particles.length <= 220);
+    for (let frame = 0; frame < 28; frame++) renderer.render(.1);
+    assert.equal(renderer.effects.length, 0); assert.equal(renderer.particles.length, 0);
+    renderer.destroy();
+  }
 });

@@ -88,7 +88,7 @@ export function createRoomPlan(seed) {
     const transforms = [];
     for (let r = 0; r < 4; r++) for (const m of [-1, 1]) {
       const candidate = { template, mapping, rotation: r, mirror: m, challenge: challenges[index] };
-      const nodes = buildRoom(candidate, [{ center: .18 }, { center: .5 }, { center: .82 }]).nodes;
+      const nodes = buildRoom(candidate, [{ center: .18 }, { center: .5 }, { center: .82 }], { includeRift: false }).nodes;
       if (layoutClearance(nodes) >= 1.05) transforms.push({ rotation: r, mirror: m });
     }
     if (!transforms.length) throw new Error(`Room ${template.id} has no readable authored layout`);
@@ -100,7 +100,7 @@ export function createRoomPlan(seed) {
 }
 export function roomMetadata(plan) { return { id: plan.template.id, name: plan.template.name, mechanic: plan.template.mechanic,
   description: plan.template.description, challengeName: plan.challenge.name, signature: plan.signature }; }
-export function buildRoom(plan, layers) {
+export function buildRoom(plan, layers, { includeRift = true } = {}) {
   const { template, mapping, rotation, mirror } = plan;
   const transform = (coords) => {
     let [x, y, z, role, name] = coords; x *= mirror;
@@ -113,8 +113,30 @@ export function buildRoom(plan, layers) {
   const nodes = ['hub', 'dew', 'bell', 'relay', 'bloom', 'exit', 'vault'].map(id => ({ id, ...transform(definitions[id]),
     kind: ['dew', 'bell', 'bloom'].includes(id) ? 'mechanism' : id,
     anchor: ['hub', 'relay', 'vault'].includes(id), required: [...(template.requires[id] || [])] }));
+  // These authored screen-space sockets preserve existing seed orientations.
+  // Pick the clearest socket, then derive XYZ from the same isometric projection.
+  if (includeRift) {
+    const sockets = [[800, 120], [200, 120], [850, 310], [150, 310], [800, 510], [200, 510], [500, 100], [500, 540]];
+    const candidates = sockets.map(([px, py]) => {
+      const y = 1.7, sum = (py - 350 + y * 50) / 27, difference = (px - 500) / 52;
+      const x = (sum + difference) / 2, z = (sum - difference) / 2, center = layers[1].center;
+      return { id: 'rift', name: '隐星台', kind: 'rift', anchor: true, required: [], layer: null, center,
+        x: 500 + (x - z) * 52, y: 350 + (x + z) * 27 - y * 50, world: { x, y, z, w: center } };
+    });
+    candidates.sort((a, b) => layoutClearance([...nodes, b]) - layoutClearance([...nodes, a]));
+    if (layoutClearance([...nodes, candidates[0]]) < 1.05) throw new Error(`Room ${template.id} has no readable hidden-route socket`);
+    nodes.push(candidates[0]);
+  }
   const edge = ([id, from, to, role, gate = {}]) => ({ id, from, to, layer: mapping[role], gate: { ...gate, active: gate.active ? [...gate.active] : undefined } });
+  const hiddenRoutes = [
+    { id: 'prism-coil', name: '棱镜回廊', requires: ['prism', 'coil'], entry: 'relay', roles: [0, 1, 2], requirement: '本庭用棱镜或线圈实际启动过机关' },
+    { id: 'shadow-weave', name: '影织暗径', requires: ['shadow', 'weave'], entry: 'hub', roles: [1, 2, 0], requirement: '本庭借机关影子远程种过桥' },
+    { id: 'shell-weave', name: '护生险径', requires: ['shell', 'weave'], entry: 'vault', roles: [2, 0, 1], requirement: '本庭已种桥，并成功躲过花匣回波' },
+  ].map(({ roles, ...route }) => ({ ...route, sequence: roles.map(role => mapping[role]), edge: edge([`secret-${route.id}`, route.entry, 'rift', roles[2]]) }));
   return { nodes, edges: [...template.edges.map(edge), edge(['hub-vault', 'hub', 'vault', 1, { active: template.vaultAfter }])],
+    hiddenRoutes,
+    rift: { sequence: [mapping[1], mapping[2], mapping[0]], duration: 2.8, steps: 3, stake: 2, reward: 9,
+      exitEdge: { id: 'ascension-rift-exit', from: 'rift', to: 'exit', layer: nodes.find(node => node.id === 'exit').layer } },
     weaves: Object.entries(template.weaveAnchors).map(([node, anchor]) => ({ node, edge: { id: `weave-${node}-${anchor}`, from: node, to: anchor, layer: nodes.find(item => item.id === node).layer } })),
     resonance: edge(['resonance-vault-relay', 'vault', 'relay', 2, { active: template.vaultAfter }]),
     shadows: template.shadows.map(shadow => ({ sources: [...shadow.sources], edge: edge(shadow.edge) })),

@@ -6,6 +6,7 @@ const COLORS = {
   mint: '#baf9df', gold: '#d79943', lightGold: '#ffedb0', danger: '#d36d59',
   stone: '#e5e8d7', edge: '#b2c5b1', darkStone: '#75988a',
   weave: '#348d70', resonance: '#b58b36', coil: '#a568b7',
+  secret: '#8563b3', ascension: '#c5942e',
 };
 const LAYER_PALETTES = [
   { color: '#378d9c', pale: '#dbf0ef', glow: '#a0f1f1', stone: '#e1e9dd', side: '#96b7ad' },
@@ -118,6 +119,7 @@ export class SceneRenderer {
     // Match the painted island top and mechanism, never its generous label box.
     return [...this.state.nodes].reverse().find(node => {
       if (!node.present || (!node.anchor && node.scale < .5)) return false;
+      if (node.id === 'rift' && (node.locked || !this.state.availableNodes.includes(node.id))) return false;
       const section = node.anchor ? 1 : node.scale;
       const rx = (node.id === 'hub' ? 112 : 81) * section;
       const ry = (node.id === 'hub' ? 60 : 52) * section;
@@ -252,6 +254,33 @@ export class SceneRenderer {
         this.addEffect('coil_arc', from, { to: { x: target.x, y: target.y }, duration: .8,
           fromLayer: this.state.layer, toLayer: event.layer, layer: event.layer, color: COLORS.coil });
         this.addEffect('section', target, { duration: .9, radius: 95, color: this.palette(event.layer).color });
+      } else if (event.type === 'secret_seal') {
+        const entry = this.node(event.from) || target;
+        this.addEffect('seal_turn', entry, { duration: .7, stage: event.stage, layer: event.layer, color: this.palette(event.layer).color });
+        this.addEffect('section', entry, { duration: .55, radius: 65, color: this.palette(event.layer).color });
+      } else if (event.type === 'secret_open') {
+        const entry = this.node(event.from) || target;
+        this.addEffect('astral_bridge', entry, { to: { x: target.x, y: target.y }, duration: 1.45,
+          edgeId: event.edgeId, layer: event.layer, color: COLORS.secret, celebration: true });
+        this.addEffect('rift_unfold', target, { delay: .22, duration: 1.55, tier: 1, color: COLORS.secret, celebration: true });
+        this.burst(target, '#dfceff', 28, .75, { delay: .22, celebration: true });
+      } else if (event.type === 'rift_clear') {
+        this.addEffect('gather', target, { duration: .25, radius: 100, color: COLORS.ascension, celebration: true });
+        this.addEffect('rift_unfold', target, { delay: .2, duration: 2.2, tier: 3, color: COLORS.ascension, celebration: true });
+        this.burst(target, COLORS.lightGold, 54, 1.25, { delay: .22, celebration: true });
+      } else if (event.type === 'ascension') {
+        const source = this.node(event.from) || this.node('rift') || target;
+        this.addEffect('ascension_signal', source, { to: { x: target.x, y: target.y }, duration: 1.25,
+          fromLayer: this.state.layer, toLayer: event.layer, layer: event.layer, stage: event.stage,
+          color: this.palette(event.layer).color, celebration: true });
+        this.addEffect('pillar_wake', target, { delay: .28, duration: 1.4, stage: event.stage,
+          layer: event.layer, color: COLORS.ascension, celebration: true });
+        this.burst(target, this.palette(event.layer).glow, 16 + event.stage * 4, .8, { delay: .28, celebration: true });
+        if (event.stage === 3) {
+          const edge = this.connections().find(item => item.id === event.edgeId);
+          if (edge) this.addEffect('astral_bridge', edge.a, { to: { x: edge.b.x, y: edge.b.y }, duration: 1.8,
+            edgeId: edge.id, layer: edge.layer, color: COLORS.ascension, celebration: true });
+        }
       } else if (event.type === 'chain') {
         const from = this.node(event.from) || target;
         const to = this.node(event.to) || this.node('exit') || target;
@@ -329,9 +358,11 @@ export class SceneRenderer {
     }
     this.drawBackground();
     if (this.state) {
+      this.drawAscensionCanopy();
       this.drawSliceVolumes();
       this.drawDependencies();
       this.drawDormantGrowth();
+      this.drawHiddenRoutes();
       this.drawConnections();
       const nodes = [...this.state.nodes].sort((a, b) => a.y - b.y);
       for (const node of nodes) this.drawIsland(node);
@@ -413,6 +444,157 @@ export class SceneRenderer {
     ctx.restore();
   }
 
+  drawHiddenRoutes() {
+    const ctx = this.ctx;
+    for (const route of this.state.hiddenRoutes || []) {
+      if (route.unlocked) continue;
+      const a = this.node(route.edge.from), b = this.node(route.edge.to);
+      if (!a || !b) continue;
+      const current = this.state.layer === route.edge.layer;
+      // Empty glyphs and broken threads are a promise, never a stone bridge.
+      ctx.save(); ctx.globalAlpha = route.eligible ? current ? .4 : .22 : .11;
+      ctx.setLineDash([1, 15]);
+      line(ctx, a.x, a.y + 7, b.x, b.y + 7, COLORS.secret, route.eligible ? 1.7 : 1);
+      ctx.setLineDash([]);
+      for (const fraction of [.36, .64]) {
+        const x = mix(a.x, b.x, fraction), y = mix(a.y, b.y, fraction);
+        diamond(ctx, x, y, 7, null, COLORS.secret);
+        line(ctx, x - 10, y + 11, x + 10, y - 11, COLORS.secret, 1);
+      }
+      ctx.restore();
+    }
+  }
+
+  drawSecretSeals(node, width, height) {
+    const route = (this.state.hiddenRoutes || []).find(item => item.entry === node.id);
+    if (!route) return;
+    const ctx = this.ctx, sequence = route.sequence || [];
+    const x = width * .65, y = -height * .45;
+    ctx.save(); ctx.translate(x, y);
+    ctx.globalAlpha = route.unlocked ? .95 : route.eligible ? 1 : .35;
+    ellipse(ctx, 0, -21, 23, 32, null, route.unlocked ? COLORS.ascension : COLORS.secret, route.eligible ? 2 : 1);
+    line(ctx, -9, 12, -9, -49, COLORS.secret, 1);
+    line(ctx, 9, 12, 9, -49, COLORS.secret, 1);
+    for (let i = 0; i < 3; i++) {
+      const layer = sequence[i] ?? route.edge.layer;
+      const complete = route.unlocked || i < route.progress;
+      const next = route.eligible && !route.unlocked && i === route.progress;
+      const cy = -42 + i * 21;
+      diamond(ctx, 0, cy, next ? 10 : 8, complete ? this.palette(layer).glow : '#edf1e5', this.palette(layer).color);
+      if (complete) {
+        line(ctx, -3, cy, 0, cy + 3, this.palette(layer).color, 1.7);
+        line(ctx, 0, cy + 3, 4, cy - 4, this.palette(layer).color, 1.7);
+      }
+      for (let pip = 0; pip <= layer; pip++) ellipse(ctx, 16 + pip * 4, cy, 1.4, 1.4, this.palette(layer).color);
+      if (next) ellipse(ctx, 0, cy, 14, 14, null, this.palette(layer).color, 1.3);
+    }
+    ctx.restore();
+  }
+
+  drawAscensionCanopy() {
+    const stage = this.state.rift?.ascension || 0;
+    const shrine = this.node('rift');
+    if (!stage || !shrine) return;
+    const ctx = this.ctx;
+    // This suspended canopy persists in the model's earned state. Its arcs sit
+    // above the islands; only drawConnections ever paints a walkable surface.
+    ctx.save();
+    for (let i = 0; i < stage; i++) {
+      const target = this.node(['hub', 'relay', 'exit'][i]);
+      if (!target) continue;
+      const top = Math.max(27, Math.min(shrine.y, target.y) - 135 - i * 10);
+      const layer = i === 2 ? this.state.rift.exitEdge.layer : this.state.rift.sequence?.[i] ?? i;
+      const color = this.palette(layer).color;
+      ctx.globalAlpha = .12;
+      ctx.beginPath(); ctx.moveTo(shrine.x, shrine.y - 65);
+      ctx.quadraticCurveTo(mix(shrine.x, target.x, .5), top, target.x, target.y - 82);
+      ctx.strokeStyle = color; ctx.lineWidth = 13; ctx.stroke();
+      ctx.globalAlpha = .43;
+      ctx.lineWidth = 1.5; ctx.stroke();
+      for (let star = 1; star < 8; star++) {
+        const t = star / 8;
+        const x = mix(shrine.x, target.x, t);
+        const y = (1 - t) ** 2 * (shrine.y - 65) + 2 * (1 - t) * t * top + t ** 2 * (target.y - 82);
+        const float = this.reducedMotion ? 0 : Math.sin(this.time * .45 + star + i) * 1.5;
+        diamond(ctx, x, y + float, star % 2 ? 4 : 2.6, this.palette(layer).glow, color);
+      }
+    }
+    ctx.restore();
+  }
+
+  drawAscendedArchitecture(node, width) {
+    const stage = this.state.rift?.ascension || 0;
+    const required = { hub: 1, relay: 2, exit: 3 }[node.id];
+    if (!required || stage < required) return;
+    const ctx = this.ctx, height = Math.min(node.id === 'exit' ? 101 : 74, node.y - 43);
+    const sideX = width * .72;
+    for (const side of [-1, 1]) {
+      const x = side * sideX;
+      path(ctx, [[x - 8, 13], [x - 6, -height], [x + 6, -height], [x + 9, 13], [x, 19]]);
+      ctx.fillStyle = '#ead8a4'; ctx.fill(); ctx.strokeStyle = COLORS.ascension; ctx.lineWidth = 1.6; ctx.stroke();
+      line(ctx, x - 3, 7, x - 3, -height + 8, '#fff9dd', 2.8);
+      for (let i = 0; i < 3; i++) {
+        ellipse(ctx, x, -height + 16 + i * 16, 11, 5.5, null, this.palette(i).color, 1.5);
+      }
+      const layer = required === 3 ? this.state.rift.exitEdge.layer : this.state.rift.sequence?.[required - 1] ?? required - 1;
+      diamond(ctx, x, -height - 6, 12, this.palette(layer).glow, COLORS.ascension);
+    }
+    ctx.beginPath(); ctx.moveTo(-sideX, -height + 1);
+    ctx.quadraticCurveTo(0, -height - 38, sideX, -height + 1);
+    ctx.strokeStyle = COLORS.ascension; ctx.lineWidth = node.id === 'exit' ? 5 : 2.2; ctx.stroke();
+    if (node.id === 'exit') {
+      ctx.beginPath(); ctx.moveTo(-sideX + 4, -height + 6); ctx.quadraticCurveTo(0, -height - 25, sideX - 4, -height + 6);
+      ctx.strokeStyle = '#fff4c6'; ctx.lineWidth = 2; ctx.stroke();
+      diamond(ctx, 0, -height - 18, 15, '#fff3b5', COLORS.ascension);
+    }
+  }
+
+  drawRiftSilhouette(node) {
+    const ctx = this.ctx;
+    ctx.save(); ctx.translate(node.x, node.y); ctx.globalAlpha = .3;
+    ctx.setLineDash([3, 10]);
+    ellipse(ctx, 0, 0, 77, 40, null, COLORS.secret, 1.5);
+    ellipse(ctx, 0, -43, 34, 44, null, COLORS.secret, 1.5);
+    for (const side of [-1, 1]) line(ctx, side * 53, 0, side * 27, -68, COLORS.secret, 1);
+    ctx.setLineDash([]);
+    diamond(ctx, 0, -43, 13, null, COLORS.secret);
+    line(ctx, -7, -50, 7, -36, COLORS.secret, 1.5); line(ctx, 7, -50, -7, -36, COLORS.secret, 1.5);
+    ctx.restore();
+  }
+
+  drawRift(node) {
+    const ctx = this.ctx, stage = this.state.rift?.ascension || 0;
+    const awakened = stage > 0;
+    const danger = this.state.wave?.node === node.id;
+    const color = danger ? COLORS.danger : awakened ? COLORS.ascension : COLORS.secret;
+    ellipse(ctx, 0, 4, 53, 28, '#ddd2e4', color, 2);
+    ellipse(ctx, 0, 1, 43, 22, '#eee5f0', '#fffaf2', 2);
+    for (let i = 0; i < 3; i++) {
+      const x = (i - 1) * (awakened ? 42 : 24), height = awakened ? Math.min(77, node.y - 30) - Math.abs(i - 1) * 17 : 48;
+      path(ctx, [[x - 6, 0], [x - 5, -height], [x, -height - 9], [x + 5, -height], [x + 6, 0]]);
+      ctx.fillStyle = awakened ? '#ead8a4' : '#c8bbd7'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+      diamond(ctx, x, -height - 12, awakened ? 10 : 7, this.palette(i).glow, this.palette(i).color);
+    }
+    // Three intersecting section rings become a much larger permanent halo.
+    const haloY = awakened ? -Math.min(52, node.y * .23) : -35;
+    const haloHeight = awakened ? Math.min(79, node.y + haloY - 12) : 37;
+    for (let i = 0; i < 3; i++) {
+      ctx.save(); ctx.translate(0, haloY); ctx.rotate((i - 1) * .78);
+      ellipse(ctx, 0, 0, awakened ? haloHeight * .74 : 27, haloHeight, null, this.palette(i).color, awakened ? 2.5 : 1.4);
+      const phase = this.reducedMotion ? -.7 + i : this.time * .18 + i * 2;
+      diamond(ctx, Math.cos(phase) * (awakened ? haloHeight * .74 : 27), Math.sin(phase) * haloHeight, awakened ? 6 : 3, this.palette(i).glow, this.palette(i).color);
+      ctx.restore();
+    }
+    if (awakened) {
+      for (const side of [-1, 1]) {
+        path(ctx, [[side * 35, -9], [side * 89, -46], [side * 69, -7], [side * 40, 10]]);
+        ctx.fillStyle = '#fff1c6'; ctx.fill(); ctx.strokeStyle = COLORS.ascension; ctx.lineWidth = 1.7; ctx.stroke();
+        line(ctx, side * 42, -2, side * 77, -31, '#d8bc6e', 2);
+      }
+      diamond(ctx, 0, haloY, 20, '#fff8d2', COLORS.ascension);
+    } else diamond(ctx, 0, -35, 12, danger ? '#f1bcac' : '#e5d0fa', color);
+  }
+
   drawVine(from, to, color, width = 2, leaves = 5) {
     const ctx = this.ctx, dx = to.x - from.x, dy = to.y - from.y, length = Math.hypot(dx, dy);
     if (length < 1) return;
@@ -432,6 +614,7 @@ export class SceneRenderer {
 
   bridgeColor(edge) {
     return edge.kind === 'weave' ? COLORS.weave : edge.kind === 'resonance' ? COLORS.resonance
+      : edge.kind === 'secret' ? COLORS.secret : edge.kind === 'ascension' ? COLORS.ascension
       : edge.kind === 'vault' ? COLORS.danger : edge.kind === 'shadow' ? '#9c78ba' : this.palette(edge.layer).color;
   }
 
@@ -469,6 +652,7 @@ export class SceneRenderer {
       const solid = edge.open && fits || traversing;
       const color = this.bridgeColor(edge);
       const grown = ['weave', 'resonance'].includes(edge.kind);
+      const astral = ['secret', 'ascension'].includes(edge.kind);
       const dx = b.x - a.x, dy = b.y - a.y;
       const distance = Math.hypot(dx, dy);
       if (distance < 1) continue;
@@ -486,7 +670,9 @@ export class SceneRenderer {
           const vx = dx / distance * length, vy = dy / distance * length;
           ctx.globalAlpha = relevant ? .95 : .7;
           path(ctx, [[x + nx * width - vx, y + ny * width - vy], [x + nx * width + vx, y + ny * width + vy], [x - nx * width + vx, y - ny * width + vy], [x - nx * width - vx, y - ny * width - vy]]);
-          ctx.fillStyle = grown ? edge.kind === 'weave' ? '#e3f0cc' : '#f9eab6' : '#f7f4e5'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = relevant ? 1.5 : .8; ctx.stroke();
+          ctx.fillStyle = astral ? edge.kind === 'secret' ? '#e9dafa' : '#fff0b8'
+            : grown ? edge.kind === 'weave' ? '#e3f0cc' : '#f9eab6' : '#f7f4e5';
+          ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = relevant ? 1.5 : .8; ctx.stroke();
           if (grown && i % 2 === 0) {
             for (const side of [-1, 1]) {
               const px = x + nx * width * side, py = y + ny * width * side;
@@ -494,6 +680,9 @@ export class SceneRenderer {
             }
           }
           if (relevant && i % 2 === 0) diamond(ctx, x, y, 2.2, color);
+          if (astral && i % 3 === 0) {
+            for (const side of [-1, 1]) diamond(ctx, x + nx * 17 * side, y + ny * 17 * side - 6, 7, '#fffaf0', color);
+          }
         }
         if (grown) {
           ctx.globalAlpha = relevant ? .95 : .75;
@@ -501,6 +690,14 @@ export class SceneRenderer {
             { x: b.x + nx * 14 * side, y: b.y + ny * 14 * side }, color, 2.2, 5);
           const midpoint = { x: mix(a.x, b.x, .5), y: mix(a.y, b.y, .5) };
           for (let pip = 0; pip <= edge.layer; pip++) ellipse(ctx, midpoint.x + (pip - edge.layer / 2) * 7, midpoint.y - 18, 2, 2, this.palette(edge.layer).color);
+        }
+        if (astral) {
+          ctx.globalAlpha = relevant ? .9 : .64;
+          for (const side of [-1, 1]) {
+            line(ctx, a.x + nx * 17 * side, a.y + ny * 17 * side, b.x + nx * 17 * side, b.y + ny * 17 * side, color, edge.kind === 'ascension' ? 3 : 1.8);
+          }
+          const x = mix(a.x, b.x, .5), y = mix(a.y, b.y, .5);
+          for (let pip = 0; pip <= edge.layer; pip++) diamond(ctx, x + (pip - edge.layer / 2) * 9, y - 23, 3.2, this.palette(edge.layer).glow, color);
         }
       }
       if (relevant && solid) {
@@ -574,12 +771,17 @@ export class SceneRenderer {
       // Actual mirrored room geometry appears on each W plane, including its bridges.
       for (const edge of this.connections().filter(edge => edge.layer === i && edge.open)) {
         const a = at(edge.a, i), b = at(edge.b, i);
-        const grown = ['weave', 'resonance'].includes(edge.kind);
+        const grown = ['weave', 'resonance', 'secret', 'ascension'].includes(edge.kind);
         line(ctx, a.x, a.y, b.x, b.y, grown ? this.bridgeColor(edge) : color, grown ? 2.3 : .75);
         if (grown) diamond(ctx, mix(a.x, b.x, .5), mix(a.y, b.y, .5), 2.7, this.bridgeColor(edge));
       }
       for (const node of s.nodes.filter(node => node.anchor || node.layer === i)) {
         const point = at(node, i);
+        if (node.id === 'rift') {
+          diamond(ctx, point.x, point.y, node.locked ? 2.6 : 4, node.locked ? null : this.palette(i).glow,
+            s.rift?.ascension ? COLORS.ascension : COLORS.secret);
+          continue;
+        }
         ellipse(ctx, point.x, point.y, node.anchor ? 2 : 2.6, node.anchor ? 1.3 : 2.6,
           node.anchor || s.activated.includes(node.id) ? color : this.palette(i).pale, color, .8);
         if (s.coilArmed?.includes(node.id) && node.layer === i) this.drawCoilMark(point.x, point.y, 5, COLORS.coil);
@@ -597,7 +799,7 @@ export class SceneRenderer {
     for (const effect of this.effects) {
       if (effect.age < (effect.delay || 0)) continue;
       const p = clamp((effect.age - (effect.delay || 0)) / effect.duration);
-      if (effect.kind === 'power' || effect.kind === 'coil_arc') {
+      if (effect.kind === 'power' || effect.kind === 'coil_arc' || effect.kind === 'ascension_signal') {
         const from = at(effect, effect.fromLayer), to = at(effect.to, effect.toLayer);
         ctx.globalAlpha = 1 - p;
         line(ctx, from.x, from.y, to.x, to.y, effect.color, 2);
@@ -648,8 +850,19 @@ export class SceneRenderer {
     const ctx = this.ctx, p = clamp(1 - wave.remaining / wave.duration);
     const danger = wave.dangerLayers || [wave.layer];
     const safe = (wave.safeLayers || s.layers.map((_, i) => i).filter(i => !danger.includes(i)))
-      .some(layer => Math.abs(s.w - s.layers[layer].center) <= .16 * Math.sqrt(.75) + 1e-9);
+      .some(layer => Math.abs(s.w - s.layers[layer].center) <= .16 * Math.sqrt(.75) + 1e-9)
+      && (wave.variant !== 'rift' || wave.entered);
     ctx.save(); ctx.translate(node.x, node.y);
+    if (wave.variant === 'rift') {
+      // Separate the high-stakes shrine warning from a chest wave with four
+      // fixed teeth. Layer rings and the countdown remain the safety authority.
+      for (const side of [-1, 1]) {
+        for (const height of [-55, 35]) {
+          path(ctx, [[side * 115, height - 18], [side * 103, height], [side * 115, height + 18]]);
+          ctx.strokeStyle = COLORS.danger; ctx.lineWidth = 3; ctx.stroke();
+        }
+      }
+    }
     const radius = this.reducedMotion ? 108 : 35 + 160 * (1 - p);
     for (const layer of danger) {
       const lift = (s.layers[layer].center - s.w) * 85;
@@ -677,6 +890,7 @@ export class SceneRenderer {
 
   drawIsland(node) {
     const ctx = this.ctx, s = this.state;
+    if (node.id === 'rift' && node.locked) { this.drawRiftSilhouette(node); return; }
     const hub = node.id === 'hub', exit = node.id === 'exit';
     const section = node.anchor ? 1 : clamp(node.scale);
     if (section <= .01) return;
@@ -735,11 +949,14 @@ export class SceneRenderer {
     // The rim belongs to this W section, making the same XYZ visibly change material.
     ellipse(ctx, 0, 1, width * .82, height * .76, null, palette.color + '60', 1.5);
     this.drawGardenGrowth(node, width, height);
+    this.drawAscendedArchitecture(node, width);
     if (hub) this.drawHub();
     else if (exit) this.drawGate(node);
     else if (node.id === 'relay') this.drawAnchor();
     else if (node.id === 'vault') this.drawVault(node);
+    else if (node.id === 'rift') this.drawRift(node);
     else { this.drawMechanism(node, active); this.drawInputSlots(node); }
+    this.drawSecretSeals(node, width, height);
     if (node.powered && !active && !node.locked && !node.anchor) {
       const h = node.id === 'bell' ? -74 : -54;
       diamond(ctx, 0, h, 7, palette.glow, palette.color);
@@ -1108,9 +1325,70 @@ export class SceneRenderer {
       if (effect.age < (effect.delay || 0)) continue;
       const p = clamp((effect.age - (effect.delay || 0)) / effect.duration);
       const e = this.reducedMotion ? .7 : ease(p);
-      if (foreground !== ['pulse', 'power', 'section', 'crown', 'shield', 'bank', 'break', 'gather', 'value', 'collect', 'bridge_echo', 'growth_signal', 'root_growth', 'coil_arc'].includes(effect.kind)) continue;
+      if (foreground !== ['pulse', 'power', 'section', 'crown', 'shield', 'bank', 'break', 'gather', 'value', 'collect', 'bridge_echo', 'growth_signal', 'root_growth', 'coil_arc', 'seal_turn', 'ascension_signal', 'astral_bridge'].includes(effect.kind)) continue;
       ctx.save(); ctx.globalAlpha = (1 - p) ** .7;
-      if (effect.kind === 'growth_signal') {
+      if (effect.kind === 'seal_turn') {
+        const radius = this.reducedMotion ? 42 : 24 + e * 55;
+        ellipse(ctx, effect.x, effect.y - 23, radius, radius * .65, null, effect.color, 2.4);
+        for (let i = 0; i < 3; i++) {
+          const angle = i * TAU / 3 - Math.PI / 2 + (this.reducedMotion ? 0 : p * .3);
+          diamond(ctx, effect.x + Math.cos(angle) * radius, effect.y - 23 + Math.sin(angle) * radius * .65,
+            i < effect.stage ? 7 : 4, i < effect.stage ? this.palette(effect.layer).glow : null, effect.color);
+        }
+      } else if (effect.kind === 'rift_unfold') {
+        const expand = this.reducedMotion ? .8 : ease(p);
+        const centerY = effect.y - Math.min(39, effect.y * .2);
+        const radius = Math.min((effect.tier === 3 ? 66 : 43) + expand * (effect.tier === 3 ? 70 : 40), centerY - 10);
+        for (let i = 0; i < 3; i++) {
+          ctx.save(); ctx.translate(effect.x, centerY); ctx.rotate((i - 1) * .8);
+          ellipse(ctx, 0, 0, radius * .55, radius, null, this.palette(i).color, effect.tier === 3 ? 3 : 1.7);
+          diamond(ctx, 0, -radius, 8, this.palette(i).glow, this.palette(i).color);
+          ctx.restore();
+        }
+        if (effect.tier === 3) for (const side of [-1, 1]) {
+          const x = effect.x + side * radius, y = effect.y - 35;
+          path(ctx, [[effect.x + side * 25, effect.y], [x, y - 52], [x - side * 20, y + 7], [effect.x + side * 38, effect.y + 10]]);
+          ctx.globalAlpha = (1 - p) * .38; ctx.fillStyle = '#fff2c9'; ctx.fill();
+          ctx.strokeStyle = effect.color; ctx.lineWidth = 2; ctx.stroke();
+        }
+      } else if (effect.kind === 'ascension_signal') {
+        const top = Math.max(25, Math.min(effect.y, effect.to.y) - 135);
+        const curve = t => ({ x: mix(effect.x, effect.to.x, t),
+          y: (1 - t) ** 2 * (effect.y - 45) + 2 * (1 - t) * t * top + t ** 2 * (effect.to.y - 65) });
+        ctx.beginPath(); ctx.moveTo(effect.x, effect.y - 45);
+        ctx.quadraticCurveTo(mix(effect.x, effect.to.x, .5), top, effect.to.x, effect.to.y - 65);
+        ctx.strokeStyle = effect.color + '55'; ctx.lineWidth = 7; ctx.stroke();
+        ctx.strokeStyle = effect.color; ctx.lineWidth = 1.6; ctx.stroke();
+        for (let i = 0; i < (this.reducedMotion ? 3 : 7); i++) {
+          const at = curve(this.reducedMotion ? (i + 1) / 4 : clamp(p * 1.45 - i * .055));
+          diamond(ctx, at.x, at.y, 8 - i * .7, this.palette(effect.layer).glow, effect.color);
+        }
+      } else if (effect.kind === 'pillar_wake') {
+        const height = this.reducedMotion ? 85 : 35 + ease(p) * 110;
+        for (const side of [-1, 1]) {
+          const x = effect.x + side * 53;
+          ctx.globalAlpha = (1 - p) * .45;
+          path(ctx, [[x - 12, effect.y + 10], [x - 5, effect.y - height], [x + 5, effect.y - height], [x + 12, effect.y + 10]]);
+          ctx.fillStyle = this.palette(effect.layer).glow; ctx.fill();
+          ctx.globalAlpha = 1 - p;
+          line(ctx, x, effect.y + 10, x, effect.y - height, effect.color, 2.2);
+          diamond(ctx, x, effect.y - height, 12, COLORS.lightGold, effect.color);
+        }
+        ellipse(ctx, effect.x, effect.y, 40 + e * 69, 23 + e * 35, null, effect.color, 2);
+      } else if (effect.kind === 'astral_bridge') {
+        const edge = this.connections().find(item => item.id === effect.edgeId);
+        if (edge?.open) {
+          const t = this.reducedMotion ? 1 : ease(p);
+          ctx.globalAlpha *= edge.visible ? .95 : .23;
+          const head = { x: mix(effect.x, effect.to.x, t), y: mix(effect.y, effect.to.y, t) };
+          line(ctx, effect.x, effect.y, head.x, head.y, effect.color, 3.5);
+          if (edge.visible) for (let i = 0; i < 5; i++) {
+            const at = clamp(t - i * .08);
+            diamond(ctx, mix(effect.x, effect.to.x, at), mix(effect.y, effect.to.y, at) - 10,
+              11 - i, this.palette(effect.layer).glow, effect.color);
+          }
+        }
+      } else if (effect.kind === 'growth_signal') {
         const t = this.reducedMotion ? 1 : ease(p);
         const x = mix(effect.x, effect.to.x, t), y = mix(effect.y, effect.to.y, t) - Math.sin(t * Math.PI) * 35;
         ctx.beginPath(); ctx.moveTo(effect.x, effect.y); ctx.quadraticCurveTo(mix(effect.x, effect.to.x, .5), Math.min(effect.y, effect.to.y) - 45, effect.to.x, effect.to.y);

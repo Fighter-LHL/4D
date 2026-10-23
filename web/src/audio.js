@@ -2,7 +2,7 @@
 // no deferred replay of events that occurred before the player's first gesture.
 const MAX_VOICES = 24;
 const NOTE = { D2: 73.42, D3: 146.83, A3: 220, B3: 246.94, D4: 293.66, E4: 329.63, Fs4: 369.99, A4: 440, B4: 493.88, D5: 587.33, E5: 659.25, Fs5: 739.99, A5: 880, B5: 987.77, D6: 1174.66 };
-const PAN = { dew: -.6, bell: -.6, relay: -.25, bloom: .35, vault: .6, hub: 0, exit: -.12 };
+const PAN = { dew: -.6, bell: -.6, relay: -.25, bloom: .35, vault: .6, rift: .72, hub: 0, exit: -.12 };
 // The same three sound colors recur on shifts, transfers and received power.
 // A layer cue is orientation feedback, deliberately quieter than a reward.
 const LAYER = [
@@ -14,6 +14,7 @@ const WARNING_BEATS = {
   single: [0, .26, .5, .71, .85, .94],
   chase: [0, .24, .44, .62, .77, .89, .96],
   lock: [0, .19, .36, .56, .72, .85, .94],
+  rift: [0, .18, .35, .51, .66, .79, .9, .96],
 };
 
 export class GameAudio {
@@ -84,11 +85,16 @@ export class GameAudio {
       if (!event || typeof event.type !== 'string') continue;
       // These sounds describe geometry/power already committed by the model.
       // A later stumble cancels reward music, but cannot undo the grown bridge.
-      if (event.type === 'fail') this._cancel(['power', 'growth', 'weave', 'coil']);
+      if (event.type === 'fail') this._cancel(['power', 'growth', 'weave', 'coil', 'secret_seal', 'secret_open', 'ascension']);
       if (['lose', 'restart', 'room'].includes(event.type)) this._cancel();
-      if (['fail', 'lose', 'restart', 'room', 'dodge', 'evade', 'shield'].includes(event.type)) this.waveCue = null;
-      if (['warning', 'dodge', 'evade', 'shield'].includes(event.type)) this._cancelGroup('warning');
-      if (event.type === 'warning') this.waveCue = null;
+      if (['fail', 'lose', 'restart', 'room', 'dodge', 'evade', 'shield', 'rift_clear'].includes(event.type)) this.waveCue = null;
+      if (['warning', 'dodge', 'evade', 'shield', 'rift_clear'].includes(event.type)) this._cancelGroup('warning');
+      if (event.type === 'warning') {
+        this.waveCue = null;
+        // A fresh threat owns the foreground. Previously earned geometry may
+        // finish its quiet physical cue, but reward flourishes cannot mask it.
+        for (const group of ['reward', 'celebration', 'dodge', 'rift_release']) this._cancelGroup(group);
+      }
       // Stop even a throttled old shift: it must never describe a layer the
       // player has already left. Transfers replace its light orientation cue.
       if (['layer_shift', 'phase_transfer'].includes(event.type)) this._cancelGroup('layer');
@@ -148,6 +154,42 @@ export class GameAudio {
           this._cancelGroup('coil');
           this._tone(layer.note * 2, now, .19, .052, pan, 'glass', null, 'coil');
           break;
+        case 'secret_seal':
+          // The ritual is played by actual W entries, one note at a time. A
+          // stalled or failed sequence cannot finish itself on the audio clock.
+          this._cancelGroup('secret_seal');
+          this._tone(layer.note, now, .29, .068, pan, layer.kind, null, 'secret_seal');
+          this._air(now, .1, .031, pan, layer.air, 'secret_seal');
+          break;
+        case 'secret_open':
+          this._cancelGroup('secret_seal');
+          this._cancelGroup('secret_open');
+          this._tone(NOTE.D3, now, .43, .073, PAN[event.from] ?? 0, 'soft', NOTE.D4, 'secret_open');
+          this._tone(layer.note, now + .04, .46, .047, pan, 'glass', null, 'secret_open');
+          this._air(now, .28, .069, pan, 850, 'secret_open');
+          break;
+        case 'rift_clear':
+          // The reward event owns the single victory motif. This event only
+          // releases the last warning with a broad, unpitched exhale.
+          this._air(now, .25, .072, 0, 2400, 'rift_release');
+          break;
+        case 'ascension':
+          this._cancelGroup('ascension');
+          if (event.stage === 1) {
+            this._tone(NOTE.D3, now, .37, .066, pan, 'soft', NOTE.A3, 'ascension');
+            this._air(now, .27, .055, pan, 740, 'ascension');
+          } else if (event.stage === 2) {
+            this._tone(layer.note / 2, now, .39, .063, pan, 'soft', layer.note, 'ascension');
+            this._tone(NOTE.A5, now, .36, .036, -pan, 'glass', null, 'ascension');
+            this._air(now, .3, .064, pan, 1900, 'ascension');
+          } else if (event.stage === 3) {
+            // The physically completed bridge provides the final resolution.
+            // This chord has no second arpeggio and only starts on its event.
+            this._cadence(now, 1.12, .064, .66, 'ascension');
+            this._tone(NOTE.D6, now, .91, .037, pan, 'glass', null, 'ascension');
+            this._air(now, .32, .065, 0, 2800, 'ascension');
+          }
+          break;
         case 'warning':
           // syncWave drives short beats from model time, never wall-clock time.
           break;
@@ -180,6 +222,10 @@ export class GameAudio {
             this._tone(NOTE.A4, now + .055, .22, .035, -pan, 'soft');
             break;
           }
+          if (event.challenge === 'rift') {
+            this._riftReward(now, pan);
+            break;
+          }
           this._riskReward(now, tier, pan, event.challenge === 'vault');
           break;
         }
@@ -203,15 +249,15 @@ export class GameAudio {
           break;
         }
         case 'unlock':
-          this._tone(NOTE.D3, now, .9, .15, 0, 'soft');
-          this._arpeggio([NOTE.D4, NOTE.A4, NOTE.D5, NOTE.Fs5, NOTE.A5, NOTE.D6], now, .075, .1, pan);
-          this._air(now + .15, .32, .095, 0, 2200);
+          this._tone(NOTE.D3, now, .9, .15, 0, 'soft', null, 'celebration');
+          this._arpeggio([NOTE.D4, NOTE.A4, NOTE.D5, NOTE.Fs5, NOTE.A5, NOTE.D6], now, .075, .1, pan, 'celebration');
+          this._air(now + .15, .32, .095, 0, 2200, 'celebration');
           break;
         case 'bank':
           // A compact cadence distinguishes securing currency from earning it.
-          this._arpeggio([NOTE.A4, NOTE.Fs5, NOTE.D5], now, .09, .095, 0);
-          this._tone(NOTE.D3, now + .18, .7, .13, 0, 'soft');
-          this._tone(NOTE.A4, now + .18, .55, .055, -.18, 'soft');
+          this._arpeggio([NOTE.A4, NOTE.Fs5, NOTE.D5], now, .09, .095, 0, 'celebration');
+          this._tone(NOTE.D3, now + .18, .7, .13, 0, 'soft', null, 'celebration');
+          this._tone(NOTE.A4, now + .18, .55, .055, -.18, 'soft', null, 'celebration');
           break;
         case 'fail':
           this._tone(NOTE.B3, now, .36, .12, pan, 'soft', NOTE.D3);
@@ -237,22 +283,22 @@ export class GameAudio {
           break;
         case 'room':
           if (event.completed) {
-            this._tone(NOTE.D2, now, .68, .11, 0, 'soft');
-            this._arpeggio([NOTE.A4, NOTE.D5, NOTE.Fs5, NOTE.A5], now + .025, .065, .067, 0);
-            this._cadence(now + .29, .82, .061, .36);
-            this._air(now + .06, .23, .055, 0, 2100);
+            this._tone(NOTE.D2, now, .68, .11, 0, 'soft', null, 'celebration');
+            this._arpeggio([NOTE.A4, NOTE.D5, NOTE.Fs5, NOTE.A5], now + .025, .065, .067, 0, 'celebration');
+            this._cadence(now + .29, .82, .061, .36, 'celebration');
+            this._air(now + .06, .23, .055, 0, 2100, 'celebration');
           } else {
-            this._arpeggio([NOTE.D4, NOTE.A4, NOTE.D5], now, .12, .065, 0);
+            this._arpeggio([NOTE.D4, NOTE.A4, NOTE.D5], now, .12, .065, 0, 'celebration');
           }
           break;
         case 'win':
           this._cancel();
-          this._tone(NOTE.D2, now, .8, .13, 0, 'soft', NOTE.D2 * .75);
-          this._tone(NOTE.D3, now, 1.1, .09, 0, 'soft');
-          this._arpeggio([NOTE.D4, NOTE.Fs4, NOTE.A4, NOTE.D5, NOTE.Fs5, NOTE.A5, NOTE.D6], now + .035, .08, .075, 0);
-          this._cadence(now + .61, 1.2, .075, .55);
-          this._tone(NOTE.D6, now + .65, .9, .033, 0, 'glass');
-          this._air(now + .18, .34, .075, 0, 2700);
+          this._tone(NOTE.D2, now, .8, .13, 0, 'soft', NOTE.D2 * .75, 'celebration');
+          this._tone(NOTE.D3, now, 1.1, .09, 0, 'soft', null, 'celebration');
+          this._arpeggio([NOTE.D4, NOTE.Fs4, NOTE.A4, NOTE.D5, NOTE.Fs5, NOTE.A5, NOTE.D6], now + .035, .08, .075, 0, 'celebration');
+          this._cadence(now + .61, 1.2, .075, .55, 'celebration');
+          this._tone(NOTE.D6, now + .65, .9, .033, 0, 'glass', null, 'celebration');
+          this._air(now + .18, .34, .075, 0, 2700, 'celebration');
           break;
         case 'lose':
           this._tone(NOTE.D4, now, .7, .105, 0, 'soft', NOTE.D3);
@@ -306,15 +352,26 @@ export class GameAudio {
     const pan = PAN[wave.node] ?? 0;
     this._cancelGroup('warning');
     const locked = dangerLayers.length > 1;
-    const note = variant === 'chase' ? (step % 2 ? NOTE.E4 : NOTE.A4) : variant === 'lock' ? NOTE.B3 : NOTE.A3;
+    const note = variant === 'rift' ? [NOTE.D3, NOTE.A3, NOTE.E4][Math.min(3, step) - 1]
+      : variant === 'chase' ? (step % 2 ? NOTE.E4 : NOTE.A4) : variant === 'lock' ? NOTE.B3 : NOTE.A3;
     const length = Math.min(.075, duration * .025, wave.remaining - .03);
     this._tone(note * (beat > 3 ? 2 : 1), now, length,
-      (locked ? .052 : .065) + beat * .004, pan, variant === 'chase' ? 'glass' : 'soft', null, 'warning');
+      (locked ? .052 : .065) + beat * .004, pan, ['chase', 'rift'].includes(variant) ? 'glass' : 'soft', null, 'warning');
     // A close paired pulse marks two simultaneously dangerous layers. It starts
     // on this frame too: audio never predicts a warning beyond the model clock.
     if (locked) this._tone(note * 1.05946, now, length, .027, -pan, 'soft', null, 'warning');
     if (beat === 0) this._air(now, Math.min(.16, duration * .1, wave.remaining - .02), .04, pan,
-      variant === 'chase' ? 1800 : locked ? 550 : 1100, 'warning');
+      variant === 'chase' ? 1800 : variant === 'rift' ? 620 + Math.min(3, step) * 240 : locked ? 550 : 1100, 'warning');
+  }
+
+  _riftReward(at, pan) {
+    this._cancelGroup('reward');
+    // A lower impact and wider ascending motif distinguish the three-wave
+    // wager. The last chord belongs to ascension stage 3, not an audio timer.
+    this._tone(NOTE.D2, at, .24, .12, 0, 'soft', NOTE.D3, 'reward');
+    this._arpeggio([NOTE.D4, NOTE.E4, NOTE.A4, NOTE.D5, NOTE.E5, NOTE.A5, NOTE.D6],
+      at + .025, .046, .063, pan, 'reward');
+    this._air(at, .24, .055, -pan, 680, 'reward');
   }
 
   _riskReward(at, tier, pan, vault) {

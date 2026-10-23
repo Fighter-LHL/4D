@@ -25,6 +25,8 @@ let lastPhase = '';
 let destinationKey = '';
 let buildKey = '';
 let roomKey = '';
+let secretKey = '';
+let sealKey = '';
 let lastStatus = '';
 let lastFrame = performance.now();
 let transient = null;
@@ -60,6 +62,10 @@ function consumeEvents() {
     if (event.type === 'coil') message = `换层接力：${model.snapshot().nodes.find(n=>n.id===event.to)?.name || '下游机关'}回应了。`;
     if (event.type === 'weave') message = `${event.remote?'影子替你种下':'种下'}一条新路，这座花桥会留到本庭结束。`;
     if (event.type === 'resonance' && event.stage===3) message = `庭院回应了冒险：${model.snapshot().layers[event.layer].name}长出花匣—锚台花径。`;
+    if (event.type === 'secret_seal') message = `符印 ${event.stage}/3 回应了换层。`;
+    if (event.type === 'secret_open') message = '封印展开，隐星台显现了；新路仍要沿对应的 W 层前进。';
+    if (event.type === 'rift_clear') message = '三重回流已渡过，整座庭院正在升起。';
+    if (event.type === 'ascension' && event.stage===3) message = '升庭桥已展开，完成本庭机关后可以从隐星台直达庭门。';
     if (event.type === 'phase_transfer') message = '位置没有变，脚下已是另一层的机关。';
     if (event.type === 'power') message = `回响抵达${model.snapshot().nodes.find(n=>n.id===event.node)?.name || '另一层'}${event.complete===false?`，供能 ${event.received}/${event.required}`:''}。`;
     if (event.type === 'warning') {
@@ -70,7 +76,7 @@ function consumeEvents() {
         $('scene').closest('.scene-wrap').scrollIntoView({block:'start',behavior:'instant'});
     }
     if (event.type === 'evade') message = '跨层避开回流，花匣中的回响归你。';
-    if (event.type === 'dodge') message = '躲过一波；下一波会追到这里，再换一次层。';
+    if (event.type === 'dodge') message = model.snapshot().wave?.variant==='rift' ? '一枚星环点亮，切入下一枚符印对应的安全层。' : '躲过一波；下一波会追到这里，再换一次层。';
     if (message) { transient = message; transientTime = 2.8; $('announcement').textContent = message; }
     if (['restart','room'].includes(event.type)) { transient = null; transientTime = 0; $('announcement').textContent = ''; }
   }
@@ -78,15 +84,16 @@ function consumeEvents() {
 
 function synergyNotes(relics) {
   const notes=[];
-  if(relics.prism && relics.coil)notes.push({ids:['prism','coil'],text:'棱镜启动上游 → 锚台换层接力下游'});
-  if(relics.shadow && relics.weave)notes.push({ids:['shadow','weave'],text:'机关留下影子 → 回锚台远程种出永久桥'});
+  if(relics.prism && relics.coil)notes.push({ids:['prism','coil'],text:'远程启动机关 → 锚台三印 → 棱镜回廊'});
+  if(relics.shadow && relics.weave)notes.push({ids:['shadow','weave'],text:'借影远程种桥 → 归响台三印 → 影织暗径'});
   if(relics.prism && relics.weave)notes.push({ids:['prism','weave'],text:'一次冒险同时蓄脉冲与桥种 → 隔层启动后织路'});
+  if(relics.shell && relics.weave)notes.push({ids:['shell','weave'],text:'种桥并躲过花匣 → 花匣三印 → 护生险径'});
   return notes;
 }
 
 function choiceSynergy(state,id) {
   const next={...state.relics,[id]:(state.relics[id]||0)+1};
-  return synergyNotes(next).find(note=>note.ids.includes(id))?.text || '';
+  return synergyNotes(next).find(note=>note.ids.includes(id))?.text || ({prism:'＋ 接力线圈：探寻棱镜回廊',coil:'＋ 回流棱镜：探寻棱镜回廊',shadow:'＋ 织桥种：探寻影织暗径',weave:'＋ 留影扣或缓落壳：探寻隐藏路线',shell:'＋ 织桥种：探寻护生险径'}[id] || '');
 }
 
 function showChoice(state) {
@@ -94,7 +101,7 @@ function showChoice(state) {
   const upcoming=next ? state.nextRoom : state.roomPlan?.[0];
   $('choice-kicker').textContent = next ? `第 ${state.room + 1} 庭完成 · 已带回 ${state.banked} 回响` : `随机旅程 #${state.seed.toString(16).toUpperCase().padStart(8,'0')}`;
   $('choice-title').innerHTML = next ? '下一庭，<br>换一种解法。' : '展开这一局，<br>未知的路径。';
-  $('choice-intro').textContent = next ? '已有遗物全部保留。补上一次接力、种一条新路，或提升已有能力；组合会改变下一庭的走法。' : '三座不同的庭院已展开。选择一种起手方式；冒险会唤醒花径，遗物会让同一庭院出现新的走法。';
+  $('choice-intro').textContent = next ? '已有遗物全部保留。补齐一种组合，解开下一庭的隐藏路线；也可升阶现有能力。' : '选一件起手遗物，随后跨庭补齐构筑。冒险唤醒花径，组合与 W 符印通往隐藏的隐星台。';
   renderItinerary('choice-route',state,next?state.room+1:0);
   setText('choice-room-name',`${next?'即将进入':'首先进入'} · ${upcoming?.name || state.roomName}`);
   setText('choice-room-description',upcoming?.description || state.roomDescription);
@@ -166,8 +173,49 @@ function updateResonance(state) {
   const layer=state.layers[growth?.edge.layer];
   const edge=state.edges.find(item=>item.id===growth?.edge.id);
   setText('resonance-title',stage===3?'花径已长成':growth?.triggered?'回响正在唤醒庭院':'冒险，让庭院生长');
-  setText('resonance-detail',stage===3?`${layer?.name} · 花匣 ↔ 维度锚台${edge?.open?'':' · 花匣支路开放后可走'}`:growth?.triggered?'归响台 → 花匣 → 锚台，新的桥正在展开':'首次冒险成功，长出花匣与锚台之间的新桥');
+  setText('resonance-detail',stage===3?`${layer?.name} · 花匣 ↔ 维度锚台${edge?.open?'':state.wave?' · 回波期间暂时收起':' · 花匣支路开放后可走'}`:growth?.triggered?'归响台 → 花匣 → 锚台，新的桥正在展开':'首次冒险成功，长出花匣与锚台之间的新桥');
   setText('woven-count',state.woven?.length?`${state.woven.length} 座种桥留在本庭`:'');
+}
+
+function sealGlyphs(route, state) {
+  return route.sequence.map((layer,index)=>`<span class="seal-glyph ${route.unlocked||index<route.progress?'lit':''} ${!route.unlocked&&index===route.progress?'next':''}" style="--seal-color:${state.layers[layer].color}" title="${index+1} · ${state.layers[layer].name}">${layerSymbols[layer]}</span>`).join('<i aria-hidden="true">›</i>');
+}
+
+function updateSecrets(state) {
+  const routes=state.hiddenRoutes || [];
+  const unlocked=routes.filter(route=>route.unlocked).length;
+  setText('secret-count',`${unlocked} / ${routes.length || 3}`);
+  const key=JSON.stringify([state.room, routes.map(route=>[route.id,route.progress,route.unlocked,route.eligible,route.requirement]),state.relics]);
+  if(secretKey!==key){
+    secretKey=key;
+    $('secret-routes').replaceChildren(...routes.map(route=>{
+      const row=document.createElement('div');
+      row.className=`secret-route ${route.unlocked?'open':route.eligible?'ready':''}`;
+      const entry=state.nodes.find(node=>node.id===route.entry);
+      row.innerHTML=`<div class="secret-route-title"><span class="secret-relics" aria-hidden="true">${route.requires.map(id=>`<span class="${state.relics[id]?'owned':''}">${icons[id]}</span>`).join(' + ')}</span><strong>${route.name}</strong><small>${route.unlocked?'已展开':route.eligible?'可解印':'待共鸣'}</small></div><div class="seal-track">${sealGlyphs(route,state)}<small>${entry?.name || ''}</small></div><p>${route.unlocked?`${state.layers[route.edge.layer].name} · ${entry?.name} ↔ 隐星台`:route.requirement}</p>`;
+      row.setAttribute('aria-label',`${route.name}，${route.requires.map(id=>RELICS.find(relic=>relic.id===id).name).join('与')}，${route.unlocked?'已展开':route.requirement}，在${entry?.name}依次切入${route.sequence.map(layer=>state.layers[layer].name).join('、')}，符印 ${route.progress}/3`);
+      return row;
+    }));
+  }
+  const here=routes.find(route=>route.entry===state.node&&!route.unlocked&&route.requires.every(id=>state.relics[id]));
+  const promptKey=JSON.stringify([here?.id,here?.progress,here?.eligible,here?.requirement,!!state.travel,!!state.wave,state.node==='rift',state.rift?.status,state.rift?.ascension,state.carried>=2]);
+  if(promptKey!==sealKey){
+    sealKey=promptKey;
+    $('seal-prompt').hidden=!!state.travel||!!state.wave||(!here&&state.node!=='rift');
+    if(here){
+      $('seal-prompt').innerHTML=`<span class="seal-heading">✧ ${here.name}</span><span class="seal-track">${sealGlyphs(here,state)}</span><small>${here.eligible?`依次进入新层 · 下一印 ${layerSymbols[here.sequence[here.progress]]}`:here.requirement}</small>`;
+    }else if(state.node==='rift'){
+      const rift=state.rift;
+      $('seal-prompt').innerHTML=`<span class="seal-heading">✧ ${rift?.status==='cleared'?'庭院已回应':rift?.status==='failed'?'本庭试炼已结束':'隐星三重回流'}</span><small>${rift?.status==='cleared'?'升庭桥连向庭门，三座机关完成后可通行':rift?.status==='failed'?'押注不返还，原路仍可返回':`押 2 → 全过得 9 · 三波每次重新切入安全层${state.carried<2?' · 随身回响不足':''}`}</small>`;
+    }
+  }
+  for(const [layer,button] of [...document.querySelectorAll('.layer-controls [data-layer]')].entries())button.classList.toggle('seal-next',!state.wave&&!state.travel&&!!here?.eligible&&here.sequence[here.progress]===layer);
+  const rift=state.rift;
+  $('rift-panel').hidden=!unlocked;
+  $('rift-panel').classList.toggle('cleared',rift?.status==='cleared');
+  setText('rift-title',rift?.status==='cleared'?'升庭连锁':rift?.status==='failed'?'本庭试炼已结束':'隐星三重回流');
+  setText('rift-detail',rift?.status==='cleared'?`${rift.ascension===3?'升庭桥已展开':'星环正在唤醒归响台、锚台与庭门'} · 完成三机关可直达庭门`:rift?.status==='failed'?'本庭不能再挑战；押注不返还，已解开的秘径仍可走。':'押 2 枚随身回响 · 全过得 9 · 失手不退押注，每庭一次。');
+  setHTML('rift-stages',[0,1,2].map((stage)=>`<span class="${(rift?.ascension||0)>stage?'lit':''}">${['◇ 归响台','⌁ 锚台','✧ 庭门'][stage]}</span>`).join('<i aria-hidden="true">→</i>'));
 }
 
 function renderItinerary(id,state,current) {
@@ -218,7 +266,7 @@ function updateUI() {
   const currentNode = state.nodes.find(n=>n.id===state.node);
   setText('layer-name',currentLayer?.name || '层间隙');
   setText('layer-symbol',layerSymbols[state.layer] || '◇');
-  if(currentNode?.world)setText('position-readout',`位置 ${currentNode.world.x}, ${currentNode.world.y}, ${currentNode.world.z} · W ${state.w.toFixed(2)}`);
+  if(currentNode?.world)setText('position-readout',`位置 ${Number(currentNode.world.x.toFixed(1))}, ${Number(currentNode.world.y.toFixed(1))}, ${Number(currentNode.world.z.toFixed(1))} · W ${state.w.toFixed(2)}`);
   document.body.dataset.layer = String(state.layer);
   for(const [i,button] of [...document.querySelectorAll('.layer-controls [data-layer]')].entries()){
     button.setAttribute('aria-pressed',String(i===state.layer));
@@ -249,7 +297,7 @@ function updateUI() {
       button.setAttribute('aria-pressed',String(state.selected === id));
       button.setAttribute('aria-label',`前往${node.name}`);
       const routes=routesTo(id), layers=[...new Set(routes.map(edge=>edge.layer))];
-      const kinds={resonance:'花径',weave:'种桥',shadow:'影桥'};
+      const kinds={resonance:'花径',weave:'种桥',shadow:'影桥',secret:'秘径',ascension:'升庭桥'};
       const route=routes.find(edge=>edge.visible)||routes[0];
       const routeBadge=`${layers.map(layer=>layerSymbols[layer]).join('/')} ${kinds[route?.kind]||''}`.trim();
       button.title=routes.map(edge=>`${state.layers[edge.layer].name} · ${kinds[edge.kind]||'实体桥'}`).join(' / ');
@@ -282,15 +330,16 @@ function updateUI() {
   }
   $('wave-warning').hidden = !state.wave;
   if(state.wave){
-    const safe=state.wave.safeLayers.includes(state.layer)&&Math.abs(state.w-currentLayer.center)<=Math.sqrt(.75)*.16;
+    const safe=state.wave.safeLayers.includes(state.layer)&&Math.abs(state.w-currentLayer.center)<=Math.sqrt(.75)*.16&&(state.wave.variant!=='rift'||state.wave.entered);
     setText('wave-time',state.wave.remaining.toFixed(1));$('wave-warning').classList.toggle('evading',safe);
-    setText('wave-label',safe?`已在安全层 · 第 ${state.wave.step}/${state.wave.steps} 波`:`${state.wave.variant==='lock'?'双层封锁':'回流接近'} · 第 ${state.wave.step}/${state.wave.steps} 波`);
-    setText('wave-instruction',`安全 → ${state.wave.safeLayers.map(i=>`${layerSymbols[i]} ${state.layers[i].name}`).join(' / ')}`);
+    setText('wave-label',safe?`已在安全层 · 第 ${state.wave.step}/${state.wave.steps} 波`:`${state.wave.variant==='rift'?'隐星三重回流':state.wave.variant==='lock'?'双层封锁':'回流接近'} · 第 ${state.wave.step}/${state.wave.steps} 波`);
+    setText('wave-instruction',`${state.wave.variant==='rift'&&!state.wave.entered?'本波需切入':'安全 →'} ${state.wave.safeLayers.map(i=>`${layerSymbols[i]} ${state.layers[i].name}`).join(' / ')}`);
   }
   const aligned = range && state.w >= range.min && state.w <= range.max;
-  setText('slice-hint',state.wave?(state.wave.steps>1?'追波会改变危险层，每一波都要重新观察':'切到标记安全的层，层间隙不能躲过回流'):state.travel ? (state.travel.risky ? '额外冒险 · 调 W 跟随光带' : '保持当前切片，直到落地') : range ? `${aligned?'这段路径已显现':'路径在另一个切片'} · W ${range.min.toFixed(2)} — ${range.max.toFixed(2)}` : '切换 W 观察平台和机关，或选择落脚点');
+  setText('slice-hint',state.wave?(state.wave.variant==='rift'?'每波都需真正切入指定安全层；三波全过才领奖':state.wave.steps>1?'追波会改变危险层，每一波都要重新观察':'切到标记安全的层，层间隙不能躲过回流'):state.travel ? (state.travel.risky ? '额外冒险 · 调 W 跟随光带' : '保持当前切片，直到落地') : range ? `${aligned?'这段路径已显现':'路径在另一个切片'} · W ${range.min.toFixed(2)} — ${range.max.toFixed(2)}` : '切换 W 观察平台和机关，或选择落脚点');
   updateBuild(state);
   updateResonance(state);
+  updateSecrets(state);
   $('pause').disabled = state.phase !== 'playing';
   setText('context-hint',state.objective || '切换空间，观察能量会传到哪一层。');
   const status = transient || (state.travel ? (state.travel.risky?'冒险中 · 留意移动光带':'沿当前切片前进') : `${currentNode?.name || '归响台'} · ${currentLayer?.name || '层间隙'}`);
@@ -320,7 +369,7 @@ $('close-help').addEventListener('click',closeHelp);$('help-done').addEventListe
 $('restart').addEventListener('click',()=>{if(!isModal()){paused=true;$('restart-dialog').showModal();syncAudio();}});
 function cancelRestart() {$('restart-dialog').close();paused=false;lastFrame=performance.now();syncAudio();}
 $('cancel-restart').addEventListener('click',cancelRestart);$('restart-dialog').addEventListener('cancel',e=>{e.preventDefault();cancelRestart();});
-function restart() {for(const id of dialogs)if($(id).open)$(id).close();paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';$('build-list').replaceChildren();$('ability-list').replaceChildren();const seed=newSeed();rememberSeed(seed);action(()=>model.restart(seed));}
+function restart() {for(const id of dialogs)if($(id).open)$(id).close();paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';secretKey='';sealKey='';$('secret-panel').open=false;$('build-list').replaceChildren();$('ability-list').replaceChildren();const seed=newSeed();rememberSeed(seed);action(()=>model.restart(seed));}
 $('confirm-restart').addEventListener('click',restart);$('play-again').addEventListener('click',restart);
 $('choice-dialog').addEventListener('cancel',e=>e.preventDefault());$('result-dialog').addEventListener('cancel',e=>e.preventDefault());
 document.addEventListener('keydown',e=>{
@@ -337,7 +386,7 @@ document.addEventListener('keydown',e=>{
   else if(key==='e'){e.preventDefault();action(()=>model.interact());}
   else if(key==='q'){e.preventDefault();action(()=>model.useAbility());}
   else if(['z','x','c'].includes(key)){e.preventDefault();action(()=>model.setW(model.snapshot().layers[['z','x','c'].indexOf(key)].center));}
-  else if(/^[1-6]$/.test(key)){e.preventDefault();const id=model.snapshot().availableNodes[Number(key)-1];if(id)action(()=>model.select(id));}
+  else if(/^[1-9]$/.test(key)){e.preventDefault();const id=model.snapshot().availableNodes[Number(key)-1];if(id)action(()=>model.select(id));}
 });
 document.addEventListener('visibilitychange',()=>{lastFrame=performance.now();if(document.hidden&&model.snapshot().phase==='playing'&&!isModal())pauseGame();syncAudio();});
 window.addEventListener('pagehide',event=>{if(event.persisted)audio.setEnabled(false);else audio.dispose();});
