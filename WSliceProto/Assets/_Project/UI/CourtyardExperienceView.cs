@@ -60,6 +60,8 @@ namespace WSlice.UI
 
             EnsureUI();
             Render();
+            var resonance = GetComponent<CourtyardResonanceController>() ?? gameObject.AddComponent<CourtyardResonanceController>();
+            resonance.Bind(controller);
         }
 
         private void OnEnable()
@@ -161,7 +163,7 @@ namespace WSlice.UI
             hint = CreateText("Hint", panel, new Vector2(0f, -22f), new Vector2(780f, 58f), 20);
             hint.color = new Color(0.89f, 0.83f, 0.67f);
 
-            var dialLabel = CreateText("DialLabel", uiRoot.transform, new Vector2(0f, 101f),
+            var dialLabel = CreateText("DialLabel", uiRoot.transform, new Vector2(0f, 128f),
                 new Vector2(240f, 30f), 19);
             ((RectTransform)dialLabel.transform).anchorMin = new Vector2(0.5f, 0f);
             ((RectTransform)dialLabel.transform).anchorMax = new Vector2(0.5f, 0f);
@@ -218,7 +220,9 @@ namespace WSlice.UI
             }
             instruction.text = model.Instruction;
             hint.text = Time.unscaledTime < recoveryMessageUntil
-                ? "这条路隐去了，已回到安全落脚点。可以继续调整切片。"
+                ? movement != null && movement.LastRecoveryWasInstability
+                    ? "稳定环耗尽了。回到安全点，试着把切片拉回青色区域。"
+                    : "这条路隐去了，已回到安全落脚点。可以继续调整切片。"
                 : Time.unscaledTime < actionMessageUntil ? actionFeedback : model.Hint;
             hintButtonLabel.text = model.HintButtonLabel;
             hintButton.interactable = model.HasMoreHints;

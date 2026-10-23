@@ -42,6 +42,21 @@ namespace WSlice.Player
         // Feedback may describe a rejected click without changing movement intent.
         public string HintTargetNodeId => _hintTargetNodeId;
         public int RecoveryVersion { get; private set; }
+        public bool LastRecoveryWasInstability { get; private set; }
+        public event System.Action<string, string> SegmentStarted;
+        public event System.Action<string, string> SegmentCompleted;
+        public event System.Action<Vector3, string> SegmentBroken;
+
+        // Optional courtyard instability uses the same recovery path as a closing slice.
+        public bool TryRecoverActiveSegment()
+        {
+            if (!_isMoving || !_hasActiveSegment || levelController?.Graph == null
+                || (session != null && session.State != LevelSessionState.Playing)) return false;
+            string from = _activeSegmentFromId;
+            CancelMoveRoutineOnly();
+            ResolveSegmentBreak(levelController.Graph, from, true);
+            return true;
+        }
 
         private void Awake()
         {
@@ -168,6 +183,8 @@ namespace WSlice.Player
                     if (!CanContinueSegment(graph, segmentFromId, segmentToId))
                         yield break;
 
+                    SegmentStarted?.Invoke(segmentFromId, segmentToId);
+
                     Vector3 target = targetNode.WorldPosition;
 
                     while (Vector3.Distance(character.transform.position, target) > arrivalThreshold)
@@ -185,6 +202,7 @@ namespace WSlice.Player
                     character.transform.position = target;
                     character.CurrentNodeId = segmentToId;
                     ClearActiveSegment();
+                    SegmentCompleted?.Invoke(segmentFromId, segmentToId);
 
                     if (_hasPendingTarget)
                     {
@@ -214,10 +232,13 @@ namespace WSlice.Player
             return false;
         }
 
-        private void ResolveSegmentBreak(LevelGraphRuntime graph, string fromId)
+        private void ResolveSegmentBreak(LevelGraphRuntime graph, string fromId, bool instability = false)
         {
+            Vector3 brokenPosition = character.transform.position;
             SnapCharacterToNode(graph, fromId);
+            LastRecoveryWasInstability = instability;
             RecoveryVersion++;
+            SegmentBroken?.Invoke(brokenPosition, fromId);
             if (failSessionOnSegmentBreak && session != null)
                 session.NotifySegmentBreakHazard();
         }

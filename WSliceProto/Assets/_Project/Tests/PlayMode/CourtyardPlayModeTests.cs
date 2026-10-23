@@ -21,6 +21,7 @@ namespace WSlice.Tests.PlayMode
         private PlayerCharacter character;
         private PlayerInputRouter router;
         private CourtyardExperienceView experience;
+        private CourtyardResonanceController resonance;
 
         [UnitySetUp]
         public IEnumerator LoadCourtyardScene()
@@ -40,6 +41,7 @@ namespace WSlice.Tests.PlayMode
             character = Object.FindFirstObjectByType<PlayerCharacter>();
             router = Object.FindFirstObjectByType<PlayerInputRouter>();
             experience = Object.FindFirstObjectByType<CourtyardExperienceView>();
+            resonance = Object.FindFirstObjectByType<CourtyardResonanceController>();
             Assert.That(level, Is.Not.Null);
             Assert.That(session, Is.Not.Null);
             Assert.That(flow, Is.Not.Null);
@@ -49,6 +51,7 @@ namespace WSlice.Tests.PlayMode
             Assert.That(character, Is.Not.Null);
             Assert.That(router, Is.Not.Null);
             Assert.That(experience, Is.Not.Null);
+            Assert.That(resonance, Is.Not.Null, "The player experience must create the real resonance controller.");
             Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
             Assert.That(character.CurrentNodeId, Is.EqualTo(CourtyardLayout.Entry));
             Physics.SyncTransforms();
@@ -358,6 +361,195 @@ namespace WSlice.Tests.PlayMode
             yield return SetW(0.3f);
             yield return MoveTo(CourtyardLayout.Courtyard);
             Assert.That(movement.IsMoving, Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator Resonance_CenterArrivalAndRepeatedRealTaps_EarnOnlyOneReward()
+        {
+            yield return SetW(0.3f);
+            var marker = WorldObject("Landing_" + CourtyardLayout.Courtyard).GetComponent<Collider>();
+            Assert.That(router.OnTap(VisibleScreenPoint(marker)).Succeeded, Is.True);
+            yield return WaitForSegment(CourtyardLayout.Entry, CourtyardLayout.Courtyard);
+            Assert.That(resonance.Model.Carried, Is.Zero, "Accepting movement is not a completed crossing.");
+            for (int i = 0; i < 8; i++)
+            {
+                Assert.That(router.OnTap(VisibleScreenPoint(marker)).Succeeded, Is.True);
+                Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.Courtyard).WorldPosition).Succeeded, Is.True);
+                yield return null;
+            }
+            yield return WaitForArrival(CourtyardLayout.Courtyard);
+            Assert.That(resonance.Model.Carried, Is.EqualTo(1));
+            Assert.That(resonance.Model.Banked, Is.Zero);
+            Assert.That(resonance.Model.IsCrossing, Is.False);
+
+            Assert.That(router.OnTap(VisibleScreenPoint(marker)).Succeeded, Is.True);
+            yield return null;
+            Assert.That(resonance.Model.Carried, Is.EqualTo(1));
+            yield return MoveTo(CourtyardLayout.Entry);
+            Assert.That(resonance.Model.Carried, Is.EqualTo(2), "The reverse crossing has its own reward.");
+            yield return MoveTo(CourtyardLayout.Courtyard);
+            Assert.That(resonance.Model.Carried, Is.EqualTo(2), "Revisiting an already rewarded direction cannot farm echoes.");
+        }
+
+        [UnityTest]
+        public IEnumerator Resonance_DangerChargeThenActualCenterW_EarnsThreeAtArrival()
+        {
+            int recovery = movement.RecoveryVersion;
+            yield return SetW(0.21f);
+            Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.Courtyard).WorldPosition).Succeeded, Is.True);
+            yield return WaitForSegment(CourtyardLayout.Entry, CourtyardLayout.Courtyard);
+            yield return WaitForResonanceCharge();
+            Assert.That(resonance.Model.Carried, Is.Zero);
+            Assert.That(resonance.Model.Stability, Is.LessThan(1f).And.GreaterThan(0f));
+
+            yield return SetW(0.3f);
+            Assert.That(level.WState.CurrentW, Is.EqualTo(0.3f));
+            yield return WaitForArrival(CourtyardLayout.Courtyard);
+            Assert.That(resonance.Model.Carried, Is.EqualTo(3));
+            Assert.That(movement.RecoveryVersion, Is.EqualTo(recovery));
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
+        }
+
+        [UnityTest]
+        public IEnumerator Resonance_UncorrectedDangerCollapsesOnce_ThenCanRetryAndRestart()
+        {
+            yield return SetW(0.21f);
+            int recovery = movement.RecoveryVersion;
+            float collapseAt = -1f;
+            movement.SegmentBroken += (_, _) => collapseAt = Time.time;
+            float beganAt = Time.time;
+            Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.Courtyard).WorldPosition).Succeeded, Is.True);
+            yield return WaitForArrival(CourtyardLayout.Entry);
+            Assert.That(collapseAt, Is.GreaterThan(beganAt));
+            // Integration timing allows one long frame either side; the pure model
+            // tests assert the exact 0.85 s threshold at several frame rates.
+            Assert.That(collapseAt - beganAt, Is.InRange(0.5f, 1.25f));
+            Assert.That(movement.RecoveryVersion, Is.EqualTo(recovery + 1));
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
+            Assert.That(resonance.Model.Carried, Is.Zero);
+            Assert.That(resonance.Model.IsCrossing, Is.False);
+            Assert.That(resonance.Model.HasReward(CourtyardLayout.Entry, CourtyardLayout.Courtyard), Is.False);
+            yield return null;
+            yield return null;
+            Assert.That(movement.RecoveryVersion, Is.EqualTo(recovery + 1), "Recovery must not restart itself on the same risky edge.");
+
+            yield return SetW(0.3f);
+            yield return MoveTo(CourtyardLayout.Courtyard);
+            Assert.That(resonance.Model.Carried, Is.EqualTo(1));
+            // R invokes this same public session restart path.
+            Assert.That(session.RequestRestart(), Is.True);
+            yield return null;
+            yield return null;
+            AssertRestarted();
+            Assert.That(resonance.Model.Carried, Is.Zero);
+            Assert.That(resonance.Model.Banked, Is.Zero);
+            Assert.That(resonance.Model.IsCrossing, Is.False);
+            Assert.That(resonance.Model.HasReward(CourtyardLayout.Entry, CourtyardLayout.Courtyard), Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator Resonance_StairCollapseLosesCarriedEntranceReward_AndMakesItEarnableAgain()
+        {
+            yield return SetW(0.3f);
+            yield return MoveTo(CourtyardLayout.Courtyard);
+            Assert.That(resonance.Model.Carried, Is.EqualTo(1));
+            yield return MoveTo(CourtyardLayout.StairFoot);
+            yield return SetW(0.71f);
+            int recovery = movement.RecoveryVersion;
+            Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.Mechanism).WorldPosition).Succeeded, Is.True);
+            yield return WaitForSegment(CourtyardLayout.StairFoot, CourtyardLayout.UpperLanding);
+            yield return WaitForArrival(CourtyardLayout.StairFoot);
+            Assert.That(movement.RecoveryVersion, Is.EqualTo(recovery + 1));
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
+            Assert.That(resonance.Model.Carried, Is.Zero);
+            Assert.That(resonance.Model.HasReward(CourtyardLayout.Entry, CourtyardLayout.Courtyard), Is.False);
+            Assert.That(puzzle.IsActivated, Is.False);
+
+            yield return SetW(0.3f);
+            yield return MoveTo(CourtyardLayout.Entry);
+            Assert.That(resonance.Model.Carried, Is.EqualTo(1));
+            yield return MoveTo(CourtyardLayout.Courtyard);
+            Assert.That(resonance.Model.Carried, Is.EqualTo(2), "The previously lost forward reward must be available again.");
+        }
+
+        [UnityTest]
+        public IEnumerator Resonance_ActivatedMechanismBanksRewards_ReturnCollapsePreservesBankAndUnlock()
+        {
+            yield return EnterAndReachMechanism();
+            Assert.That(resonance.Model.Carried, Is.EqualTo(2));
+            Assert.That(puzzle.TryActivate(), Is.True);
+            yield return null;
+            yield return null;
+            Assert.That(resonance.Model.Carried, Is.Zero);
+            Assert.That(resonance.Model.Banked, Is.EqualTo(2));
+
+            yield return SetW(0.71f);
+            int recovery = movement.RecoveryVersion;
+            Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.Courtyard).WorldPosition).Succeeded, Is.True);
+            yield return WaitForSegment(CourtyardLayout.UpperLanding, CourtyardLayout.StairFoot);
+            yield return WaitForArrival(CourtyardLayout.UpperLanding);
+            Assert.That(movement.RecoveryVersion, Is.EqualTo(recovery + 1));
+            Assert.That(resonance.Model.Banked, Is.EqualTo(2));
+            Assert.That(resonance.Model.Carried, Is.Zero);
+            Assert.That(resonance.Model.HasReward(CourtyardLayout.Entry, CourtyardLayout.Courtyard), Is.True);
+            Assert.That(resonance.Model.HasReward(CourtyardLayout.StairFoot, CourtyardLayout.UpperLanding), Is.True);
+            Assert.That(puzzle.IsActivated, Is.True);
+            Assert.That(level.Graph.CanMove(CourtyardLayout.BridgeStart, CourtyardLayout.ExitLanding, 0.525f), Is.True);
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Playing));
+
+            yield return SetW(0.8f);
+            yield return MoveTo(CourtyardLayout.Courtyard);
+            Assert.That(resonance.Model.Carried, Is.EqualTo(1));
+            yield return SetW(0.525f);
+            yield return MoveTo(CourtyardLayout.Goal);
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Completed));
+            Assert.That(resonance.Model.Carried, Is.Zero);
+            Assert.That(resonance.Model.Banked, Is.EqualTo(4), "Completion banks the reverse stair and bridge rewards once.");
+
+            Assert.That(session.RequestRestart(), Is.True);
+            yield return null;
+            yield return null;
+            AssertRestarted();
+            Assert.That(resonance.Model.Banked, Is.Zero);
+            Assert.That(resonance.Model.Carried, Is.Zero);
+        }
+
+        [UnityTest]
+        public IEnumerator Resonance_WorldEffectsRemainColliderFree_WhileRealRaycastsStillMovePlayer()
+        {
+            yield return SetW(0.3f);
+            yield return MoveTo(CourtyardLayout.Courtyard);
+            var feedback = Object.FindFirstObjectByType<CourtyardResonanceView>();
+            Assert.That(feedback, Is.Not.Null);
+            var effectsRoot = GameObject.Find("CourtyardResonanceFeedback");
+            Assert.That(effectsRoot, Is.Not.Null);
+            Assert.That(effectsRoot.GetComponentsInChildren<Renderer>(true), Is.Not.Empty,
+                "The test must inspect real, built feedback objects.");
+            Assert.That(effectsRoot.GetComponentsInChildren<Collider>(true), Is.Empty);
+            Assert.That(effectsRoot.GetComponentsInChildren<Transform>(true).All(child => child.gameObject.layer == 2), Is.True,
+                "World feedback stays on Ignore Raycast, including its inactive pool.");
+
+            yield return SetW(0.8f);
+            var target = WorldObject("Landing_" + CourtyardLayout.Mechanism).GetComponent<Collider>();
+            Assert.That(router.OnTap(VisibleScreenPoint(target)).Succeeded, Is.True);
+            yield return WaitForArrival(CourtyardLayout.Mechanism);
+            var mechanism = WorldObject("CourtyardMechanism").GetComponent<Collider>();
+            Assert.That(router.OnTap(VisibleScreenPoint(mechanism)).Succeeded, Is.True);
+            yield return null;
+            yield return null;
+            Assert.That(puzzle.IsActivated, Is.True);
+            Assert.That(resonance.Model.Banked, Is.EqualTo(2));
+            Assert.That(effectsRoot.GetComponentsInChildren<Collider>(true), Is.Empty);
+        }
+
+        private IEnumerator WaitForResonanceCharge()
+        {
+            float timeoutAt = Time.realtimeSinceStartup + 8f;
+            while (movement.IsMoving && !resonance.Model.IsCharged && Time.realtimeSinceStartup < timeoutAt)
+                yield return null;
+            Assert.That(movement.IsMoving, Is.True, "Charging should finish before arrival or collapse.");
+            Assert.That(resonance.Model.IsCrossing, Is.True);
+            Assert.That(resonance.Model.IsCharged, Is.True);
         }
 
         private IEnumerator BeginEntranceCrossing()
