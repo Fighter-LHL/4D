@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { StationEffects } from '../station-effects.mjs';
 import { levelById, nextLevel } from '../levels.mjs';
 import { stationNextAction, rememberStationRun, STATION_SEALS_KEY } from '../station-progress.mjs';
 
@@ -21,8 +22,11 @@ test('leaving a moving or rippling level cancels frames and cannot restart on th
   let rendered = 0;
   const node = { classList: { remove() {} }, focus() {} };
   const hintPanel = { hidden: false };
+  const stationEffects = new StationEffects();
+  stationEffects.observe({powered: false, latched: false}, 0);
+  stationEffects.observe({powered: true, latched: true}, 100);
   const context = vm.createContext({
-    document: { hidden: false },
+    document: { hidden: false }, stationEffects,
     requestAnimationFrame(callback) { pending.set(++scheduled, callback); return scheduled; },
     cancelAnimationFrame(id) { pending.delete(id); },
     clearTimeout() {}, $: (id) => id === 'hint-panel' ? hintPanel : node, hideCard() {}, renderChapters() {},
@@ -41,6 +45,7 @@ test('leaving a moving or rippling level cancels frames and cannot restart on th
   const staleCallback = [...pending.values()][0];
   vm.runInContext('showTitle()', context);
   assert.equal(pending.size, 0, 'the outstanding callback is cancelled');
+  assert.equal(stationEffects.isActive(101), false, 'mechanism responses are cleared on exit');
   assert.equal(vm.runInContext('trail.length + ripples.length + flash + previousTime', context), 0);
   assert.equal(vm.runInContext('introCueUntil', context), 0, 'the opening cue cannot leak onto the title');
   staleCallback(1000); // Also guard callbacks that were already dispatched.
@@ -51,6 +56,52 @@ test('leaving a moving or rippling level cancels frames and cannot restart on th
   assert.equal(rendered, 0);
   vm.runInContext('level = {}; requestFrame()', context);
   assert.equal(pending.size, 1, 'a newly entered level can animate again');
+});
+
+test('an idle mechanism interaction draws its transition and final pose, then stops RAF', () => {
+  const pending = new Map();
+  const poses = [];
+  let now = 0, scheduled = 0;
+  const relay = { powered: false, latched: false };
+  const stationEffects = new StationEffects();
+  const context = vm.createContext({
+    document: { hidden: false }, performance: { now: () => now }, stationEffects,
+    requestAnimationFrame(callback) { pending.set(++scheduled, callback); return scheduled; },
+    buildFrame() {
+      stationEffects.observe(relay, now);
+      return { sections: [], w: 0, mechanismEffects: stationEffects.sample(now) };
+    },
+    visibleIds: () => new Set(), layerIndex: () => 0,
+    isWalk: () => true, isFlat: () => false, mapVisible: () => false,
+    slice: { render(frame) { poses.push(frame.mechanismEffects); } },
+    stepToken() {}, updateWorldTags() {}, updateActionButton() {}, updateRail() {}, updateStats() {},
+    $: () => ({}),
+  });
+  vm.runInContext(`
+    let level = { kind: 'walk' }, run = { won: false }, frameId = 0, previousTime = 0;
+    let prevVisible = new Set(), prevLayer = 0, sliceOk = true, mapOk = false;
+    let reveal = null, wHold = 0, current = 0, target = 0, cardOpen = false;
+    let reducedMotion = { matches: false }, flash = 0, trail = [], ripples = [];
+    let pressed = new Set(), nudge = null, introCueUntil = 0;
+    ${['requestFrame', 'render', 'tick'].map(functionSource).join('\n')}
+    render();
+  `, context);
+  assert.equal(pending.size, 0, 'loading a settled scene stays idle');
+  relay.powered = relay.latched = true;
+  now = 100;
+  vm.runInContext('render()', context); // Interaction handlers draw without an existing RAF.
+  assert.equal(pending.size, 1);
+  for (now = 150; now <= 1100 && pending.size; now += 50) {
+    const [id, callback] = pending.entries().next().value;
+    pending.delete(id);
+    callback(now);
+    assert.ok(pending.size <= 1, 'there is only one animation loop');
+  }
+  assert.ok(poses.some(({ power, latch }) => power.pose > 0 && power.pose < 1 && latch.pose > 0 && latch.pose < 1));
+  assert.equal(poses.at(-1).power.pose, 1);
+  assert.equal(poses.at(-1).latch.pose, 1);
+  assert.equal(poses.at(-1).power.strength, 0, 'the final zero-glow frame was actually drawn');
+  assert.equal(pending.size, 0, 'the scene returns to idle after the longest effect');
 });
 
 test('completed walking levels offer the right next step only beside the receiver', () => {

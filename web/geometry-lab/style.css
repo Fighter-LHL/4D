@@ -436,7 +436,7 @@ button:disabled { cursor: default; opacity: 0.42; }
   .action-btn { min-height: 44px; text-align: left; }
   .stage-secondary .ghost { min-height: 40px; }
   .dpad { left: 12px; right: auto; bottom: 12px; }
-  .toast { left: 12px; bottom: 216px; transform: translateY(7px); max-width: calc(100% - var(--device-rail-width) - 36px); z-index: 2; text-align: left; }
+  .toast { left: 12px; top: 44px; bottom: auto; transform: translateY(7px); max-width: calc(100% - var(--device-rail-width) - 36px); z-index: 2; text-align: left; }
   .toast.show { transform: translateY(0); }
   .hint-panel { right: calc(var(--device-rail-width) + 20px); width: calc(100% - var(--device-rail-width) - 36px); }
   .card { padding: 22px; }

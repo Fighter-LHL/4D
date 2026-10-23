@@ -29,6 +29,8 @@ uniform vec4 uSocket;
 uniform vec4 uLatch;
 uniform vec4 uRelayPorts;
 uniform float uRelayUsed;
+uniform vec3 uPowerFx;
+uniform vec3 uLatchFx;
 uniform vec4 uStation;
 uniform vec4 uEntrance;
 uniform vec4 uChannel;
@@ -61,6 +63,18 @@ float wire(vec2 p, vec2 a, vec2 b) {
   vec2 ab = b - a;
   float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 0.001), 0.0, 1.0);
   return 1.0 - smoothstep(0.014, 0.034, length(p - a - ab * t));
+}
+
+// One pulse travels along an existing physical cable, then fades completely.
+float cablePulse(vec2 p, vec2 a, vec2 b, vec3 fx, bool reverse) {
+  if (fx.x < 0.0) return 0.0;
+  vec2 ab = b - a;
+  float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 0.001), 0.0, 1.0);
+  float head = clamp(fx.x / 0.68, 0.0, 1.0);
+  if (reverse) head = 1.0 - head;
+  float side = length(p - a - ab * t);
+  float along = abs(t - head) * length(ab);
+  return exp(-side * side * 420.0 - along * along * 65.0) * fx.y;
 }
 
 float hitSphere(vec3 ro, vec3 rd, vec4 s) {
@@ -318,6 +332,15 @@ void main() {
       float course = 1.0 - smoothstep(0.0, 0.015, abs(fract(p.y * 3.5) - 0.5) - 0.44);
       sideCol = mix(sideCol, mix(deckBase, IVORY, 0.4), lip * 0.45);
       sideCol *= 1.0 - course * 0.08;
+      if (uSocket.z >= 0.0) {
+        float across = abs(pn.x) > 0.5 ? p.z : p.x;
+        float joint = 1.0 - smoothstep(0.006, 0.024, abs(fract(across / 0.72 + floor(-p.y / 0.28) * 0.5) - 0.5));
+        sideCol *= 1.0 - joint * 0.12;
+        float belt = 1.0 - smoothstep(0.02, 0.045, abs(p.y + 0.24));
+        sideCol = mix(sideCol, vec3(0.37, 0.25, 0.16), belt * 0.65);
+        float rivet = 1.0 - smoothstep(0.018, 0.033, length(vec2(fract(across / 0.72) - 0.5, (p.y + 0.24) * 1.4)));
+        sideCol = mix(sideCol, GOLD * 0.60, rivet * 0.80);
+      }
       float depthFade = clamp(1.0 + p.y * 0.72, 0.15, 1.0);
       color = mix(bg, sideCol, depthFade);
     } else {
@@ -338,6 +361,7 @@ void main() {
         float grain = sin(floor(cell.x) * 7.1 + row * 4.7) * 0.018;
         fl = mix(deckBase, vec3(0.64, 0.63, 0.55), 0.31) + grain;
         fl *= 1.0 - grout * 0.22;
+        fl = stationFloorDetails(p.xz, fl);
         if (uChannel.w > 0.0 && p.x >= uChannel.x && p.x <= uChannel.y && abs(p.z - uChannel.z) < uChannel.w) {
           float slab = 1.0 - smoothstep(0.004, 0.018, abs(fract((p.x - uChannel.x) / 0.55) - 0.5) * 0.55);
           fl = mix(fl, vec3(0.30, 0.39, 0.40), 0.50) * (1.0 - slab * 0.18);
@@ -426,6 +450,12 @@ void main() {
         float gap = 1.0 - smoothstep(0.44, 0.54, abs(p.z - uRelayPorts.y));
         float bar = 1.0 - smoothstep(0.045, 0.095, abs(abs(p.x) - 0.17));
         fl = mix(fl, blue, gap * bar * (0.10 + 0.72 * uSocket.w));
+        float pulse = cablePulse(p.xz, uSocket.xy, uRelayPorts.xy, uPowerFx, uSocket.w < 0.5);
+        fl += mix(GOLD, vec3(0.55, 0.94, 1.0), uSocket.w) * pulse * 0.72;
+        if (uPowerFx.x >= 0.0) {
+          float arrival = uSocket.w > 0.5 ? smoothstep(0.38, 0.68, uPowerFx.x) : 1.0 - smoothstep(0.0, 0.32, uPowerFx.x);
+          fl += mix(GOLD, blue, uSocket.w) * gap * bar * arrival * uPowerFx.y * 0.65;
+        }
       }
       if (uLatch.z >= 0.0) {
         vec2 q = abs(p.xz - uLatch.xy);
@@ -443,6 +473,8 @@ void main() {
         float rgap = 1.0 - smoothstep(0.50, 0.60, abs(p.z - uRelayPorts.w));
         float rbar = 1.0 - smoothstep(0.045, 0.095, abs(abs(p.x) - 0.17));
         fl = mix(fl, mix(GOLD, ITEM_COL, 0.32), rgap * rbar * (0.10 + 0.72 * uLatch.w));
+        fl += mix(GOLD, IVORY, 0.45) * cablePulse(p.xz, uLatch.xy, uRelayPorts.zw, uLatchFx, false) * 0.85;
+        if (uLatchFx.x >= 0.0) fl += GOLD * rgap * rbar * smoothstep(0.35, 0.65, uLatchFx.x) * uLatchFx.y * 0.65;
       }
       for (int i = 0; i < 8; i += 1) {
         if (uTrail[i].z <= 0.001) break;
@@ -505,6 +537,9 @@ void main() {
   }
 
   float solidT = floorT;
+  vec3 dressingCol;
+  float dressingT = hitStationDressing(ro, rd, dressingCol);
+  if (dressingT > 0.0 && dressingT < solidT) { solidT = dressingT; color = dressingCol; }
   // Devices are low surface fixtures at existing interaction markers. They
   // share the nearest-hit pass with the courier and core, never collision.
   if (uProps > 0.5) {
@@ -591,7 +626,7 @@ void main() {
 `;
 
 const NAMES = ['uResolution', 'uEye', 'uLookY', 'uSph', 'uSphTint', 'uSphRole', 'uSphGhost', 'uSphCount', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxRole', 'uBoxCount',
-  'uToken', 'uActor', 'uActorPos', 'uItem', 'uSocket', 'uLatch', 'uRelayPorts', 'uRelayUsed', 'uStation', 'uEntrance', 'uChannel', 'uProps', 'uGoal', 'uStart', 'uBounds', 'uTrail', 'uRipples', 'uRippleTint', 'uLayerA', 'uLayerB', 'uLayerMix'];
+  'uToken', 'uActor', 'uActorPos', 'uItem', 'uSocket', 'uLatch', 'uRelayPorts', 'uRelayUsed', 'uPowerFx', 'uLatchFx', 'uStation', 'uEntrance', 'uChannel', 'uProps', 'uGoal', 'uStart', 'uBounds', 'uTrail', 'uRipples', 'uRippleTint', 'uLayerA', 'uLayerB', 'uLayerMix'];
 const VIEW = { yaw: 0.66, pitch: 0.58, distance: 12.2, minPitch: 0.2, maxPitch: 1.35, minDistance: 7.5, maxDistance: 20 };
 
 export class SliceRenderer {
@@ -761,6 +796,10 @@ export class SliceRenderer {
     }
     gl.uniform4f(u.uRelayPorts, ...(relay ? [...relay.powerPort, ...relay.returnPort] : [0, 0, 0, 0]));
     gl.uniform1f(u.uRelayUsed, relay?.used ? 1 : 0);
+    for (const [uniform, key, settled] of [['uPowerFx', 'power', relay?.powered], ['uLatchFx', 'latch', relay?.latched]]) {
+      const fx = frame.mechanismEffects?.[key];
+      gl.uniform3f(u[uniform], fx?.progress ?? -1, fx?.strength ?? 0, fx?.pose ?? Number(Boolean(settled)));
+    }
     const station = frame.station;
     gl.uniform4f(u.uStation, ...(station ? [station.airlock ? 1 : 0, station.cue, station.seals.stone ? 1 : 0, station.seals.copper ? 1 : 0] : [-1, 0, 0, 0]));
     const entrance = station && frame.sections.find((s) => s.id === 'station-middle-door');

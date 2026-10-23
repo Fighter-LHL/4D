@@ -3,6 +3,7 @@ import { WalkRun, VisitRun } from './game.mjs';
 import { CHAPTERS, LEVELS_LIST, STATION_ROUTES_LEVEL, levelById, nextLevel, isUnlocked } from './levels.mjs';
 import { screenToWorldMove, relayRailMarks, nearbyRailMark, railReleaseDial } from './controls.mjs';
 import { readStationSeals, rememberStationRun, stationNextAction } from './station-progress.mjs';
+import { StationEffects } from './station-effects.mjs';
 import { LAYERS, layerBlend, layerIndex, wColor, cssColor } from './layers.mjs';
 import { SliceRenderer } from './renderer.mjs';
 import { MapRenderer } from './map-renderer.mjs';
@@ -115,6 +116,7 @@ let choice = null;
 let trialActive = false;
 let trail = [];
 const ripples = [];
+const stationEffects = new StationEffects();
 let prevVisible = new Set();
 let prevLayer = null;
 let flash = 0;
@@ -181,6 +183,8 @@ function buildFrame() {
   const activeField = isWalk() && run ? run.activeField() : (isWalk() ? level.field : null);
   const y = isWalk() ? level.field.tokenY : bodies[0].center[1];
   const now = performance.now();
+  const relay = isWalk() ? run.relayState() : null;
+  stationEffects.observe(relay, now, reducedMotion.matches);
   const tinted = bodies.map((body) => ({ body, tint: wColor(body.center[3]), foot: wFootprint(body, y) }));
   const maxR = (body, foot) => (isWalk() && body.type === 'sphere' ? exclusionRadius(body, activeField) : foot.radius ?? 0);
   const aids = wAids(now);
@@ -206,7 +210,8 @@ function buildFrame() {
       arrival: run.won ? (reducedMotion.matches ? 1 : Math.min(1, (now - run.finishedAt) / 280)) : 0 } : null,
     goal: isWalk() ? level.field.goal : null,
     goalState: isWalk() ? goalSliceAtW(level.field, w) : null,
-    relay: isWalk() ? run.relayState() : null,
+    relay,
+    mechanismEffects: stationEffects.sample(now),
     station: level.id === 'station-routes' ? {
       airlock: run.airlockCleared, seals: stationSeals,
       cue: !reducedMotion.matches && now < introCueUntil ? Math.sin(Math.PI * (introCueUntil - now) / 900) : 0,
@@ -301,8 +306,12 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
     const pt = view.project([gx, 0.1, gz + 0.65]);
     if (pt) {
       sealsEl.hidden = false;
-      sealsEl.style.left = `${pt.x * view.canvas.clientWidth / 100}px`;
-      sealsEl.style.top = `${pt.y}%`;
+      // Keep both seals readable when orbiting near an edge. The canvas,
+      // rather than the whole stage, excludes the mobile W rail.
+      const width = view.canvas.clientWidth, height = view.canvas.clientHeight;
+      const inset = sealsEl.offsetWidth / 2 + 8;
+      sealsEl.style.left = `${Math.max(inset, Math.min(width - inset, pt.x * width / 100))}px`;
+      sealsEl.style.top = `${Math.max(8, Math.min(height - sealsEl.offsetHeight - 8, pt.y * height / 100))}px`;
     }
   }
   if (!moved || goalDist < 1.7 || (!level.field.relay && !goalOpen)) {
@@ -427,6 +436,7 @@ function render() {
   }
   prevVisible = visibleIds(frame.sections);
   if (rippled) { frame = buildFrame(); requestFrame(); }
+  if (stationEffects.isActive(now)) requestFrame();
   // A single drag can pass through "appear" and "vanish", so watch every frame.
   if (level.kind === 'visit' && level.goal === 'appear-vanish' && run.phase === 'explore') {
     if (frame.sections.some((s) => s.radius > 0)) run.sawVisible = true;
@@ -471,7 +481,7 @@ function tick(time) {
   if (flash > 0) flash = Math.max(0, flash - delta * 2.4);
   render();
   const arriving = isWalk() && run.won && !reducedMotion.matches && time < run.finishedAt + 280;
-  if (reveal || wHold || current !== target || ripples.length || pressed.size || flash > 0 || trail.length || nudge || time < introCueUntil || arriving) requestFrame();
+  if (reveal || wHold || current !== target || ripples.length || pressed.size || flash > 0 || trail.length || nudge || time < introCueUntil || arriving || stationEffects.isActive(time)) requestFrame();
   else previousTime = 0;
 }
 
@@ -783,6 +793,7 @@ function renderChapters() {
 const firstOpenLevel = () => LEVELS_LIST.find((l) => !progress.has(l.id) && isUnlocked(l.id, progress)) ?? LEVELS_LIST[0];
 
 function leaveLevel() {
+  stationEffects.clear();
   if (frameId) cancelAnimationFrame(frameId);
   frameId = 0;
   previousTime = 0;
