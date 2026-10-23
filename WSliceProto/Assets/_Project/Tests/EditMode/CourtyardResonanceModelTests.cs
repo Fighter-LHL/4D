@@ -260,6 +260,77 @@ namespace WSlice.Tests.EditMode
             Assert.That(model.Stability, Is.EqualTo(1f));
         }
 
+        [Test]
+        public void RiskChain_AdvancesOnlyForNewChargedRewardsAndCapsAtThree()
+        {
+            var model = Entrance();
+            model.Tick(0.3f, 0.22f);
+            model.CompleteCrossing();
+            Assert.That(model.RiskChain, Is.EqualTo(1));
+            Assert.That(model.BestRiskChain, Is.EqualTo(1));
+            model.BeginCrossing(CourtyardLayout.Entry, CourtyardLayout.Courtyard);
+            model.Tick(0.3f, 0.22f);
+            Assert.That(model.CompleteCrossing(), Is.Zero);
+            Assert.That(model.RiskChain, Is.EqualTo(1), "Already claimed directions must not upgrade scene responses.");
+            RiskReward(model, CourtyardLayout.Courtyard, CourtyardLayout.Entry, 0.22f);
+            RiskReward(model, CourtyardLayout.StairFoot, CourtyardLayout.UpperLanding, 0.72f);
+            RiskReward(model, CourtyardLayout.UpperLanding, CourtyardLayout.StairFoot, 0.72f);
+            Assert.That(model.RiskChain, Is.EqualTo(3));
+            Assert.That(model.BestRiskChain, Is.EqualTo(3));
+            Assert.That(model.Carried, Is.EqualTo(12), "A stronger spectacle must not silently change currency rewards.");
+        }
+
+        [Test]
+        public void SafeTravelAndBanking_PreserveChain_OnlyDepositedTierSurvivesFailure()
+        {
+            var model = Entrance();
+            model.Tick(0.3f, 0.22f);
+            model.CompleteCrossing();
+            model.BeginCrossing(CourtyardLayout.Courtyard, CourtyardLayout.Entry);
+            Assert.That(model.CompleteCrossing(), Is.EqualTo(1));
+            Assert.That(model.RiskChain, Is.EqualTo(1));
+            Assert.That(model.Bank(), Is.EqualTo(4));
+            Assert.That(model.SecuredRiskChain, Is.EqualTo(1));
+            Assert.That(model.RiskChain, Is.EqualTo(1));
+            RiskReward(model, CourtyardLayout.StairFoot, CourtyardLayout.UpperLanding, 0.72f);
+            Assert.That(model.RiskChain, Is.EqualTo(2));
+            Assert.That(model.FailCrossing(), Is.EqualTo(3));
+            Assert.That(model.RiskChain, Is.Zero);
+            Assert.That(model.SecuredRiskChain, Is.EqualTo(1));
+            Assert.That(model.BestRiskChain, Is.EqualTo(2));
+            Assert.That(model.Banked, Is.EqualTo(4));
+            model.Bank();
+            Assert.That(model.SecuredRiskChain, Is.EqualTo(1), "Empty banking cannot secure a lost best streak.");
+            model.Reset();
+            Assert.That(model.RiskChain, Is.Zero);
+            Assert.That(model.BestRiskChain, Is.Zero);
+            Assert.That(model.SecuredRiskChain, Is.Zero);
+        }
+
+        [Test]
+        public void FailedChargeAndUnbankedChain_DoNotSecureSceneProgress()
+        {
+            var model = Entrance();
+            model.Tick(0.85f, 0.22f);
+            Assert.That(model.CompleteCrossing(), Is.Zero);
+            Assert.That(model.RiskChain, Is.Zero);
+            model.FailCrossing();
+            RiskReward(model, CourtyardLayout.Entry, CourtyardLayout.Courtyard, 0.22f);
+            Assert.That(model.SecuredRiskChain, Is.Zero);
+            model.FailCrossing();
+            Assert.That(model.RiskChain, Is.Zero);
+            Assert.That(model.SecuredRiskChain, Is.Zero);
+            RiskReward(model, CourtyardLayout.Entry, CourtyardLayout.Courtyard, 0.22f);
+            Assert.That(model.RiskChain, Is.EqualTo(1), "Retry starts a new chain, not the lost tier.");
+        }
+
+        private static void RiskReward(CourtyardResonanceModel model, string from, string to, float w)
+        {
+            Assert.That(model.BeginCrossing(from, to), Is.True);
+            Assert.That(model.Tick(0.3f, w), Is.False);
+            Assert.That(model.CompleteCrossing(), Is.EqualTo(3));
+        }
+
         private static CourtyardResonanceModel Entrance()
         {
             var model = new CourtyardResonanceModel();

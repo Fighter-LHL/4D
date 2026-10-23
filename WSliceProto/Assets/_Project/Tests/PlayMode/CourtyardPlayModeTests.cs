@@ -542,6 +542,151 @@ namespace WSlice.Tests.PlayMode
             Assert.That(effectsRoot.GetComponentsInChildren<Collider>(true), Is.Empty);
         }
 
+        [UnityTest]
+        public IEnumerator Chain_MechanismPropagatesOnce_AndLightsFollowTheRealBridge()
+        {
+            yield return EnterAndReachMechanism();
+            var chain = Object.FindFirstObjectByType<CourtyardChainReactionView>();
+            var feedback = Object.FindFirstObjectByType<CourtyardResonanceView>();
+            Assert.That(chain, Is.Not.Null);
+            Assert.That(chain.LitBeaconCount, Is.Zero);
+            Assert.That(puzzle.TryActivate(), Is.True);
+            yield return null;
+            yield return null;
+            Assert.That(feedback.MechanismActivationVersion, Is.EqualTo(1));
+            Assert.That(chain.ActiveWaveCount, Is.GreaterThan(0));
+            Assert.That(chain.LitBeaconCount, Is.LessThan(chain.BeaconCount), "The scene should wake in sequence.");
+            Assert.That(puzzle.TryActivate(), Is.True);
+            yield return new WaitForSeconds(4f);
+            Assert.That(feedback.MechanismActivationVersion, Is.EqualTo(1));
+            Assert.That(chain.BeaconCount, Is.EqualTo(7));
+            Assert.That(chain.LitBeaconCount, Is.EqualTo(7));
+            Assert.That(chain.ActiveWaveCount, Is.Zero);
+            Assert.That(chain.VisibleTier, Is.Zero, "Activating the mechanism does not award a risk tier.");
+
+            var root = GameObject.Find("CourtyardChainReactions");
+            Assert.That(root.GetComponentsInChildren<Collider>(true), Is.Empty);
+            Assert.That(root.GetComponentsInChildren<Transform>(true).All(child => child.gameObject.layer == 2), Is.True);
+            var lamp = root.transform.Find("BridgeChainLight_0");
+            var bridge = WorldObject("SliceBridge").transform;
+            float loweredLampY = lamp.position.y;
+            float offset = lamp.position.y - bridge.position.y;
+            yield return SetW(0.525f);
+            yield return new WaitForSeconds(1f);
+            Assert.That(world.BridgeOpen, Is.True);
+            Assert.That(lamp.position.y, Is.GreaterThan(loweredLampY + 0.5f));
+            Assert.That(lamp.position.y - bridge.position.y, Is.EqualTo(offset).Within(0.03f));
+
+            Assert.That(session.RequestRestart(), Is.True);
+            yield return new WaitForSeconds(3f);
+            Assert.That(chain.LitBeaconCount, Is.Zero);
+            Assert.That(chain.ActiveWaveCount, Is.Zero);
+            Assert.That(chain.VisibleTier, Is.Zero);
+            Assert.That(feedback.PendingNoteCount, Is.Zero);
+        }
+
+        [UnityTest]
+        public IEnumerator Chain_ThreeNewRisksEscalateFeedback_DuplicateCrossingDoesNot()
+        {
+            var chain = Object.FindFirstObjectByType<CourtyardChainReactionView>();
+            var feedback = Object.FindFirstObjectByType<CourtyardResonanceView>();
+            yield return RiskMoveTo(CourtyardLayout.Courtyard, 0.21f, 0.3f);
+            Assert.That(resonance.Model.RiskChain, Is.EqualTo(1));
+            Assert.That(feedback.RiskSuccessVersion, Is.EqualTo(1));
+            yield return RiskMoveTo(CourtyardLayout.Entry, 0.21f, 0.3f);
+            Assert.That(resonance.Model.RiskChain, Is.EqualTo(2));
+            yield return RiskMoveTo(CourtyardLayout.Courtyard, 0.21f, 0.3f);
+            Assert.That(resonance.Model.RiskChain, Is.EqualTo(2));
+            Assert.That(feedback.RiskSuccessVersion, Is.EqualTo(2), "A claimed direction must not replay a risk victory.");
+            yield return RiskMoveTo(CourtyardLayout.Mechanism, 0.71f, 0.8f);
+            yield return new WaitForSeconds(4f);
+            Assert.That(resonance.Model.Carried, Is.EqualTo(9));
+            Assert.That(resonance.Model.RiskChain, Is.EqualTo(3));
+            Assert.That(feedback.RiskSuccessVersion, Is.EqualTo(3));
+            Assert.That(feedback.LastRiskChain, Is.EqualTo(3));
+            Assert.That(feedback.RiskStageVersion, Is.EqualTo(9));
+            Assert.That(feedback.PendingNoteCount, Is.Zero);
+            Assert.That(chain.VisibleTier, Is.EqualTo(3));
+            Assert.That(chain.SecuredTier, Is.Zero);
+            Assert.That(chain.LitBeaconCount, Is.EqualTo(7));
+            Assert.That(puzzle.IsActivated, Is.False, "Reward waves cannot unlock the real mechanism.");
+        }
+
+        [UnityTest]
+        public IEnumerator Chain_FailureRetractsUnbankedTier_CompletionKeepsOnlySecuredTier()
+        {
+            var chain = Object.FindFirstObjectByType<CourtyardChainReactionView>();
+            yield return RiskMoveTo(CourtyardLayout.Courtyard, 0.21f, 0.3f);
+            yield return SetW(0.8f);
+            yield return MoveTo(CourtyardLayout.Mechanism);
+            Assert.That(puzzle.TryActivate(), Is.True);
+            yield return null;
+            yield return null;
+            Assert.That(resonance.Model.Banked, Is.EqualTo(4));
+            Assert.That(chain.SecuredTier, Is.EqualTo(1));
+            yield return RiskMoveTo(CourtyardLayout.Courtyard, 0.71f, 0.8f);
+            Assert.That(chain.VisibleTier, Is.EqualTo(2));
+            yield return SetW(0.21f);
+            Assert.That(movement.RequestMove(level.Graph.GetNode(CourtyardLayout.Entry).WorldPosition).Succeeded, Is.True);
+            yield return WaitForArrival(CourtyardLayout.Courtyard);
+            yield return new WaitForSeconds(4f);
+            Assert.That(resonance.Model.Carried, Is.Zero);
+            Assert.That(resonance.Model.RiskChain, Is.Zero);
+            Assert.That(resonance.Model.BestRiskChain, Is.EqualTo(2));
+            Assert.That(resonance.Model.Banked, Is.EqualTo(4));
+            Assert.That(chain.VisibleTier, Is.EqualTo(1));
+            Assert.That(chain.SecuredTier, Is.EqualTo(1));
+            Assert.That(chain.ActiveWaveCount, Is.Zero);
+            yield return SetW(0.525f);
+            yield return MoveTo(CourtyardLayout.Goal);
+            yield return new WaitForSeconds(4f);
+            Assert.That(session.State, Is.EqualTo(LevelSessionState.Completed));
+            Assert.That(chain.IsCompleted, Is.True);
+            Assert.That(chain.SecuredTier, Is.EqualTo(1), "The finale must not restore a lost personal best.");
+            Assert.That(chain.VisibleTier, Is.EqualTo(1));
+        }
+
+        [UnityTest]
+        public IEnumerator Chain_MutingPreservesVisualStages_RestartCancelsDelayedVictory()
+        {
+            var chain = Object.FindFirstObjectByType<CourtyardChainReactionView>();
+            var feedback = Object.FindFirstObjectByType<CourtyardResonanceView>();
+            feedback.SetMuted(true);
+            int notes = feedback.AudioNotesStarted;
+            yield return RiskMoveTo(CourtyardLayout.Courtyard, 0.21f, 0.3f);
+            yield return new WaitForSeconds(1f);
+            Assert.That(feedback.RiskStageVersion, Is.EqualTo(3));
+            Assert.That(feedback.AudioNotesStarted, Is.EqualTo(notes));
+            Assert.That(feedback.PendingNoteCount, Is.Zero);
+            feedback.SetMuted(false);
+            yield return RiskMoveTo(CourtyardLayout.Entry, 0.21f, 0.3f);
+            Assert.That(feedback.AudioNotesStarted, Is.GreaterThan(notes));
+            Assert.That(feedback.PendingNoteCount, Is.GreaterThan(0));
+            Assert.That(chain.ActiveWaveCount, Is.GreaterThan(0));
+            Assert.That(session.RequestRestart(), Is.True);
+            int stagesAtRestart = feedback.RiskStageVersion;
+            yield return new WaitForSeconds(4f);
+            Assert.That(feedback.RiskStageVersion, Is.EqualTo(stagesAtRestart));
+            Assert.That(feedback.PendingNoteCount, Is.Zero);
+            Assert.That(feedback.LastRiskChain, Is.Zero);
+            Assert.That(chain.ActiveWaveCount, Is.Zero);
+            Assert.That(chain.LitBeaconCount, Is.Zero);
+            Assert.That(chain.SecuredTier, Is.Zero);
+            Assert.That(chain.VisibleTier, Is.Zero);
+            AssertRestarted();
+        }
+
+        private IEnumerator RiskMoveTo(string target, float dangerW, float centerW)
+        {
+            yield return SetW(dangerW);
+            Assert.That(movement.RequestMove(level.Graph.GetNode(target).WorldPosition).Succeeded, Is.True);
+            yield return WaitForResonanceCharge();
+            Assert.That(router.SetWDial(centerW).Succeeded, Is.True);
+            yield return WaitForArrival(target);
+            Assert.That(level.WState.CurrentW, Is.EqualTo(centerW).Within(0.005f),
+                "The actual smoothed dial must return to safety before arrival.");
+        }
+
         private IEnumerator WaitForResonanceCharge()
         {
             float timeoutAt = Time.realtimeSinceStartup + 8f;

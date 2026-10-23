@@ -20,6 +20,7 @@ namespace WSlice.UI
         private PlayerInputRouter router;
         private CourtyardWorldView world;
         private CourtyardResonanceView feedback;
+        private CourtyardChainReactionView chainReaction;
         private bool subscribed, activated, completed;
         private bool entranceOpen, stairOpen, bridgeOpen;
         private int actionVersion;
@@ -47,6 +48,8 @@ namespace WSlice.UI
             if (movement == null || player == null || level == null || session == null) return;
             feedback = gameObject.AddComponent<CourtyardResonanceView>();
             feedback.Bind(player.transform, world);
+            chainReaction = gameObject.AddComponent<CourtyardChainReactionView>();
+            chainReaction.Bind(world);
             BuildHUD();
             activated = puzzle.IsActivated;
             actionVersion = router != null ? router.ActionVersion : 0;
@@ -57,6 +60,7 @@ namespace WSlice.UI
         {
             Subscribe();
             if (feedback != null) feedback.enabled = true;
+            if (chainReaction != null) chainReaction.enabled = true;
             if (hud != null) hud.SetActive(true);
         }
 
@@ -81,6 +85,7 @@ namespace WSlice.UI
                 subscribed = false;
             }
             if (feedback != null) feedback.enabled = false;
+            if (chainReaction != null) chainReaction.enabled = false;
             if (hud != null) hud.SetActive(false);
             if (bandRoot != null) bandRoot.SetActive(false);
             if (riskLegend != null) riskLegend.gameObject.SetActive(false);
@@ -96,8 +101,9 @@ namespace WSlice.UI
                 if (!activated && puzzle.IsActivated)
                 {
                     activated = true;
+                    chainReaction.MechanismActivated();
+                    feedback.ActivateMechanism();
                     StoreEchoes();
-                    feedback.Pulse(NodePosition(CourtyardLayout.BridgeStart), Gold, 3);
                 }
                 ObserveRoutes();
                 ObserveRejectedInput();
@@ -116,7 +122,12 @@ namespace WSlice.UI
         {
             int gained = Model.IsCrossing && Model.ActiveFrom == from && Model.ActiveTo == to
                 ? Model.CompleteCrossing() : 0;
-            feedback.Pulse(player.transform.position, gained > 1 ? Gold : Safe, gained > 1 ? 3 : 1);
+            if (gained > 1)
+            {
+                feedback.RiskSuccess(player.transform.position, Model.RiskChain);
+                chainReaction.RiskSucceeded(player.transform.position, Model.RiskChain);
+            }
+            else feedback.Pulse(player.transform.position, Safe, 1);
             if (to == CourtyardLayout.Mechanism && puzzle.IsActivated) StoreEchoes();
         }
 
@@ -124,6 +135,7 @@ namespace WSlice.UI
         {
             int lost = Model.FailCrossing();
             feedback.Shatter(position, lost);
+            chainReaction.Broken(Model.SecuredRiskChain);
             feedback.Pulse(NodePosition(from), Danger, 1);
         }
 
@@ -131,6 +143,7 @@ namespace WSlice.UI
         {
             int amount = Model.Bank();
             feedback.Bank(player.transform.position, amount);
+            if (amount > 0) chainReaction.Deposited(Model.Banked, Model.SecuredRiskChain);
         }
 
         private void OnSessionChanged(LevelSessionState state)
@@ -139,6 +152,7 @@ namespace WSlice.UI
             completed = true;
             StoreEchoes();
             feedback.Celebrate(NodePosition(CourtyardLayout.Goal), Model.Banked);
+            chainReaction.Complete(Model.Banked, Model.SecuredRiskChain);
             // Keep earned gems visible above the result backdrop as a replay target.
             if (hud != null) hud.transform.SetAsLastSibling();
         }
@@ -176,6 +190,7 @@ namespace WSlice.UI
             if (hud != null) hud.transform.SetAsFirstSibling();
             actionVersion = router != null ? router.ActionVersion : 0;
             if (feedback != null) feedback.ResetFeedback();
+            if (chainReaction != null) chainReaction.ResetFeedback();
             RenderHUD();
         }
 

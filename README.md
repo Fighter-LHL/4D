@@ -2,7 +2,7 @@
 
 Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0,1]` 控制物体显隐、路径可达性与交互反馈。
 
-**2026-10-23 开发迭代：** 庭院新增回响收集、边缘蓄能三倍奖励、稳定环耗尽与损失、机关存入，以及晶体/涟漪/碎片/音效反馈。见[风险反馈候选与本轮验证边界](docs/releases/courtyard-resonance-candidate.md)。本轮使用当前源码配合历史 Mono player 外壳进行实验运行，不替代下述历史发布记录或 Unity Editor 正式构建。
+**2026-10-23 开发迭代：** 庭院在回响风险奖励上新增三级连响、七个场景节点的传播与开花、随桥升降的灯带，以及逐级增强的晶体喷发和音阶。已存层级在失败后保留，未存层级收回。见[连锁反应候选与本轮验证边界](docs/releases/courtyard-chain-reactions-candidate.md)及[前轮风险反馈记录](docs/releases/courtyard-resonance-candidate.md)。本轮使用当前源码配合历史 Mono player 外壳进行实验运行，不替代下述历史发布记录或 Unity Editor 正式构建。
 
 **当前阶段：** v0.4.0 本机独立应用验收通过。`190dd462` 通过 Unity 7 项校验、EditMode 130/130、PlayMode 74/74（含庭院 10/10）及 macOS 构建；同一应用完成三个启动尺寸目标的代理 GUI 回归，庭院共通关 4 次、旧五关各至少 2 次。五名陌生玩家试玩仍为 **0/5，未执行**。证据、尺寸口径和本机应用路径见[本轮运行记录](docs/releases/v0.4-courtyard-runtime.md)。
 

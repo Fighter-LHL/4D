@@ -13,6 +13,7 @@ namespace WSlice.Level
         public const float ChargeSeconds = 0.3f;
         public const float CollapseSeconds = 0.85f;
         public const float StabilityRecoveryPerSecond = 1.5f;
+        public const int MaximumRiskChain = 3;
 
         private const double ThresholdTolerance = 0.000001d;
         private readonly HashSet<(string from, string to)> carriedClaims = new();
@@ -23,6 +24,9 @@ namespace WSlice.Level
 
         public int Carried { get; private set; }
         public int Banked { get; private set; }
+        public int RiskChain { get; private set; }
+        public int BestRiskChain { get; private set; }
+        public int SecuredRiskChain { get; private set; }
         public float Stability => (float)stability;
         public float Charge01 => (float)Math.Min(1d, dangerousSeconds / ChargeSeconds);
         public bool IsCrossing { get; private set; }
@@ -101,6 +105,13 @@ namespace WSlice.Level
                 reward = IsCharged ? 3 : 1;
                 carriedClaims.Add((ActiveFrom, ActiveTo));
                 Carried += reward;
+                // Only a newly earned risky crossing advances the spectacle.
+                // Safe travel preserves progress; repeated directions cannot farm it.
+                if (reward == 3)
+                {
+                    RiskChain = Math.Min(MaximumRiskChain, RiskChain + 1);
+                    BestRiskChain = Math.Max(BestRiskChain, RiskChain);
+                }
             }
             ClearCrossing();
             return reward;
@@ -111,6 +122,7 @@ namespace WSlice.Level
             int lost = Carried;
             Carried = 0;
             carriedClaims.Clear();
+            RiskChain = 0;
             ClearCrossing();
             return lost;
         }
@@ -118,6 +130,7 @@ namespace WSlice.Level
         public int Bank()
         {
             int deposited = Carried;
+            if (deposited > 0) SecuredRiskChain = Math.Max(SecuredRiskChain, RiskChain);
             Banked += deposited;
             Carried = 0;
             bankedClaims.UnionWith(carriedClaims);
@@ -129,6 +142,7 @@ namespace WSlice.Level
         {
             Carried = 0;
             Banked = 0;
+            RiskChain = BestRiskChain = SecuredRiskChain = 0;
             carriedClaims.Clear();
             bankedClaims.Clear();
             ClearCrossing();
