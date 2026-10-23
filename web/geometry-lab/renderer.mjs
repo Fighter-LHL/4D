@@ -23,10 +23,16 @@ uniform float uBoxRole[${MAX}];
 uniform float uBoxCount;
 uniform vec4 uToken;
 uniform vec4 uActor;
+uniform vec2 uActorPos;
 uniform vec4 uItem;
 uniform vec4 uSocket;
 uniform vec4 uLatch;
 uniform vec4 uRelayPorts;
+uniform float uRelayUsed;
+uniform vec3 uPowerFx;
+uniform vec3 uLatchFx;
+uniform vec4 uStation;
+uniform vec4 uEntrance;
 uniform vec4 uChannel;
 uniform float uProps;
 uniform vec4 uGoal;
@@ -57,6 +63,18 @@ float wire(vec2 p, vec2 a, vec2 b) {
   vec2 ab = b - a;
   float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 0.001), 0.0, 1.0);
   return 1.0 - smoothstep(0.014, 0.034, length(p - a - ab * t));
+}
+
+// One pulse travels along an existing physical cable, then fades completely.
+float cablePulse(vec2 p, vec2 a, vec2 b, vec3 fx, bool reverse) {
+  if (fx.x < 0.0) return 0.0;
+  vec2 ab = b - a;
+  float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 0.001), 0.0, 1.0);
+  float head = clamp(fx.x / 0.68, 0.0, 1.0);
+  if (reverse) head = 1.0 - head;
+  float side = length(p - a - ab * t);
+  float along = abs(t - head) * length(ab);
+  return exp(-side * side * 420.0 - along * along * 65.0) * fx.y;
 }
 
 float hitSphere(vec3 ro, vec3 rd, vec4 s) {
@@ -314,6 +332,15 @@ void main() {
       float course = 1.0 - smoothstep(0.0, 0.015, abs(fract(p.y * 3.5) - 0.5) - 0.44);
       sideCol = mix(sideCol, mix(deckBase, IVORY, 0.4), lip * 0.45);
       sideCol *= 1.0 - course * 0.08;
+      if (uSocket.z >= 0.0) {
+        float across = abs(pn.x) > 0.5 ? p.z : p.x;
+        float joint = 1.0 - smoothstep(0.006, 0.024, abs(fract(across / 0.72 + floor(-p.y / 0.28) * 0.5) - 0.5));
+        sideCol *= 1.0 - joint * 0.12;
+        float belt = 1.0 - smoothstep(0.02, 0.045, abs(p.y + 0.24));
+        sideCol = mix(sideCol, vec3(0.37, 0.25, 0.16), belt * 0.65);
+        float rivet = 1.0 - smoothstep(0.018, 0.033, length(vec2(fract(across / 0.72) - 0.5, (p.y + 0.24) * 1.4)));
+        sideCol = mix(sideCol, GOLD * 0.60, rivet * 0.80);
+      }
       float depthFade = clamp(1.0 + p.y * 0.72, 0.15, 1.0);
       color = mix(bg, sideCol, depthFade);
     } else {
@@ -334,6 +361,7 @@ void main() {
         float grain = sin(floor(cell.x) * 7.1 + row * 4.7) * 0.018;
         fl = mix(deckBase, vec3(0.64, 0.63, 0.55), 0.31) + grain;
         fl *= 1.0 - grout * 0.22;
+        fl = stationFloorDetails(p.xz, fl);
         if (uChannel.w > 0.0 && p.x >= uChannel.x && p.x <= uChannel.y && abs(p.z - uChannel.z) < uChannel.w) {
           float slab = 1.0 - smoothstep(0.004, 0.018, abs(fract((p.x - uChannel.x) / 0.55) - 0.5) * 0.55);
           fl = mix(fl, vec3(0.30, 0.39, 0.40), 0.50) * (1.0 - slab * 0.18);
@@ -368,6 +396,27 @@ void main() {
           fl = mix(fl, GOLD, (outerRing * dash + innerSocket * 0.4) * (-uGoal.w) * 0.65);
         }
       }
+      if (uStation.x >= 0.0) {
+        // Progress is engraved on the receiver: square stone, round copper.
+        for (int k = 0; k < 2; k += 1) {
+          vec2 pos = uGoal.xy + vec2(k == 0 ? -0.22 : 0.22, 0.52);
+          vec2 q = abs(p.xz - pos);
+          float d = k == 0 ? max(q.x, q.y) : length(q);
+          float earned = k == 0 ? uStation.z : uStation.w;
+          float rim = 1.0 - smoothstep(0.006, 0.018, abs(d - 0.11));
+          float core = k == 0 ? (1.0 - smoothstep(0.028, 0.045, max(q.x, q.y)))
+            : (1.0 - smoothstep(0.012, 0.025, q.y)) * (1.0 - smoothstep(0.04, 0.06, q.x));
+          vec3 ink = k == 0 ? vec3(0.78, 0.87, 0.84) : GOLD;
+          fl = mix(fl, ink, clamp(rim * mix(0.25, 0.9, earned) + core * earned, 0.0, 1.0));
+        }
+        // The airlock mark appears only after a successful opening, then rests.
+        vec2 bay = vec2(mix(uChannel.x, uChannel.y, 0.45), uChannel.z);
+        float pad = 1.0 - smoothstep(0.01, 0.028, abs(length(p.xz - bay) - 0.42));
+        fl = mix(fl, IVORY, pad * uStation.x * 0.42);
+        vec2 entry = abs(p.xz - uEntrance.xy) - uEntrance.zw;
+        float outline = 1.0 - smoothstep(0.012, 0.032, abs(max(entry.x, entry.y)));
+        fl = mix(fl, IVORY, outline * uStation.y * 0.9);
+      }
       if (abs(uItem.w) > 0.001) {
         vec2 iq = abs(p.xz - uItem.xz);
         float idist = (iq.x + iq.y) * 0.72;
@@ -379,20 +428,21 @@ void main() {
       if (uSocket.z >= 0.0) {
         vec3 blue = vec3(0.28, 0.79, 0.92);
         float d = length(p.xz - uSocket.xy);
-        float ring = 1.0 - smoothstep(0.012, 0.030, abs(d - 0.34));
+        float ring = 1.0 - smoothstep(0.012, 0.030, abs(d - 0.62));
         float inner = 1.0 - smoothstep(0.012, 0.028, abs(d - 0.22));
         float basin = 1.0 - smoothstep(0.08, 0.19, d);
         float ang = atan(p.z - uSocket.y, p.x - uSocket.x);
         float prong = smoothstep(0.58, 0.92, abs(sin(ang * 1.5))) * (1.0 - smoothstep(0.10, 0.17, d));
         float cable = wire(p.xz, uSocket.xy, uRelayPorts.xy);
-        float power = mix(0.20, 0.95, uSocket.w);
+        float power = mix(mix(0.20, 0.62, uRelayUsed), 0.95, uSocket.w);
         float pool = exp(-d * d * 6.0) * (0.10 + 0.45 * uSocket.w);
         fl += blue * pool * 0.30;
         // Copper sheath under the existing cable; blue remains its power state.
         fl = mix(fl, vec3(0.53, 0.33, 0.19), wire(p.xz + vec2(0.0, 0.045), uSocket.xy, uRelayPorts.xy) * 0.60);
         fl = mix(fl, vec3(0.53, 0.33, 0.19), wire(p.xz - vec2(0.0, 0.045), uSocket.xy, uRelayPorts.xy) * 0.60);
-        fl = mix(fl, blue, cable * power * 0.88);
+        fl = mix(fl, mix(GOLD, blue, uSocket.w), cable * power * 0.88);
         fl = mix(fl, blue, uSocket.z * (ring * 0.90 + inner * 0.42 + prong * 0.55));
+        fl = mix(fl, IVORY, ring * max(uStation.y, 0.0) * 0.85);
         fl = mix(fl, blue * 0.42, uSocket.z * basin * 0.42);
         float pin = 1.0 - smoothstep(0.032, 0.060, length(p.xz - uRelayPorts.xy));
         fl = mix(fl, mix(blue * 0.35, IVORY, uSocket.w), pin * 0.85);
@@ -400,21 +450,31 @@ void main() {
         float gap = 1.0 - smoothstep(0.44, 0.54, abs(p.z - uRelayPorts.y));
         float bar = 1.0 - smoothstep(0.045, 0.095, abs(abs(p.x) - 0.17));
         fl = mix(fl, blue, gap * bar * (0.10 + 0.72 * uSocket.w));
+        float pulse = cablePulse(p.xz, uSocket.xy, uRelayPorts.xy, uPowerFx, uSocket.w < 0.5);
+        fl += mix(GOLD, vec3(0.55, 0.94, 1.0), uSocket.w) * pulse * 0.72;
+        if (uPowerFx.x >= 0.0) {
+          float arrival = uSocket.w > 0.5 ? smoothstep(0.38, 0.68, uPowerFx.x) : 1.0 - smoothstep(0.0, 0.32, uPowerFx.x);
+          fl += mix(GOLD, blue, uSocket.w) * gap * bar * arrival * uPowerFx.y * 0.65;
+        }
       }
       if (uLatch.z >= 0.0) {
         vec2 q = abs(p.xz - uLatch.xy);
+        float halo = 1.0 - smoothstep(0.012, 0.030, abs(length(q) - 0.62));
         float plate = 1.0 - smoothstep(0.010, 0.028, abs(max(q.x, q.y) - 0.23));
         float inner = 1.0 - smoothstep(0.010, 0.026, abs(max(q.x, q.y) - 0.15));
         float handle = wire(p.xz, uLatch.xy + vec2(-0.12, -0.10 + uLatch.w * 0.20), uLatch.xy + vec2(0.12, -0.10 + uLatch.w * 0.20));
         float lock = 1.0 - smoothstep(0.030, 0.060, length(p.xz - uLatch.xy - vec2(0.0, 0.055)));
         float cable = wire(p.xz, uLatch.xy, uRelayPorts.zw);
         fl = mix(fl, GOLD, cable * mix(0.16, 0.88, uLatch.w));
+        fl = mix(fl, GOLD, halo * uLatch.z * 0.85);
         fl = mix(fl, mix(GOLD, ITEM_COL, uLatch.w * 0.55), (plate * 0.85 + inner * 0.30 + handle * 0.60) * uLatch.z);
         fl = mix(fl, mix(ALERT * 0.75, GOLD, uLatch.w), lock * uLatch.z * 0.55);
         // Latched threshold: warm-gold bar stays open across the south opening.
         float rgap = 1.0 - smoothstep(0.50, 0.60, abs(p.z - uRelayPorts.w));
         float rbar = 1.0 - smoothstep(0.045, 0.095, abs(abs(p.x) - 0.17));
         fl = mix(fl, mix(GOLD, ITEM_COL, 0.32), rgap * rbar * (0.10 + 0.72 * uLatch.w));
+        fl += mix(GOLD, IVORY, 0.45) * cablePulse(p.xz, uLatch.xy, uRelayPorts.zw, uLatchFx, false) * 0.85;
+        if (uLatchFx.x >= 0.0) fl += GOLD * rgap * rbar * smoothstep(0.35, 0.65, uLatchFx.x) * uLatchFx.y * 0.65;
       }
       for (int i = 0; i < 8; i += 1) {
         if (uTrail[i].z <= 0.001) break;
@@ -477,6 +537,9 @@ void main() {
   }
 
   float solidT = floorT;
+  vec3 dressingCol;
+  float dressingT = hitStationDressing(ro, rd, dressingCol);
+  if (dressingT > 0.0 && dressingT < solidT) { solidT = dressingT; color = dressingCol; }
   // Devices are low surface fixtures at existing interaction markers. They
   // share the nearest-hit pass with the courier and core, never collision.
   if (uProps > 0.5) {
@@ -491,7 +554,7 @@ void main() {
   bool hitCharacterOrItem = false;
   if (uActor.w > 0.5) {
     vec3 actorCol;
-    float tAct = hitActor(ro, rd, uToken.xy, uActor.x, uActor.y, uActor.z, uToken.w, layerTint, actorCol);
+    float tAct = hitActor(ro, rd, uActorPos, uActor.x, uActor.y, uActor.z, uToken.w, layerTint, actorCol);
     if (tAct > 0.0 && tAct < solidT) {
       solidT = tAct;
       color = actorCol;
@@ -563,7 +626,7 @@ void main() {
 `;
 
 const NAMES = ['uResolution', 'uEye', 'uLookY', 'uSph', 'uSphTint', 'uSphRole', 'uSphGhost', 'uSphCount', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxRole', 'uBoxCount',
-  'uToken', 'uActor', 'uItem', 'uSocket', 'uLatch', 'uRelayPorts', 'uChannel', 'uProps', 'uGoal', 'uStart', 'uBounds', 'uTrail', 'uRipples', 'uRippleTint', 'uLayerA', 'uLayerB', 'uLayerMix'];
+  'uToken', 'uActor', 'uActorPos', 'uItem', 'uSocket', 'uLatch', 'uRelayPorts', 'uRelayUsed', 'uPowerFx', 'uLatchFx', 'uStation', 'uEntrance', 'uChannel', 'uProps', 'uGoal', 'uStart', 'uBounds', 'uTrail', 'uRipples', 'uRippleTint', 'uLayerA', 'uLayerB', 'uLayerMix'];
 const VIEW = { yaw: 0.66, pitch: 0.58, distance: 12.2, minPitch: 0.2, maxPitch: 1.35, minDistance: 7.5, maxDistance: 20 };
 
 export class SliceRenderer {
@@ -700,6 +763,20 @@ export class SliceRenderer {
     const goalW = !field ? -2 : (token?.won ? 2 : (goalState?.open ? 0.25 + 0.75 * goalState.wEdge : -(goalState?.wGhost ?? 0.5)));
     gl.uniform4f(u.uToken, ...(token ? [token.pos[0], token.pos[1], field.tokenRadius, token.flash] : [0, 0, 0, -1]));
     gl.uniform4f(u.uActor, ...(token ? [token.yaw ?? 1.57, token.bob ?? 0, token.carrying ? 1 : 0, 1] : [0, 0, 0, 0]));
+    // Only the courier mesh steps aside. Position, carry radius and collision
+    // rings stay at the runtime coordinates.
+    const actorPos = token ? [...token.pos] : [0, 0];
+    if (token && frame.relay) {
+      const device = [frame.relay.socket, frame.relay.latch].find((d) => Math.hypot(token.pos[0] - d.x, token.pos[1] - d.z) < d.reach);
+      if (device) {
+        const dx = token.pos[0] - device.x, dz = token.pos[1] - device.z;
+        const distance = Math.hypot(dx, dz);
+        const shift = 0.16 * (1 - distance / device.reach);
+        actorPos[0] += (distance > 1e-6 ? dx / distance : -Math.sin(token.yaw ?? 0)) * shift;
+        actorPos[1] += (distance > 1e-6 ? dz / distance : -Math.cos(token.yaw ?? 0)) * shift;
+      }
+    }
+    gl.uniform2f(u.uActorPos, ...actorPos);
     gl.uniform4f(u.uItem, ...itemUniform);
     gl.uniform1f(u.uProps, field?.item ? 1 : 0);
     // Material inlay follows the authored channel walls, not a second route
@@ -718,7 +795,16 @@ export class SliceRenderer {
       gl.uniform4f(u[name], device?.x ?? 0, device?.z ?? 0, visible, active ? 1 : 0);
     }
     gl.uniform4f(u.uRelayPorts, ...(relay ? [...relay.powerPort, ...relay.returnPort] : [0, 0, 0, 0]));
-    gl.uniform4f(u.uGoal, ...(field ? [field.goal[0], field.goal[1], 0.3, goalW] : [0, 0, 0, -2]));
+    gl.uniform1f(u.uRelayUsed, relay?.used ? 1 : 0);
+    for (const [uniform, key, settled] of [['uPowerFx', 'power', relay?.powered], ['uLatchFx', 'latch', relay?.latched]]) {
+      const fx = frame.mechanismEffects?.[key];
+      gl.uniform3f(u[uniform], fx?.progress ?? -1, fx?.strength ?? 0, fx?.pose ?? Number(Boolean(settled)));
+    }
+    const station = frame.station;
+    gl.uniform4f(u.uStation, ...(station ? [station.airlock ? 1 : 0, station.cue, station.seals.stone ? 1 : 0, station.seals.copper ? 1 : 0] : [-1, 0, 0, 0]));
+    const entrance = station && frame.sections.find((s) => s.id === 'station-middle-door');
+    gl.uniform4f(u.uEntrance, ...(entrance ? [entrance.center[0], entrance.center[2], entrance.half[0], entrance.half[2]] : [0, 0, 0, 0]));
+    gl.uniform4f(u.uGoal, ...(field ? [field.goal[0], field.goal[1], 0.3 - 0.06 * (token?.arrival ?? 0), goalW] : [0, 0, 0, -2]));
     gl.uniform3f(u.uStart, ...(field ? [field.start[0], field.start[1], 1] : [0, 0, 0]));
     gl.uniform3f(u.uBounds, ...(field ? [field.bounds.x, field.bounds.z, 1] : [0, 0, 0]));
     const trail = new Float32Array(24);
