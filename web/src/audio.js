@@ -82,7 +82,9 @@ export class GameAudio {
     if (this.disposed || !Array.isArray(events)) return;
     for (const event of events) {
       if (!event || typeof event.type !== 'string') continue;
-      if (event.type === 'fail') this._cancel(['power']);
+      // These sounds describe geometry/power already committed by the model.
+      // A later stumble cancels reward music, but cannot undo the grown bridge.
+      if (event.type === 'fail') this._cancel(['power', 'growth', 'weave', 'coil']);
       if (['lose', 'restart', 'room'].includes(event.type)) this._cancel();
       if (['fail', 'lose', 'restart', 'room', 'dodge', 'evade', 'shield'].includes(event.type)) this.waveCue = null;
       if (['warning', 'dodge', 'evade', 'shield'].includes(event.type)) this._cancelGroup('warning');
@@ -113,6 +115,38 @@ export class GameAudio {
           this._tone(layer.note / 2, now, .24, .06, pan, 'soft', layer.note, 'power');
           this._tone(layer.note, now + .07, .37, .07, pan, layer.kind, null, 'power');
           this._air(now, .16, .035, pan, layer.air, 'power');
+          break;
+        case 'resonance':
+          // Each step arrives on the model clock. Never schedule a later step
+          // here: a pause must not grow an audible bridge behind a frozen scene.
+          this._cancelGroup('growth');
+          if (event.stage === 1) {
+            this._tone(NOTE.D3, now, .23, .048, pan, 'soft', NOTE.A3, 'growth');
+            this._air(now, .16, .029, pan, 520, 'growth');
+          } else if (event.stage === 2) {
+            this._tone(layer.note / 2, now, .31, .041, pan, 'soft', layer.note, 'growth');
+            this._air(now, .26, .043, pan, layer.air, 'growth');
+          } else if (event.stage === 3) {
+            // The bridge settles into two sustained notes, not another reward
+            // arpeggio. Its arrival follows the earned-risk melody's attack.
+            this._tone(NOTE.D5, now, .59, .052, pan, 'glass', null, 'growth');
+            this._tone(NOTE.A4, now, .48, .039, -pan, 'soft', null, 'growth');
+            this._air(now, .23, .046, pan, 2100, 'growth');
+          }
+          break;
+        case 'weave': {
+          this._cancelGroup('weave');
+          const sourcePan = PAN[event.from] ?? -pan;
+          // A low thread and two spatially separated breath textures mark the
+          // physical shortcut, leaving the brighter reward melody unclaimed.
+          this._tone(layer.note / 2, now, .28, .046, sourcePan, 'soft', layer.note, 'weave');
+          this._air(now, .17, .049, sourcePan, 840, 'weave');
+          this._air(now + .045, .24, .042, pan, layer.air + 620, 'weave');
+          break;
+        }
+        case 'coil':
+          this._cancelGroup('coil');
+          this._tone(layer.note * 2, now, .19, .052, pan, 'glass', null, 'coil');
           break;
         case 'warning':
           // syncWave drives short beats from model time, never wall-clock time.
@@ -150,11 +184,18 @@ export class GameAudio {
           break;
         }
         case 'activate':
+          if (event.via === 'coil') {
+            this._tone(NOTE.D3, now, .28, .068, pan, 'soft', null, 'coil');
+            break;
+          }
           this._tone(NOTE.D3, now, .47, .12, pan, 'soft');
           this._arpeggio([NOTE.A4, NOTE.D5, NOTE.Fs5], now, .07, .085, pan);
           this._air(now, .18, .075, pan, 850);
           break;
         case 'chain': {
+          // The coil ping plus its activation body already announce this one
+          // activation. A finished courtyard may still play its unlock cue.
+          if (event.via === 'coil') break;
           const step = Math.max(0, Math.min(2, Number(event.step ?? event.index ?? ((event.tier ?? 1) - 1)) || 0));
           const note = [NOTE.Fs5, NOTE.A5, NOTE.D6][step];
           this._tone(note, now, .43, .075 + step * .012, pan, 'glass');

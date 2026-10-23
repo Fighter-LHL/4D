@@ -146,8 +146,8 @@ test('wave clock pauses without updates, clamps background deltas, and is cancel
 
 test('different relics accumulate while per-room uses reset and life/bank remain', () => {
   const model = start(); fall(model, 'dew'); finishRoom(model); const bank = model.snapshot().banked; model.chooseRelic('shell');
-  assert.deepEqual(model.snapshot().relics, { prism: 1, shadow: 0, shell: 1 }); assert.equal(model.snapshot().lives, 2); assert.equal(model.snapshot().banked, bank);
-  fall(model); assert.equal(model.snapshot().shield, false); finishRoom(model); model.chooseRelic('shadow'); assert.deepEqual(model.snapshot().relics, { prism: 1, shadow: 1, shell: 1 }); assert.equal(model.snapshot().shield, true);
+  assert.deepEqual(model.snapshot().relics, { prism: 1, shadow: 0, shell: 1, coil: 0, weave: 0 }); assert.equal(model.snapshot().lives, 2); assert.equal(model.snapshot().banked, bank);
+  fall(model); assert.equal(model.snapshot().shield, false); finishRoom(model); model.chooseRelic('shadow'); assert.deepEqual(model.snapshot().relics, { prism: 1, shadow: 1, shell: 1, coil: 0, weave: 0 }); assert.equal(model.snapshot().shield, true);
 });
 
 for (const relic of RELICS) test(`${relic.id} upgrades persist through three different rooms with no ability required to win`, () => {

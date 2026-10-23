@@ -11,9 +11,9 @@ npm start
 
 打开 <http://127.0.0.1:4173/>。无需安装 npm 依赖，也不需要游戏引擎。`web/` 可作为静态网站部署；当前仅本地运行，未发布公网。
 
-网页每局从 **四种机关模板中抽取三庭且不重复**，改变 W 层归属、空间朝向和花匣挑战。同位串联、双源汇流、远端折返、分源架桥有不同的供能关系与路线；三庭分别搭配单层回流、追层双涌、双层封锁。遗物跨庭累积或升阶，冒险成功有分级花瓣、冠环、沿真实桥梁传播的回响及和弦收束。
+网页每局从 **四种机关模板中抽取三庭且不重复**，改变 W 层归属、空间朝向和花匣挑战。同位串联、双源汇流、远端折返、分源架桥有不同的供能关系与路线；三庭分别搭配单层回流、追层双涌、双层封锁。五种遗物跨庭累积或升阶：接力线圈让换层自动启动已蓄势机关，织桥种把冒险成果变成永久捷径，留影扣还能代为远程种桥。每庭第一次新冒险成功会让归响台、花匣、锚台逐站开花，最终在指定 W 层长出真正可走的花匣—锚台桥；仍需满足机关前置。
 
-W 驱动预设四维实体的连续截面和通行规则。当前随机化来自手工模板的组合、层排列和经过投影间距筛选的朝向，并非任意程序生成地图或完整四维几何物理引擎。URL 的 `?seed=123` 可复玩同一旅程，“新一局”生成新种子。详见 [网页运行与规则](web/README.md)和[随机房间契约](web/RANDOM-ROOMS-CONTRACT.md)。测试命令：`cd web && npm test`；当前套件共 58 项，自动化结果不替代真实玩家体验验证。
+W 驱动预设四维实体的连续截面和通行规则。当前随机化来自手工模板的组合、层排列和经过投影间距筛选的朝向，并非任意程序生成地图或完整四维几何物理引擎。URL 的 `?seed=123` 可复玩同一旅程，“新一局”生成新种子。详见 [网页运行与规则](web/README.md)、[遗物联动契约](web/SYNERGY-CONTRACT.md)和[本轮验证记录](web/artifacts/synergies-20261023/validation.md)。测试命令：`cd web && npm test`；当前套件共 91 项，自动化结果不替代真实玩家体验验证。
 
 [Roguelike 元素与组合设计](docs/roguelike-design.md)列出当前落地范围并保留最初设计库；局外成长、四房间流程及其他提案仍未实现。
 
@@ -148,7 +148,8 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceP
 ## 文档索引
 
 - [web/README.md](web/README.md) — 当前网页玩法、启动与测试
-- [web/RANDOM-ROOMS-CONTRACT.md](web/RANDOM-ROOMS-CONTRACT.md) — 当前种子、房间组合、风险与返程约束
+- [web/SYNERGY-CONTRACT.md](web/SYNERGY-CONTRACT.md) — 当前遗物构筑、永久捷径、场景连锁与失败边界
+- [web/RANDOM-ROOMS-CONTRACT.md](web/RANDOM-ROOMS-CONTRACT.md) — 随机房间迭代基线；种子与模板规则继续适用，联动规则见上项
 
 - [WSliceProto/README.md](WSliceProto/README.md) — 模块与设计原则
 - [WSliceProto/Validation.md](WSliceProto/Validation.md) — 验证命令与 PR 测试记录规范

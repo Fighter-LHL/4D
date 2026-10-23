@@ -401,3 +401,155 @@ test('room completion has a closing cadence distinct from entering a room', asyn
   assert.ok(completion.every(source => stopped(source, context)));
   assert.ok(audio.voices.size <= 24);
 });
+
+test('scene growth sounds only authoritative stages and resolves without another reward melody', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  const stagePitches = [];
+  let previous = [];
+  for (const stage of [1, 2, 3]) {
+    const first = context.sources.length;
+    audio.handle([{ type: 'resonance', from: 'vault', to: stage === 1 ? 'hub' : 'relay',
+      node: 'relay', stage, layer: 1, edgeId: 'resonant-return' }]);
+    const current = context.sources.slice(first);
+    assert.ok(current.length > 0);
+    assert.ok(current.every(source => source.startAt === context.currentTime), 'never pre-schedule another scene stage');
+    assert.ok(previous.every(source => stopped(source, context)), 'late frames replace old growth tails instead of stacking them');
+    stagePitches.push(current[0].frequency.value);
+    assert.ok([...audio.voices].every(voice => voice.group === 'growth'), 'growth must not invoke the reward arpeggio');
+    if (stage === 3) {
+      assert.equal(current.filter(source => !source.buffer).length, 4, 'a completed bridge resolves as two sustained notes');
+      assert.ok(current.some(source => source.stopAt > context.currentTime + .5));
+    }
+    // Advancing the audio clock is not evidence that the next model stage ran.
+    context.currentTime += 5;
+    audio.syncWave(null);
+    assert.equal(context.sources.length, first + current.length);
+    previous = current;
+  }
+  assert.equal(new Set(stagePitches).size, 3, 'seed, growth and bridge arrival need distinct pitches');
+});
+
+test('coil activation has one short layer-specific ping and body instead of duplicate chain flourishes', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  const pitches = [];
+  for (const layer of [0, 1, 2]) {
+    audio.handle([{ type: 'restart' }]);
+    const first = context.sources.length;
+    audio.handle([
+      { type: 'coil', from: 'hub', to: 'bell', node: 'bell', layer },
+      { type: 'activate', node: 'bell', layer, via: 'coil', tier: 2 },
+      { type: 'chain', node: 'bell', layer, via: 'coil', tier: 2 },
+    ]);
+    const cue = context.sources.slice(first);
+    assert.equal(cue.length, 4, 'one ping and one activation body use two oscillator pairs');
+    assert.ok(cue.every(source => source.startAt === context.currentTime && source.stopAt <= context.currentTime + .31));
+    assert.ok([...audio.voices].every(voice => voice.group === 'coil'));
+    pitches.push(cue[0].frequency.value);
+  }
+  assert.equal(new Set(pitches).size, 3, 'the activated W layer remains audible');
+  const first = context.sources.length;
+  audio.handle([{ type: 'unlock', node: 'exit' }]);
+  assert.ok(context.sources.length - first > 4, 'a coil that completes the courtyard still earns its exit cue');
+});
+
+test('bridge weaving uses a bounded texture with a distinct source and destination', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  audio.handle([{ type: 'weave', from: 'bloom', to: 'hub', node: 'bloom', layer: 2,
+    edgeId: 'woven-bloom-hub', remote: true }]);
+  assert.equal(context.sources.filter(source => !source.buffer).length, 2, 'weaving has one thread tone, not a reward melody');
+  assert.equal(context.sources.filter(source => source.buffer).length, 2);
+  assert.ok(context.sources.every(source => source.stopAt <= context.currentTime + .31));
+  const voices = [...audio.voices];
+  assert.ok(voices.every(voice => voice.group === 'weave'));
+  assert.equal(voices[1].nodes[2].pan.value, .35, 'the first texture starts at the source mechanism');
+  assert.equal(voices[2].nodes[2].pan.value, 0, 'the second texture lands at the destination anchor');
+});
+
+test('same-frame failure keeps committed growth but cancels reward without resurrecting it at later stages', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  audio.handle([{ type: 'reward', node: 'vault', risky: true, tier: 3 }]);
+  const reward = [...context.sources];
+  audio.handle([{ type: 'resonance', stage: 1, to: 'hub', layer: 1 },
+    { type: 'weave', from: 'bloom', to: 'relay', layer: 2 },
+    { type: 'coil', from: 'hub', to: 'bell', layer: 1 }]);
+  const committed = context.sources.slice(reward.length);
+  audio.handle([{ type: 'fail', node: 'hub' }]);
+  assert.ok(reward.every(source => stopped(source, context)));
+  assert.ok(committed.every(source => !source.disconnected), 'an ordinary failure cannot un-grow a committed bridge');
+  context.currentTime += .35;
+  audio.handle([{ type: 'resonance', stage: 2, to: 'vault', layer: 1 }]);
+  context.currentTime += .4;
+  audio.handle([{ type: 'resonance', stage: 3, to: 'relay', layer: 1 }]);
+  assert.ok([...audio.voices].every(voice => voice.group !== 'reward'), 'later geometry never replays the cancelled reward');
+  assert.ok(reward.every(source => stopped(source, context)));
+
+  audio.handle([{ type: 'restart' }]);
+  audio.handle([{ type: 'fail', node: 'hub' }, { type: 'resonance', stage: 1, to: 'hub', layer: 0 }]);
+  assert.ok([...audio.voices].some(voice => voice.group === 'growth'), 'committed growth is also audible when fail precedes it in the batch');
+});
+
+test('scene and relic cues honor mute, pause and run boundaries with no replay', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  const events = [{ type: 'resonance', stage: 3, to: 'relay', layer: 2 },
+    { type: 'weave', from: 'bloom', to: 'hub', layer: 2 },
+    { type: 'coil', from: 'relay', to: 'bell', layer: 1 }];
+  for (const boundary of ['mute', 'pause', 'room', 'restart', 'lose']) {
+    const first = context.sources.length;
+    audio.handle(events);
+    const committed = context.sources.slice(first);
+    assert.ok(committed.length > 0);
+    if (boundary === 'mute') audio.setEnabled(false);
+    else if (boundary === 'pause') audio.syncWave(null, true);
+    else audio.handle([{ type: boundary }]);
+    assert.ok(committed.every(source => stopped(source, context)), `${boundary} left old scene sounds running`);
+    const beforeResume = context.sources.length;
+    if (boundary === 'mute' || boundary === 'pause') {
+      audio.handle(events);
+      assert.equal(context.sources.length, beforeResume, 'blocked model events cannot be deferred for replay');
+    }
+    audio.setEnabled(true);
+    audio.syncWave(null, false);
+    assert.equal(context.sources.length, beforeResume);
+    assert.ok(committed.every(source => stopped(source, context)));
+  }
+});
+
+test('overlapping earned rewards, growth and relic activations retain shared voice and output limits', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  for (let i = 0; i < 100; i++) {
+    audio.handle([{ type: 'reward', risky: true, tier: 3 },
+      { type: 'resonance', stage: 3, to: 'relay', layer: i % 3 },
+      { type: 'weave', from: 'bloom', to: 'hub', layer: i % 3 },
+      { type: 'coil', from: 'hub', to: 'bell', layer: i % 3 },
+      { type: 'activate', node: 'bell', via: 'coil', layer: i % 3 },
+      { type: 'power', from: 'bell', to: 'bloom', layer: i % 3 }]);
+    assert.ok(audio.voices.size <= 24);
+    assert.ok(context.sources.filter(source => !source.disconnected).length <= 48);
+    assert.equal(audio.master.gain.value, .65);
+    assert.equal(audio.compressor.threshold.value, -18);
+  }
+});

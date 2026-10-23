@@ -41,7 +41,7 @@ export function activateAll(model) {
     const state = model.snapshot();
     const target = state.mechanismOrder.find(id => !state.activated.includes(id) && state.powered.includes(id) && pathTo(state, id));
     if (!target) { assert.equal(state.activated.length, 3); break; }
-    reach(model, target); assert.equal(model.interact(), true); advance(model, .51);
+    reach(model, target); if (!model.snapshot().activated.includes(target)) assert.equal(model.interact(), true); advance(model, .51);
   }
   assert.equal(model.snapshot().activated.length, 3);
 }

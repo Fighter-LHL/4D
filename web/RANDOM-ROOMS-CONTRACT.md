@@ -1,5 +1,7 @@
 # 随机房间与跨层机关契约
 
+> 历史基线说明：本文保留随机房间迭代当时的规则和 58 项测试口径。后续遗物联动、永久桥、场景生长及对应失败／声音边界见 [SYNERGY-CONTRACT.md](SYNERGY-CONTRACT.md)；本文的模板生成、四维支撑和花匣基础规则继续适用，冲突处以新契约为准。
+
 当前实现契约，2026-10-23。适用于原生网页 `src/rooms.js`、`src/model.js`、`src/main.js`、`src/scene.js`、`src/audio.js`。它替代 [SLICE-CONTRACT.md](SLICE-CONTRACT.md) 中固定首庭、固定层归属、固定机关链、固定影桥和单一花匣规则；旧文件及证据作为历史保留。
 
 ## 生成范围与复玩

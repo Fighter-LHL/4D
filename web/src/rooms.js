@@ -11,6 +11,7 @@ export const ROOM_TEMPLATES = [
       ['hub-relay', 'hub', 'relay', 1, { active: ['bell'] }], ['relay-bloom', 'relay', 'bloom', 2, { active: ['bell'] }],
       ['relay-exit', 'relay', 'exit', 2],
     ], vaultAfter: ['bell'],
+    weaveAnchors: { dew: 'relay', bell: 'relay', bloom: 'hub' },
     shadows: [
       { sources: ['dew', 'bell'], edge: ['shadow-bell-relay', 'bell', 'relay', 1, { active: ['bell'] }] },
       { sources: ['bloom'], edge: ['shadow-bloom-exit', 'bloom', 'exit', 2] },
@@ -27,6 +28,7 @@ export const ROOM_TEMPLATES = [
       ['hub-bell', 'hub', 'bell', 1, { power: 'bell', escape: 'bell' }],
       ['hub-relay', 'hub', 'relay', 1, { active: ['bell'] }], ['relay-exit', 'relay', 'exit', 1],
     ], vaultAfter: ['dew', 'bloom'],
+    weaveAnchors: { dew: 'relay', bell: 'relay', bloom: 'relay' },
     shadows: [
       { sources: ['dew', 'bell'], edge: ['shadow-bell-relay', 'bell', 'relay', 1, { active: ['bell'] }] },
       { sources: ['bloom'], edge: ['shadow-bloom-relay', 'bloom', 'relay', 2, { active: ['bell'] }] },
@@ -43,6 +45,7 @@ export const ROOM_TEMPLATES = [
       ['relay-bell', 'relay', 'bell', 1, { active: ['dew'] }],
       ['relay-bloom', 'relay', 'bloom', 2, { active: ['bell'], escape: 'bloom' }], ['hub-exit', 'hub', 'exit', 0],
     ], vaultAfter: ['bell'],
+    weaveAnchors: { dew: 'relay', bell: 'hub', bloom: 'hub' },
     shadows: [
       { sources: ['dew'], edge: ['shadow-dew-relay', 'dew', 'relay', 0, { active: ['dew'] }] },
       { sources: ['bell', 'bloom'], edge: ['shadow-bloom-hub', 'bloom', 'hub', 2, { active: ['bell'] }] },
@@ -59,6 +62,7 @@ export const ROOM_TEMPLATES = [
       ['hub-relay', 'hub', 'relay', 0, { active: ['dew'] }],
       ['relay-bloom', 'relay', 'bloom', 2, { active: ['dew'] }], ['relay-exit', 'relay', 'exit', 2],
     ], vaultAfter: ['bell'],
+    weaveAnchors: { dew: 'relay', bell: 'relay', bloom: 'hub' },
     shadows: [
       { sources: ['dew', 'bell'], edge: ['shadow-bell-relay', 'bell', 'relay', 1, { active: ['dew'] }] },
       { sources: ['bloom'], edge: ['shadow-bloom-exit', 'bloom', 'exit', 2] },
@@ -111,6 +115,8 @@ export function buildRoom(plan, layers) {
     anchor: ['hub', 'relay', 'vault'].includes(id), required: [...(template.requires[id] || [])] }));
   const edge = ([id, from, to, role, gate = {}]) => ({ id, from, to, layer: mapping[role], gate: { ...gate, active: gate.active ? [...gate.active] : undefined } });
   return { nodes, edges: [...template.edges.map(edge), edge(['hub-vault', 'hub', 'vault', 1, { active: template.vaultAfter }])],
+    weaves: Object.entries(template.weaveAnchors).map(([node, anchor]) => ({ node, edge: { id: `weave-${node}-${anchor}`, from: node, to: anchor, layer: nodes.find(item => item.id === node).layer } })),
+    resonance: edge(['resonance-vault-relay', 'vault', 'relay', 2, { active: template.vaultAfter }]),
     shadows: template.shadows.map(shadow => ({ sources: [...shadow.sources], edge: edge(shadow.edge) })),
     challenge: { ...plan.challenge, entryLayer: mapping[1], lockSafeLayer: plan.lockSafeLayer },
     order: [...template.order], start: template.start, requires: structuredClone(template.requires) };

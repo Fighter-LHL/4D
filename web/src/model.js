@@ -3,6 +3,8 @@ import { ROOM_TEMPLATES, createRoomPlan, roomMetadata, buildRoom } from './rooms
 export const RELICS = Object.freeze([
   Object.freeze({ id: 'prism', name: '回流棱镜', description: '新路线首次冒险或花匣避波成功时蓄能；在归响台或维度锚台释放，启动当前层已供能的机关。升阶增加蓄能上限。' }),
   Object.freeze({ id: 'shadow', name: '留影扣', description: '在已启动的机关花费 1 点随身回响，留下跨层压桥的影子。每庭一次，持续 12 / 18 / 24 秒。' }),
+  Object.freeze({ id: 'coil', name: '接力线圈', description: '下游机关收齐能量后蓄势；站在锚台从另一实体层切入它所在层，自动接力启动。每阶每庭可接力一次。' }),
+  Object.freeze({ id: 'weave', name: '织桥种', description: '新路线冒险或避波成功获得桥种；在已启动机关种出永久捷径。留影扣可让你在归响台或锚台远程种桥。升阶增加桥种容量。' }),
   Object.freeze({ id: 'shell', name: '缓落壳', description: '每阶每庭保护一次失手，保住随身回响和生命；连击、脉冲和影子仍会失去。' }),
 ]);
 export const ROOM_NAMES = Object.freeze(ROOM_TEMPLATES.map(room => room.name));
@@ -39,7 +41,7 @@ export class GameModel {
     this.banked = 0;
     this.lives = 3;
     this.relic = null;
-    this.relics = { prism: 0, shadow: 0, shell: 0 };
+    this.relics = Object.fromEntries(RELICS.map(relic => [relic.id, 0]));
     this.stats = { risks: 0, failures: 0, chains: 0 };
     this.events = [];
     this._setupRoom();
@@ -61,6 +63,12 @@ export class GameModel {
     this.carried = 0;
     this.combo = 0;
     this.charge = 0;
+    this.weaveCharge = 0;
+    this.woven = new Set();
+    this.coilArmed = new Set();
+    this.coilUsed = 0;
+    this.lastActualLayer = this._actualLayer();
+    this.resonance = { stage: 0, triggered: false, from: null };
     this.shieldUses = this.relics.shell;
     this.activated = new Set();
     this.powered = new Set(MECHANISMS.filter(id => !this.roomConfig.requires[id].length));
@@ -89,6 +97,7 @@ export class GameModel {
   drainEvents() { const events = this.events; this.events = []; return events; }
   _node(id = this.node) { return this.nodes.find(node => node.id === id); }
   _supported(node = this._node()) { return node.anchor || section(this.w, node.center) >= .5 - EPSILON; }
+  _actualLayer() { return LAYERS.findIndex((_, index) => this._inLayer(index)); }
   _inLayer(layer) { return section(this.w, LAYERS[layer].center) >= .5 - EPSILON; }
 
   chooseRelic(id) {
@@ -106,12 +115,18 @@ export class GameModel {
   setW(value) {
     if (this.phase !== 'playing' || typeof value !== 'number' || !Number.isFinite(value)) return false;
     const fromLayer = nearestLayer(this.w);
+    const previousActualLayer = this.lastActualLayer;
     this.w = Math.max(0, Math.min(1, value));
+    const actualLayer = this._actualLayer();
+    // Gaps never count as a visited entity layer. Record real entries even while
+    // travelling or dodging so neither ending those states nor gap flicker fires a coil.
+    if (actualLayer !== -1) this.lastActualLayer = actualLayer;
     const toLayer = nearestLayer(this.w);
     if (fromLayer !== toLayer) this._emit('layer_shift', { fromLayer, toLayer, node: this.node });
     if (!this.travel) {
       this._tryPhaseTransfer();
       if (this._node().anchor && this._inLayer(toLayer)) this.anchorW = this.w;
+      if (!this.wave && actualLayer !== -1 && previousActualLayer !== -1 && actualLayer !== previousActualLayer) this._tryCoil(actualLayer);
     }
     return true;
   }
@@ -143,15 +158,18 @@ export class GameModel {
   _edges() {
     const make = (config, kind = 'normal') => {
       const { id, from, to, layer } = config;
-      const open = this._gateOpen(config) && !(kind === 'vault' && this.wave);
+      const touchesVault = from === 'vault' || to === 'vault';
+      const open = this._gateOpen(config) && !(touchesVault && this.wave);
       const needs = (config.gate?.active || []).filter(node => !this.activated.has(node));
-      const reason = kind === 'vault' && this.wave ? '回波期间桥梁收起' : to === 'exit' && !open ? '还需完成本庭的全部机关'
+      const reason = touchesVault && this.wave ? '回波期间桥梁收起' : to === 'exit' && !open ? '还需完成本庭的全部机关'
         : config.gate?.power && !this.powered.has(config.gate.power) ? `等待${this._node(config.gate.power).name}供能`
         : needs.length ? `先启动${needs.map(id => this._node(id).name).join('与')}` : '';
       return { id, from, to, layer, min: LAYERS[layer].center - this.safeWidth, max: LAYERS[layer].center + this.safeWidth,
         open, visible: this._inLayer(layer), kind, ...(reason ? { reason } : {}) };
     };
     const edges = this.roomConfig.edges.map(config => make(config, config.to === 'vault' ? 'vault' : 'normal'));
+    for (const weave of this.roomConfig.weaves) if (this.woven.has(weave.node)) edges.push(make(weave.edge, 'weave'));
+    if (this.resonance.stage === 3) edges.push(make(this.roomConfig.resonance, 'resonance'));
     if (this.ghost) for (const shadow of this.roomConfig.shadows) {
       if (shadow.sources.includes(this.ghost.node)) edges.push(make(shadow.edge, 'shadow'));
     }
@@ -168,11 +186,12 @@ export class GameModel {
   _edgeAllowed(edge) { return edge.open; }
   _availableNodes() {
     if (this.phase !== 'playing' || this.travel || this.wave) return [];
-    return this._edges().filter(edge => (edge.from === this.node || edge.to === this.node) && this._edgeAllowed(edge))
-      .map(edge => edge.from === this.node ? edge.to : edge.from);
+    return [...new Set(this._edges().filter(edge => (edge.from === this.node || edge.to === this.node) && this._edgeAllowed(edge))
+      .map(edge => edge.from === this.node ? edge.to : edge.from))];
   }
   _selectedEdge() {
-    return this._edges().find(edge => (edge.from === this.node && edge.to === this.selected) || (edge.to === this.node && edge.from === this.selected));
+    const candidates = this._edges().filter(edge => (edge.from === this.node && edge.to === this.selected) || (edge.to === this.node && edge.from === this.selected));
+    return candidates.find(edge => edge.open && this._inLayer(edge.layer)) || candidates.find(edge => edge.open) || candidates[0];
   }
   _chooseTarget({ passive = false } = {}) {
     const available = this._availableNodes();
@@ -241,6 +260,7 @@ export class GameModel {
   _activate(id, via = 'touch') {
     if (!MECHANISMS.includes(id) || !this.powered.has(id) || this.activated.has(id) || !this._inLayer(this._node(id).layer)) return false;
     this.activated.add(id);
+    this.coilArmed.delete(id);
     this.stats.chains += 1;
     const layer = this._node(id).layer;
     this._emit('activate', { node: id, via, layer, tier: this.activated.size });
@@ -249,7 +269,7 @@ export class GameModel {
       this.pending.push({ at: this.time + .5, kind: 'power', from: id, to: target });
     }
     if (this._allActivated()) this._emit('unlock', { node: 'exit', from: id, to: 'exit', layer: this._node('exit').layer, tier: 3 });
-    this._chooseTarget();
+    this._chooseTarget({ passive: via === 'coil' });
     return true;
   }
   _bank() {
@@ -285,20 +305,45 @@ export class GameModel {
     if (!['hub', 'relay'].includes(this.node)) return null;
     return MECHANISMS.find(id => this.powered.has(id) && !this.activated.has(id) && this._inLayer(this._node(id).layer)) || null;
   }
+  _tryCoil(layer) {
+    if (!this.relics.coil || this.coilUsed >= this.relics.coil || !this._node().anchor || !this._supported()) return false;
+    const target = this.roomConfig.order.find(id => this.coilArmed.has(id) && this._node(id).layer === layer && this.powered.has(id) && !this.activated.has(id));
+    if (!target) return false;
+    this.coilUsed += 1;
+    if (this.coilUsed >= this.relics.coil) this.coilArmed.clear();
+    this._emit('coil', { from: this.node, to: target, node: target, layer });
+    return this._activate(target, 'coil');
+  }
+  _weaveTarget() {
+    const local = MECHANISMS.includes(this.node) && this.activated.has(this.node);
+    const source = local ? this.node : ['hub', 'relay'].includes(this.node) ? this.ghost?.node : null;
+    if (!source || !this.activated.has(source) || this.woven.has(source)) return null;
+    const config = this.roomConfig.weaves.find(item => item.node === source);
+    return config ? { node: source, edge: { ...config.edge }, remote: !local } : null;
+  }
   _abilityAvailable(id) {
     if (this.phase !== 'playing' || this.travel || this.wave || !this._supported() || !this.relics[id]) return false;
     if (id === 'prism') return this.charge > 0 && !!this._prismTarget();
+    if (id === 'weave') return this.weaveCharge > 0 && !!this._weaveTarget();
     if (id === 'shadow') return MECHANISMS.includes(this.node) && this.activated.has(this.node) && !this.shadowUsed && this.carried >= 1;
     return false;
   }
   useAbility(id) {
-    const selected = id ?? ['prism', 'shadow'].find(relic => this._abilityAvailable(relic));
+    const selected = id ?? ['prism', 'shadow', 'weave'].find(relic => this._abilityAvailable(relic));
     if (!this._abilityAvailable(selected)) return false;
     if (selected === 'prism') {
       const target = this._prismTarget();
       this.charge -= 1;
       this._emit('ability', { node: this.node, to: target, relic: 'prism', value: 1, layer: nearestLayer(this.w) });
       this._activate(target, 'prism');
+      return true;
+    }
+    if (selected === 'weave') {
+      const target = this._weaveTarget();
+      this.weaveCharge -= 1;
+      this.woven.add(target.node);
+      this._emit('weave', { from: target.node, to: target.edge.to, node: target.node, layer: target.edge.layer, edgeId: target.edge.id, remote: target.remote });
+      this._chooseTarget();
       return true;
     }
     this.carried -= 1;
@@ -319,6 +364,11 @@ export class GameModel {
     if (risky && !this.pulseClaims.has(key)) {
       this.pulseClaims.add(key);
       if (this.relics.prism > 0) this.charge = Math.min(this.relics.prism, this.charge + 1);
+      if (this.relics.weave > 0) this.weaveCharge = Math.min(this.relics.weave, this.weaveCharge + 1);
+      if (!this.resonance.triggered) {
+        this.resonance = { stage: 0, triggered: true, from: this.node };
+        for (const [index, delay] of [.25, .6, 1].entries()) this.pending.push({ at: this.time + delay, kind: 'resonance', stage: index + 1, from: this.node });
+      }
     }
     this._emit('reward', { node: this.node, value, risky, tier: risky ? this.combo : 0, ...fields });
     return true;
@@ -377,11 +427,13 @@ export class GameModel {
     this.node = reason === 'travel' && source ? source.node : this.lastAnchor;
     this.w = reason === 'travel' && source ? source.w : this.anchorW;
     this.phaseStability = 1;
-    this.pending = this.pending.filter(cue => cue.kind === 'power');
-    // Power is a committed world effect. Only presentation celebrations are cancelled.
+    this.pending = this.pending.filter(cue => ['power', 'resonance'].includes(cue.kind));
+    this.lastActualLayer = this._actualLayer();
+    // Power and scene growth are committed world effects. Only presentation celebrations are cancelled.
     this.events = this.events.filter(event => !['chain', 'reward', 'unlock', 'activate', 'evade'].includes(event.type));
     this.combo = 0;
     this.charge = 0;
+    this.weaveCharge = 0;
     this.ghost = null;
     if (this.wave) { this.vaultStatus = 'failed'; this.wave = null; }
     this.stats.failures += 1;
@@ -409,8 +461,18 @@ export class GameModel {
       for (const cue of ready) {
         if (cue.kind === 'power') {
           this.received[cue.to].add(cue.from);
-          if (this.roomConfig.requires[cue.to].every(id => this.received[cue.to].has(id))) this.powered.add(cue.to);
+          const completedNow = !this.powered.has(cue.to) && this.roomConfig.requires[cue.to].every(id => this.received[cue.to].has(id));
+          if (completedNow) {
+            this.powered.add(cue.to);
+            if (this.relics.coil > this.coilUsed && !this.activated.has(cue.to) && this.roomConfig.requires[cue.to].length) this.coilArmed.add(cue.to);
+          }
           this._emit('power', { from: cue.from, to: cue.to, node: cue.to, layer: this._node(cue.to).layer, complete: this.powered.has(cue.to), received: this.received[cue.to].size, required: this.roomConfig.requires[cue.to].length });
+          if (!this.travel && !this.wave) this._chooseTarget({ passive: true });
+        } else if (cue.kind === 'resonance') {
+          this.resonance.stage = cue.stage;
+          const to = ['hub', 'vault', 'relay'][cue.stage - 1];
+          const edge = this.roomConfig.resonance;
+          this._emit('resonance', { stage: cue.stage, from: cue.from, to, node: to, layer: edge.layer, edgeId: edge.id });
           if (!this.travel && !this.wave) this._chooseTarget({ passive: true });
         }
       }
@@ -447,6 +509,7 @@ export class GameModel {
       if (this.vaultStatus === 'available') return this._inLayer(entry)
         ? `${this.roomConfig.challenge.name}：${this.roomConfig.challenge.description}`
         : `花匣和返回桥在${LAYERS[entry].name}；台座跨层安全，切回后可开匣或返回`;
+      if (this.resonance.stage === 3 && this._gateOpen(this.roomConfig.resonance)) return `连锁已长出${LAYERS[this.roomConfig.resonance.layer].name}的花匣—锚台桥；换层走新路，或沿原桥回归响台`;
       return this._inLayer(entry) ? '返回桥已恢复；沿桥回到归响台，存入随身回响'
         : `花匣本庭已结束；先切回${LAYERS[entry].name}，再沿返回桥回到归响台`;
     }
@@ -486,11 +549,18 @@ export class GameModel {
         locked: MECHANISMS.includes(node.id) ? !this.powered.has(node.id) : node.id === 'exit' ? !this._allActivated() : node.id === 'vault' ? !this._gateOpen(this.roomConfig.edges.find(edge => edge.to === 'vault')) || this.vaultStatus !== 'available' : false,
         ...(node.id === 'vault' ? { chestPresent: this._inLayer(this.roomConfig.challenge.entryLayer), chestVisibility: section(this.w, node.center) } : {}) };
     });
-    const abilities = RELICS.map(relic => ({ id: relic.id, rank: this.relics[relic.id], available: this._abilityAvailable(relic.id),
-      label: relic.id === 'prism' ? '释放跨层脉冲' : relic.id === 'shadow' ? '留下压桥影子' : '缓落壳自动保护',
-      detail: !this.relics[relic.id] ? '尚未获得' : relic.id === 'prism' ? `蓄能 ${this.charge}/${this.relics.prism} · 在锚台启动当前层已供能机关`
-        : relic.id === 'shadow' ? this.ghost ? `影子剩余 ${Math.ceil(this.ghost.remaining)} 秒` : this.shadowUsed ? '本庭已使用' : `需已启动的机关与 1 点回响 · 持续 ${SHADOW_LIFETIMES[this.relics.shadow]} 秒`
-        : `本庭剩余 ${this.shieldUses} 次保护` }));
+    const weaveTarget = this._weaveTarget();
+    const weaveDescription = weaveTarget ? `${weaveTarget.remote ? '影子代种：' : ''}${this._node(weaveTarget.node).name} → ${this._node(weaveTarget.edge.to).name} · ${LAYERS[weaveTarget.edge.layer].name}` : '在已启动机关种桥；有机关影子时可在归响台或锚台远程种桥';
+    const coilRemaining = Math.max(0, this.relics.coil - this.coilUsed);
+    const labels = { prism: '释放跨层脉冲', shadow: '留下压桥影子', shell: '缓落壳自动保护', coil: '换层自动接力', weave: weaveTarget?.remote ? '借影远程织桥' : '种出永久捷径' };
+    const details = {
+      prism: `蓄能 ${this.charge}/${this.relics.prism} · 在锚台启动当前层已供能机关`,
+      shadow: this.ghost ? `影子剩余 ${Math.ceil(this.ghost.remaining)} 秒` : this.shadowUsed ? '本庭已使用' : `需已启动的机关与 1 点回响 · 持续 ${SHADOW_LIFETIMES[this.relics.shadow]} 秒`,
+      shell: `本庭剩余 ${this.shieldUses} 次保护`,
+      coil: coilRemaining === 0 ? '本庭接力已用尽，下一庭恢复' : `本庭剩余 ${coilRemaining} 次 · ${this.coilArmed.size ? [...this.coilArmed].map(id => `${this._node(id).name}·${LAYERS[this._node(id).layer].name}`).join('、') + '已蓄势，在锚台从另一实体层切入' : '等待下游机关收齐能量'}`,
+      weave: `桥种 ${this.weaveCharge}/${this.relics.weave} · ${weaveDescription}`,
+    };
+    const abilities = RELICS.map(relic => ({ id: relic.id, rank: this.relics[relic.id], active: ['prism', 'shadow', 'weave'].includes(relic.id), available: this._abilityAvailable(relic.id), label: labels[relic.id], detail: this.relics[relic.id] ? details[relic.id] : '尚未获得' }));
     const primaryAbility = abilities.find(ability => ability.available) || abilities.find(ability => ability.id === this.relic) || abilities[0];
     const interactLabel = this.node === 'hub' ? '存入随身回响'
       : this.node === 'vault' ? this.vaultStatus === 'available' ? `开启花匣 · ${this.roomConfig.challenge.name}` : this.wave ? '回波倒计时 · 换层躲避' : '花匣本庭已结束'
@@ -507,6 +577,9 @@ export class GameModel {
       travel: this.travel ? { ...this.travel, source: { ...this.travel.source } } : null,
       carried: this.carried, banked: this.banked, lives: this.lives, combo: this.combo,
       relic: this.relic, relics: { ...this.relics }, choices: RELICS.map(relic => ({ ...relic, rank: this.relics[relic.id], nextRank: Math.min(3, this.relics[relic.id] + 1) })),
+      weaveCharge: this.weaveCharge, weaveTarget, weaveDescription, coilArmed: [...this.coilArmed], coilRemaining,
+      woven: this.roomConfig.weaves.filter(item => this.woven.has(item.node)).map(item => ({ node: item.node, edge: { ...item.edge } })),
+      resonance: { ...this.resonance, edge: { id: this.roomConfig.resonance.id, from: 'vault', to: 'relay', layer: this.roomConfig.resonance.layer } },
       charge: this.charge, shield: this.shieldUses > 0, shieldUses: this.shieldUses,
       activated: [...this.activated], powered: [...this.powered], shortcut: !!this.ghost, shadowRemaining: this.ghost?.remaining || 0,
       ghost: this.ghost ? { ...this.ghost } : null, wave: this.wave ? { ...this.wave, dangerLayers: [...this.wave.dangerLayers], safeLayers: [...this.wave.safeLayers] } : null, vaultStatus: this.vaultStatus,

@@ -5,6 +5,7 @@ const COLORS = {
   paper: '#eaf1eb', ink: '#294b46', mute: '#80968b', teal: '#24968d',
   mint: '#baf9df', gold: '#d79943', lightGold: '#ffedb0', danger: '#d36d59',
   stone: '#e5e8d7', edge: '#b2c5b1', darkStone: '#75988a',
+  weave: '#348d70', resonance: '#b58b36', coil: '#a568b7',
 };
 const LAYER_PALETTES = [
   { color: '#378d9c', pale: '#dbf0ef', glow: '#a0f1f1', stone: '#e1e9dd', side: '#96b7ad' },
@@ -233,6 +234,24 @@ export class SceneRenderer {
         this.addEffect('ring', target, { duration: 1.2, radius: 110, color, tier: 2 });
         this.addEffect('bloom', target, { duration: 1, radius: 85, color });
         this.burst(target, this.palette(target.layer ?? this.state?.layer).glow, 28, 1.25);
+      } else if (event.type === 'resonance') {
+        const from = this.node(event.from) || target;
+        this.addEffect('growth_signal', from, { to: { x: target.x, y: target.y }, layer: event.layer,
+          stage: event.stage, duration: .7, color: COLORS.resonance, celebration: true });
+        this.addEffect('garden_bloom', target, { delay: .12, duration: 1.35, stage: event.stage,
+          layer: event.layer, color: COLORS.resonance, celebration: true });
+        this.burst(target, COLORS.lightGold, 14 + event.stage * 6, .65, { delay: .12, celebration: true });
+        if (event.stage === 3) this.growBridge(event.edgeId, COLORS.resonance);
+      } else if (event.type === 'weave') {
+        const source = this.node(event.from) || this.node(event.node) || target;
+        this.addEffect('garden_bloom', source, { duration: 1.2, stage: 2, layer: event.layer, color: COLORS.weave, celebration: true });
+        this.growBridge(event.edgeId, COLORS.weave);
+        this.burst(source, COLORS.mint, 22, .7, { celebration: true });
+      } else if (event.type === 'coil') {
+        const from = this.node(event.from) || target;
+        this.addEffect('coil_arc', from, { to: { x: target.x, y: target.y }, duration: .8,
+          fromLayer: this.state.layer, toLayer: event.layer, layer: event.layer, color: COLORS.coil });
+        this.addEffect('section', target, { duration: .9, radius: 95, color: this.palette(event.layer).color });
       } else if (event.type === 'chain') {
         const from = this.node(event.from) || target;
         const to = this.node(event.to) || this.node('exit') || target;
@@ -275,6 +294,13 @@ export class SceneRenderer {
     }
   }
 
+  growBridge(edgeId, color) {
+    const edge = this.connections().find(item => item.id === edgeId);
+    if (!edge) return;
+    this.addEffect('root_growth', edge.a, { to: { x: edge.b.x, y: edge.b.y }, edgeId, layer: edge.layer,
+      duration: 1.25, color, celebration: true });
+  }
+
   render(dtSeconds = 0) {
     if (this.disposed || !this.ctx) return;
     const dt = clamp(Number.isFinite(dtSeconds) ? dtSeconds : 0, 0, .1);
@@ -305,6 +331,7 @@ export class SceneRenderer {
     if (this.state) {
       this.drawSliceVolumes();
       this.drawDependencies();
+      this.drawDormantGrowth();
       this.drawConnections();
       const nodes = [...this.state.nodes].sort((a, b) => a.y - b.y);
       for (const node of nodes) this.drawIsland(node);
@@ -365,6 +392,49 @@ export class SceneRenderer {
       .filter(edge => edge.a && edge.b);
   }
 
+  drawDormantGrowth() {
+    const growth = this.state.resonance;
+    if (!growth?.edge || growth.stage >= 3) return;
+    const a = this.node(growth.edge.from), b = this.node(growth.edge.to);
+    if (!a || !b) return;
+    const ctx = this.ctx, visible = this.state.layer === growth.edge.layer;
+    ctx.save(); ctx.globalAlpha = visible ? .24 : .1;
+    ctx.setLineDash([1, 12]); line(ctx, a.x, a.y + 7, b.x, b.y + 7, COLORS.resonance, 1.5); ctx.setLineDash([]);
+    // A closed bud previews a possible route, never a walkable surface.
+    const x = mix(a.x, b.x, .5), y = mix(a.y, b.y, .5);
+    ctx.globalAlpha = visible ? .65 : .25;
+    line(ctx, x, y + 9, x, y - 3, COLORS.weave, 2);
+    diamond(ctx, x, y - 5, growth.stage === 2 ? 10 : 6, '#edf1e5', COLORS.resonance);
+    for (let i = 0; i <= growth.edge.layer; i++) ellipse(ctx, x + (i - growth.edge.layer / 2) * 7, y + 17, 1.8, 1.8, this.palette(growth.edge.layer).color);
+    if (growth.stage > 0) {
+      ctx.globalAlpha = visible ? .65 : .22;
+      this.drawVine(a, { x: mix(a.x, b.x, growth.stage * .24), y: mix(a.y, b.y, growth.stage * .24) }, COLORS.resonance, 2, growth.stage * 2);
+    }
+    ctx.restore();
+  }
+
+  drawVine(from, to, color, width = 2, leaves = 5) {
+    const ctx = this.ctx, dx = to.x - from.x, dy = to.y - from.y, length = Math.hypot(dx, dy);
+    if (length < 1) return;
+    const nx = -dy / length, ny = dx / length;
+    ctx.beginPath(); ctx.moveTo(from.x, from.y);
+    ctx.bezierCurveTo(mix(from.x, to.x, .3) + nx * 9, mix(from.y, to.y, .3) + ny * 9,
+      mix(from.x, to.x, .7) - nx * 9, mix(from.y, to.y, .7) - ny * 9, to.x, to.y);
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
+    for (let i = 1; i <= leaves; i++) {
+      const t = i / (leaves + 1), side = i % 2 ? 1 : -1;
+      const x = mix(from.x, to.x, t), y = mix(from.y, to.y, t);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.atan2(dy, dx) + side * .7);
+      path(ctx, [[0, 0], [6, -4 * side], [15, -2 * side], [6, 3 * side]]);
+      ctx.fillStyle = '#d5e8bd'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+    }
+  }
+
+  bridgeColor(edge) {
+    return edge.kind === 'weave' ? COLORS.weave : edge.kind === 'resonance' ? COLORS.resonance
+      : edge.kind === 'vault' ? COLORS.danger : edge.kind === 'shadow' ? '#9c78ba' : this.palette(edge.layer).color;
+  }
+
   drawDependencies() {
     const ctx = this.ctx;
     for (const target of this.state.nodes) {
@@ -392,12 +462,13 @@ export class SceneRenderer {
     for (const edge of this.connections()) {
       const { a, b } = edge;
       const selected = (s.node === a.id && s.selected === b.id) || (s.node === b.id && s.selected === a.id);
-      const traversing = s.travel && ((s.travel.from === a.id && s.travel.to === b.id) || (s.travel.from === b.id && s.travel.to === a.id)) && s.travel.layer === edge.layer;
+      const traversing = s.travel?.edgeId === edge.id;
       const relevant = selected || traversing;
-      const range = relevant && s.range ? s.range : edge;
+      const range = relevant && s.range?.layer === edge.layer ? s.range : edge;
       const fits = edge.visible && s.w >= range.min && s.w <= range.max;
       const solid = edge.open && fits || traversing;
-      const color = edge.kind === 'vault' ? COLORS.danger : edge.kind === 'shadow' ? '#9c78ba' : this.palette(edge.layer).color;
+      const color = this.bridgeColor(edge);
+      const grown = ['weave', 'resonance'].includes(edge.kind);
       const dx = b.x - a.x, dy = b.y - a.y;
       const distance = Math.hypot(dx, dy);
       if (distance < 1) continue;
@@ -415,8 +486,21 @@ export class SceneRenderer {
           const vx = dx / distance * length, vy = dy / distance * length;
           ctx.globalAlpha = relevant ? .95 : .7;
           path(ctx, [[x + nx * width - vx, y + ny * width - vy], [x + nx * width + vx, y + ny * width + vy], [x - nx * width + vx, y - ny * width + vy], [x - nx * width - vx, y - ny * width - vy]]);
-          ctx.fillStyle = '#f7f4e5'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = relevant ? 1.5 : .8; ctx.stroke();
+          ctx.fillStyle = grown ? edge.kind === 'weave' ? '#e3f0cc' : '#f9eab6' : '#f7f4e5'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = relevant ? 1.5 : .8; ctx.stroke();
+          if (grown && i % 2 === 0) {
+            for (const side of [-1, 1]) {
+              const px = x + nx * width * side, py = y + ny * width * side;
+              diamond(ctx, px, py - 4, 6, this.palette(edge.layer).glow, color);
+            }
+          }
           if (relevant && i % 2 === 0) diamond(ctx, x, y, 2.2, color);
+        }
+        if (grown) {
+          ctx.globalAlpha = relevant ? .95 : .75;
+          for (const side of [-1, 1]) this.drawVine({ x: a.x + nx * 14 * side, y: a.y + ny * 14 * side },
+            { x: b.x + nx * 14 * side, y: b.y + ny * 14 * side }, color, 2.2, 5);
+          const midpoint = { x: mix(a.x, b.x, .5), y: mix(a.y, b.y, .5) };
+          for (let pip = 0; pip <= edge.layer; pip++) ellipse(ctx, midpoint.x + (pip - edge.layer / 2) * 7, midpoint.y - 18, 2, 2, this.palette(edge.layer).color);
         }
       }
       if (relevant && solid) {
@@ -457,6 +541,10 @@ export class SceneRenderer {
       if (!node.present) {
         diamond(ctx, 0, -66, 6, null, color);
         for (let i = 0; i <= node.layer; i++) ellipse(ctx, (i - node.layer / 2) * 8, -78, 1.7, 1.7, color);
+        if (s.coilArmed?.includes(node.id)) {
+          ctx.setLineDash([]); ctx.globalAlpha = .65;
+          this.drawCoilMark(0, -66, 13, color);
+        }
       }
       ctx.restore();
     }
@@ -486,12 +574,16 @@ export class SceneRenderer {
       // Actual mirrored room geometry appears on each W plane, including its bridges.
       for (const edge of this.connections().filter(edge => edge.layer === i && edge.open)) {
         const a = at(edge.a, i), b = at(edge.b, i);
-        line(ctx, a.x, a.y, b.x, b.y, color, .75);
+        const grown = ['weave', 'resonance'].includes(edge.kind);
+        line(ctx, a.x, a.y, b.x, b.y, grown ? this.bridgeColor(edge) : color, grown ? 2.3 : .75);
+        if (grown) diamond(ctx, mix(a.x, b.x, .5), mix(a.y, b.y, .5), 2.7, this.bridgeColor(edge));
       }
       for (const node of s.nodes.filter(node => node.anchor || node.layer === i)) {
         const point = at(node, i);
         ellipse(ctx, point.x, point.y, node.anchor ? 2 : 2.6, node.anchor ? 1.3 : 2.6,
           node.anchor || s.activated.includes(node.id) ? color : this.palette(i).pale, color, .8);
+        if (s.coilArmed?.includes(node.id) && node.layer === i) this.drawCoilMark(point.x, point.y, 5, COLORS.coil);
+        if (s.woven?.some(item => item.node === node.id) && node.layer === i) diamond(ctx, point.x, point.y - 4, 3, COLORS.weave, '#ffffff');
       }
       const player = at(this.playerPosition(), i);
       if (i === s.layer) { ctx.globalAlpha = 1; diamond(ctx, player.x, player.y, 5, color, '#ffffff'); }
@@ -505,15 +597,19 @@ export class SceneRenderer {
     for (const effect of this.effects) {
       if (effect.age < (effect.delay || 0)) continue;
       const p = clamp((effect.age - (effect.delay || 0)) / effect.duration);
-      if (effect.kind === 'power') {
+      if (effect.kind === 'power' || effect.kind === 'coil_arc') {
         const from = at(effect, effect.fromLayer), to = at(effect.to, effect.toLayer);
         ctx.globalAlpha = 1 - p;
         line(ctx, from.x, from.y, to.x, to.y, effect.color, 2);
         diamond(ctx, mix(from.x, to.x, this.reducedMotion ? .5 : p), mix(from.y, to.y, this.reducedMotion ? .5 : p), 4, effect.color, '#ffffff');
-      } else if (effect.kind === 'resonance') {
+      } else if (['resonance', 'garden_bloom', 'root_growth', 'growth_signal'].includes(effect.kind)) {
         const point = at(effect, effect.layer);
         ctx.globalAlpha = (1 - p) * .8;
         ellipse(ctx, point.x, point.y, 5 + p * 16, 3 + p * 8, null, effect.color, 1.8);
+        if (effect.to) {
+          const to = at(effect.to, effect.layer);
+          line(ctx, point.x, point.y, to.x, to.y, effect.color, 2);
+        }
       }
     }
     if (s.ghost) {
@@ -638,6 +734,7 @@ export class SceneRenderer {
     }
     // The rim belongs to this W section, making the same XYZ visibly change material.
     ellipse(ctx, 0, 1, width * .82, height * .76, null, palette.color + '60', 1.5);
+    this.drawGardenGrowth(node, width, height);
     if (hub) this.drawHub();
     else if (exit) this.drawGate(node);
     else if (node.id === 'relay') this.drawAnchor();
@@ -651,6 +748,15 @@ export class SceneRenderer {
     if (active) {
       ctx.save(); ctx.globalAlpha = .45;
       ellipse(ctx, 0, 2, width * .73, height * .56, null, palette.color, 1.2); ctx.restore();
+    }
+    if (s.coilArmed?.includes(node.id)) this.drawCoilMark(0, -52, 23, COLORS.coil);
+    if (s.woven?.some(item => item.node === node.id)) {
+      line(ctx, -47, 20, -47, -8, COLORS.weave, 2.8);
+      for (const side of [-1, 1]) {
+        ctx.save(); ctx.translate(-47, 9); ctx.rotate(side * .65);
+        ellipse(ctx, side * 6, -5, 7, 3.5, '#c7e8ac', COLORS.weave, 1.2); ctx.restore();
+      }
+      diamond(ctx, -47, -12, 8, this.palette(node.layer).glow, COLORS.weave);
     }
     if (adjacent && !exit) {
       diamond(ctx, 0, height + thickness + 14, 3.5, selected ? COLORS.gold : '#739d88');
@@ -669,6 +775,56 @@ export class SceneRenderer {
     ctx.beginPath(); ctx.roundRect?.(-textWidth / 2 - 8, labelY - labelHeight / 2, textWidth + 16, labelHeight, 8);
     if (!ctx.roundRect) ctx.rect(-textWidth / 2 - 8, labelY - labelHeight / 2, textWidth + 16, labelHeight);
     ctx.fill(); ctx.fillStyle = selected ? '#936125' : COLORS.ink; ctx.fillText(name, 0, labelY);
+    ctx.restore();
+  }
+
+  drawCoilMark(x, y, radius, color) {
+    const ctx = this.ctx;
+    for (const side of [0, Math.PI]) {
+      ctx.beginPath(); ctx.ellipse(x, y, radius, radius * .66, -.2, side + .18, side + Math.PI - .18);
+      ctx.strokeStyle = color; ctx.lineWidth = radius > 10 ? 2.4 : 1.3; ctx.stroke();
+      diamond(ctx, x + Math.cos(side) * radius, y - Math.sin(side) * radius * .66, radius > 10 ? 4 : 1.8, '#f6eaff', color);
+    }
+  }
+
+  drawFlower(x, y, radius, color, layer) {
+    const ctx = this.ctx;
+    for (let i = 0; i < 5; i++) {
+      const angle = i * TAU / 5 - Math.PI / 2;
+      ctx.save(); ctx.translate(x + Math.cos(angle) * radius * .65, y + Math.sin(angle) * radius * .48);
+      ctx.rotate(angle + Math.PI / 2);
+      path(ctx, [[0, radius * .4], [-radius * .5, -radius * .1], [0, -radius], [radius * .5, -radius * .1]]);
+      ctx.fillStyle = this.palette(layer).glow; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = .9; ctx.stroke(); ctx.restore();
+    }
+    diamond(ctx, x, y, radius * .4, '#fff6cf', color);
+  }
+
+  drawGardenGrowth(node, width, height) {
+    const growth = this.state.resonance;
+    if (!growth?.triggered) return;
+    const requiredStage = { hub: 1, vault: 2, relay: 3 }[node.id];
+    if (!requiredStage || growth.stage < requiredStage) return;
+    const ctx = this.ctx, layer = growth.edge.layer, color = this.palette(layer).color;
+    // This is permanent world geometry, so a cleared effect queue never erases it.
+    const current = this.state.layer === layer;
+    ctx.save();
+    ellipse(ctx, 0, 0, width * .88, height * .79, null, COLORS.resonance, 2.4);
+    ellipse(ctx, 0, 0, width * .82, height * .72, null, '#f5e3a8', 2);
+    const count = requiredStage === 1 ? 6 : 4;
+    for (let i = 0; i < count; i++) {
+      const angle = i * TAU / count + .35;
+      const x = Math.cos(angle) * width * .8, y = Math.sin(angle) * height * .68;
+      const top = y - (requiredStage === 3 ? 32 : 17);
+      ctx.beginPath(); ctx.moveTo(x * .75, y * .8 + 4); ctx.quadraticCurveTo(x + 7, y + 3, x, top);
+      ctx.strokeStyle = COLORS.weave; ctx.lineWidth = 2.5; ctx.stroke();
+      ellipse(ctx, x + (i % 2 ? 6 : -6), y - 6, 7, 3.8, '#b8d99d', COLORS.weave, 1);
+      if (requiredStage === 3) {
+        diamond(ctx, x, top, 13, current ? this.palette(layer).glow : '#e7e4c2', color);
+        line(ctx, x, top - 12, x, top + 12, '#ffffef', 1.5);
+      } else this.drawFlower(x, top, requiredStage === 2 ? 11 : 8, COLORS.resonance, layer);
+    }
+    // Persistent W pips identify the layer that the new vault—relay route occupies.
+    for (let i = 0; i <= layer; i++) diamond(ctx, (i - layer / 2) * 11, height * .63, 3.4, color, '#fff4c7');
     ctx.restore();
   }
 
@@ -919,6 +1075,13 @@ export class SceneRenderer {
       const x = Math.cos(angle) * 27, y = -14 + Math.sin(angle) * 15;
       ellipse(ctx, x, y, 8, 8, '#ffe6a32b'); diamond(ctx, x, y, 5, '#f5d37a', '#fff2bb');
     }
+    if (s.weaveCharge) {
+      const x = -27, y = -14;
+      line(ctx, x, y + 7, x, y - 5, COLORS.weave, 1.8);
+      ellipse(ctx, x - 5, y - 2, 5, 2.8, '#c9edb1', COLORS.weave, 1);
+      ellipse(ctx, x + 5, y - 5, 5, 2.8, '#c9edb1', COLORS.weave, 1);
+      diamond(ctx, x, y - 10, 3.8, COLORS.mint, COLORS.weave);
+    }
     if (s.combo > 0) {
       for (let i = 0; i < Math.min(3, s.combo); i++) diamond(ctx, (i - (s.combo - 1) / 2) * 10, -48, 3.2, COLORS.gold);
     }
@@ -945,9 +1108,35 @@ export class SceneRenderer {
       if (effect.age < (effect.delay || 0)) continue;
       const p = clamp((effect.age - (effect.delay || 0)) / effect.duration);
       const e = this.reducedMotion ? .7 : ease(p);
-      if (foreground !== ['pulse', 'power', 'section', 'crown', 'shield', 'bank', 'break', 'gather', 'value', 'collect', 'bridge_echo'].includes(effect.kind)) continue;
+      if (foreground !== ['pulse', 'power', 'section', 'crown', 'shield', 'bank', 'break', 'gather', 'value', 'collect', 'bridge_echo', 'growth_signal', 'root_growth', 'coil_arc'].includes(effect.kind)) continue;
       ctx.save(); ctx.globalAlpha = (1 - p) ** .7;
-      if (effect.kind === 'gather') {
+      if (effect.kind === 'growth_signal') {
+        const t = this.reducedMotion ? 1 : ease(p);
+        const x = mix(effect.x, effect.to.x, t), y = mix(effect.y, effect.to.y, t) - Math.sin(t * Math.PI) * 35;
+        ctx.beginPath(); ctx.moveTo(effect.x, effect.y); ctx.quadraticCurveTo(mix(effect.x, effect.to.x, .5), Math.min(effect.y, effect.to.y) - 45, effect.to.x, effect.to.y);
+        ctx.strokeStyle = effect.color + '65'; ctx.lineWidth = 2.5; ctx.stroke();
+        this.drawFlower(x, y - 8, 9, effect.color, effect.layer);
+      } else if (effect.kind === 'root_growth') {
+        const edge = this.connections().find(item => item.id === effect.edgeId);
+        if (edge) {
+          const t = this.reducedMotion ? 1 : ease(p);
+          const head = { x: mix(effect.x, effect.to.x, t), y: mix(effect.y, effect.to.y, t) };
+          ctx.globalAlpha *= edge.visible ? .95 : .3;
+          this.drawVine(effect, head, effect.color, 4, 8);
+          if (edge.visible) this.drawFlower(head.x, head.y - 7, 15, effect.color, effect.layer);
+        }
+      } else if (effect.kind === 'garden_bloom') {
+        const radius = this.reducedMotion ? 73 : 28 + ease(p) * 85;
+        const count = this.reducedMotion ? 4 : 7;
+        for (let i = 0; i < count; i++) {
+          const angle = i * TAU / count;
+          const x = effect.x + Math.cos(angle) * radius, y = effect.y + Math.sin(angle) * radius * .52;
+          ctx.beginPath(); ctx.moveTo(effect.x + Math.cos(angle) * 25, effect.y + Math.sin(angle) * 15);
+          ctx.quadraticCurveTo(x, y + 13, x, y - 7);
+          ctx.strokeStyle = effect.color; ctx.lineWidth = 2.7; ctx.stroke();
+          this.drawFlower(x, y - 13, 9 + effect.stage * 2, effect.color, effect.layer);
+        }
+      } else if (effect.kind === 'gather') {
         const radius = this.reducedMotion ? 24 : 12 + (effect.radius || 65) * (1 - p);
         ellipse(ctx, effect.x, effect.y - 5, radius, radius * .52, null, effect.color, 2.2);
         for (let i = 0; i < (this.reducedMotion ? 3 : 6); i++) {
@@ -1014,7 +1203,7 @@ export class SceneRenderer {
         const radius = 14 + e * (effect.radius || 80);
         ellipse(ctx, effect.x, effect.y - 20, radius * .55, radius, null, effect.color, 2);
         ellipse(ctx, effect.x, effect.y - 20, radius, radius * .45, null, effect.color, 1.5);
-      } else if (effect.kind === 'power') {
+      } else if (effect.kind === 'power' || effect.kind === 'coil_arc') {
         // Arc through W, even when source and destination share identical XYZ.
         const samePosition = Math.hypot(effect.to.x - effect.x, effect.to.y - effect.y) < 2;
         const height = samePosition ? 105 : 75;
@@ -1029,10 +1218,11 @@ export class SceneRenderer {
         ctx.strokeStyle = effect.color + '75'; ctx.lineWidth = 3; ctx.stroke();
         for (let i = 0; i < 7; i++) {
           const at = curve(this.reducedMotion ? i / 6 : clamp(p * 1.5 - i * .045));
-          ellipse(ctx, at.x, at.y, 5 - i * .45, 5 - i * .45, i < 3 ? effect.color : effect.sourceColor);
+          ellipse(ctx, at.x, at.y, 5 - i * .45, 5 - i * .45, i < 3 ? effect.color : effect.sourceColor || effect.color);
         }
-        ellipse(ctx, effect.x, effect.y - 15, 24, 34, null, effect.sourceColor, 1.5);
+        ellipse(ctx, effect.x, effect.y - 15, 24, 34, null, effect.sourceColor || effect.color, 1.5);
         ellipse(ctx, effect.to.x, effect.to.y - 15, 32, 17, null, effect.color, 2);
+        if (effect.kind === 'coil_arc') this.drawCoilMark(effect.to.x, effect.to.y - 35, 26, effect.color);
       } else if (effect.kind === 'pulse') {
         const t = this.reducedMotion ? 1 : p;
         const x = mix(effect.x, effect.to.x, t), y = mix(effect.y, effect.to.y, t);
