@@ -606,8 +606,11 @@ test('two-plan station: direct carrying route and reversible bay use real moveme
   assert.ok(run.setDial(wToDial(1.1)));
   walkTo(run, 0, 0);
   assert.equal(run.setDial(wToDial(0)), false, 'cannot close the entrance on the core');
+  assert.equal(run.airlockCleared, false, 'a refused W change leaves no success mark');
   walkTo(run, 0.95, 0);
+  assert.deepEqual(run.routeSeals(), { stone: true, copper: false });
   assert.ok(run.setDial(wToDial(-0.8)));
+  assert.equal(run.airlockCleared, true, 'shrinking the exit from inside the bay leaves a mark');
   assert.equal(run.interact().action, 'dropped');
   const stored = { ...run.item };
   assert.ok(run.setDial(wToDial(1.1)));
@@ -630,6 +633,14 @@ test('two-plan station: direct carrying route and reversible bay use real moveme
   assert.ok(run.setDial(wToDial(0), 90000));
   assert.equal(run.won, true);
   assert.deepEqual(run.toJSON().relay, { powered: false, latched: false, socketUses: 0 });
+  assert.equal(run.airlockCleared, true, 'the mark survives dropping, retreating and delivery');
+  assert.deepEqual(run.toJSON().routeSeals, { stone: true, copper: false });
+  const record = run.toJSON();
+  assert.ok(run.step(-1, 0, 0.2, 91000).travelled > 0, 'delivery leaves the player free to walk');
+  assert.equal(run.interact(92000).action, null, 'the delivered core cannot be retrieved');
+  assert.ok(run.setDial(wToDial(-0.3)));
+  run.noteWAdjust();
+  assert.deepEqual(run.toJSON(), record, 'post-delivery wandering does not rewrite the completed run');
 });
 
 test('two-plan station: power, latch, retrieve and wide-route delivery remain independent', () => {
@@ -660,6 +671,54 @@ test('two-plan station: power, latch, retrieve and wide-route delivery remain in
   walkTo(run, -0.95, 1.65);
   walkTo(run, 1, 1.65);
   walkTo(run, ...field.goal);
+  assert.equal(run.won, true);
+  assert.deepEqual(run.routeSeals(), { stone: false, copper: true }, 'the southern corridor never earns the stone seal');
+  assert.equal(run.airlockCleared, false);
+});
+
+test('stone seal needs a carried core in the channel; a mixed route can earn both', () => {
+  const field = STATION_ROUTES_ROOM;
+  const empty = new WalkRun(field, 'station-routes');
+  assert.ok(empty.setDial(wToDial(1.1)));
+  walkTo(empty, 0.95, 0);
+  assert.deepEqual(empty.routeSeals(), { stone: false, copper: false });
+  assert.ok(empty.setDial(wToDial(1.2)));
+  assert.equal(empty.airlockCleared, false, 'a W change with the exit still blocked is not a successful opening');
+
+  const mixed = new WalkRun(field, 'station-routes');
+  walkTo(mixed, -1.25, 0);
+  mixed.interact();
+  walkTo(mixed, -0.95, -1.65);
+  mixed.setDial(wToDial(field.relay.socket.w));
+  assert.equal(mixed.interact().action, 'docked');
+  assert.equal(mixed.interact().action, 'picked');
+  walkTo(mixed, -0.95, 0);
+  mixed.setDial(wToDial(1.1));
+  walkTo(mixed, 0.95, 0);
+  mixed.setDial(wToDial(-0.8));
+  walkTo(mixed, 2.9, 0);
+  walkTo(mixed, 2.9, 1.65);
+  mixed.setDial(wToDial(0), 90000);
+  assert.equal(mixed.won, true);
+  assert.deepEqual(mixed.routeSeals(), { stone: true, copper: true });
+  const restart = new WalkRun(field, 'station-routes');
+  assert.equal(restart.airlockCleared, false);
+  assert.deepEqual(restart.routeSeals(), { stone: false, copper: false });
+  assert.equal(new WalkRun(STATION_ROOM, 'station').routeSeals(), null);
+});
+
+test('walking after completion keeps real collisions and W engulf protection', () => {
+  const run = new WalkRun(CORRIDOR, '1-2');
+  run.pos = [...CORRIDOR.goal];
+  assert.equal(run.step(0, 0, 0, 2000).won, true);
+  for (let i = 0; i < 100; i += 1) {
+    run.step(-1, 0, 0.025, 3000 + i * 25);
+    assert.ok(legalCorridorSpot(run.sectionsAt(), ...run.pos, run.activeField()));
+  }
+  assert.equal(run.blockedLast, true, 'the far wall still blocks a completed player');
+  assert.ok(run.setDial(0.1));
+  for (let i = 0; i < 10; i += 1) run.step(-1, 0, 0.025, 6000 + i * 25);
+  assert.equal(run.setDial(0.5), false, 'reappearing walls cannot engulf a completed player');
   assert.equal(run.won, true);
 });
 

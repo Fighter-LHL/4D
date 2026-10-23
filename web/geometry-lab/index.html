@@ -46,8 +46,8 @@
       <div class="topbar-right">
         <span id="stats" class="stats" data-state="empty" aria-live="off"></span>
         <div class="tools">
-          <button id="restart" class="ghost tool" title="重新开始这一关 (R)"><span class="tool-key">R</span>重来</button>
-          <button id="reset-view" class="ghost tool" aria-label="视角复位" title="恢复初始视角">视角复位</button>
+          <button id="restart" class="ghost tool compact-tool" aria-label="重新开始这一关" title="重新开始这一关 (R)"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/></svg><span class="tool-text">重来</span></button>
+          <button id="reset-view" class="ghost tool compact-tool" aria-label="视角复位" title="恢复初始视角"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5"/><circle cx="12" cy="12" r="4"/></svg><span class="tool-text">视角复位</span></button>
           <button id="hint" class="ghost tool" aria-controls="hint-panel" aria-expanded="false"><span id="hint-label">观察提示</span> <span id="hint-count" class="count"></span></button>
           <button id="sound" class="ghost icon" aria-pressed="true" aria-label="音效开关" title="音效">♪</button>
         </div>
@@ -66,7 +66,15 @@
           <span class="world-tag socket" id="socket-tag" hidden>蓝层插座</span>
           <span class="world-tag latch" id="latch-tag" hidden>回廊开关</span>
         </div>
-        <button id="action-btn" class="primary action-btn" type="button" hidden>拿起物体</button>
+        <div id="receiver-seals" class="route-seals receiver-seals" aria-label="接收台的路线记录" hidden></div>
+        <div class="stage-actions">
+          <button id="action-btn" class="primary action-btn" type="button" hidden>拿起物体</button>
+          <div class="stage-secondary">
+            <button id="replay-btn" class="ghost" type="button" hidden>再来一次</button>
+            <button id="return-levels" class="ghost" type="button" hidden>回到关卡</button>
+          </div>
+        </div>
+        <div id="stage-rail" class="stage-rail" hidden></div>
         <p class="toast" id="toast" role="status" aria-live="polite"></p>
         <section id="hint-panel" class="hint-panel" aria-labelledby="hint-heading" hidden>
           <div class="hint-head"><b id="hint-heading">已查看的提示</b><button id="hint-close" class="ghost" aria-label="收起提示">收起</button></div>
@@ -116,6 +124,7 @@
                 <span class="band b4"></span><span class="band b3"></span><span class="band b2"></span><span class="band b1"></span><span class="band b0"></span>
                 <span class="rail-spans" id="rail-spans" aria-hidden="true"></span>
                 <span class="rail-blocks" id="rail-blocks" aria-hidden="true"></span>
+                <span class="rail-marks" id="rail-marks" aria-hidden="true"></span>
                 <span class="rail-target" id="rail-target" hidden></span>
                 <span class="rail-thumb" id="rail-thumb"></span>
               </div>

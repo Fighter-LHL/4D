@@ -1,7 +1,8 @@
 import { clampDial, dialToW, sliceAtW, wFootprint, flatShape, blockedWIntervals, exclusionRadius, wChangeEngulfs, goalSliceAtW, itemSectionAtW, itemFootprint, ITEM_TINT, PREDICTIONS } from './geometry.mjs';
 import { WalkRun, VisitRun } from './game.mjs';
 import { CHAPTERS, LEVELS_LIST, STATION_ROUTES_LEVEL, levelById, nextLevel, isUnlocked } from './levels.mjs';
-import { screenToWorldMove } from './controls.mjs';
+import { screenToWorldMove, relayRailMarks, nearbyRailMark, railReleaseDial } from './controls.mjs';
+import { readStationSeals, rememberStationRun, stationNextAction } from './station-progress.mjs';
 import { LAYERS, layerBlend, layerIndex, wColor, cssColor } from './layers.mjs';
 import { SliceRenderer } from './renderer.mjs';
 import { MapRenderer } from './map-renderer.mjs';
@@ -52,6 +53,12 @@ const progress = (() => {
 })();
 function saveProgress() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...progress])); } catch { /* private mode */ }
+}
+let sealStorage = null;
+try { sealStorage = localStorage; } catch { /* storage may be unavailable */ }
+let stationSeals = readStationSeals(sealStorage);
+function sealMarkup() {
+  return ['stone', 'copper'].map((key) => `<span class="route-seal ${key}" data-earned="${stationSeals[key]}" aria-label="${key === 'stone' ? '石印' : '铜印'}：${stationSeals[key] ? '已点亮' : '未点亮'}"><i aria-hidden="true"></i><span>${key === 'stone' ? '石印' : '铜印'}</span></span>`).join('');
 }
 
 // ---------- Renderers ----------
@@ -120,6 +127,8 @@ let peekTimer = 0;
 let nudge = null; // ids of bodies that just refused a W change
 let nudgeTimer = 0;
 let cardOpen = false;
+let introCueTimer = 0;
+let introCueUntil = 0;
 let lastRefuse = 0;
 let sandboxAll = false;
 const introShown = new Set();
@@ -155,15 +164,15 @@ const frameBounds = () => (isWalk() ? level.field.bounds : { x: 2.8, z: 2.0 });
 
 // Chapter 2 hides every W aid unless the player is peeking; a refused W change
 // briefly shows only the floor outlines of the bodies that refused it.
-const NO_AIDS = { ghost: () => 0, blocked: [] };
+const NO_AIDS = { ghost: () => 0, blocked: [], marks: [] };
 function wAids(now = performance.now()) {
   if (!isWalk() || !run) return NO_AIDS;
   const activeField = run.activeField();
-  if (mapVisible()) return { ghost: () => 1, blocked: blockedWIntervals(activeField, run.pos) };
+  if (mapVisible()) return { ghost: () => 1, blocked: blockedWIntervals(activeField, run.pos), marks: relayRailMarks(level, true) };
   if (!nudge || now >= nudge.until) { nudge = null; return NO_AIDS; }
   const rem = (nudge.until - now) / NUDGE_MS;
   const fade = reducedMotion.matches ? 1 : Math.min(1, rem / 0.35);
-  return { ghost: (id) => (nudge.ids.has(id) ? fade : 0), blocked: [] };
+  return { ghost: (id) => (nudge.ids.has(id) ? fade : 0), blocked: [], marks: [] };
 }
 
 function buildFrame() {
@@ -193,10 +202,15 @@ function buildFrame() {
     footprints,
     field: activeField,
     blocked: aids.blocked,
-    token: isWalk() ? { pos: run.pos, flash, won: run.won, carrying: run.carrying, yaw: actorYaw, bob: actorBob } : null,
+    token: isWalk() ? { pos: run.pos, flash, won: run.won, carrying: run.carrying, yaw: actorYaw, bob: actorBob,
+      arrival: run.won ? (reducedMotion.matches ? 1 : Math.min(1, (now - run.finishedAt) / 280)) : 0 } : null,
     goal: isWalk() ? level.field.goal : null,
     goalState: isWalk() ? goalSliceAtW(level.field, w) : null,
     relay: isWalk() ? run.relayState() : null,
+    station: level.id === 'station-routes' ? {
+      airlock: run.airlockCleared, seals: stationSeals,
+      cue: !reducedMotion.matches && now < introCueUntil ? Math.sin(Math.PI * (introCueUntil - now) / 900) : 0,
+    } : null,
     bounds: frameBounds(),
     trail: trail.map(([x, z, t]) => [x, z, Math.max(0, 1 - (now - t) / TRAIL_MS) * 0.8]),
     ripples: ripples.map((r) => ({ x: r.x, z: r.z, tint: r.tint, progress: (now - r.t0) / RIPPLE_MS })),
@@ -224,6 +238,8 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
   const goalEl = $('goal-tag');
   const socketEl = $('socket-tag');
   const latchEl = $('latch-tag');
+  const sealsEl = $('receiver-seals');
+  sealsEl.hidden = true;
   socketEl.hidden = true;
   latchEl.hidden = true;
   if (!actorEl || !itemEl || !goalEl) return;
@@ -281,6 +297,14 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
   const [gx, gz] = level.field.goal;
   const goalOpen = frame.goalState ? frame.goalState.open : true;
   const goalDist = Math.hypot(run.pos[0] - gx, run.pos[1] - gz);
+  if (level.id === 'station-routes' && goalDist < 1.7) {
+    const pt = view.project([gx, 0.1, gz + 0.65]);
+    if (pt) {
+      sealsEl.hidden = false;
+      sealsEl.style.left = `${pt.x * view.canvas.clientWidth / 100}px`;
+      sealsEl.style.top = `${pt.y}%`;
+    }
+  }
   if (!moved || goalDist < 1.7 || (!level.field.relay && !goalOpen)) {
     const goalPt = view.project([gx, 0.28, gz]);
     const goalName = level.field.item ? '接收台' : '出口';
@@ -293,10 +317,22 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
 function updateActionButton() {
   const btn = $('action-btn');
   if (!btn) return;
-  if (!isWalk() || !level?.field?.item || !run || run.won || cardOpen) {
+  $('replay-btn').hidden = true;
+  $('return-levels').hidden = true;
+  if (!isWalk() || !run || cardOpen) {
     btn.hidden = true;
     return;
   }
+  if (run.won) {
+    const near = atReceiver();
+    btn.hidden = !near;
+    btn.disabled = false;
+    btn.textContent = completionAction().label;
+    $('return-levels').hidden = !near;
+    $('replay-btn').hidden = !near || !['station', 'fetch'].includes(level.id);
+    return;
+  }
+  if (!level.field.item) { btn.hidden = true; return; }
   const state = run.canInteract(current);
   if (state.action === 'latch' || state.action === 'dock') {
     btn.hidden = false;
@@ -323,8 +359,28 @@ function updateActionButton() {
   }
 }
 
+function atReceiver() {
+  return Math.hypot(run.pos[0] - level.field.goal[0], run.pos[1] - level.field.goal[1]) <= 0.85;
+}
+
+function completionAction() {
+  if (level.id === 'station-routes') return stationNextAction(stationSeals);
+  if (level.id === 'fetch') return { label: '下一站：中转站', level: 'station' };
+  if (level.id === 'station') return { label: '下一站：两种办法', level: 'station-routes' };
+  const next = nextLevel(level.id);
+  return { label: next ? '下一关' : '回到关卡', level: next?.id };
+}
+
 function handleInteract() {
-  if (!isWalk() || !level?.field?.item || !run || run.won || cardOpen) return;
+  if (!isWalk() || !run || cardOpen) return;
+  if (run.won) {
+    if (!atReceiver()) return;
+    const next = completionAction().level;
+    if (next) startLevel(next);
+    else showTitle();
+    return;
+  }
+  if (!level.field.item) return;
   sfxInit();
   const res = run.interact(performance.now(), current);
   if (res.action === 'docked' || res.action === 'latched') {
@@ -411,10 +467,11 @@ function tick(time) {
     if (reducedMotion.matches || Math.abs(current - target) < 1e-4) current = target;
     else current += (target - current) * (1 - Math.exp(-14 * delta));
   }
-  if (isWalk() && !cardOpen && !run.won) stepToken(delta, time);
+  if (isWalk() && !cardOpen) stepToken(delta, time);
   if (flash > 0) flash = Math.max(0, flash - delta * 2.4);
   render();
-  if (reveal || wHold || current !== target || ripples.length || pressed.size || flash > 0 || trail.length || nudge) requestFrame();
+  const arriving = isWalk() && run.won && !reducedMotion.matches && time < run.finishedAt + 280;
+  if (reveal || wHold || current !== target || ripples.length || pressed.size || flash > 0 || trail.length || nudge || time < introCueUntil || arriving) requestFrame();
   else previousTime = 0;
 }
 
@@ -466,7 +523,9 @@ function requestDial(value, immediate = false) {
   let clamped = false;
   if (isWalk()) {
     const fromW = dialToW(run.dial);
+    const hadAirlock = run.airlockCleared;
     ({ dial, clamped } = run.reachDial(dial));
+    if (!hadAirlock && run.airlockCleared) sfx.appear();
     if (clamped) revealBlockers(fromW, dialToW(clampDial(value)));
   }
   if (clamped) refuse();
@@ -559,11 +618,25 @@ function buildRailSpans() {
 }
 
 let blocksKey = '';
+let marksKey = '';
 function updateRail(w = dialToW(current), blocked = wAids().blocked) {
   const rail = $('w-rail');
+  const marks = wAids().marks;
+  const mark = nearbyRailMark(current, marks);
+  const nextMarksKey = marks.map((m) => `${m.w}:${m.label}`).join('|');
+  if (nextMarksKey !== marksKey) {
+    marksKey = nextMarksKey;
+    $('rail-marks').replaceChildren(...marks.map((m) => {
+      const el = document.createElement('span');
+      el.className = 'rail-mark';
+      el.style.top = `${(1 - (m.w + 2) / 4) * 100}%`;
+      el.title = m.label;
+      return el;
+    }));
+  }
   $('rail-thumb').style.top = `${(1 - current) * 100}%`;
   rail.setAttribute('aria-valuenow', w.toFixed(2));
-  rail.setAttribute('aria-valuetext', `${isFlat() ? '高度' : 'W'} ${signed(w)}，第 ${LAYERS[layerIndex(w)].name} 层`);
+  rail.setAttribute('aria-valuetext', `${isFlat() ? '高度' : 'W'} ${signed(w)}，第 ${LAYERS[layerIndex(w)].name} 层${mark ? `，${mark.label}` : ''}`);
   rail.classList.toggle('locked', railLocked());
   const trialTarget = level?.kind === 'visit' && run.phase === 'predict' ? run.session.trial.to : null;
   $('rail-target').hidden = trialTarget === null;
@@ -598,7 +671,7 @@ function updateRail(w = dialToW(current), blocked = wAids().blocked) {
   const color = cssColor(wColor(w));
   $('layer-swatch').style.color = color;
   $('layer-name').textContent = `第 ${LAYERS[layerIndex(w)].name} 层`;
-  $('w-value').textContent = `${isFlat() ? '高度' : 'W'} ${signed(w)}`;
+  $('w-value').textContent = `${isFlat() ? '高度' : 'W'} ${signed(w)}${mark ? ` · ${mark.label}` : ''}`;
 }
 
 function railDial(event) {
@@ -623,12 +696,17 @@ $('w-rail').addEventListener('pointermove', (event) => {
 const railRelease = (event) => {
   if (railPointer !== event.pointerId) return;
   railPointer = null;
+  if (event.type === 'pointerup' && !railLocked()) {
+    const snapped = railReleaseDial(target, wAids().marks);
+    if (snapped !== target) requestDial(snapped);
+  }
   commitW();
   // Keep the keyboard on the stage so arrows keep walking after a drag.
   if (!cardOpen) focusStage();
 };
 $('w-rail').addEventListener('pointerup', railRelease);
 $('w-rail').addEventListener('pointercancel', railRelease);
+$('w-rail').addEventListener('lostpointercapture', railRelease);
 $('w-rail').addEventListener('keydown', (event) => {
   const steps = { ArrowUp: 0.02, ArrowDown: -0.02, PageUp: 0.1, PageDown: -0.1 };
   let next = null;
@@ -660,6 +738,7 @@ function renderChapters() {
       <p class="kicker">新关卡 · 空间解谜</p>
       <h2>${STATION_ROUTES_LEVEL.title}</h2>
       <p>${STATION_ROUTES_LEVEL.objective}</p>
+      <div class="route-seals" aria-label="两种办法的记录">${sealMarkup()}</div>
     </div>
     <div class="featured-actions">
       <button type="button" class="primary" data-start="station-routes">${progress.has('station-routes') ? '再玩一次：两种办法 →' : '开始：两种办法 →'}</button>
@@ -710,6 +789,8 @@ function leaveLevel() {
   trail = [];
   ripples.length = 0;
   flash = 0;
+  clearTimeout(introCueTimer);
+  introCueUntil = 0;
   railPointer = null;
   pressed.clear();
   wHold = 0;
@@ -790,6 +871,7 @@ function startLevel(id, { skipIntro = false } = {}) {
   $('w-rail').setAttribute('aria-label', flatView ? '把你的这一层上下移动' : '沿 W 移动这一片');
   $('w-rail').classList.remove('pulse');
   $('dpad').hidden = !isWalk();
+  $('receiver-seals').innerHTML = sealMarkup();
   $('predict').hidden = true;
   $('keys').innerHTML = keysHelp();
   setObjective(level.objective);
@@ -801,6 +883,13 @@ function startLevel(id, { skipIntro = false } = {}) {
   updateMapVisibility();
   resetCamera();
   render();
+  if (level.id === 'station-routes' && !reducedMotion.matches) {
+    introCueTimer = setTimeout(() => {
+      if (level?.id !== 'station-routes' || reducedMotion.matches) return;
+      introCueUntil = performance.now() + 900;
+      requestFrame();
+    }, 2000);
+  }
   if (level.forceTrials) {
     run.phase = 'predict';
     beginTrial();
@@ -829,7 +918,7 @@ function updateStats() {
   if (isWalk()) {
     if (level.field?.item) {
       const powered = run.socketPowered();
-      stats.textContent = run.carrying ? '携带晶核' : (powered ? '插座供电中' : '空手');
+      stats.textContent = run.won ? '晶核已送达' : run.carrying ? '携带晶核' : (powered ? '插座供电中' : '空手');
       stats.dataset.state = run.carrying ? 'carry' : (powered ? 'power' : 'empty');
     } else {
       stats.textContent = '';
@@ -918,6 +1007,14 @@ function win() {
   pressed.clear();
   wHold = 0;
   $('w-rail').classList.remove('pulse');
+  if (isWalk()) {
+    stationSeals = rememberStationRun(sealStorage, stationSeals, run);
+    $('receiver-seals').innerHTML = sealMarkup();
+    updateActionButton();
+    setObjective(level.field.item ? '晶核已送达。可以留在这里走走。' : '已到达出口。可以留在这里走走。');
+    toast(level.done, 'good');
+    return;
+  }
   updateActionButton();
   let stats = '';
   if (!isWalk()) {
@@ -927,19 +1024,7 @@ function win() {
   const next = nextLevel(level.id);
   const chapterEnd = !level.standalone && (!next || next.chapter !== level.chapter);
   const actions = [];
-  if (level.id === 'fetch') {
-    actions.push(['下一站：中转站 →', 'primary', () => startLevel('station')]);
-    actions.push(['再来一次', 'ghost', () => startLevel(level.id, { skipIntro: true })]);
-    actions.push(['留在这里看看', 'ghost', () => hideCard()]);
-  } else if (level.id === 'station') {
-    actions.push(['下一站：两种办法 →', 'primary', () => startLevel('station-routes')]);
-    actions.push(['再玩一次', 'ghost', () => startLevel('station', { skipIntro: true })]);
-    actions.push(['回到关卡', 'ghost', showTitle]);
-  } else if (level.id === 'station-routes') {
-    actions.push(['试试另一种办法', 'primary', () => startLevel('station-routes', { skipIntro: true })]);
-    actions.push(['留在这里看看', 'ghost', () => hideCard()]);
-    actions.push(['回到关卡', 'ghost', showTitle]);
-  } else if (level.id === 'lab') {
+  if (level.id === 'lab') {
     actions.push(['查看截面公式', 'primary', () => showWhy()]);
     actions.push(['再来一次', 'ghost', () => startLevel(level.id, { skipIntro: true })]);
     actions.push(['回到章节', 'ghost', () => showTitle()]);
@@ -947,13 +1032,9 @@ function win() {
     actions.push([next ? '下一关 →' : '回到章节', 'primary', () => (next ? startLevel(next.id) : showTitle())]);
     if (chapterEnd) actions.push(['原理说明（可选）', 'ghost', () => showWhy()]);
     actions.push(['再来一次', 'ghost', () => startLevel(level.id, { skipIntro: true })]);
-    if (isWalk()) actions.push(['留在这里看看', 'ghost', () => hideCard()]);
   }
   actions.push(['保存记录 ↓', 'ghost', download]);
-  const body = level.id === 'station-routes'
-    ? (run.socketUses ? '这次使用了插座。下一次，试试不供电就把晶核送过去。' : '这次没有使用插座。也可以先把回廊准备好，再回来运送。')
-    : level.id === 'station' ? '接收台亮了，晶核已经送达。' : '';
-  showCard({ kicker: '完成', title: level.done, body, stats, actions });
+  showCard({ kicker: '完成', title: level.done, stats, actions });
   setObjective(level.field?.item ? '晶核已送达。' : '已完成。');
 }
 
@@ -1129,7 +1210,7 @@ window.addEventListener('keydown', (event) => {
   if (event.target.closest?.('#w-rail') && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(key)) return;
   if (key === 'h' || key === 'H') { if (!event.repeat) showHint(); return; }
   if (key === 'r' || key === 'R') { if (!event.repeat) startLevel(level.id, { skipIntro: true }); return; }
-  if (isWalk() && level?.field?.item && (key === ' ' || key === 'f' || key === 'F')) {
+  if (isWalk() && (level?.field?.item || run.won) && (key === ' ' || key === 'f' || key === 'F')) {
     event.preventDefault();
     if (!event.repeat) handleInteract();
     return;
@@ -1166,7 +1247,9 @@ window.addEventListener('blur', () => {
   pressed.clear();
   if (heldWKey) { wHold = 0; heldWKey = null; commitW(); }
 });
-document.addEventListener('visibilitychange', () => { if (!document.hidden && level) render(); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && level) { render(); requestFrame(); }
+});
 
 document.querySelectorAll('#dpad button').forEach((button) => {
   const dir = button.dataset.dir;
@@ -1188,7 +1271,9 @@ $('play').addEventListener('click', () => { sfxInit(); startLevel('station-route
 $('play-fetch').addEventListener('click', () => { sfxInit(); startLevel('fetch'); });
 $('play-chapters')?.addEventListener('click', () => { sfxInit(); startLevel(firstOpenLevel().id); });
 $('open-lab')?.addEventListener('click', () => { sfxInit(); startLevel('lab'); });
-$('action-btn')?.addEventListener('click', () => { handleInteract(); focusStage(); });
+$('action-btn')?.addEventListener('click', () => { handleInteract(); if (level) focusStage(); });
+$('replay-btn').addEventListener('click', () => startLevel(level.id, { skipIntro: true }));
+$('return-levels').addEventListener('click', showTitle);
 $('unlock-all')?.addEventListener('click', () => { sandboxAll = !sandboxAll; renderChapters(); });
 $('back').addEventListener('click', showTitle);
 $('restart').addEventListener('click', () => { if (level) startLevel(level.id, { skipIntro: true }); });
@@ -1204,6 +1289,20 @@ for (const id of ['scene', 'flat']) {
 document.addEventListener('pointerdown', sfxInit, { once: true });
 
 // ?level=1-2 opens a level directly (for playtests and shared links).
+const narrowStage = window.matchMedia('(max-width: 820px)');
+const railHome = $('w-rail').parentElement;
+const readout = document.querySelector('.layer-readout');
+function placeRail() {
+  $('stage-rail').hidden = !narrowStage.matches;
+  if (narrowStage.matches) $('stage-rail').append($('w-rail'), readout);
+  else {
+    railHome.append($('w-rail'));
+    $('color-legend').before(readout);
+  }
+  if (level) render();
+}
+narrowStage.addEventListener('change', placeRail);
+placeRail();
 const requested = levelById(new URLSearchParams(location.search).get('level') ?? '');
 if (requested) startLevel(requested.id);
 else showTitle();

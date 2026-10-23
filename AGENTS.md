@@ -8,6 +8,7 @@
 - Tests: `node --test web/geometry-lab/tests/*.test.mjs` (Node 18+). The BFS test proves each walking level needs a mid-route W change; add new levels to `levels.mjs` and they are covered automatically.
 - Syntax: `for f in web/geometry-lab/*.mjs; do node --check $f; done`
 - Browser: `?level=<id>` opens a level directly. Playwright scripts used for end-to-end checks have lived in `/tmp/wslice-check` (uses local Chrome via `executablePath`).
+- Local Codex: when `od_browser` MCP tools are available, use that browser connection for page navigation, interaction, console checks, and screenshots at http://127.0.0.1:4175. Save evidence under `output/playwright/`. This connection provides an isolated browser session for the local preview. After changing the viewport, wait for the responsive layout to settle before asserting DOM placement. Complete the verification todo only after checking the actual browser results.
 
 ## Design rules
 - Collision comes only from the current 3D section (`geometry.mjs`), never from authored W ranges or graphs.
