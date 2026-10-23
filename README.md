@@ -1,14 +1,29 @@
-# 4D — W-Slice Puzzle Prototype
+# 4D — 回响庭院 · W-Slice Web
 
-Unity 早期 playable prototype，核心机制是 **W-Slice**：标量 `w ∈ [0,1]` 控制物体显隐、路径可达性与交互反馈。
+**当前开发与试玩入口为原生网页游戏，无需 Unity。** 核心机制是 **W-Slice**：调节 `w ∈ [0,1]` 让路径显现，选择稳行或跟随移动光带冒险；点亮机关、连通捷径，带回回响。
 
-**2026-10-23 开发迭代：** 庭院在回响风险奖励上新增三级连响、七个场景节点的传播与开花、随桥升降的灯带，以及逐级增强的晶体喷发和音阶。已存层级在失败后保留，未存层级收回。见[连锁反应候选与本轮验证边界](docs/releases/courtyard-chain-reactions-candidate.md)及[前轮风险反馈记录](docs/releases/courtyard-resonance-candidate.md)。本轮使用当前源码配合历史 Mono player 外壳进行实验运行，不替代下述历史发布记录或 Unity Editor 正式构建。
+## 网页试玩
 
-**后续玩法设计：** [Roguelike 元素与组合设计](docs/roguelike-design.md)包含十二个带可见代价的新元素、四房间短局、三套组合及实现约束。该文档是设计提案，尚未接入上述 Unity 候选。
+```bash
+cd web
+npm start
+```
 
-**当前阶段：** v0.4.0 本机独立应用验收通过。`190dd462` 通过 Unity 7 项校验、EditMode 130/130、PlayMode 74/74（含庭院 10/10）及 macOS 构建；同一应用完成三个启动尺寸目标的代理 GUI 回归，庭院共通关 4 次、旧五关各至少 2 次。五名陌生玩家试玩仍为 **0/5，未执行**。证据、尺寸口径和本机应用路径见[本轮运行记录](docs/releases/v0.4-courtyard-runtime.md)。
+打开 <http://127.0.0.1:4173/>。无需安装 npm 依赖，也不需要游戏引擎。`web/` 可作为静态网站部署；当前仅本地运行，未发布公网。
 
-## 优先试玩：回响庭院
+网页首版包含三庭短局、三种可选遗物、真实的机关开门与外环捷径、动态风险穿越、已存／未存收益、三枚回程结、分级音画反馈。详见 [网页运行与规则](web/README.md)。测试命令：`cd web && npm test`。
+
+[Roguelike 元素与组合设计](docs/roguelike-design.md)是后续设计库；网页已实现其中一组简化规则，其余元素仍是提案，不代表全部完成。
+
+## 历史 Unity 原型与证据
+
+下面保留原型历史，后续开发以 `web/` 为准。
+
+**2026-10-23 历史迭代：** Unity 庭院新增三级连响、七个场景节点传播与开花、桥灯和分级晶体／音阶。见[连锁反应候选记录](docs/releases/courtyard-chain-reactions-candidate.md)及[风险反馈记录](docs/releases/courtyard-resonance-candidate.md)。该轮使用当前源码配合历史 Mono player 外壳实验运行。
+
+**历史验收：** v0.4.0 本机独立应用验收通过。`190dd462` 通过 Unity 7 项校验、EditMode 130/130、PlayMode 74/74（含庭院 10/10）及 macOS 构建；同一应用完成三个启动尺寸目标的代理 GUI 回归，庭院共通关 4 次、旧五关各至少 2 次。五名陌生玩家试玩仍为 **0/5，未执行**。证据、尺寸口径和本机应用路径见[历史运行记录](docs/releases/v0.4-courtyard-runtime.md)。这些结果不作为网页版本的测试证据。
+
+## 历史原型试玩：回响庭院
 
 用 Unity **6000.0.77f1** 打开 `WSliceProto`，进入 `LevelSelect`，点击 **开始：回响庭院**；也可直接打开 `Assets/_Project/Level/Scenes/CourtyardSlice.unity` 后 Play。场景已提交，进入 Play 时创建空间表现，不必先运行生成器。
 
