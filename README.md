@@ -11,9 +11,11 @@ npm start
 
 打开 <http://127.0.0.1:4173/>。无需安装 npm 依赖，也不需要游戏引擎。`web/` 可作为静态网站部署；当前仅本地运行，未发布公网。
 
-网页当前包含三个 W 切片、同位异层机关、延迟供能开桥、跨层留影、2.4 秒花匣回流挑战、三种可累积与升阶遗物、三庭短局、已存／未存收益与三枚回程结。W 驱动预设四维实体的连续截面和通行规则，尚不是任意四维几何物理引擎。详见 [网页运行与规则](web/README.md)。测试命令：`cd web && npm test`。
+网页每局从 **四种机关模板中抽取三庭且不重复**，改变 W 层归属、空间朝向和花匣挑战。同位串联、双源汇流、远端折返、分源架桥有不同的供能关系与路线；三庭分别搭配单层回流、追层双涌、双层封锁。遗物跨庭累积或升阶，冒险成功有分级花瓣、冠环、沿真实桥梁传播的回响及和弦收束。
 
-[Roguelike 元素与组合设计](docs/roguelike-design.md)是后续设计库；网页已实现其中一组简化规则，其余元素仍是提案，不代表全部完成。
+W 驱动预设四维实体的连续截面和通行规则。当前随机化来自手工模板的组合、层排列和经过投影间距筛选的朝向，并非任意程序生成地图或完整四维几何物理引擎。URL 的 `?seed=123` 可复玩同一旅程，“新一局”生成新种子。详见 [网页运行与规则](web/README.md)和[随机房间契约](web/RANDOM-ROOMS-CONTRACT.md)。测试命令：`cd web && npm test`；当前套件共 58 项，自动化结果不替代真实玩家体验验证。
+
+[Roguelike 元素与组合设计](docs/roguelike-design.md)列出当前落地范围并保留最初设计库；局外成长、四房间流程及其他提案仍未实现。
 
 ## 历史 Unity 原型与证据
 
@@ -97,6 +99,7 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceP
 ```
 4D/
 ├── README.md                 ← 本文件（仓库入口）
+├── web/                      ← 当前原生网页游戏、随机房间、规则与测试
 ├── docs/releases/            ← release checklist 与 tag 说明
 ├── scripts/
 │   ├── validate-local.sh     ← 本地 compile + validate 脚本
@@ -108,7 +111,7 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceP
     └── Assets/_Project/      ← 游戏代码（Core/Level/Entities/Player/UI/Editor）
 ```
 
-## 当前实现（v0.4.0 可构建候选）
+## 历史 Unity 实现（v0.4.0 可构建候选）
 
 - W 轴核心：`WState`、`WRange`、`WSnapResolver`、平滑插值与 snap
 - 关卡图：`LevelDefinition` + BFS 路径 + W 门控边
@@ -125,7 +128,7 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceP
 - macOS 构建：`./scripts/build-macos.sh` 创建独立运行目录并核验产物，实际路径以脚本打印为准
 - 测试：EditMode + PlayMode 套件
 
-## 已知限制
+## 历史 Unity 已知限制
 
 - **CI（可选）** — GitHub Actions 已提供 L0/L1 workflow；需在 repo secrets 配置 `UNITY_LICENSE` 等（见 `.github/workflows/wslice-validate.yml`）
 - **验收边界**：当前通过的是本机代理 GUI 回归，不能替代陌生玩家理解度；历史失败和退出阶段 Mono 提示保留在本轮运行记录。
@@ -134,7 +137,7 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceP
 - **试玩证据待补** — 原五关以 Hazard_05 结束；回响庭院独立结束；尚无五人试玩结果。
 - **显示验收范围** — M4 外接 S27C900P，5120×2880 物理像素、2560×1440 点 HiDPI；通过 1280×720、1440×900、1920×1080 预期逻辑尺寸启动目标的 GUI 检查，缩放截图尺寸另记。Garden 末段已修为有支撑的斜坡。
 
-## 下一步（v0.4.0 验证与试玩）
+## 历史 Unity 下一步记录（v0.4.0 验证与试玩）
 
 1. **五人试玩** — 使用已验收候选，按预设门槛检查能否自主理解并完成回响庭院，再决定扩关。
 2. **候选交接** — 保留 `190dd462` 应用与证据；源码变更后重新测试、构建并复验，交付文档提交单独记录。
@@ -143,6 +146,9 @@ Editor 菜单 `WSlice → Build/macOS Standalone` 的默认位置仍为 `WSliceP
 历史 v0.3 release checklist 见 [`docs/releases/v0.3-wslice-demo.md`](docs/releases/v0.3-wslice-demo.md)，不能替代当前开发版的验证记录。
 
 ## 文档索引
+
+- [web/README.md](web/README.md) — 当前网页玩法、启动与测试
+- [web/RANDOM-ROOMS-CONTRACT.md](web/RANDOM-ROOMS-CONTRACT.md) — 当前种子、房间组合、风险与返程约束
 
 - [WSliceProto/README.md](WSliceProto/README.md) — 模块与设计原则
 - [WSliceProto/Validation.md](WSliceProto/Validation.md) — 验证命令与 PR 测试记录规范

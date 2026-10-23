@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameAudio } from '../src/audio.js';
-import { GameModel } from '../src/model.js';
 
 // Track the WebAudio boundary, including future starts/stops. These tests check
 // lifecycle safety, not synthesis quality or browser autoplay enforcement.
@@ -296,28 +295,109 @@ test('slow frames cannot outrun warning clock or create a backlog of sounds', as
   assert.equal(context.sources.length, count);
 });
 
-test('same-frame committed power survives a normal failure in both model and sound', async t => {
+test('same-frame committed power survives the audio failure cleanup but not a new run', async t => {
   const contexts = installAudio(t);
   const audio = new GameAudio();
   t.after(() => audio.dispose());
   await audio.unlock();
   const context = contexts[0];
-  const model = new GameModel(1);
-  model.chooseRelic('prism');
-  const advance = seconds => {
-    while (seconds > 1e-8) { const dt = Math.min(1 / 120, seconds); model.update(dt); seconds -= dt; }
-  };
-  model.move(); advance(1.4);
-  model.setW(.82); advance(.4);
-  model.setW(.18); model.interact(); model.setW(.82); model.drainEvents();
-  advance(.49); model.drainEvents(); advance(.02);
-  const events = model.drainEvents();
-  assert.deepEqual(events.map(event => event.type), ['power', 'fail']);
-  assert.ok(model.snapshot().powered.includes('bell'));
-  audio.handle(events.slice(0, 1));
+  audio.handle([{ type: 'power', from: 'dew', to: 'bell', layer: 1 }]);
   const power = [...context.sources];
-  audio.handle(events.slice(1));
+  audio.handle([{ type: 'fail', node: 'hub' }]);
   assert.ok(power.length > 0 && power.every(source => !source.disconnected));
   audio.handle([{ type: 'restart' }]);
   assert.ok(power.every(source => stopped(source, context)), 'new runs still cancel every old power cue');
+});
+
+test('wave stages and danger sets replace stale beats even at identical elapsed times', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  const wave = { node: 'vault', layer: 1, dangerLayers: [1], safeLayers: [0, 2],
+    duration: 2.4, remaining: 2.4, variant: 'chase', step: 1, steps: 2 };
+  audio.syncWave(wave);
+  const stageOne = [...context.sources];
+  const initialPitch = stageOne[0].frequency.value;
+  audio.syncWave({ ...wave, step: 2 });
+  const stageTwo = context.sources.slice(stageOne.length);
+  assert.ok(stageOne.every(source => stopped(source, context)), 'a new stage cannot retain the previous threat pulse');
+  assert.ok(stageTwo.length > 0);
+  assert.notEqual(stageTwo[0].frequency.value, initialPitch, 'the next chase must be distinguishable by pitch');
+
+  const first = context.sources.length;
+  audio.syncWave({ ...wave, step: 2, variant: 'lock', dangerLayers: [0, 1], safeLayers: [2] });
+  const locked = context.sources.slice(first);
+  assert.ok(stageTwo.every(source => stopped(source, context)));
+  assert.equal(locked.filter(source => !source.buffer).length, 4, 'two dangerous layers have a paired pulse');
+  assert.ok(locked.every(source => source.startAt === context.currentTime), 'warning voices never predict the next beat');
+  const count = context.sources.length;
+  audio.syncWave({ ...wave, step: 2, variant: 'lock', dangerLayers: [1, 0], safeLayers: [2] });
+  assert.equal(context.sources.length, count, 'reordering the same danger set must not retrigger it');
+  audio.syncWave(null);
+  assert.ok(locked.every(source => stopped(source, context)));
+});
+
+test('intermediate dodge clears its warning and plays only a short unresolved cue', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  audio.syncWave({ node: 'vault', layer: 0, dangerLayers: [0], safeLayers: [1, 2],
+    duration: 2, remaining: .2, step: 1, steps: 2, variant: 'chase' });
+  const warning = [...context.sources];
+  audio.handle([{ type: 'dodge', node: 'vault', step: 1, steps: 2, layer: 2 }]);
+  const dodge = context.sources.slice(warning.length);
+  assert.ok(warning.every(source => stopped(source, context)));
+  assert.equal(dodge.length, 4);
+  assert.ok(dodge.every(source => source.stopAt <= context.currentTime + .22));
+  assert.ok([...audio.voices].every(voice => voice.group !== 'reward'), 'a partial dodge never earns the final cadence');
+});
+
+test('risky tiers add musical range and a resolved tail while keeping headroom and voice limits', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  audio.handle([{ type: 'reward', risky: false, tier: 3 }]);
+  const safe = [...context.sources];
+  assert.equal(safe.filter(source => !source.buffer).length, 4);
+  const tierCounts = [];
+  for (const tier of [1, 2, 3]) {
+    audio.handle([{ type: 'restart' }]);
+    const first = context.sources.length;
+    audio.handle([{ type: 'reward', node: 'vault', risky: true, tier, challenge: 'vault' }]);
+    const notes = context.sources.slice(first).filter(source => !source.buffer);
+    tierCounts.push(notes.length);
+    assert.ok(notes.some(source => source.frequency.value < 100), 'earned risk has a low impact absent from safe collection');
+    assert.ok(notes.some(source => source.startAt > context.currentTime + .2 && source.stopAt > context.currentTime + .8), 'the arpeggio must settle into a final chord');
+    assert.ok(audio.voices.size <= 24);
+    assert.equal(audio.master.gain.value, .65, 'tiers never raise the master output');
+    assert.equal(audio.compressor.threshold.value, -18);
+  }
+  assert.ok(tierCounts[0] < tierCounts[1] && tierCounts[1] < tierCounts[2]);
+  const old = context.sources.filter(source => !source.disconnected);
+  audio.handle([{ type: 'reward', risky: true, tier: 2 }]);
+  assert.ok(old.every(source => stopped(source, context)), 'a new risky cadence replaces the old one instead of accumulating music');
+});
+
+test('room completion has a closing cadence distinct from entering a room', async t => {
+  const contexts = installAudio(t);
+  const audio = new GameAudio();
+  t.after(() => audio.dispose());
+  await audio.unlock();
+  const context = contexts[0];
+  audio.handle([{ type: 'room' }]);
+  const entrance = [...context.sources];
+  audio.handle([{ type: 'room', completed: true }]);
+  const completion = context.sources.slice(entrance.length);
+  assert.ok(entrance.every(source => stopped(source, context)));
+  assert.ok(completion.length > entrance.length);
+  assert.ok(completion.some(source => source.startAt > context.currentTime + .25 && source.stopAt > context.currentTime + 1));
+  audio.handle([{ type: 'win' }]);
+  assert.ok(completion.every(source => stopped(source, context)));
+  assert.ok(audio.voices.size <= 24);
 });

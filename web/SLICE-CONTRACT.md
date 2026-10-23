@@ -1,5 +1,7 @@
 # Cross-slice web iteration contract
 
+> Historical contract — 2026-10-23: this records the preceding fixed-layout slice iteration. The current random-room implementation supersedes its fixed first room, fixed layer roles, single vault rule and fixed shortcut topology. See [RANDOM-ROOMS-CONTRACT.md](RANDOM-ROOMS-CONTRACT.md) for current rules. Historical text and evidence are retained below.
+
 This replaces the gameplay part of CONTRACT.md. Keep web-native, no Unity, no external assets. The model is authoritative for actual layered space. This is authored x/y/z/w slice geometry, not a complete arbitrary 4D physics engine.
 
 ## Model owner: src/model.js, tests/model.test.js

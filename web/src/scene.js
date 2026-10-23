@@ -124,7 +124,13 @@ export class SceneRenderer {
     }) ?? null;
   }
 
-  setState(snapshot) { this.state = snapshot; }
+  setState(snapshot) {
+    // A new generated room invalidates every delayed presentation cue.
+    if (this.state && (this.state.room !== snapshot.room || this.state.roomSignature !== snapshot.roomSignature || this.state.seed !== snapshot.seed)) {
+      this.effects.length = 0; this.particles.length = 0; this.shake = 0; this.flash = 0;
+    }
+    this.state = snapshot;
+  }
 
   node(id) { return this.state?.nodes.find(node => node.id === id); }
 
@@ -137,19 +143,44 @@ export class SceneRenderer {
     if (this.effects.length > 36) this.effects.splice(0, this.effects.length - 36);
   }
 
-  burst(position, color, count = 20, power = 1) {
+  burst(position, color, count = 20, power = 1, { delay = 0, celebration = false } = {}) {
     const total = this.reducedMotion ? Math.min(6, count) : count;
     for (let i = 0; i < total; i++) {
       const angle = this.random() * TAU;
       const speed = (40 + this.random() * 110) * power;
       this.particles.push({
         x: position.x, y: position.y - 12, vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed * .65 - 35, age: 0,
+        vy: Math.sin(angle) * speed * .65 - 35, age: -delay, celebration,
         duration: .45 + this.random() * .9, size: 2 + this.random() * 3,
         color, spin: this.random() * TAU,
       });
     }
     if (this.particles.length > 220) this.particles.splice(0, this.particles.length - 220);
+  }
+
+  celebrate(target, event) {
+    const tier = clamp(event.tier || 1, 1, 3);
+    const color = COLORS.gold;
+    const shared = { color, tier, celebration: true };
+    // Anticipation, release, and a small return to the player form one earned beat.
+    this.addEffect('gather', target, { ...shared, duration: .18, radius: 56 + tier * 9 });
+    this.addEffect('petals', target, { ...shared, delay: .16, duration: 1.1, radius: 90 + tier * 23 });
+    this.addEffect('ring', target, { ...shared, delay: .16, duration: 1.15, radius: 95 + tier * 24 });
+    this.addEffect('crown', target, { ...shared, delay: .2, duration: 1.15 });
+    this.addEffect('value', target, { ...shared, delay: .2, duration: 1.25, value: event.value });
+    this.addEffect('collect', target, { ...shared, delay: .73, duration: .55, radius: 70 + tier * 16 });
+    this.burst(target, COLORS.lightGold, 22 + tier * 9, .9 + tier * .2, { delay: .16, celebration: true });
+    // Resonance follows only actual, open world bridges. It never changes a gate.
+    const neighbors = this.connections().filter(edge => edge.open && (edge.from === target.id || edge.to === target.id)).slice(0, tier + 1);
+    for (const edge of neighbors) {
+      const to = edge.from === target.id ? edge.b : edge.a;
+      const bridgeColor = this.palette(edge.layer).color;
+      this.addEffect('bridge_echo', target, { ...shared, delay: .28, duration: .65, color: bridgeColor,
+        edgeId: edge.id, layer: edge.layer, to: { x: to.x, y: to.y } });
+      this.addEffect('resonance', to, { ...shared, delay: .88, duration: .65, radius: 58 + tier * 8,
+        layer: edge.layer, color: bridgeColor });
+    }
+    // Local light carries the impact; camera motion must not obscure the next W choice.
   }
 
   pushEvents(events = []) {
@@ -171,15 +202,10 @@ export class SceneRenderer {
         // This event is a commitment, not an earned reward. Anticipation stays at departure.
         this.addEffect('ring', this.node(event.from) || this.lastPlayer, { duration: .65, radius: 36, color: COLORS.gold });
       } else if (event.type === 'reward') {
-        const tier = event.risky ? clamp(event.tier || 1, 1, 3) : 1;
-        this.addEffect('ring', target, { duration: .9, radius: 75 + tier * 13, color, tier });
-        this.addEffect('bloom', target, { duration: .7, radius: 55 + tier * 12, color });
-        this.burst(target, color, 14 + tier * 9, .8 + tier * .22);
-        if (event.risky) {
-          this.addEffect('crown', target, { duration: 1.15, color: COLORS.gold, tier });
-          this.shake = Math.max(this.shake, .12 + tier * .025);
-          this.flash = .045 + tier * .02;
-          this.flashColor = COLORS.lightGold;
+        if (event.risky) this.celebrate(target, event);
+        else {
+          this.addEffect('ring', target, { duration: .55, radius: 58, color });
+          this.burst(target, color, 8, .55);
         }
       } else if (event.type === 'layer_shift' || event.type === 'phase_transfer') {
         const layer = event.layer ?? event.toLayer ?? this.state?.layer ?? 0;
@@ -194,7 +220,12 @@ export class SceneRenderer {
         this.addEffect('ring', to, { delay: .8, duration: .75, radius: 75, color: this.palette(to.layer ?? event.layer).color });
         this.burst(to, this.palette(to.layer ?? event.layer).glow, 14, .5);
       } else if (event.type === 'warning') {
-        this.addEffect('ring', target, { duration: .6, radius: 95, color: COLORS.danger, tier: 2 });
+        this.effects = this.effects.filter(effect => !effect.celebration);
+        this.particles = this.particles.filter(particle => !particle.celebration);
+        this.addEffect('ring', target, { duration: .45, radius: 95, color: COLORS.danger, tier: 2 });
+      } else if (event.type === 'dodge') {
+        const layer = event.layer ?? this.state?.layer;
+        this.addEffect('section', target, { duration: .38, radius: 65, color: this.palette(layer).glow });
       } else if (event.type === 'evade') {
         // The model emits one reward as well; avoid a second celebration burst.
         this.addEffect('section', target, { duration: 1.1, radius: 130, color: this.palette().color });
@@ -254,7 +285,7 @@ export class SceneRenderer {
     this.effects = this.effects.filter(effect => effect.age < effect.duration + (effect.delay || 0));
     for (const particle of this.particles) {
       particle.age += dt;
-      if (!this.reducedMotion) {
+      if (!this.reducedMotion && particle.age >= 0) {
         particle.x += particle.vx * dt; particle.y += particle.vy * dt;
         particle.vy += 85 * dt; particle.vx *= Math.exp(-1.2 * dt);
       }
@@ -273,6 +304,7 @@ export class SceneRenderer {
     this.drawBackground();
     if (this.state) {
       this.drawSliceVolumes();
+      this.drawDependencies();
       this.drawConnections();
       const nodes = [...this.state.nodes].sort((a, b) => a.y - b.y);
       for (const node of nodes) this.drawIsland(node);
@@ -331,6 +363,28 @@ export class SceneRenderer {
     // Every route and lock comes from the authoritative model, including committed crossings.
     return (this.state.edges || []).map(edge => ({ ...edge, a: this.node(edge.from), b: this.node(edge.to) }))
       .filter(edge => edge.a && edge.b);
+  }
+
+  drawDependencies() {
+    const ctx = this.ctx;
+    for (const target of this.state.nodes) {
+      for (const sourceId of target.required || []) {
+        const source = this.node(sourceId);
+        if (!source) continue;
+        const received = (target.received || []).includes(sourceId);
+        const samePosition = Math.hypot(target.x - source.x, target.y - source.y) < 2;
+        ctx.save();
+        ctx.globalAlpha = received ? .32 : .17;
+        ctx.setLineDash([1, 7]);
+        ctx.beginPath(); ctx.moveTo(source.x, source.y - 39);
+        if (samePosition) ctx.bezierCurveTo(source.x - 66, source.y - 135, target.x + 66, target.y - 135, target.x, target.y - 39);
+        else ctx.quadraticCurveTo((source.x + target.x) / 2, Math.min(source.y, target.y) - 100, target.x, target.y - 39);
+        ctx.strokeStyle = this.palette(source.layer).color; ctx.lineWidth = received ? 1.6 : 1; ctx.stroke();
+        ctx.setLineDash([]);
+        diamond(ctx, target.x, target.y - 39, 3, received ? this.palette(source.layer).color : null, this.palette(source.layer).color);
+        ctx.restore();
+      }
+    }
   }
 
   drawConnections() {
@@ -418,32 +472,53 @@ export class SceneRenderer {
     const ctx = this.ctx, s = this.state;
     if (!s.layers?.length) return;
     ctx.save(); ctx.translate(62, 88);
-    // A compact spatial compass: XYZ position repeats on three W planes.
     const miniScale = clamp(.45 / this.scale, 1, 1.2);
     ctx.scale(miniScale, miniScale);
     const corners = [[0, 25], [67, -5], [128, 22], [60, 53]];
-    for (let i = 0; i < 3; i++) {
-      const y = (2 - i) * 29, color = this.palette(i).color;
-      ctx.globalAlpha = i === s.layer ? .88 : .3;
+    const at = (point, layer) => ({ x: 63 + (point.x - 500) * .105, y: 24 + (point.y - 340) * .06 + (2 - layer) * 29 });
+    const danger = s.wave?.dangerLayers || (s.wave ? [s.wave.layer] : []);
+    for (let i = 0; i < s.layers.length; i++) {
+      const y = (2 - i) * 29, color = danger.includes(i) ? COLORS.danger : this.palette(i).color;
+      ctx.globalAlpha = i === s.layer ? .88 : .36;
       path(ctx, corners.map(([x, cy]) => [x, cy + y]));
-      ctx.fillStyle = this.palette(i).pale; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = i === s.layer ? 2 : 1; ctx.stroke();
-      const player = this.playerPosition();
-      const px = 63 + (player.x - 500) * .115, py = 24 + (player.y - 340) * .055 + y;
-      if (i === s.layer) diamond(ctx, px, py, 5, color, '#ffffff');
+      ctx.fillStyle = this.palette(i).pale; ctx.fill(); ctx.strokeStyle = color;
+      ctx.lineWidth = danger.includes(i) ? 2.5 : i === s.layer ? 2 : 1; ctx.stroke();
+      // Actual mirrored room geometry appears on each W plane, including its bridges.
+      for (const edge of this.connections().filter(edge => edge.layer === i && edge.open)) {
+        const a = at(edge.a, i), b = at(edge.b, i);
+        line(ctx, a.x, a.y, b.x, b.y, color, .75);
+      }
+      for (const node of s.nodes.filter(node => node.anchor || node.layer === i)) {
+        const point = at(node, i);
+        ellipse(ctx, point.x, point.y, node.anchor ? 2 : 2.6, node.anchor ? 1.3 : 2.6,
+          node.anchor || s.activated.includes(node.id) ? color : this.palette(i).pale, color, .8);
+      }
+      const player = at(this.playerPosition(), i);
+      if (i === s.layer) { ctx.globalAlpha = 1; diamond(ctx, player.x, player.y, 5, color, '#ffffff'); }
+      ctx.globalAlpha = .8;
       for (let dot = 0; dot <= i; dot++) ellipse(ctx, 140 + dot * 7, 22 + y, 2, 2, color);
+      if (danger.includes(i)) {
+        line(ctx, 132, 14 + y, 158, 32 + y, COLORS.danger, 1.7);
+        line(ctx, 132, 32 + y, 158, 14 + y, COLORS.danger, 1.7);
+      } else if (s.wave?.safeLayers?.includes(i)) ellipse(ctx, 146, 23 + y, 19, 12, null, '#299c80', 1.7);
     }
-    // Match source/target W coordinates of real propagation events in the small stack.
     for (const effect of this.effects) {
-      if (effect.kind !== 'power') continue;
-      const fromY = 24 + (2 - effect.fromLayer) * 29, toY = 24 + (2 - effect.toLayer) * 29;
-      const p = clamp(effect.age / effect.duration);
-      ctx.globalAlpha = 1 - p;
-      line(ctx, 62, fromY, 62, toY, effect.color, 2);
-      diamond(ctx, 62, mix(fromY, toY, this.reducedMotion ? .5 : p), 5, effect.color, '#ffffff');
+      if (effect.age < (effect.delay || 0)) continue;
+      const p = clamp((effect.age - (effect.delay || 0)) / effect.duration);
+      if (effect.kind === 'power') {
+        const from = at(effect, effect.fromLayer), to = at(effect.to, effect.toLayer);
+        ctx.globalAlpha = 1 - p;
+        line(ctx, from.x, from.y, to.x, to.y, effect.color, 2);
+        diamond(ctx, mix(from.x, to.x, this.reducedMotion ? .5 : p), mix(from.y, to.y, this.reducedMotion ? .5 : p), 4, effect.color, '#ffffff');
+      } else if (effect.kind === 'resonance') {
+        const point = at(effect, effect.layer);
+        ctx.globalAlpha = (1 - p) * .8;
+        ellipse(ctx, point.x, point.y, 5 + p * 16, 3 + p * 8, null, effect.color, 1.8);
+      }
     }
     if (s.ghost) {
-      ctx.globalAlpha = .55;
-      diamond(ctx, 49, 24 + (2 - s.ghost.layer) * 29, 4, null, this.palette(s.ghost.layer).color);
+      const node = this.node(s.ghost.node);
+      if (node) { const point = at(node, s.ghost.layer); ctx.globalAlpha = .7; diamond(ctx, point.x, point.y, 4, null, this.palette(s.ghost.layer).color); }
     }
     ctx.globalAlpha = .75;
     const cutY = 58 * (1 - s.w);
@@ -475,23 +550,32 @@ export class SceneRenderer {
     const node = this.node(wave.node);
     if (!node) return;
     const ctx = this.ctx, p = clamp(1 - wave.remaining / wave.duration);
-    const exposed = s.layer === wave.layer || !s.nodes.some(node => !node.anchor && node.layer === s.layer && node.present);
+    const danger = wave.dangerLayers || [wave.layer];
+    const safe = (wave.safeLayers || s.layers.map((_, i) => i).filter(i => !danger.includes(i)))
+      .some(layer => Math.abs(s.w - s.layers[layer].center) <= .16 * Math.sqrt(.75) + 1e-9);
     ctx.save(); ctx.translate(node.x, node.y);
-    ctx.globalAlpha = exposed ? .9 : .3;
-    // The countdown is an inward-moving wave in the dangerous W layer.
-    const radius = 35 + 160 * (1 - p);
-    ellipse(ctx, 0, 0, radius, radius * .55, '#d36d5910', COLORS.danger, 2.5);
-    if (!this.reducedMotion) ellipse(ctx, 0, 0, radius + 15, (radius + 15) * .55, null, '#d36d5950', 1);
-    for (let i = 0; i < 8; i++) {
-      const a = i * TAU / 8;
-      diamond(ctx, Math.cos(a) * radius, Math.sin(a) * radius * .55, 4, COLORS.danger);
+    const radius = this.reducedMotion ? 108 : 35 + 160 * (1 - p);
+    for (const layer of danger) {
+      const lift = (s.layers[layer].center - s.w) * 85;
+      ctx.globalAlpha = safe ? .3 : layer === s.layer ? .9 : .55;
+      ellipse(ctx, 0, -lift, radius, radius * .55, '#d36d5910', COLORS.danger, 2.5);
+      for (let i = 0; i < (this.reducedMotion ? 4 : 8); i++) {
+        const a = i * TAU / (this.reducedMotion ? 4 : 8);
+        diamond(ctx, Math.cos(a) * radius, Math.sin(a) * radius * .55 - lift, 4, COLORS.danger);
+      }
+      // Layer pips identify each simultaneous blocked slice without covering the player.
+      for (let pip = 0; pip <= layer; pip++) ellipse(ctx, (pip - layer / 2) * 9, -radius * .55 - lift - 9, 2.6, 2.6, COLORS.danger);
     }
+    ctx.globalAlpha = safe ? .85 : 1;
     ctx.beginPath(); ctx.ellipse(0, 0, 95, 52, 0, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - p));
-    ctx.strokeStyle = COLORS.danger; ctx.lineWidth = 5; ctx.stroke();
-    ctx.globalAlpha = 1;
+    ctx.strokeStyle = safe ? '#299c80' : COLORS.danger; ctx.lineWidth = 5; ctx.stroke();
     ctx.font = `600 ${clamp(12 / this.scale, 18, 30)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center'; ctx.fillStyle = exposed ? '#9f4938' : this.palette().color;
-    ctx.fillText(wave.remaining.toFixed(1), 0, -80);
+    ctx.textAlign = 'center'; ctx.fillStyle = safe ? '#247b65' : '#9f4938';
+    ctx.fillText(wave.remaining.toFixed(1), 0, -92);
+    for (let stage = 0; stage < (wave.steps || 1); stage++) {
+      const done = stage < (wave.step || 1) - 1;
+      diamond(ctx, (stage - ((wave.steps || 1) - 1) / 2) * 13, -72, 3.8, done ? '#299c80' : stage === (wave.step || 1) - 1 ? COLORS.danger : null, done ? '#299c80' : COLORS.danger);
+    }
     ctx.restore();
   }
 
@@ -558,7 +642,7 @@ export class SceneRenderer {
     else if (exit) this.drawGate(node);
     else if (node.id === 'relay') this.drawAnchor();
     else if (node.id === 'vault') this.drawVault(node);
-    else this.drawMechanism(node, active);
+    else { this.drawMechanism(node, active); this.drawInputSlots(node); }
     if (node.powered && !active && !node.locked && !node.anchor) {
       const h = node.id === 'bell' ? -74 : -54;
       diamond(ctx, 0, h, 7, palette.glow, palette.color);
@@ -636,22 +720,22 @@ export class SceneRenderer {
   }
 
   drawVault(node) {
-    const ctx = this.ctx;
+    const ctx = this.ctx, palette = this.palette(node.layer);
     ellipse(ctx, 0, 3, 43, 22, '#c8cbb4', '#f1eed7', 2);
-    const visibility = clamp(node.chestVisibility ?? (this.state.layer === 1 ? 1 : 0));
+    const visibility = clamp(node.chestVisibility ?? (this.state.layer === node.layer ? 1 : 0));
     if (visibility <= .01) {
       ctx.save(); ctx.globalAlpha = .2; ctx.setLineDash([3, 5]);
       path(ctx, [[-27, 0], [-27, -25], [0, -39], [28, -25], [28, 0], [0, 15]]);
-      ctx.strokeStyle = this.palette(1).color; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+      ctx.strokeStyle = this.palette(node.layer).color; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
       return;
     }
     ctx.save(); ctx.scale(visibility, visibility);
     ctx.globalAlpha = .2 + visibility * .8;
     const open = this.state.vaultStatus === 'escaped';
     path(ctx, [[-29, -8], [0, 5], [29, -8], [29, 7], [0, 21], [-29, 7]]);
-    ctx.fillStyle = '#b4a3b8'; ctx.fill(); ctx.strokeStyle = '#8a719d'; ctx.stroke();
+    ctx.fillStyle = palette.side; ctx.fill(); ctx.strokeStyle = palette.color; ctx.stroke();
     path(ctx, [[-29, -8], [-22, -28 - (open ? 17 : 0)], [0, -36 - (open ? 17 : 0)], [22, -28 - (open ? 17 : 0)], [29, -8], [0, 5]]);
-    ctx.fillStyle = open ? '#efe3b5' : '#dad0d5'; ctx.fill(); ctx.strokeStyle = '#9f83a4'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = open ? '#efe3b5' : palette.pale; ctx.fill(); ctx.strokeStyle = palette.color; ctx.lineWidth = 1.5; ctx.stroke();
     diamond(ctx, 0, -9, 11, node.locked ? '#a8a298' : '#edd295', '#9a814d');
     if (this.state.wave) {
       line(ctx, -21, -22, 0, -6, COLORS.danger, 2); line(ctx, 0, -6, 21, -22, COLORS.danger, 2);
@@ -718,6 +802,35 @@ export class SceneRenderer {
     }
   }
 
+  drawInputSlots(node) {
+    const sources = node.required || [];
+    if (!sources.length) return;
+    const ctx = this.ctx;
+    const slotScale = clamp(.55 / this.scale, 1, 1.55);
+    ctx.save(); ctx.scale(slotScale, slotScale);
+    const gap = 25;
+    for (let i = 0; i < sources.length; i++) {
+      const source = this.node(sources[i]);
+      if (!source) continue;
+      const received = (node.received || []).includes(source.id);
+      const x = (i - (sources.length - 1) / 2) * gap;
+      const color = this.palette(source.layer).color;
+      ellipse(ctx, x, 24, 10, 6, received ? this.palette(source.layer).glow : '#edf1e5', color, received ? 2 : 1);
+      line(ctx, x, 18, x * .45, 5, color + (received ? 'bb' : '45'), received ? 2 : 1);
+      if (source.id === 'dew') diamond(ctx, x, 23, 4.8, received ? color : null, color);
+      else if (source.id === 'bell') {
+        ctx.beginPath(); ctx.arc(x, 23, 4.5, Math.PI, TAU); ctx.lineTo(x + 5.5, 26); ctx.lineTo(x - 5.5, 26); ctx.closePath();
+        ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke(); if (received) { ctx.fillStyle = color; ctx.fill(); }
+      } else {
+        for (let petal = 0; petal < 4; petal++) {
+          const angle = petal * TAU / 4;
+          ellipse(ctx, x + Math.cos(angle) * 3, 23 + Math.sin(angle) * 2.3, 2.2, 1.7, received ? color : null, color, .7);
+        }
+      }
+    }
+    ctx.restore();
+  }
+
   drawGate(node) {
     const ctx = this.ctx, s = this.state;
     const open = !node.locked;
@@ -749,9 +862,11 @@ export class SceneRenderer {
       line(ctx, 21, -48, -21, -7, '#9cb6a0', 1);
       diamond(ctx, 0, -28, 9, '#ced8bb', '#91ad95');
     }
-    for (let i = 0; i < 3; i++) {
-      const active = s.activated.includes(['dew', 'bell', 'bloom'][i]);
-      diamond(ctx, (i - 1) * 15, -66, 4.3, active ? '#ffe8a1' : '#a4b99d', active ? '#be9c54' : '#8aa285');
+    const order = s.mechanismOrder || s.nodes.filter(item => item.kind === 'mechanism').map(item => item.id);
+    for (let i = 0; i < order.length; i++) {
+      const active = s.activated.includes(order[i]);
+      const color = this.palette(this.node(order[i])?.layer).color;
+      diamond(ctx, (i - (order.length - 1) / 2) * 15, -66, 4.3, active ? '#ffe8a1' : '#dce1cd', color);
     }
   }
 
@@ -830,9 +945,63 @@ export class SceneRenderer {
       if (effect.age < (effect.delay || 0)) continue;
       const p = clamp((effect.age - (effect.delay || 0)) / effect.duration);
       const e = this.reducedMotion ? .7 : ease(p);
-      if (foreground !== ['pulse', 'power', 'section', 'crown', 'shield', 'bank', 'break'].includes(effect.kind)) continue;
+      if (foreground !== ['pulse', 'power', 'section', 'crown', 'shield', 'bank', 'break', 'gather', 'value', 'collect', 'bridge_echo'].includes(effect.kind)) continue;
       ctx.save(); ctx.globalAlpha = (1 - p) ** .7;
-      if (effect.kind === 'ring') {
+      if (effect.kind === 'gather') {
+        const radius = this.reducedMotion ? 24 : 12 + (effect.radius || 65) * (1 - p);
+        ellipse(ctx, effect.x, effect.y - 5, radius, radius * .52, null, effect.color, 2.2);
+        for (let i = 0; i < (this.reducedMotion ? 3 : 6); i++) {
+          const angle = i * TAU / (this.reducedMotion ? 3 : 6);
+          diamond(ctx, effect.x + Math.cos(angle) * radius, effect.y - 5 + Math.sin(angle) * radius * .52, 3, COLORS.lightGold, effect.color);
+        }
+      } else if (effect.kind === 'petals') {
+        const count = this.reducedMotion ? 4 : 6 + effect.tier * 3;
+        const radius = this.reducedMotion ? 40 : 16 + ease(p) * effect.radius;
+        for (let i = 0; i < count; i++) {
+          const angle = i * TAU / count + (this.reducedMotion ? 0 : p * .12);
+          ctx.save(); ctx.translate(effect.x + Math.cos(angle) * radius, effect.y - 13 + Math.sin(angle) * radius * .57);
+          ctx.rotate(angle + Math.PI / 2);
+          const length = this.reducedMotion ? 6 : 9 + effect.tier * 2;
+          if (i % 2) diamond(ctx, 0, 0, length * .65, COLORS.lightGold, effect.color);
+          else {
+            ctx.beginPath(); ctx.moveTo(0, length); ctx.bezierCurveTo(-length, 0, -length * .5, -length, 0, -length * 1.3);
+            ctx.bezierCurveTo(length * .5, -length, length, 0, 0, length);
+            ctx.fillStyle = i % 3 ? '#ffebac' : '#f5d27b'; ctx.fill(); ctx.strokeStyle = effect.color; ctx.lineWidth = 1; ctx.stroke();
+          }
+          ctx.restore();
+        }
+      } else if (effect.kind === 'value') {
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = `700 ${clamp(14 / this.scale, 22, 42)}px system-ui, sans-serif`;
+        ctx.lineWidth = 4; ctx.strokeStyle = '#fff8dd'; ctx.fillStyle = '#9a691f';
+        const y = effect.y - 66 - (this.reducedMotion ? 0 : ease(p) * 21);
+        ctx.strokeText(`+${effect.value || 0}`, effect.x, y); ctx.fillText(`+${effect.value || 0}`, effect.x, y);
+      } else if (effect.kind === 'collect') {
+        const to = this.playerPosition();
+        const count = this.reducedMotion ? 3 : 5 + effect.tier;
+        for (let i = 0; i < count; i++) {
+          const angle = i * TAU / count;
+          const t = this.reducedMotion ? .8 : ease(p);
+          const x = mix(effect.x + Math.cos(angle) * effect.radius, to.x, t);
+          const y = mix(effect.y + Math.sin(angle) * effect.radius * .55 - 12, to.y - 16, t);
+          diamond(ctx, x, y, 3.8, COLORS.lightGold, effect.color);
+        }
+      } else if (effect.kind === 'bridge_echo') {
+        const edge = this.state.edges.find(item => item.id === effect.edgeId);
+        if (edge?.open) {
+          const t = this.reducedMotion ? .65 : ease(p);
+          ctx.globalAlpha *= edge.visible ? .9 : .45;
+          line(ctx, effect.x, effect.y, effect.to.x, effect.to.y, effect.color + '35', 7);
+          for (let i = 0; i < (this.reducedMotion ? 2 : 4); i++) {
+            const tail = clamp(t - i * .06);
+            diamond(ctx, mix(effect.x, effect.to.x, tail), mix(effect.y, effect.to.y, tail), 6 - i, this.palette(effect.layer).glow, effect.color);
+          }
+        }
+      } else if (effect.kind === 'resonance') {
+        const radius = this.reducedMotion ? 42 : 15 + e * effect.radius;
+        ellipse(ctx, effect.x, effect.y, radius, radius * .52, null, effect.color, 2.5);
+        ellipse(ctx, effect.x, effect.y - 10, radius * .7, radius * .36, null, effect.color, 1);
+      } else if (effect.kind === 'ring') {
         const radius = 12 + e * (effect.radius || 80);
         ellipse(ctx, effect.x, effect.y, radius, radius * .52, null, effect.color, 2.5 - p * 1.4);
         if (effect.tier > 1) ellipse(ctx, effect.x, effect.y, radius * .75, radius * .39, null, effect.color, 1);
@@ -903,6 +1072,7 @@ export class SceneRenderer {
   drawParticles() {
     const ctx = this.ctx;
     for (const particle of this.particles) {
+      if (particle.age < 0) continue;
       const p = particle.age / particle.duration;
       ctx.save(); ctx.globalAlpha = 1 - p;
       ctx.translate(particle.x, particle.y); ctx.rotate(particle.spin + (this.reducedMotion ? 0 : p));

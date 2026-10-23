@@ -9,9 +9,13 @@ const icons = { prism:'◇', shadow:'◌', shell:'◈' };
 const traits = { prism:'穿层送能 · 蓄能主动', shadow:'跨层压板 · 主动留影', shell:'失稳保护 · 自动触发' };
 const layerSymbols = ['Ⅰ','Ⅱ','Ⅲ'];
 const newSeed = () => globalThis.crypto?.getRandomValues ? crypto.getRandomValues(new Uint32Array(1))[0] : Date.now() >>> 0;
+const requestedSeed = new URL(location.href).searchParams.get('seed');
+const initialSeed = requestedSeed !== null && /^\d{1,10}$/.test(requestedSeed) && Number(requestedSeed)<=0xffffffff ? Number(requestedSeed) : newSeed();
+function rememberSeed(seed) { const url=new URL(location.href);url.searchParams.set('seed',String(seed));history.replaceState(null,'',url); }
 const readPreference = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const savePreference = (key,value) => { try { localStorage.setItem(key,String(value)); } catch { /* Private browsing can disable persistence. */ } };
-const model = new GameModel(newSeed());
+const model = new GameModel(initialSeed);
+rememberSeed(initialSeed);
 const audio = new GameAudio();
 let soundEnabled = readPreference('wslice-sound','on') === 'on';
 let best = Math.max(0, Number(readPreference('wslice-best','0')) || 0);
@@ -20,6 +24,7 @@ let paused = false;
 let lastPhase = '';
 let destinationKey = '';
 let buildKey = '';
+let roomKey = '';
 let lastStatus = '';
 let lastFrame = performance.now();
 let transient = null;
@@ -49,18 +54,20 @@ function consumeEvents() {
     let message = '';
     if (event.type === 'fail') message = event.protected ? '缓落壳接住了你，随身回响保留。' : `失稳回退，失去 ${event.value} 枚未存回响。`;
     if (event.type === 'bank') message = `已存入 ${event.value} 枚回响。`;
-    if (event.type === 'unlock') message = '三层共鸣，锚台通往庭门的桥已打开。';
+    if (event.type === 'unlock') message = '机关共鸣，通往庭门的实体桥已打开。';
     if (event.type === 'reward' && event.risky) message = `冒险成功，收获 ${event.value} 枚回响。`;
-    if (event.type === 'ability') message = event.relic === 'prism' ? '脉冲送达，已供能的机关响应了。' : event.node==='bloom'?'影子压住花台，通向庭门的捷径正在展开。':event.node==='dew'?'影子留在潮汐层；换层启动回声台，捷径就会接通。':'影子压住回声台，通向锚台的捷径正在展开。';
+    if (event.type === 'ability') message = event.relic === 'prism' ? '脉冲送达，已供能的机关响应了。' : model.snapshot().shadowDescription;
     if (event.type === 'phase_transfer') message = '位置没有变，脚下已是另一层的机关。';
-    if (event.type === 'power') message = `回响抵达${model.snapshot().nodes.find(n=>n.id===event.node)?.name || '另一层'}。`;
+    if (event.type === 'power') message = `回响抵达${model.snapshot().nodes.find(n=>n.id===event.node)?.name || '另一层'}${event.complete===false?`，供能 ${event.received}/${event.required}`:''}。`;
     if (event.type === 'warning') {
-      message = '回流将抵达回声层。现在换层避开它。';
+      const state=model.snapshot();
+      message = `第 ${state.wave?.step || 1}/${state.wave?.steps || 1} 波将抵达，切到${(state.wave?.safeLayers || []).map(i=>state.layers[i].name).join('或')}。`;
       // On phones, the lower action button can scroll the actual hazard offscreen.
       if (matchMedia('(max-width:780px)').matches && $('scene').getBoundingClientRect().top < 0)
         $('scene').closest('.scene-wrap').scrollIntoView({block:'start',behavior:'instant'});
     }
     if (event.type === 'evade') message = '跨层避开回流，花匣中的回响归你。';
+    if (event.type === 'dodge') message = '躲过一波；下一波会追到这里，再换一次层。';
     if (message) { transient = message; transientTime = 2.8; $('announcement').textContent = message; }
     if (['restart','room'].includes(event.type)) { transient = null; transientTime = 0; $('announcement').textContent = ''; }
   }
@@ -68,9 +75,13 @@ function consumeEvents() {
 
 function showChoice(state) {
   const next = state.phase === 'interlude';
-  $('choice-kicker').textContent = next ? `第 ${state.room + 1} 庭完成 · 已带回 ${state.banked} 回响` : '同一空间的另一种可能';
-  $('choice-title').innerHTML = next ? '把这一次选择，<br>接在已有能力上。' : '站在同一处，<br>走进另一层。';
-  $('choice-intro').textContent = next ? '已有遗物全部保留。拿一件新能力，或提升已有能力；回程结不会重置。' : '切换 W，水泵会在同一位置变成回声台。让三层机关接力，打开庭门。先带上一件遗物。';
+  const upcoming=next ? state.nextRoom : state.roomPlan?.[0];
+  $('choice-kicker').textContent = next ? `第 ${state.room + 1} 庭完成 · 已带回 ${state.banked} 回响` : `随机旅程 #${state.seed.toString(16).toUpperCase().padStart(8,'0')}`;
+  $('choice-title').innerHTML = next ? '下一庭，<br>换一种解法。' : '展开这一局，<br>未知的路径。';
+  $('choice-intro').textContent = next ? '已有遗物全部保留。拿一件新能力，或提升已有能力；回程结不会重置。' : '三座不同的庭院已展开。切换 W 发现同位机关，用这一局的能力组合改变路线。';
+  renderItinerary('choice-route',state,next?state.room+1:0);
+  setText('choice-room-name',`${next?'即将进入':'首先进入'} · ${upcoming?.name || state.roomName}`);
+  setText('choice-room-description',upcoming?.description || state.roomDescription);
   $('choice-build').hidden = !next;
   $('choice-build').textContent = '已有：'+RELICS.filter(r=>state.relics?.[r.id]>0).map(r=>`${r.name} ${'ⅠⅡⅢ'[state.relics[r.id]-1]}`).join(' ＋ ');
   $('relic-choices').replaceChildren(...(state.choices || RELICS).map(relic => {
@@ -115,18 +126,47 @@ function updateBuild(state) {
   }
   for (const ability of state.abilities || []) {
     if (!ability.rank) continue;
-    setText(`build-detail-${ability.id}`,ability.detail);
+    setText(`build-detail-${ability.id}`,ability.id==='shadow'&&ability.available?`${ability.detail}。${state.shadowDescription}`:ability.detail);
     const button=$(`ability-${ability.id}`);
     if(button){button.disabled=!ability.available||paused;setHTML(button.id,`${ability.label} <kbd>Q</kbd>`);}
   }
 }
 
+function renderItinerary(id,state,current) {
+  $(id).replaceChildren(...(state.roomPlan || []).map((room,index)=>{
+    const item=document.createElement('div');item.className='route-stop';
+    item.classList.toggle('current',index===current);item.classList.toggle('complete',index<current);
+    if(index===current)item.setAttribute('aria-current','step');
+    item.innerHTML=`<span class="route-number">${index<current?'✓':String(index+1).padStart(2,'0')}</span><span><strong>${room.name}</strong><small>${room.challengeName}</small></span>`;
+    return item;
+  }));
+}
+
+function updateRoom(state) {
+  const key=`${state.seed}:${state.room}:${state.roomSignature}`;
+  if(roomKey===key)return;
+  roomKey=key;destinationKey='';
+  setText('room-description',state.roomDescription || '观察各层机关，让能量接力。');
+  renderItinerary('room-itinerary',state,state.room);
+  const order=state.mechanismOrder || state.nodes.filter(n=>n.kind==='mechanism').map(n=>n.id);
+  $('mechanisms').replaceChildren(...order.map(id=>{
+    const node=state.nodes.find(n=>n.id===id);
+    const row=document.createElement('div');row.className='mechanism-item';row.dataset.mechanism=id;
+    row.innerHTML=`<span class="node-light" aria-hidden="true">◇</span><span class="mechanism-name">${node.name}<span class="supply-slots">${(node.required || []).map(source=>{const from=state.nodes.find(n=>n.id===source);return `<i data-source="${source}" title="来自${from.name}" style="--supply-color:${state.layers[from.layer].color}">○</i>`;}).join('')}</span></span><small></small>`;
+    return row;
+  }));
+  setText('challenge-name',state.roomChallenge?.name || '裂隙花匣');
+  setText('challenge-reward',`+${state.roomChallenge?.reward || 4}`);
+  setText('challenge-description',state.roomChallenge?.description || '开匣后换层，躲开回流。');
+}
+
 function updateUI() {
   const state = model.snapshot();
+  updateRoom(state);
   scene.setState(state);
   $('room-name').textContent = state.roomName;
   $('room-number').textContent = String(state.room + 1).padStart(2,'0');
-  $('seed-label').textContent = `#${state.seed.toString(16).slice(-5).toUpperCase()}`;
+  setText('seed-label',`#${state.seed.toString(16).toUpperCase().padStart(8,'0')}`);
   $('banked').textContent = state.banked;
   $('carried').textContent = state.carried;
   if (state.banked > best) { best = state.banked; savePreference('wslice-best',best); }
@@ -145,16 +185,21 @@ function updateUI() {
   for(const [i,button] of [...document.querySelectorAll('.layer-controls [data-layer]')].entries()){
     button.setAttribute('aria-pressed',String(i===state.layer));
     button.disabled=state.phase!=='playing'||paused;
+    button.classList.toggle('danger-layer',!!state.wave?.dangerLayers?.includes(i));
+    button.classList.toggle('safe-layer',!!state.wave?.safeLayers?.includes(i));
+    button.title=state.wave?`${state.layers[i].name} · ${state.wave.safeLayers.includes(i)?'安全切片':'回流危险'}`:state.layers[i].name;
   }
   setText('footing',`${currentNode?.name || ''} · ${currentNode?.anchor?'跨层支撑':currentNode?.present?'本层平台':'离层失稳 · 换回有支撑的层'}`);
   $('footing').classList.toggle('unsafe',state.phaseStability<.99);
-  setText('objective',state.objective || '在潮汐层启动水泵，再看另一层的变化');
+  setText('objective',state.objective || '观察供能关系，切换 W 寻找这一庭的起点');
   for (const node of state.nodes.filter(n => n.kind === 'mechanism')) {
     const row = document.querySelector(`[data-mechanism="${node.id}"]`);
     const active = state.activated.includes(node.id);
     row.classList.toggle('active', active);
-    row.querySelector('small').textContent = active ? '接力完成' : node.powered ? '已供能 · 待启动' : node.id==='dew'?'起点 · 待启动':'等待上一层';
+    row.querySelector('small').textContent = active ? '已启动' : node.powered ? (node.required?.length?'已供能':'起点') : `供能 ${node.received?.length || 0}/${node.required?.length || 1}`;
+    row.title=node.mechanismHint || '';
     row.querySelector('.node-light').textContent = active ? '✦' : '◇';
+    for(const slot of row.querySelectorAll('[data-source]')){const received=node.received?.includes(slot.dataset.source);slot.textContent=received?'●':'○';slot.classList.toggle('received',!!received);}
   }
   const nextKey = `${state.availableNodes.join(',')}:${state.selected}:${state.layer}`;
   if (destinationKey !== nextKey) {
@@ -178,7 +223,7 @@ function updateUI() {
   $('slider-wrap').classList.toggle('risk',state.riskMode);
   $('safe-mode').setAttribute('aria-pressed',String(!state.riskMode));
   $('risk-mode').setAttribute('aria-pressed',String(state.riskMode));
-  $('safe-mode').disabled = $('risk-mode').disabled = state.phase !== 'playing' || !!state.travel;
+  $('safe-mode').disabled = $('risk-mode').disabled = state.phase !== 'playing' || !!state.travel || !!state.wave;
   $('align').disabled = !range || !!state.travel || state.phase !== 'playing';
   $('move').disabled = !state.canMove || paused;
   setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${state.riskMode?'冒险穿越':'穿越'} <span>Space ↗</span>`);
@@ -193,12 +238,13 @@ function updateUI() {
   }
   $('wave-warning').hidden = !state.wave;
   if(state.wave){
-    const safe=state.layer!==state.wave.layer&&Math.abs(state.w-currentLayer.center)<=Math.sqrt(.75)*.16;
+    const safe=state.wave.safeLayers.includes(state.layer)&&Math.abs(state.w-currentLayer.center)<=Math.sqrt(.75)*.16;
     setText('wave-time',state.wave.remaining.toFixed(1));$('wave-warning').classList.toggle('evading',safe);
-    setText('wave-label',safe?'已避开回声层 · 保持切片':'回声层正在反噬');
+    setText('wave-label',safe?`已在安全层 · 第 ${state.wave.step}/${state.wave.steps} 波`:`${state.wave.variant==='lock'?'双层封锁':'回流接近'} · 第 ${state.wave.step}/${state.wave.steps} 波`);
+    setText('wave-instruction',`安全 → ${state.wave.safeLayers.map(i=>`${layerSymbols[i]} ${state.layers[i].name}`).join(' / ')}`);
   }
   const aligned = range && state.w >= range.min && state.w <= range.max;
-  setText('slice-hint',state.wave?'回流停留在回声层，切到另两层等待它过去':state.travel ? (state.travel.risky ? '额外冒险 · 调 W 跟随光带' : '保持当前切片，直到落地') : range ? `${aligned?'这段路径已显现':'路径在另一个切片'} · W ${range.min.toFixed(2)} — ${range.max.toFixed(2)}` : '切换 W 观察平台和机关，或选择落脚点');
+  setText('slice-hint',state.wave?(state.wave.steps>1?'追波会改变危险层，每一波都要重新观察':'切到标记安全的层，层间隙不能躲过回流'):state.travel ? (state.travel.risky ? '额外冒险 · 调 W 跟随光带' : '保持当前切片，直到落地') : range ? `${aligned?'这段路径已显现':'路径在另一个切片'} · W ${range.min.toFixed(2)} — ${range.max.toFixed(2)}` : '切换 W 观察平台和机关，或选择落脚点');
   updateBuild(state);
   $('pause').disabled = state.phase !== 'playing';
   setText('context-hint',state.objective || '切换空间，观察能量会传到哪一层。');
@@ -211,11 +257,6 @@ function updateUI() {
   }
 }
 
-for (const node of model.snapshot().nodes.filter(n=>n.kind==='mechanism')) {
-  const row = document.createElement('div'); row.className = 'mechanism-item'; row.dataset.mechanism = node.id;
-  row.innerHTML = `<span class="node-light" aria-hidden="true">◇</span><span>${node.name}</span><small>等待唤醒</small>`;
-  $('mechanisms').append(row);
-}
 $('w-slider').addEventListener('input',e=>{ if(canAct()) action(()=>model.setW(Number(e.target.value))); });
 $('align').addEventListener('click',()=>{ if(canAct()) action(()=>model.setW(model.snapshot().range?.center ?? .5)); });
 $('safe-mode').addEventListener('click',()=>{ if(canAct()) action(()=>model.setRisk(false)); });
@@ -234,7 +275,7 @@ $('close-help').addEventListener('click',closeHelp);$('help-done').addEventListe
 $('restart').addEventListener('click',()=>{if(!isModal()){paused=true;$('restart-dialog').showModal();syncAudio();}});
 function cancelRestart() {$('restart-dialog').close();paused=false;lastFrame=performance.now();syncAudio();}
 $('cancel-restart').addEventListener('click',cancelRestart);$('restart-dialog').addEventListener('cancel',e=>{e.preventDefault();cancelRestart();});
-function restart() {for(const id of dialogs)if($(id).open)$(id).close();paused=false;lastPhase='';destinationKey='';buildKey='';$('build-list').replaceChildren();$('ability-list').replaceChildren();action(()=>model.restart(newSeed()));}
+function restart() {for(const id of dialogs)if($(id).open)$(id).close();paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';$('build-list').replaceChildren();$('ability-list').replaceChildren();const seed=newSeed();rememberSeed(seed);action(()=>model.restart(seed));}
 $('confirm-restart').addEventListener('click',restart);$('play-again').addEventListener('click',restart);
 $('choice-dialog').addEventListener('cancel',e=>e.preventDefault());$('result-dialog').addEventListener('cancel',e=>e.preventDefault());
 document.addEventListener('keydown',e=>{
@@ -251,7 +292,7 @@ document.addEventListener('keydown',e=>{
   else if(key==='e'){e.preventDefault();action(()=>model.interact());}
   else if(key==='q'){e.preventDefault();action(()=>model.useAbility());}
   else if(['z','x','c'].includes(key)){e.preventDefault();action(()=>model.setW(model.snapshot().layers[['z','x','c'].indexOf(key)].center));}
-  else if(/^[1-4]$/.test(key)){e.preventDefault();const id=model.snapshot().availableNodes[Number(key)-1];if(id)action(()=>model.select(id));}
+  else if(/^[1-6]$/.test(key)){e.preventDefault();const id=model.snapshot().availableNodes[Number(key)-1];if(id)action(()=>model.select(id));}
 });
 document.addEventListener('visibilitychange',()=>{lastFrame=performance.now();if(document.hidden&&model.snapshot().phase==='playing'&&!isModal())pauseGame();syncAudio();});
 window.addEventListener('pagehide',event=>{if(event.persisted)audio.setEnabled(false);else audio.dispose();});
