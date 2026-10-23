@@ -1,0 +1,10 @@
+{
+  "web/src/model.js": "e981ee312505cac73937442d9f8b9cef805f464a8e4f067875402801ebf0186d",
+  "web/src/main.js": "dfa26ab4610dd982d0f4c7b50e50f5f56601cfe6e51066cf3949ddc2b15440da",
+  "web/src/scene.js": "2e93b100e4407c6137cc104f9fa7e59cdc3117c3dc17b13109b15f93037afdb7",
+  "web/src/audio.js": "ae5fa47953546a857a88d7b111b32c2ce01e62322a9caff4b1b8120a10785f5e",
+  "web/index.html": "0b53aa3ae5a1a37d047f271eeff7a1fb44c692ae853559e8d1c8db205517a83a",
+  "web/style.css": "7d9332234d7a2b4b8bb0b74967d74c88d5d0d7d51c3d9e3ec4db5179aa7e4ed0",
+  "web/tests/model.test.js": "0e615c59183e9b9d373f59af230b97b604b754e41eab77e369dfab6788daf7fe",
+  "web/tests/audio.test.js": "09e2c7304b2eb7b784a58d0f0d6969974ae310e8b8f67c5754b8f6389cd6a909"
+}

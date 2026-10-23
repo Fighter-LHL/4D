@@ -6,6 +6,11 @@ const COLORS = {
   mint: '#baf9df', gold: '#d79943', lightGold: '#ffedb0', danger: '#d36d59',
   stone: '#e5e8d7', edge: '#b2c5b1', darkStone: '#75988a',
 };
+const LAYER_PALETTES = [
+  { color: '#378d9c', pale: '#dbf0ef', glow: '#a0f1f1', stone: '#e1e9dd', side: '#96b7ad' },
+  { color: '#8c6bb4', pale: '#eee5f4', glow: '#e2c5ff', stone: '#e8e2df', side: '#aaa4bf' },
+  { color: '#b28b32', pale: '#f7efd9', glow: '#fff0ae', stone: '#eee9d4', side: '#bdb592' },
+];
 const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
 const mix = (a, b, t) => a + (b - a) * t;
 const ease = t => 1 - (1 - clamp(t)) ** 3;
@@ -111,15 +116,19 @@ export class SceneRenderer {
     const y = (event.clientY - rect.top - this.offsetY) / this.scale;
     // Match the painted island top and mechanism, never its generous label box.
     return [...this.state.nodes].reverse().find(node => {
-      const rx = node.id === 'hub' ? 112 : 81;
-      const ry = node.id === 'hub' ? 60 : 52;
-      return ((x - node.x) / rx) ** 2 + ((y - node.y + 12) / ry) ** 2 <= 1;
+      if (!node.present || (!node.anchor && node.scale < .5)) return false;
+      const section = node.anchor ? 1 : node.scale;
+      const rx = (node.id === 'hub' ? 112 : 81) * section;
+      const ry = (node.id === 'hub' ? 60 : 52) * section;
+      return ((x - node.x) / rx) ** 2 + ((y - node.y + 12 * section) / ry) ** 2 <= 1;
     }) ?? null;
   }
 
   setState(snapshot) { this.state = snapshot; }
 
   node(id) { return this.state?.nodes.find(node => node.id === id); }
+
+  palette(layer = this.state?.layer ?? 0) { return LAYER_PALETTES[layer] || LAYER_PALETTES[0]; }
 
   random() { return hash(this.seed++); }
 
@@ -147,7 +156,7 @@ export class SceneRenderer {
     if (this.disposed) return;
     for (const event of events) {
       const target = this.node(event.to) || this.node(event.node) || this.node(this.state?.node) || this.lastPlayer;
-      const color = event.type === 'risk' || event.risky ? COLORS.gold : COLORS.teal;
+      const color = event.type === 'risk' || event.risky ? COLORS.gold : this.palette(target.layer ?? this.state?.layer).color;
       if (['fail', 'restart', 'room'].includes(event.type)) {
         this.effects.length = 0;
         this.particles.length = 0;
@@ -172,10 +181,27 @@ export class SceneRenderer {
           this.flash = .045 + tier * .02;
           this.flashColor = COLORS.lightGold;
         }
+      } else if (event.type === 'layer_shift' || event.type === 'phase_transfer') {
+        const layer = event.layer ?? event.toLayer ?? this.state?.layer ?? 0;
+        const at = event.type === 'phase_transfer' ? this.node(event.to) || target : this.playerPosition();
+        this.addEffect('section', at, { duration: .7, color: this.palette(layer).color, radius: 90 });
+        if (event.type === 'phase_transfer') this.burst(at, this.palette(layer).glow, 16, .5);
+      } else if (event.type === 'power') {
+        const from = this.node(event.from) || target, to = this.node(event.to) || target;
+        this.addEffect('power', from, { to: { x: to.x, y: to.y }, duration: 1.4,
+          fromLayer: from.layer ?? this.state.layer, toLayer: to.layer ?? event.layer,
+          color: this.palette(to.layer ?? event.layer).color, sourceColor: this.palette(from.layer).color });
+        this.addEffect('ring', to, { delay: .8, duration: .75, radius: 75, color: this.palette(to.layer ?? event.layer).color });
+        this.burst(to, this.palette(to.layer ?? event.layer).glow, 14, .5);
+      } else if (event.type === 'warning') {
+        this.addEffect('ring', target, { duration: .6, radius: 95, color: COLORS.danger, tier: 2 });
+      } else if (event.type === 'evade') {
+        // The model emits one reward as well; avoid a second celebration burst.
+        this.addEffect('section', target, { duration: 1.1, radius: 130, color: this.palette().color });
       } else if (event.type === 'activate') {
-        this.addEffect('ring', target, { duration: 1.2, radius: 110, color: COLORS.teal, tier: 2 });
-        this.addEffect('bloom', target, { duration: 1, radius: 85 });
-        this.burst(target, COLORS.mint, 28, 1.25);
+        this.addEffect('ring', target, { duration: 1.2, radius: 110, color, tier: 2 });
+        this.addEffect('bloom', target, { duration: 1, radius: 85, color });
+        this.burst(target, this.palette(target.layer ?? this.state?.layer).glow, 28, 1.25);
       } else if (event.type === 'chain') {
         const from = this.node(event.from) || target;
         const to = this.node(event.to) || this.node('exit') || target;
@@ -246,14 +272,18 @@ export class SceneRenderer {
     }
     this.drawBackground();
     if (this.state) {
+      this.drawSliceVolumes();
       this.drawConnections();
       const nodes = [...this.state.nodes].sort((a, b) => a.y - b.y);
       for (const node of nodes) this.drawIsland(node);
       this.drawEffects(false);
+      this.drawGhost();
+      this.drawWave();
       this.drawPlayer();
       this.drawEffects(true);
       this.drawParticles();
       this.drawAtmosphere();
+      this.drawWStack();
     }
     ctx.restore();
     if (this.flash && !this.reducedMotion) {
@@ -265,7 +295,7 @@ export class SceneRenderer {
   drawBackground() {
     const ctx = this.ctx;
     const gradient = ctx.createLinearGradient(0, 0, 0, WORLD_H);
-    gradient.addColorStop(0, '#e3eee7'); gradient.addColorStop(.6, '#edf1e5'); gradient.addColorStop(1, '#e1ebe1');
+    gradient.addColorStop(0, this.palette().pale); gradient.addColorStop(.6, '#edf1e5'); gradient.addColorStop(1, '#e1ebe1');
     ctx.fillStyle = gradient; ctx.fillRect(0, 0, WORLD_W, WORLD_H);
     // Quiet topographic circles establish depth without competing with paths.
     ctx.save(); ctx.globalAlpha = .22;
@@ -298,97 +328,198 @@ export class SceneRenderer {
   }
 
   connections() {
-    const nodes = this.state.nodes;
-    const hub = this.node('hub');
-    if (!hub) return [];
-    const pairs = nodes.filter(node => node.id !== 'hub' && node.id !== 'exit').map(node => [hub, node]);
-    if (this.state.activated.length >= 3) pairs.push([hub, this.node('exit')]);
-    if (this.state.shortcut) {
-      const outer = nodes.filter(node => node.kind === 'mechanism');
-      for (let i = 0; i < outer.length; i++) for (let j = i + 1; j < outer.length; j++) pairs.push([outer[i], outer[j]]);
-    }
-    // A committed shortcut crossing survives its timer, exactly as the model does.
-    const travel = this.state.travel;
-    if (travel && !pairs.some(([a, b]) =>
-      (a.id === travel.from && b.id === travel.to) || (b.id === travel.from && a.id === travel.to))) {
-      pairs.push([this.node(travel.from), this.node(travel.to)]);
-    }
-    return pairs.filter(pair => pair[0] && pair[1]);
+    // Every route and lock comes from the authoritative model, including committed crossings.
+    return (this.state.edges || []).map(edge => ({ ...edge, a: this.node(edge.from), b: this.node(edge.to) }))
+      .filter(edge => edge.a && edge.b);
   }
 
   drawConnections() {
     const ctx = this.ctx, s = this.state;
-    for (const [a, b] of this.connections()) {
+    for (const edge of this.connections()) {
+      const { a, b } = edge;
       const selected = (s.node === a.id && s.selected === b.id) || (s.node === b.id && s.selected === a.id);
-      const traversing = s.travel && ((s.travel.from === a.id && s.travel.to === b.id) || (s.travel.from === b.id && s.travel.to === a.id));
+      const traversing = s.travel && ((s.travel.from === a.id && s.travel.to === b.id) || (s.travel.from === b.id && s.travel.to === a.id)) && s.travel.layer === edge.layer;
       const relevant = selected || traversing;
-      const dest = s.node === b.id ? a : b;
-      const outer = a.id === 'hub' ? b : b.id === 'hub' ? a : dest;
-      const halfwidth = s.riskMode ? .048 : .105;
-      const range = relevant && s.range ? s.range : { min: outer.center - halfwidth, max: outer.center + halfwidth };
-      const fits = s.w >= range.min && s.w <= range.max;
-      const risky = traversing ? s.travel.risky : s.riskMode && selected;
-      const color = risky ? COLORS.gold : COLORS.teal;
+      const range = relevant && s.range ? s.range : edge;
+      const fits = edge.visible && s.w >= range.min && s.w <= range.max;
+      const solid = edge.open && fits || traversing;
+      const color = edge.kind === 'vault' ? COLORS.danger : edge.kind === 'shadow' ? '#9c78ba' : this.palette(edge.layer).color;
       const dx = b.x - a.x, dy = b.y - a.y;
-      const distance = Math.hypot(dx, dy), nx = -dy / distance, ny = dx / distance;
+      const distance = Math.hypot(dx, dy);
+      if (distance < 1) continue;
+      const nx = -dy / distance, ny = dx / distance;
       const steps = Math.max(5, Math.floor(distance / 25));
       ctx.save();
-      // The rail stays visible as a topology hint; lit slabs mean a matching slice.
-      ctx.globalAlpha = relevant ? .65 : .25;
-      ctx.setLineDash([3, 8]); line(ctx, a.x, a.y + 5, b.x, b.y + 5, '#7c9c8c', 1.5); ctx.setLineDash([]);
-      if (fits || traversing) {
-        ctx.globalAlpha = relevant ? .17 : .06;
+      ctx.globalAlpha = edge.visible ? (relevant ? .65 : .36) : .13;
+      ctx.setLineDash([3, 8]); line(ctx, a.x, a.y + 5, b.x, b.y + 5, color, 1.5); ctx.setLineDash([]);
+      if (solid) {
+        ctx.globalAlpha = relevant ? .17 : .08;
         line(ctx, a.x, a.y, b.x, b.y, color, relevant ? 23 : 15);
-      }
-      for (let i = 1; i < steps; i++) {
-        const t = i / steps, x = mix(a.x, b.x, t), y = mix(a.y, b.y, t);
-        const width = relevant ? 13 : 10, length = 6;
-        const vx = dx / distance * length, vy = dy / distance * length;
-        ctx.globalAlpha = fits ? (relevant ? .95 : .48) : relevant ? .38 : .16;
-        path(ctx, [[x + nx * width - vx, y + ny * width - vy], [x + nx * width + vx, y + ny * width + vy], [x - nx * width + vx, y - ny * width + vy], [x - nx * width - vx, y - ny * width - vy]]);
-        ctx.fillStyle = fits ? '#f2f0dc' : '#c5d0bf'; ctx.fill();
-        ctx.strokeStyle = fits ? color : '#99b19e'; ctx.lineWidth = relevant ? 1.5 : .8; ctx.stroke();
-        if (relevant && fits && i % 2 === 0) diamond(ctx, x, y, 2.2, color);
-      }
-      if (relevant) {
-        ctx.globalAlpha = fits ? .85 : .5;
-        for (const side of [-1, 1]) {
-          line(ctx, a.x + nx * 19 * side, a.y + ny * 19 * side, b.x + nx * 19 * side, b.y + ny * 19 * side, fits ? color : COLORS.danger, 1);
+        for (let i = 1; i < steps; i++) {
+          const t = i / steps, x = mix(a.x, b.x, t), y = mix(a.y, b.y, t);
+          const width = relevant ? 13 : 10, length = 6;
+          const vx = dx / distance * length, vy = dy / distance * length;
+          ctx.globalAlpha = relevant ? .95 : .7;
+          path(ctx, [[x + nx * width - vx, y + ny * width - vy], [x + nx * width + vx, y + ny * width + vy], [x - nx * width + vx, y - ny * width + vy], [x - nx * width - vx, y - ny * width - vy]]);
+          ctx.fillStyle = '#f7f4e5'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = relevant ? 1.5 : .8; ctx.stroke();
+          if (relevant && i % 2 === 0) diamond(ctx, x, y, 2.2, color);
         }
-        // Moving sparks only travel along the selected real route.
-        if (fits && !this.reducedMotion) {
+      }
+      if (relevant && solid) {
+        ctx.globalAlpha = .7;
+        for (const side of [-1, 1]) line(ctx, a.x + nx * 19 * side, a.y + ny * 19 * side, b.x + nx * 19 * side, b.y + ny * 19 * side, color, 1);
+        if (!this.reducedMotion) {
           const t = (this.time * .42) % 1;
           const from = s.node === b.id ? b : a, to = s.node === b.id ? a : b;
-          ellipse(ctx, mix(from.x, to.x, t), mix(from.y, to.y, t), 3, 3, risky ? COLORS.lightGold : COLORS.mint);
+          ellipse(ctx, mix(from.x, to.x, t), mix(from.y, to.y, t), 3, 3, this.palette(edge.layer).glow);
         }
+      } else if (!edge.open && edge.visible) {
+        ctx.globalAlpha = .65;
+        const x = mix(a.x, b.x, .5), y = mix(a.y, b.y, .5);
+        ellipse(ctx, x, y, 10, 10, '#edf1e5', color);
+        line(ctx, x - 4, y - 4, x + 4, y + 4, color, 1.5);
+        line(ctx, x + 4, y - 4, x - 4, y + 4, color, 1.5);
       }
       ctx.restore();
     }
-    if (s.activated.length < 3) {
-      const a = this.node('hub'), b = this.node('exit');
-      if (a && b) {
-        ctx.save(); ctx.globalAlpha = .3; ctx.setLineDash([3, 12]);
-        line(ctx, a.x, a.y, b.x, b.y, '#91a696', 1.3); ctx.setLineDash([]);
-        const x = mix(a.x, b.x, .59), y = mix(a.y, b.y, .59);
-        ellipse(ctx, x, y, 15, 15, '#eaf1eb', '#91a696');
-        ctx.strokeStyle = COLORS.mute; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(x, y - 2, 4, Math.PI, 0); ctx.stroke();
-        ctx.fillStyle = COLORS.mute; ctx.fillRect(x - 5, y - 2, 10, 8); ctx.restore();
+  }
+
+  drawSliceVolumes() {
+    const ctx = this.ctx, s = this.state;
+    // These are neighboring W-volume silhouettes, never playable platforms.
+    for (const node of s.nodes) {
+      if (node.anchor) continue;
+      const color = this.palette(node.layer).color;
+      const delta = (node.world?.w ?? node.center) - s.w;
+      const lift = delta * 95;
+      ctx.save(); ctx.translate(node.x, node.y - lift);
+      ctx.globalAlpha = node.present ? .1 : .25;
+      ctx.setLineDash([4, 7]);
+      ellipse(ctx, 0, 0, 86, 46, null, color, 1.2);
+      ellipse(ctx, 0, -50, 48, 25, null, color, 1);
+      for (const side of [-1, 1]) line(ctx, side * 86, 0, side * 48, -50, color, 1);
+      ctx.setLineDash([]);
+      // A hollow layer token distinguishes an out-of-slice silhouette from a destination.
+      if (!node.present) {
+        diamond(ctx, 0, -66, 6, null, color);
+        for (let i = 0; i <= node.layer; i++) ellipse(ctx, (i - node.layer / 2) * 8, -78, 1.7, 1.7, color);
       }
+      ctx.restore();
     }
+    ctx.save(); ctx.globalAlpha = .12;
+    const y = 395 - s.w * 75;
+    path(ctx, [[95, y - 60], [475, y - 235], [925, y - 25], [540, y + 210]]);
+    ctx.fillStyle = this.palette().color; ctx.fill();
+    ctx.globalAlpha = .2; ctx.strokeStyle = this.palette().color; ctx.lineWidth = 1; ctx.stroke();
+    ctx.restore();
+  }
+
+  drawWStack() {
+    const ctx = this.ctx, s = this.state;
+    if (!s.layers?.length) return;
+    ctx.save(); ctx.translate(62, 88);
+    // A compact spatial compass: XYZ position repeats on three W planes.
+    const miniScale = clamp(.45 / this.scale, 1, 1.2);
+    ctx.scale(miniScale, miniScale);
+    const corners = [[0, 25], [67, -5], [128, 22], [60, 53]];
+    for (let i = 0; i < 3; i++) {
+      const y = (2 - i) * 29, color = this.palette(i).color;
+      ctx.globalAlpha = i === s.layer ? .88 : .3;
+      path(ctx, corners.map(([x, cy]) => [x, cy + y]));
+      ctx.fillStyle = this.palette(i).pale; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = i === s.layer ? 2 : 1; ctx.stroke();
+      const player = this.playerPosition();
+      const px = 63 + (player.x - 500) * .115, py = 24 + (player.y - 340) * .055 + y;
+      if (i === s.layer) diamond(ctx, px, py, 5, color, '#ffffff');
+      for (let dot = 0; dot <= i; dot++) ellipse(ctx, 140 + dot * 7, 22 + y, 2, 2, color);
+    }
+    // Match source/target W coordinates of real propagation events in the small stack.
+    for (const effect of this.effects) {
+      if (effect.kind !== 'power') continue;
+      const fromY = 24 + (2 - effect.fromLayer) * 29, toY = 24 + (2 - effect.toLayer) * 29;
+      const p = clamp(effect.age / effect.duration);
+      ctx.globalAlpha = 1 - p;
+      line(ctx, 62, fromY, 62, toY, effect.color, 2);
+      diamond(ctx, 62, mix(fromY, toY, this.reducedMotion ? .5 : p), 5, effect.color, '#ffffff');
+    }
+    if (s.ghost) {
+      ctx.globalAlpha = .55;
+      diamond(ctx, 49, 24 + (2 - s.ghost.layer) * 29, 4, null, this.palette(s.ghost.layer).color);
+    }
+    ctx.globalAlpha = .75;
+    const cutY = 58 * (1 - s.w);
+    ctx.setLineDash([4, 3]);
+    path(ctx, corners.map(([x, y]) => [x, y + cutY])); ctx.strokeStyle = this.palette().color; ctx.lineWidth = 1.2; ctx.stroke(); ctx.setLineDash([]);
+    const labelSize = clamp(10 / (this.scale * miniScale), 12, 22);
+    ctx.font = `500 ${labelSize}px system-ui, sans-serif`; ctx.textAlign = 'left'; ctx.fillStyle = COLORS.ink;
+    ctx.fillText(`W  ${s.w.toFixed(2)}`, 10, 128);
+    ctx.restore();
+  }
+
+  drawGhost() {
+    const s = this.state, ghost = s.ghost;
+    if (!ghost) return;
+    const node = this.node(ghost.node);
+    if (!node) return;
+    const ctx = this.ctx, color = this.palette(ghost.layer).color;
+    ctx.save(); ctx.globalAlpha = .55;
+    this.drawAvatar(node.x - 21, node.y - 4, color, true);
+    ctx.beginPath(); ctx.ellipse(node.x, node.y, 55, 29, 0, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(ghost.remaining / ghost.duration));
+    ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
+    ctx.setLineDash([3, 5]); ellipse(ctx, node.x, node.y - 10, 32, 40, null, color, 1); ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  drawWave() {
+    const s = this.state, wave = s.wave;
+    if (!wave) return;
+    const node = this.node(wave.node);
+    if (!node) return;
+    const ctx = this.ctx, p = clamp(1 - wave.remaining / wave.duration);
+    const exposed = s.layer === wave.layer || !s.nodes.some(node => !node.anchor && node.layer === s.layer && node.present);
+    ctx.save(); ctx.translate(node.x, node.y);
+    ctx.globalAlpha = exposed ? .9 : .3;
+    // The countdown is an inward-moving wave in the dangerous W layer.
+    const radius = 35 + 160 * (1 - p);
+    ellipse(ctx, 0, 0, radius, radius * .55, '#d36d5910', COLORS.danger, 2.5);
+    if (!this.reducedMotion) ellipse(ctx, 0, 0, radius + 15, (radius + 15) * .55, null, '#d36d5950', 1);
+    for (let i = 0; i < 8; i++) {
+      const a = i * TAU / 8;
+      diamond(ctx, Math.cos(a) * radius, Math.sin(a) * radius * .55, 4, COLORS.danger);
+    }
+    ctx.beginPath(); ctx.ellipse(0, 0, 95, 52, 0, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - p));
+    ctx.strokeStyle = COLORS.danger; ctx.lineWidth = 5; ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.font = `600 ${clamp(12 / this.scale, 18, 30)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.fillStyle = exposed ? '#9f4938' : this.palette().color;
+    ctx.fillText(wave.remaining.toFixed(1), 0, -80);
+    ctx.restore();
   }
 
   drawIsland(node) {
     const ctx = this.ctx, s = this.state;
     const hub = node.id === 'hub', exit = node.id === 'exit';
+    const section = node.anchor ? 1 : clamp(node.scale);
+    if (section <= .01) return;
+    const palette = this.palette(node.layer ?? s.layer);
     const active = s.activated.includes(node.id);
     const selected = s.selected === node.id && s.phase === 'playing';
     const adjacent = s.availableNodes.includes(node.id);
-    const width = hub ? 124 : exit ? 99 : 94;
-    const height = hub ? 65 : 50;
+    const width = hub ? 110 : exit ? 86 : node.anchor ? 82 : 90;
+    const height = hub ? 57 : 46;
     const thickness = hub ? 30 : 25;
     const points = [[-width, -height * .16], [-width * .68, -height * .77], [-width * .13, -height], [width * .65, -height * .68], [width, -.02 * height], [width * .66, height * .7], [-width * .1, height], [-width * .79, height * .6]];
     ctx.save(); ctx.translate(node.x, node.y);
+    ctx.save(); ctx.scale(section, section);
+    ctx.globalAlpha = node.anchor ? 1 : clamp(.15 + node.visibility * .85);
+    if (node.anchor) {
+      // An anchored column spans the W stack; its top remains solid while slices change.
+      path(ctx, [[-width * .52, 9], [-width * .4, 81], [0, 104], [width * .4, 81], [width * .52, 9]]);
+      ctx.fillStyle = '#9db5a14a'; ctx.fill();
+      for (let i = 0; i < 3; i++) {
+        ellipse(ctx, 0, 40 + i * 22, width * (.49 - i * .05), 19 - i * 2, null, this.palette(i).color + '70', 1.5);
+      }
+      for (const side of [-1, 1]) line(ctx, side * width * .5, 10, side * width * .4, 81, '#96aa9270', 1);
+    }
     ellipse(ctx, 4, 57, width * 1.1, height * .62, '#3f756712');
     ellipse(ctx, 4, 51, width * .8, height * .42, '#34655212');
     if (selected || this.hover === node.id) {
@@ -404,10 +535,10 @@ export class SceneRenderer {
       const p = points[i], q = points[(i + 1) % points.length];
       if (p[1] < 0 && q[1] < 0) continue;
       path(ctx, [p, q, [q[0] * .85, q[1] + thickness], [p[0] * .85, p[1] + thickness]]);
-      ctx.fillStyle = i % 2 ? '#94af9b' : '#a5bca4'; ctx.fill();
+      ctx.fillStyle = i % 2 ? palette.side : '#b8c6b2'; ctx.fill();
       line(ctx, p[0], p[1] + 2, p[0] * .85, p[1] + thickness, '#7fa28e70', 1);
     }
-    path(ctx, points); ctx.fillStyle = COLORS.stone; ctx.fill();
+    path(ctx, points); ctx.fillStyle = palette.stone; ctx.fill();
     ctx.strokeStyle = '#faffee'; ctx.lineWidth = 2; ctx.stroke();
     path(ctx, points.map(([x, y]) => [x * .89, y * .84]));
     ctx.strokeStyle = '#c4d0b7'; ctx.lineWidth = 1; ctx.stroke();
@@ -421,17 +552,28 @@ export class SceneRenderer {
       ellipse(ctx, x, y, 11 + hash(i + node.x) * 10, 4, '#6da48440');
       this.drawPlant(x, y, active, i + node.x);
     }
+    // The rim belongs to this W section, making the same XYZ visibly change material.
+    ellipse(ctx, 0, 1, width * .82, height * .76, null, palette.color + '60', 1.5);
     if (hub) this.drawHub();
-    else if (exit) this.drawGate();
+    else if (exit) this.drawGate(node);
+    else if (node.id === 'relay') this.drawAnchor();
+    else if (node.id === 'vault') this.drawVault(node);
     else this.drawMechanism(node, active);
+    if (node.powered && !active && !node.locked && !node.anchor) {
+      const h = node.id === 'bell' ? -74 : -54;
+      diamond(ctx, 0, h, 7, palette.glow, palette.color);
+      ellipse(ctx, 0, h, 13, 13, null, palette.color + '70', 1);
+    }
     if (active) {
       ctx.save(); ctx.globalAlpha = .45;
-      ellipse(ctx, 0, 2, width * .73, height * .56, null, COLORS.teal, 1.2); ctx.restore();
+      ellipse(ctx, 0, 2, width * .73, height * .56, null, palette.color, 1.2); ctx.restore();
     }
     if (adjacent && !exit) {
       diamond(ctx, 0, height + thickness + 14, 3.5, selected ? COLORS.gold : '#739d88');
     }
-    const labelY = height + thickness + 34;
+    ctx.restore();
+    if (!node.present) { ctx.restore(); return; }
+    const labelY = Math.min((height + thickness) * section + 29, WORLD_H - node.y - 25);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     // Labels retain a useful screen size when the whole garden fits a phone.
     const labelSize = clamp(11 / this.scale, 16, 38);
@@ -474,16 +616,47 @@ export class SceneRenderer {
     diamond(ctx, 0, -3, 14, '#a8cebb', '#779c87');
     const wAngle = s.w * TAU - Math.PI / 2;
     ellipse(ctx, Math.cos(wAngle) * 51, Math.sin(wAngle) * 27 - 2, 4, 3, COLORS.gold, '#ffefbf', 1);
-    if (s.shadowRemaining > 0) {
-      ctx.save(); ctx.globalAlpha = .35;
-      this.drawAvatar(-22, -2, COLORS.teal, true); ctx.restore();
-      ctx.beginPath(); ctx.ellipse(0, 0, 68, 38, 0, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(s.shadowRemaining / 7));
-      ctx.strokeStyle = COLORS.gold; ctx.lineWidth = 2.5; ctx.stroke();
-    }
     if (s.banked > 0) {
       const stacks = Math.min(7, Math.ceil(s.banked / 3));
       for (let i = 0; i < stacks; i++) diamond(ctx, -49 + i * 16, 30 - (i % 2) * 3, 4, '#e3bd65', '#c19642');
     }
+  }
+
+  drawAnchor() {
+    const ctx = this.ctx;
+    ellipse(ctx, 0, 4, 39, 21, '#d0dbc5', '#f7f7df', 2);
+    path(ctx, [[-11, 3], [-11, -48], [0, -57], [12, -48], [12, 3], [0, 10]]);
+    ctx.fillStyle = '#c5d6c2'; ctx.fill(); ctx.strokeStyle = '#90aa94'; ctx.lineWidth = 1.5; ctx.stroke();
+    line(ctx, 0, -56, 0, 8, '#f9fff0', 2);
+    for (let i = 0; i < 3; i++) {
+      ellipse(ctx, 0, -7 - i * 18, 27 - i * 3, 12, null, this.palette(i).color, i === this.state.layer ? 3 : 1.2);
+      diamond(ctx, 27 - i * 3, -7 - i * 18, 3.2, this.palette(i).glow, this.palette(i).color);
+    }
+    diamond(ctx, 0, -65, 6, this.palette().glow, this.palette().color);
+  }
+
+  drawVault(node) {
+    const ctx = this.ctx;
+    ellipse(ctx, 0, 3, 43, 22, '#c8cbb4', '#f1eed7', 2);
+    const visibility = clamp(node.chestVisibility ?? (this.state.layer === 1 ? 1 : 0));
+    if (visibility <= .01) {
+      ctx.save(); ctx.globalAlpha = .2; ctx.setLineDash([3, 5]);
+      path(ctx, [[-27, 0], [-27, -25], [0, -39], [28, -25], [28, 0], [0, 15]]);
+      ctx.strokeStyle = this.palette(1).color; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+      return;
+    }
+    ctx.save(); ctx.scale(visibility, visibility);
+    ctx.globalAlpha = .2 + visibility * .8;
+    const open = this.state.vaultStatus === 'escaped';
+    path(ctx, [[-29, -8], [0, 5], [29, -8], [29, 7], [0, 21], [-29, 7]]);
+    ctx.fillStyle = '#b4a3b8'; ctx.fill(); ctx.strokeStyle = '#8a719d'; ctx.stroke();
+    path(ctx, [[-29, -8], [-22, -28 - (open ? 17 : 0)], [0, -36 - (open ? 17 : 0)], [22, -28 - (open ? 17 : 0)], [29, -8], [0, 5]]);
+    ctx.fillStyle = open ? '#efe3b5' : '#dad0d5'; ctx.fill(); ctx.strokeStyle = '#9f83a4'; ctx.lineWidth = 1.5; ctx.stroke();
+    diamond(ctx, 0, -9, 11, node.locked ? '#a8a298' : '#edd295', '#9a814d');
+    if (this.state.wave) {
+      line(ctx, -21, -22, 0, -6, COLORS.danger, 2); line(ctx, 0, -6, 21, -22, COLORS.danger, 2);
+    }
+    ctx.restore();
   }
 
   drawMechanism(node, active) {
@@ -545,9 +718,9 @@ export class SceneRenderer {
     }
   }
 
-  drawGate() {
+  drawGate(node) {
     const ctx = this.ctx, s = this.state;
-    const open = s.activated.length >= 3;
+    const open = !node.locked;
     ellipse(ctx, 0, 4, 44, 19, '#b8ceb8', '#f3f6df', 2);
     if (open) {
       const glow = ctx.createRadialGradient(0, -29, 2, 0, -29, 60);
@@ -598,17 +771,18 @@ export class SceneRenderer {
     const ctx = this.ctx, s = this.state;
     const position = this.playerPosition(); this.lastPlayer = { x: position.x, y: position.y };
     const travel = s.travel, risky = travel?.risky;
-    const stable = !travel || travel.stability > .5;
-    const color = !stable ? COLORS.danger : risky ? COLORS.gold : COLORS.teal;
+    const stability = travel ? travel.stability : (s.phaseStability ?? 1);
+    const stable = stability > .5;
+    const color = !stable ? COLORS.danger : risky ? COLORS.gold : this.palette().color;
     ctx.save(); ctx.translate(position.x, position.y);
     ellipse(ctx, 0, 6, 16, 7, '#345f5729');
-    if (travel) {
+    if (travel || stability < .99) {
       ctx.save(); ctx.globalAlpha = .3;
       ellipse(ctx, 0, 5, 26, 13, color); ctx.restore();
-      ctx.beginPath(); ctx.ellipse(0, 5, 24, 13, 0, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(travel.stability));
+      ctx.beginPath(); ctx.ellipse(0, 5, 24, 13, 0, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(stability));
       ctx.strokeStyle = color; ctx.lineWidth = 3.3; ctx.stroke();
       // Visible falling fragments communicate imminent collapse without text.
-      if (travel.stability < .45) {
+      if (stability < .45) {
         for (let i = 0; i < 4; i++) {
           const offset = this.reducedMotion ? 6 : (this.time * 22 + i * 8) % 22;
           diamond(ctx, (i - 1.5) * 13, 13 + offset, 2.4, '#bf8b6c99');
@@ -656,7 +830,7 @@ export class SceneRenderer {
       if (effect.age < (effect.delay || 0)) continue;
       const p = clamp((effect.age - (effect.delay || 0)) / effect.duration);
       const e = this.reducedMotion ? .7 : ease(p);
-      if (foreground !== ['pulse', 'crown', 'shield', 'bank', 'break'].includes(effect.kind)) continue;
+      if (foreground !== ['pulse', 'power', 'section', 'crown', 'shield', 'bank', 'break'].includes(effect.kind)) continue;
       ctx.save(); ctx.globalAlpha = (1 - p) ** .7;
       if (effect.kind === 'ring') {
         const radius = 12 + e * (effect.radius || 80);
@@ -667,6 +841,29 @@ export class SceneRenderer {
         const glow = ctx.createRadialGradient(effect.x, effect.y - 10, 1, effect.x, effect.y - 10, radius);
         glow.addColorStop(0, `${effect.color}70`); glow.addColorStop(1, `${effect.color}00`);
         ctx.fillStyle = glow; ctx.fillRect(effect.x - radius, effect.y - radius - 10, radius * 2, radius * 2);
+      } else if (effect.kind === 'section') {
+        const radius = 14 + e * (effect.radius || 80);
+        ellipse(ctx, effect.x, effect.y - 20, radius * .55, radius, null, effect.color, 2);
+        ellipse(ctx, effect.x, effect.y - 20, radius, radius * .45, null, effect.color, 1.5);
+      } else if (effect.kind === 'power') {
+        // Arc through W, even when source and destination share identical XYZ.
+        const samePosition = Math.hypot(effect.to.x - effect.x, effect.to.y - effect.y) < 2;
+        const height = samePosition ? 105 : 75;
+        const curve = t => ({
+          x: mix(effect.x, effect.to.x, t) + (samePosition ? Math.sin(t * TAU) * 45 : 0),
+          y: mix(effect.y, effect.to.y, t) - Math.sin(t * Math.PI) * height - 15,
+        });
+        ctx.beginPath();
+        for (let i = 0; i <= 36; i++) {
+          const at = curve(i / 36); i ? ctx.lineTo(at.x, at.y) : ctx.moveTo(at.x, at.y);
+        }
+        ctx.strokeStyle = effect.color + '75'; ctx.lineWidth = 3; ctx.stroke();
+        for (let i = 0; i < 7; i++) {
+          const at = curve(this.reducedMotion ? i / 6 : clamp(p * 1.5 - i * .045));
+          ellipse(ctx, at.x, at.y, 5 - i * .45, 5 - i * .45, i < 3 ? effect.color : effect.sourceColor);
+        }
+        ellipse(ctx, effect.x, effect.y - 15, 24, 34, null, effect.sourceColor, 1.5);
+        ellipse(ctx, effect.to.x, effect.to.y - 15, 32, 17, null, effect.color, 2);
       } else if (effect.kind === 'pulse') {
         const t = this.reducedMotion ? 1 : p;
         const x = mix(effect.x, effect.to.x, t), y = mix(effect.y, effect.to.y, t);

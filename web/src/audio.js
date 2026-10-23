@@ -1,8 +1,16 @@
-// Every sound follows a model event. There is deliberately no ambient loop and
+// Every sound follows a model event or its authoritative wave clock. No ambient loop and
 // no deferred replay of events that occurred before the player's first gesture.
 const MAX_VOICES = 24;
 const NOTE = { D3: 146.83, A3: 220, B3: 246.94, D4: 293.66, E4: 329.63, Fs4: 369.99, A4: 440, B4: 493.88, D5: 587.33, E5: 659.25, Fs5: 739.99, A5: 880, B5: 987.77, D6: 1174.66 };
-const PAN = { dew: -.6, bell: .55, bloom: .35, hub: 0, exit: -.12 };
+const PAN = { dew: -.6, bell: -.6, relay: -.25, bloom: .35, vault: .6, hub: 0, exit: -.12 };
+// The same three sound colors recur on shifts, transfers and received power.
+// A layer cue is orientation feedback, deliberately quieter than a reward.
+const LAYER = [
+  { note: NOTE.D4, kind: 'soft', slide: NOTE.A3, air: 700 },
+  { note: NOTE.A4, kind: 'glass', slide: NOTE.E4, air: 1500 },
+  { note: NOTE.E5, kind: 'glass', slide: NOTE.A5, air: 2600 },
+];
+const WARNING_BEATS = [0, .26, .5, .71, .85, .94];
 
 export class GameAudio {
   constructor() {
@@ -13,6 +21,8 @@ export class GameAudio {
     this.noiseBuffer = null;
     this.voices = new Set();
     this.lastEvent = new Map();
+    this.waveCue = null;
+    this.paused = false;
     this.disposed = false;
   }
 
@@ -68,17 +78,46 @@ export class GameAudio {
     if (this.disposed || !Array.isArray(events)) return;
     for (const event of events) {
       if (!event || typeof event.type !== 'string') continue;
-      if (['fail', 'lose', 'restart', 'room'].includes(event.type)) this._cancel();
-      if (!this.enabled || this.context?.state !== 'running') continue;
+      if (event.type === 'fail') this._cancel(['power']);
+      if (['lose', 'restart', 'room'].includes(event.type)) this._cancel();
+      if (['fail', 'lose', 'restart', 'room', 'evade', 'shield'].includes(event.type)) this.waveCue = null;
+      if (['warning', 'evade', 'shield'].includes(event.type)) this._cancelGroup('warning');
+      if (event.type === 'warning') this.waveCue = null;
+      // Stop even a throttled old shift: it must never describe a layer the
+      // player has already left. Transfers replace its light orientation cue.
+      if (['layer_shift', 'phase_transfer'].includes(event.type)) this._cancelGroup('layer');
+      if (this.paused || !this.enabled || this.context?.state !== 'running') continue;
       const now = this.context.currentTime;
       // Selection/movement can repeat under keyboard input; major consequences
       // are never silently dropped by this small input-sound throttle.
-      const gap = event.type === 'select' ? .065 : event.type === 'move' ? .08 : 0;
+      const gap = event.type === 'select' ? .065 : ['move', 'layer_shift', 'phase_transfer'].includes(event.type) ? .08 : 0;
       if (gap && now - (this.lastEvent.get(event.type) ?? -Infinity) < gap) continue;
       this.lastEvent.set(event.type, now);
       const pan = PAN[event.to ?? event.node] ?? 0;
       const tier = Math.min(3, Math.max(1, Number(event.tier) || 1));
+      const layer = LAYER[Math.min(2, Math.max(0, Math.round(Number(event.toLayer ?? event.layer) || 0)))];
       switch (event.type) {
+        case 'layer_shift':
+          this._tone(layer.note, now, .16, .035, pan, layer.kind, layer.slide, 'layer');
+          break;
+        case 'phase_transfer':
+          this._tone(layer.note / 2, now, .24, .055, -pan, 'soft', layer.note, 'layer');
+          this._tone(layer.note, now + .035, .27, .05, pan, layer.kind, null, 'layer');
+          break;
+        case 'power':
+          // Only the authoritative arrival event makes this receiving ripple.
+          this._tone(layer.note / 2, now, .24, .06, pan, 'soft', layer.note, 'power');
+          this._tone(layer.note, now + .07, .37, .07, pan, layer.kind, null, 'power');
+          this._air(now, .16, .035, pan, layer.air, 'power');
+          break;
+        case 'warning':
+          // syncWave drives short beats from model time, never wall-clock time.
+          break;
+        case 'evade':
+          // The release of tension is unpitched. The separate reward event is
+          // the only success melody, so a single escape never celebrates twice.
+          this._air(now, .16, .065, pan, 2400);
+          break;
         case 'select':
           this._tone(NOTE.D5, now, .08, .025, pan, 'soft');
           break;
@@ -173,6 +212,42 @@ export class GameAudio {
     }
   }
 
+  // Call once per rendered frame AFTER draining events, including while paused.
+  // A blocked game drops all old tails/celebrations; resuming never replays them.
+  // Only future thresholds on the model's remaining-time clock can make beats.
+  syncWave(wave, blocked = false) {
+    if (this.disposed) return;
+    const wasPaused = this.paused;
+    this.paused = Boolean(blocked);
+    if (this.paused && !wasPaused) this._cancel();
+    if (!wave || !(wave.remaining > 0) || !(wave.duration > 0)) {
+      this._cancelGroup('warning');
+      this.waveCue = null;
+      return;
+    }
+    const duration = wave.duration;
+    const elapsed = Math.max(0, Math.min(duration, duration - wave.remaining));
+    if (!this.waveCue || this.waveCue.node !== wave.node || this.waveCue.layer !== wave.layer ||
+        this.waveCue.duration !== duration || elapsed < this.waveCue.elapsed - 1e-6) {
+      this._cancelGroup('warning');
+      this.waveCue = { node: wave.node, layer: wave.layer, duration, elapsed, lastBeat: -1 };
+    }
+    this.waveCue.elapsed = elapsed;
+    if (this.paused) return;
+    const beat = WARNING_BEATS.reduce((latest, fraction, index) => elapsed + 1e-9 >= duration * fraction ? index : latest, -1);
+    if (beat <= this.waveCue.lastBeat) return;
+    this.waveCue.lastBeat = beat;
+    // If muted, unavailable, or first unlocked mid-wave, do not catch up old
+    // beats later. A slow frame may cross several thresholds: sound only one.
+    if (!this.enabled || this.context?.state !== 'running' || wave.remaining < .04) return;
+    const now = this.context.currentTime;
+    const pan = PAN[wave.node] ?? 0;
+    this._cancelGroup('warning');
+    this._tone(NOTE.A3 * (beat > 3 ? 2 : 1), now,
+      Math.min(.075, duration * .025, wave.remaining - .03), .065 + beat * .006, pan, 'soft', null, 'warning');
+    if (beat === 0) this._air(now, Math.min(.2, duration * .1, wave.remaining - .02), .045, pan, 1100, 'warning');
+  }
+
   _arpeggio(notes, at, spacing, volume, pan) {
     notes.forEach((note, index) => {
       const spread = Math.max(-.75, Math.min(.75, pan + (index / Math.max(1, notes.length - 1) - .5) * .32));
@@ -180,7 +255,7 @@ export class GameAudio {
     });
   }
 
-  _tone(frequency, at, duration, volume, pan, kind = 'glass', slide = null) {
+  _tone(frequency, at, duration, volume, pan, kind = 'glass', slide = null, group = null) {
     const context = this.context;
     if (!this.enabled || !context || context.state !== 'running') return;
     const envelope = context.createGain();
@@ -201,10 +276,10 @@ export class GameAudio {
     if (slide) overtone.frequency.exponentialRampToValueAtTime(slide * (kind === 'soft' ? 1 : 2.002), at + duration * .82);
     overtone.connect(color);
     color.connect(envelope);
-    this._register([fundamental, overtone], [envelope, output, color], at, at + duration + .025);
+    this._register([fundamental, overtone], [envelope, output, color], at, at + duration + .025, group);
   }
 
-  _air(at, duration, volume, pan, center) {
+  _air(at, duration, volume, pan, center, group = null) {
     const context = this.context;
     if (!this.enabled || !context || !this.noiseBuffer || context.state !== 'running') return;
     const source = context.createBufferSource();
@@ -220,7 +295,7 @@ export class GameAudio {
     source.connect(filter);
     filter.connect(envelope);
     const output = this._connect(envelope, pan);
-    this._register([source], [filter, envelope, output], at, at + duration + .01);
+    this._register([source], [filter, envelope, output], at, at + duration + .01, group);
   }
 
   _connect(envelope, pan) {
@@ -235,12 +310,12 @@ export class GameAudio {
     return null;
   }
 
-  _register(sources, nodes, start, end) {
+  _register(sources, nodes, start, end, group = null) {
     // Future-scheduled notes count toward the same limit as sounding notes.
     // No timeout/interval can survive cancellation, because none are created.
     for (const voice of this.voices) if (voice.end <= this.context.currentTime) this._stop(voice);
     while (this.voices.size >= MAX_VOICES) this._stop(this.voices.values().next().value);
-    const voice = { sources, nodes: nodes.filter(Boolean), start, end };
+    const voice = { sources, nodes: nodes.filter(Boolean), start, end, group };
     this.voices.add(voice);
     sources[0].onended = () => this._release(voice);
     for (const source of sources) {
@@ -268,9 +343,13 @@ export class GameAudio {
     this._release(voice);
   }
 
-  _cancel() {
-    for (const voice of [...this.voices]) this._stop(voice);
+  _cancel(preserveGroups = []) {
+    for (const voice of [...this.voices]) if (!preserveGroups.includes(voice.group)) this._stop(voice);
     this.lastEvent.clear();
+  }
+
+  _cancelGroup(group) {
+    for (const voice of [...this.voices]) if (voice.group === group) this._stop(voice);
   }
 
   dispose() {

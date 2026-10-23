@@ -1,4 +1,6 @@
-# Web implementation contract
+# First web iteration contract (historical)
+
+Superseded by [SLICE-CONTRACT.md](SLICE-CONTRACT.md). This file preserves the initial web-port contract; its star graph, single relic and seven-second shortcut no longer describe the running game.
 
 Standalone browser game, no Unity runtime. Vanilla ES modules, Canvas2D, WebAudio; zero network assets/dependencies. Model is sole rule authority. Three short courtyards, choice of one relic each room. Keyboard and pointer controls. World coordinate system 1000 × 650; renderer scales preserving aspect ratio.
 
