@@ -1,1 +1,25 @@
-{"buildCommit":null,"sourceDigest":null}
+{
+  "buildCommit": "8998de6cf96774a008be51a2d6a835b4e91b1324",
+  "sourceDigest": "239c3ee183e3885011dba5ec51e32d8acd98e5cd21850f221a56ca1a5ab4da7d",
+  "files": [
+    "app.mjs",
+    "challenge.mjs",
+    "controls.mjs",
+    "flat-renderer.mjs",
+    "game.mjs",
+    "geometry.mjs",
+    "gl-core.mjs",
+    "index.html",
+    "layers.mjs",
+    "levels.mjs",
+    "map-renderer.mjs",
+    "renderer.mjs",
+    "scene-details.mjs",
+    "sfx.mjs",
+    "states.html",
+    "station-effects.mjs",
+    "station-progress.mjs",
+    "study.mjs",
+    "style.css"
+  ]
+}
