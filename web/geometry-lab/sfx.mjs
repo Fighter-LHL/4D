@@ -19,7 +19,7 @@ export function sfxInit() {
 }
 
 function blip(freq, dur = 0.18, type = 'sine', gain = 0.5) {
-  if (!ctx) return;
+  if (!ctx) return false;
   const osc = ctx.createOscillator();
   const amp = ctx.createGain();
   osc.type = type;
@@ -30,6 +30,7 @@ function blip(freq, dur = 0.18, type = 'sine', gain = 0.5) {
   amp.connect(master);
   osc.start();
   osc.stop(ctx.currentTime + dur);
+  return !muted && ctx.state === 'running';
 }
 
 export const sfx = {

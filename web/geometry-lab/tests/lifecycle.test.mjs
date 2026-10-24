@@ -25,7 +25,7 @@ test('leaving a moving or rippling level cancels frames and cannot restart on th
   const stationEffects = new StationEffects();
   stationEffects.observe({powered: false, latched: false}, 0);
   stationEffects.observe({powered: true, latched: true}, 100);
-  const context = vm.createContext({
+  const context = vm.createContext({ wB: false, measuring: () => false, record() {}, pulseUntil: 0, wContactThisFrame: false, groundContactThisFrame: false, gestureDistance: 0, gestureReversals: 0,
     document: { hidden: false }, stationEffects,
     requestAnimationFrame(callback) { pending.set(++scheduled, callback); return scheduled; },
     cancelAnimationFrame(id) { pending.delete(id); },
@@ -64,7 +64,7 @@ test('an idle mechanism interaction draws its transition and final pose, then st
   let now = 0, scheduled = 0;
   const relay = { powered: false, latched: false };
   const stationEffects = new StationEffects();
-  const context = vm.createContext({
+  const context = vm.createContext({ wB: false, measuring: () => false, record() {}, pulseUntil: 0, wContactThisFrame: false, groundContactThisFrame: false, gestureDistance: 0, gestureReversals: 0,
     document: { hidden: false }, performance: { now: () => now }, stationEffects,
     requestAnimationFrame(callback) { pending.set(++scheduled, callback); return scheduled; },
     buildFrame() {
@@ -111,7 +111,7 @@ test('completed walking levels offer the right next step only beside the receive
     return nodes.get(id);
   };
   const transitions = [];
-  const context = vm.createContext({ $: get, nextLevel, stationNextAction,
+  const context = vm.createContext({ wB: false, measuring: () => false, record() {}, pulseUntil: 0, wContactThisFrame: false, groundContactThisFrame: false, gestureDistance: 0, gestureReversals: 0, $: get, nextLevel, stationNextAction,
     startLevel: (id) => transitions.push(id), showTitle: () => transitions.push('title'),
     level: levelById('station-routes'), run: { won: true, pos: [3, 1.65] }, cardOpen: false,
     stationSeals: { stone: true, copper: false },
@@ -159,7 +159,7 @@ test('walking delivery stays in the scene and records seals; visits keep their c
     return nodes.get(id);
   };
   const stored = new Map(), cards = [], objectives = [];
-  const context = vm.createContext({ $: get, nextLevel, rememberStationRun,
+  const context = vm.createContext({ wB: false, measuring: () => false, record() {}, pulseUntil: 0, wContactThisFrame: false, groundContactThisFrame: false, gestureDistance: 0, gestureReversals: 0, $: get, nextLevel, rememberStationRun,
     level: levelById('station-routes'), run: { won: true, levelId: 'station-routes', routeSeals: () => ({ stone: true, copper: false }) },
     progress: new Set(), saveProgress() {}, sfx: { win() {} }, clearTimeout() {},
     toastTimer: 0, pressed: new Set(['w']), wHold: 1,
@@ -190,7 +190,7 @@ test('hints persist independently of toast messages; reopening never reveals ano
   });
   const get = (id) => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
   get('hint-panel').hidden = true;
-  const context = vm.createContext({ $: get, document: { createElement: node } });
+  const context = vm.createContext({ wB: false, measuring: () => false, record() {}, pulseUntil: 0, wContactThisFrame: false, groundContactThisFrame: false, gestureDistance: 0, gestureReversals: 0, $: get, document: { createElement: node } });
   vm.runInContext(`
     let level = { hints: ['观察线索', '进一步提示', '完整解法'] }, cardOpen = false;
     let hintLevel = 0, run = { hints: 0 };
@@ -216,7 +216,7 @@ test('hints persist independently of toast messages; reopening never reveals ano
 test('slice gate cards explicitly enter the station or the unscored hidden-map replay', () => {
   const cards = [], transitions = [];
   const node = { classList: { remove() {} } };
-  const context = vm.createContext({
+  const context = vm.createContext({ wB: false, measuring: () => false, record() {}, pulseUntil: 0, wContactThisFrame: false, groundContactThisFrame: false, gestureDistance: 0, gestureReversals: 0,
     $: () => node, level: levelById('gate'), run: { won: true },
     progress: new Set(), saveProgress() {}, sfx: { win() {} }, clearTimeout() {},
     toastTimer: 0, pressed: new Set(), wHold: 0,

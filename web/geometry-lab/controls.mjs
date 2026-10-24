@@ -30,3 +30,147 @@ export function railReleaseDial(dial, marks) {
   const mark = nearbyRailMark(dial, marks);
   return mark ? wToDial(mark.w) : clampDial(dial);
 }
+
+
+// Study B: physical W remains continuous. These parameters are experiment
+// defaults, not validated player outcomes; freeze/version before formal use.
+export const W_PARAMS = Object.freeze({ rateW: 1.28, nearRateW: 0.50, captureW: 0.12,
+  dockMs: 120, rearmW: 0.02, pulseMs: 200, outlineMs: 1600, soundGapMs: 700, toastMs: 1200 });
+
+export function studyConfig(search) {
+  const params = new URLSearchParams(search);
+  const enabled = params.get('study') === 'w1';
+  return Object.freeze({ enabled, condition: enabled && params.get('wcontrol') === 'b' ? 'b' : 'a',
+    requested: params.get('wcontrol'), precise: params.get('wprecise') === '1' });
+}
+
+export function nearbyDevices(level, run, dial = run?.dial) {
+  if (level?.map !== 'shown' || level.chapter === 2 || !level.field?.relay || !run || run.won) return [];
+  const w = dialToW(dial);
+  return ['socket', 'latch'].flatMap((id) => {
+    const device = level.field.relay[id];
+    if (!device || Math.abs(w - device.w) > device.wReach
+      || Math.hypot(run.pos[0] - device.x, run.pos[1] - device.z) > device.reach) return [];
+    const action = run.canInteract(dial).action;
+    const useful = id === 'latch' ? !run.relayLatched
+      : run.carrying || (run.socketPowered() && action !== 'blocked');
+    return useful ? [{ id, ...device, dial: wToDial(device.w), label: id === 'socket' ? '插座' : '回廊' }] : [];
+  });
+}
+
+// No ghost, color center, goal, free core or geometry-event candidates.
+// Reject ambiguity BEFORE checking safety; never search for a safer second point.
+export function dockingCandidate(level, run, dial = run?.dial) {
+  const candidates = nearbyDevices(level, run, dial).filter((d) => Math.abs(dialToW(dial) - d.w) <= W_PARAMS.captureW + 1e-9);
+  return candidates.length === 1 && run.canSetDial(candidates[0].dial, dial) ? candidates[0] : null;
+}
+const stateSignature = (run) => JSON.stringify([run.carrying, run.carrying ? null : run.item, run.relayLatched, run.socketUses, run.won]);
+
+export class WControl {
+  source = null;
+  inputs = new Map();
+  direction = 0;
+  state = 'IDLE';
+  docking = null;
+  eligible = true;
+  contact = false;
+  safeTravel = 0;
+  blockedAt = null;
+
+  press(source, id, direction = 0) {
+    if (this.source !== null && this.source !== source) return false;
+    if (this.inputs.has(id)) return false;
+    if (this.source === null) {
+      this.cancel();
+      this.source = source;
+    }
+    this.inputs.set(id, Math.sign(direction));
+    this.updateDirection();
+    return true;
+  }
+
+  updateDirection() {
+    const directions = new Set(this.inputs.values());
+    this.direction = directions.has(1) && directions.has(-1) ? 0 : directions.has(1) ? 1 : directions.has(-1) ? -1 : 0;
+    this.state = this.direction ? 'DRIVING' : 'NEUTRAL';
+    this.blockedAt = null;
+  }
+
+  next(level, run, seconds) {
+    const rate = nearbyDevices(level, run).length ? W_PARAMS.nearRateW : W_PARAMS.rateW;
+    return clampDial(run.dial + this.direction * rate / 4 * seconds);
+  }
+
+  shouldDrive(run) {
+    const b = this.blockedAt;
+    return !!this.direction && (!b || b.field !== run.activeField() || b.x !== run.pos[0] || b.z !== run.pos[1] || b.dial !== run.dial || b.direction !== this.direction);
+  }
+
+  accepted(run, from, clamped) {
+    this.safeTravel += Math.abs(dialToW(run.dial) - dialToW(from));
+    let ended = false;
+    if (this.contact && this.safeTravel >= W_PARAMS.rearmW - 1e-9) {
+      this.contact = false;
+      ended = true;
+    }
+    const started = clamped && !this.contact;
+    if (clamped) {
+      this.state = 'BLOCKED';
+      this.contact = true;
+      this.safeTravel = 0;
+      this.blockedAt = { field: run.activeField(), x: run.pos[0], z: run.pos[1], dial: run.dial, direction: this.direction };
+    } else {
+      this.state = this.direction ? 'DRIVING' : 'NEUTRAL';
+      this.blockedAt = null;
+    }
+    return { started, ended };
+  }
+
+  release(source, id, level, run) {
+    if (this.source !== source || !this.inputs.delete(id)) return false;
+    if (this.inputs.size) { this.updateDirection(); return false; }
+    this.source = null;
+    this.direction = 0;
+    const candidate = this.eligible ? dockingCandidate(level, run) : null;
+    this.docking = candidate && Math.abs(candidate.dial - run.dial) > 1e-9
+      ? { ...candidate, from: run.dial, elapsed: 0, signature: stateSignature(run), field: run.activeField() } : null;
+    this.state = this.docking ? 'DOCKING' : 'IDLE';
+    return true;
+  }
+
+  invalidate() {
+    this.eligible = false;
+    this.docking = null;
+    this.blockedAt = null;
+    this.state = this.source ? (this.direction ? 'DRIVING' : 'NEUTRAL') : 'IDLE';
+  }
+
+  cancel(locked = false) {
+    this.source = null;
+    this.inputs.clear();
+    this.direction = 0;
+    this.docking = null;
+    this.eligible = true;
+    this.contact = false;
+    this.safeTravel = 0;
+    this.blockedAt = null;
+    this.state = locked ? 'LOCKED' : 'IDLE';
+  }
+
+  dockStep(level, run, seconds) {
+    const dock = this.docking;
+    if (!dock) return null;
+    const candidate = dockingCandidate(level, run);
+    if (dock.signature !== stateSignature(run) || dock.field !== run.activeField()
+      || !candidate || candidate.id !== dock.id || candidate.dial !== dock.dial) {
+      this.docking = null;
+      this.state = 'IDLE';
+      return null;
+    }
+    dock.elapsed += seconds;
+    const t = Math.min(1, dock.elapsed * 1000 / W_PARAMS.dockMs);
+    const dial = dock.from + (dock.dial - dock.from) * (t * t * (3 - 2 * t));
+    if (t === 1) { this.docking = null; this.state = 'IDLE'; }
+    return dial;
+  }
+}

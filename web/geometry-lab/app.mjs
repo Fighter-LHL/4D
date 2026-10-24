@@ -1,7 +1,8 @@
 import { clampDial, dialToW, sliceAtW, wFootprint, flatShape, blockedWIntervals, exclusionRadius, wChangeEngulfs, goalSliceAtW, itemSectionAtW, itemFootprint, ITEM_TINT, PREDICTIONS } from './geometry.mjs';
 import { WalkRun, VisitRun } from './game.mjs';
 import { CHAPTERS, LEVELS_LIST, STATION_ROUTES_LEVEL, levelById, nextLevel, isUnlocked } from './levels.mjs';
-import { screenToWorldMove, relayRailMarks, nearbyRailMark, railReleaseDial } from './controls.mjs';
+import { screenToWorldMove, relayRailMarks, nearbyRailMark, railReleaseDial, WControl, W_PARAMS, studyConfig, nearbyDevices } from './controls.mjs';
+import { StudySession, STUDY_CHAIN, studyLevel, readStudyBuild } from './study.mjs';
 import { readStationSeals, rememberStationRun, stationNextAction } from './station-progress.mjs';
 import { StationEffects } from './station-effects.mjs';
 import { LAYERS, layerBlend, layerIndex, wColor, cssColor } from './layers.mjs';
@@ -11,6 +12,19 @@ import { FlatRenderer } from './flat-renderer.mjs';
 import { sfxInit, sfx, sfxSetMuted } from './sfx.mjs';
 
 const $ = (id) => document.getElementById(id);
+const study = studyConfig(location.search);
+const wB = study.enabled && study.condition === 'b';
+const wControl = new WControl();
+const buildInfo = study.enabled ? await readStudyBuild() : {};
+const session = study.enabled ? new StudySession(study, buildInfo) : null;
+let studySealed = false;
+let studySegment = 0;
+const measuring = () => study.enabled && !studySealed;
+document.body.classList.toggle('w-direction', wB);
+document.body.classList.toggle('w-precise', study.precise);
+$('w-buttons').hidden = !wB;
+$('study-tools').hidden = !study.enabled;
+
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const MOVE_DIRS = {
   ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
@@ -52,13 +66,15 @@ const DEVICE_FEEDBACK = Object.freeze({
 
 // ---------- Progress ----------
 const progress = (() => {
+  if (study.enabled) return new Set();
   try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? []); } catch { return new Set(); }
 })();
 function saveProgress() {
+  if (study.enabled) return;
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...progress])); } catch { /* private mode */ }
 }
 let sealStorage = null;
-try { sealStorage = localStorage; } catch { /* storage may be unavailable */ }
+try { if (!study.enabled) sealStorage = localStorage; } catch { /* storage may be unavailable */ }
 let stationSeals = readStationSeals(sealStorage);
 function sealMarkup() {
   return ['stone', 'copper'].map((key) => `<span class="route-seal ${key}" data-earned="${stationSeals[key]}" aria-label="${key === 'stone' ? '石印' : '铜印'}：${stationSeals[key] ? '已点亮' : '未点亮'}"><i aria-hidden="true"></i><span>${key === 'stone' ? '石印' : '铜印'}</span></span>`).join('');
@@ -133,7 +149,19 @@ let nudgeTimer = 0;
 let cardOpen = false;
 let introCueTimer = 0;
 let introCueUntil = 0;
-let lastRefuse = 0;
+let lastRefuse = -Infinity;
+let fieldEpoch = 0;
+let gestureId = 0;
+let gestureSource = null;
+let gestureDistance = 0;
+let gestureReversals = 0;
+let lastWDirection = 0;
+let wContactThisFrame = false;
+let groundContactThisFrame = false;
+let pulseUntil = 0;
+const wPointers = new Map();
+const railKeys = new Set();
+
 let sandboxAll = false;
 const introShown = new Set();
 
@@ -190,7 +218,7 @@ function buildFrame() {
   const tinted = bodies.map((body) => ({ body, tint: wColor(body.center[3]), foot: wFootprint(body, y) }));
   const maxR = (body, foot) => (isWalk() && body.type === 'sphere' ? exclusionRadius(body, activeField) : foot.radius ?? 0);
   const aids = wAids(now);
-  const sections = tinted.map(({ body, tint, foot }) => ({ ...sliceAtW(body, w), role: roleOf(body.id), tint, maxR: maxR(body, foot), ghost: aids.ghost(body.id) }));
+  const sections = tinted.map(({ body, tint, foot }) => ({ ...sliceAtW(body, w), role: roleOf(body.id), tint, maxR: maxR(body, foot), ghost: aids.ghost(body.id), refused: wB && nudge?.ids.has(body.id) && now < nudge.until ? 1 : 0 }));
   const footprints = tinted.map(({ tint, foot }) => ({ ...foot, tint }));
   if (isWalk() && run?.item) {
     const itemSec = itemSectionAtW(level.field, run.itemState(), w);
@@ -208,7 +236,7 @@ function buildFrame() {
     footprints,
     field: activeField,
     blocked: aids.blocked,
-    token: isWalk() ? { pos: run.pos, flash, won: run.won, carrying: run.carrying, yaw: actorYaw, bob: actorBob,
+    token: isWalk() ? { pos: run.pos, flash, feedbackB: wB, won: run.won, carrying: run.carrying, yaw: actorYaw, bob: actorBob,
       arrival: run.won ? (reducedMotion.matches ? 1 : Math.min(1, (now - run.finishedAt) / 280)) : 0 } : null,
     goal: isWalk() ? level.field.goal : null,
     goalState: isWalk() ? goalSliceAtW(level.field, w) : null,
@@ -293,7 +321,7 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
         : interaction.reason === 'tight' ? '这里空间不足' : '晶核';
       placeTag(itemEl, itemPt, nearSpot ? label : '晶核', false);
     } else if (!visible && mapVisible() && (!moved || itemDist < 3.2)) {
-      placeTag(itemEl, itemPt, `留在 W ${signed(run.item.w)}`, true);
+      placeTag(itemEl, itemPt, wB && !study.precise ? '晶核留在另一截面' : `留在 W ${signed(run.item.w)}`, true);
     } else {
       itemEl.hidden = true;
     }
@@ -375,6 +403,8 @@ function atReceiver() {
 }
 
 function completionAction() {
+  if (measuring()) return { label: '继续', level: STUDY_CHAIN[studySegment + 1] };
+
   if (level.id === 'gate' || level.id === 'gate-blind') return { label: '进入两种办法', level: 'station-routes' };
   if (level.id === 'station-routes') return stationNextAction(stationSeals);
   if (level.id === 'fetch') return { label: '下一站：中转站', level: 'station' };
@@ -387,6 +417,7 @@ function handleInteract() {
   if (!isWalk() || !run || cardOpen) return;
   if (run.won) {
     if (!atReceiver()) return;
+    if (measuring()) { advanceStudy(); return; }
     const next = completionAction().level;
     if (next) startLevel(next);
     else showTitle();
@@ -395,6 +426,16 @@ function handleInteract() {
   if (!level.field.item) return;
   sfxInit();
   const res = run.interact(performance.now(), current);
+  if (['picked', 'dropped', 'docked', 'latched'].includes(res.action)) {
+    fieldEpoch += 1;
+    if (wB) {
+      const docking = !!wControl.docking;
+      wControl.invalidate();
+      if (docking) { record('dock_cancel', { reason: 'state_changed' }); commitW(); }
+    }
+  }
+
+  record('interaction', { reason: res.action ?? res.reason });
   if (res.action === 'docked' || res.action === 'latched') {
     sfx.appear();
     buildRailSpans();
@@ -464,14 +505,28 @@ function requestFrame() {
 
 function tick(time) {
   frameId = 0;
-  if (!level) { previousTime = 0; return; }
+  if (!level || (wB && document.hidden)) { previousTime = 0; return; }
   const delta = previousTime ? Math.min((time - previousTime) / 1000, 0.05) : 1 / 60;
   previousTime = time;
+  wContactThisFrame = groundContactThisFrame = false;
+  if (wB && isWalk() && !cardOpen) stepToken(delta, time);
   if (reveal) {
     const p = reducedMotion.matches ? 1 : Math.min(1, (time - reveal.started) / 1100);
     const ease = p * p * (3 - 2 * p);
     current = target = reveal.from + (reveal.to - reveal.from) * ease;
     if (p === 1) { reveal = null; finishReveal(); }
+  } else if (wB) {
+    if (!railLocked() && wControl.direction && wControl.shouldDrive(run)) {
+      const next = isWalk() ? wControl.next(level, run, delta) : clampDial(current + wControl.direction * W_RATE * delta);
+      if (next !== current) requestDial(next);
+    } else if (!railLocked() && wControl.docking) {
+      const dial = wControl.dockStep(level, run, delta);
+      if (dial !== null) requestDial(dial, true, true);
+      if (!wControl.docking) {
+        record(dial === null ? 'dock_cancel' : 'dock_end', { reason: dial === null ? 'conditions_changed' : 'arrived' });
+        commitW();
+      }
+    }
   } else {
     if (wHold && !railLocked()) {
       const next = clampDial(target + wHold * W_RATE * delta);
@@ -480,11 +535,13 @@ function tick(time) {
     if (reducedMotion.matches || Math.abs(current - target) < 1e-4) current = target;
     else current += (target - current) * (1 - Math.exp(-14 * delta));
   }
-  if (isWalk() && !cardOpen) stepToken(delta, time);
-  if (flash > 0) flash = Math.max(0, flash - delta * 2.4);
+  if (!wB && isWalk() && !cardOpen) stepToken(delta, time);
+  if (wB && groundContactThisFrame && !wContactThisFrame) sfx.blocked();
+  if (wB && pulseUntil) { flash = Math.max(0, (pulseUntil - time) / W_PARAMS.pulseMs); if (!flash) pulseUntil = 0; }
+  else if (flash > 0) flash = Math.max(0, flash - delta * 2.4);
   render();
   const arriving = isWalk() && run.won && !reducedMotion.matches && time < run.finishedAt + 280;
-  if (reveal || wHold || current !== target || ripples.length || pressed.size || flash > 0 || trail.length || nudge || time < introCueUntil || arriving || stationEffects.isActive(time)) requestFrame();
+  if (reveal || (wB && wControl.docking) || wHold || current !== target || ripples.length || pressed.size || flash > 0 || trail.length || nudge || time < introCueUntil || arriving || stationEffects.isActive(time)) requestFrame();
   else previousTime = 0;
 }
 
@@ -511,7 +568,8 @@ function stepToken(delta, now) {
   }
   if (result.newlyBlocked) {
     flash = 1;
-    sfx.blocked();
+    if (wB) groundContactThisFrame = true;
+    else sfx.blocked();
     if (run.carrying) {
       toast('前方有障碍，过不去。', 'warn');
     } else if (run.blockStreak >= 3) {
@@ -531,22 +589,42 @@ function stepToken(delta, now) {
 }
 
 // ---------- W control ----------
-function requestDial(value, immediate = false) {
+function requestDial(value, immediate = false, automatic = false) {
   let dial = clampDial(value);
   let clamped = false;
+  const before = wB ? current : target;
   if (isWalk()) {
-    const fromW = dialToW(run.dial);
+    const from = run.dial;
+    const fromW = dialToW(from);
     const hadAirlock = run.airlockCleared;
+    // Automatic motion rejects the whole remaining interval before moving.
+    if (automatic && !run.canSetDial(dial)) return false;
     ({ dial, clamped } = run.reachDial(dial));
     if (!hadAirlock && run.airlockCleared) sfx.appear();
-    if (clamped) revealBlockers(fromW, dialToW(clampDial(value)));
+    if (wB && !automatic) {
+      const contact = wControl.accepted(run, from, clamped);
+      if (contact.ended) record('w_contact_end', { actual_W: dialToW(dial), reason: 'safe_displacement' });
+      if (contact.started) {
+        record('w_contact_start', { actual_W: dialToW(dial), requested_W: dialToW(clampDial(value)), reason: 'engulf' });
+        revealBlockers(fromW, dialToW(clampDial(value)));
+        refuse();
+      }
+    } else if (clamped) revealBlockers(fromW, dialToW(clampDial(value)));
   }
-  if (clamped) refuse();
+  if (clamped && !wB) refuse();
   target = dial;
-  if (immediate || reducedMotion.matches) {
+  const direction = Math.sign(dial - before);
+  if (direction && gestureSource?.startsWith('rail-')) {
+    if (lastWDirection && direction !== lastWDirection) gestureReversals += 1;
+    if (direction !== lastWDirection) record('w_direction_change', { direction });
+    lastWDirection = direction;
+  }
+  if (wB || immediate || reducedMotion.matches) {
     current = target;
+    if (gestureStart !== null) gestureDistance += Math.abs(dialToW(dial) - dialToW(before));
     if (isWalk() && !run.won && run.step(0, 0, 0, performance.now(), current).won) win();
   }
+  if (!wB && !immediate && !reducedMotion.matches && gestureStart !== null) gestureDistance += Math.abs(dialToW(dial) - dialToW(before));
   requestFrame();
   return !clamped;
 }
@@ -554,20 +632,23 @@ function requestDial(value, immediate = false) {
 function refuse() {
   flash = 1;
   const now = performance.now();
-  if (now - lastRefuse > 700) {
-    sfx.refused();
-    if (run?.carrying) {
-      toast('这次换层会让晶核碰到障碍。', 'warn');
-    } else {
-      toast('这次换层会碰到障碍。', 'warn');
+  if (wB) {
+    wContactThisFrame = true;
+    pulseUntil = now + W_PARAMS.pulseMs;
+    if (now - lastRefuse >= W_PARAMS.soundGapMs && sfx.refused() !== false) lastRefuse = now;
+    toast(run?.carrying ? '晶核会碰到障碍' : '沿W会碰到障碍', 'warn', W_PARAMS.toastMs);
+  } else {
+    if (now - lastRefuse > 700) {
+      sfx.refused();
+      toast(run?.carrying ? '这次换层会让晶核碰到障碍。' : '这次换层会碰到障碍。', 'warn');
     }
+    lastRefuse = now;
   }
-  lastRefuse = now;
   requestFrame();
 }
 
 function revealBlockers(fromW, toW) {
-  if (mapVisible()) return;
+  if (mapVisible() && !wB) return;
   const field = run.activeField();
   const ids = field.bodies.filter((b) => wChangeEngulfs({ ...field, bodies: [b] }, run.pos, fromW, toW)).map((b) => b.id);
   if (!ids.length) return;
@@ -576,17 +657,89 @@ function revealBlockers(fromW, toW) {
   nudgeTimer = setTimeout(() => { nudge = null; if (level) render(); }, NUDGE_MS);
 }
 
-function beginGesture() { if (gestureStart === null) gestureStart = target; }
-function commitW() {
+function record(type, extra = {}) {
+  session?.record(type, { level: level?.id, run, dial: level ? current : null, source: gestureStart === null ? null : gestureSource,
+    gesture: gestureStart === null ? null : gestureId, epoch: fieldEpoch }, extra);
+}
+
+function beginGesture(source = null) {
+  if (gestureStart !== null) return;
+  gestureStart = target;
+  gestureSource = source;
+  gestureId += 1;
+  gestureDistance = gestureReversals = lastWDirection = 0;
+  record('w_gesture_start');
+}
+
+function beginW(source, id, direction = 0) {
+  if (!level || railLocked() || document.hidden) return false;
+  if (wControl.docking) {
+    record('dock_cancel', { reason: 'new_input' });
+    wControl.cancel();
+    commitW();
+  }
+  if (!wControl.press(source, id, direction)) return false;
+  beginGesture(source);
+  syncWDirection();
+  return true;
+}
+
+function syncWDirection() {
+  wHold = wControl.direction;
+  if (wHold && lastWDirection && wHold !== lastWDirection) gestureReversals += 1;
+  if (wHold !== lastWDirection) record('w_direction_change', { direction: wHold });
+  if (wHold) lastWDirection = wHold;
+  requestFrame();
+}
+
+function releaseW(source, id) {
+  const ended = wControl.release(source, id, level, run);
+  syncWDirection();
+  if (!ended) return;
+  if (wControl.contact) record('w_contact_end', { reason: 'release' });
+  if (wControl.docking) record('dock_start', { requested_W: wControl.docking.w });
+  else commitW();
+  requestFrame();
+}
+
+function cancelInputs(reason, ground = true, locked = false) {
+  if (wControl.docking) record('dock_cancel', { reason });
+  if (wControl.contact) record('w_contact_end', { reason });
+  wControl.cancel(locked);
+  wHold = 0;
+  heldWKey = null;
+  railPointer = null;
+  railKeys.clear();
+  // Clear ownership BEFORE releasing capture: lostcapture is then a no-op.
+  const pointers = [...wPointers];
+  wPointers.clear();
+  for (const [id, button] of pointers) {
+    if (button.hasPointerCapture?.(id)) button.releasePointerCapture(id);
+  }
+  if (ground) pressed.clear();
+  commitW(reason);
+  if (locked) {
+    previousTime = 0;
+    flash = pulseUntil = 0;
+    nudge = null;
+    clearTimeout(nudgeTimer);
+    clearTimeout(toastTimer);
+    $('toast').classList.remove('show');
+  }
+}
+
+
+function commitW(reason = 'release') {
   if (gestureStart === null) return;
-  const moved = Math.abs(target - gestureStart) > 1e-6;
+  const moved = wB ? gestureDistance > 1e-6 : Math.abs(target - gestureStart) > 1e-6;
+  record('w_gesture_end', { reason, distance_W: gestureDistance, reversals: gestureReversals });
   gestureStart = null;
   if (run && isWalk()) run.endWGesture();
   if (!moved || !run) return;
   if (isWalk()) {
     run.noteWAdjust();
     $('w-rail').classList.remove('pulse');
-  } else if (run.observe(target)) {
+  } else if (reason === 'release' && run.observe(target)) {
     onObserved();
   }
 }
@@ -634,7 +787,7 @@ let blocksKey = '';
 let marksKey = '';
 function updateRail(w = dialToW(current), blocked = wAids().blocked) {
   const rail = $('w-rail');
-  const marks = wAids().marks;
+  const marks = wB ? nearbyDevices(level, run, current) : wAids().marks;
   const mark = nearbyRailMark(current, marks);
   const nextMarksKey = marks.map((m) => `${m.w}:${m.label}`).join('|');
   if (nextMarksKey !== marksKey) {
@@ -683,8 +836,10 @@ function updateRail(w = dialToW(current), blocked = wAids().blocked) {
   }
   const color = cssColor(wColor(w));
   $('layer-swatch').style.color = color;
-  $('layer-name').textContent = `第 ${LAYERS[layerIndex(w)].name} 层`;
+  $('layer-name').textContent = wB ? (wHold > 0 ? '向 +W' : wHold < 0 ? '向 −W' : '当前位置') : `第 ${LAYERS[layerIndex(w)].name} 层`;
   $('w-value').textContent = `${isFlat() ? '高度' : 'W'} ${signed(w)}${mark ? ` · ${mark.label}` : ''}`;
+  if (wB) rail.setAttribute('aria-valuetext', `W ${signed(w)}${mark ? `，${mark.label}` : ''}`);
+  $('w-status').textContent = wControl.state === 'BLOCKED' ? '受阻' : current === 0 || current === 1 ? '已到端点' : wControl.state === 'DOCKING' ? '轻停靠' : '';
 }
 
 function railDial(event) {
@@ -694,12 +849,14 @@ function railDial(event) {
 
 let railPointer = null;
 $('w-rail').addEventListener('pointerdown', (event) => {
-  if (railLocked() || !event.isPrimary) return;
+  if (railLocked() || !event.isPrimary || railPointer !== null) return;
+  if (wB && !beginW('rail-pointer', event.pointerId)) return;
   event.preventDefault();
   sfxInit();
   railPointer = event.pointerId;
   try { $('w-rail').setPointerCapture(event.pointerId); } catch { /* synthetic pointer */ }
-  beginGesture();
+  beginGesture('rail-pointer');
+  if (wB) wPointers.set(event.pointerId, $('w-rail'));
   requestDial(railDial(event));
 });
 $('w-rail').addEventListener('pointermove', (event) => {
@@ -709,6 +866,13 @@ $('w-rail').addEventListener('pointermove', (event) => {
 const railRelease = (event) => {
   if (railPointer !== event.pointerId) return;
   railPointer = null;
+  if (wB) {
+    wPointers.delete(event.pointerId);
+    if (event.type === 'pointerup' && !railLocked()) releaseW('rail-pointer', event.pointerId);
+    else cancelInputs(event.type, false);
+    if (!cardOpen) focusStage();
+    return;
+  }
   if (event.type === 'pointerup' && !railLocked()) {
     const snapped = railReleaseDial(target, wAids().marks);
     if (snapped !== target) requestDial(snapped);
@@ -730,14 +894,21 @@ $('w-rail').addEventListener('keydown', (event) => {
   event.preventDefault();
   event.stopPropagation();
   if (railLocked()) return;
+  if (wB) {
+    if (event.repeat && !railKeys.has(event.key)) return;
+    if (!railKeys.has(event.key) && !beginW('rail-keyboard', event.key)) return;
+    if (wControl.source !== 'rail-keyboard') return;
+    railKeys.add(event.key);
+  }
   sfxInit();
-  beginGesture();
+  beginGesture('rail-keyboard');
   requestDial(next);
 });
 $('w-rail').addEventListener('keyup', (event) => {
   if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) {
     event.stopPropagation();
-    commitW();
+    if (wB) { railKeys.delete(event.key); releaseW('rail-keyboard', event.key); }
+    else commitW();
   }
 });
 
@@ -795,13 +966,16 @@ function renderChapters() {
 const firstOpenLevel = () => LEVELS_LIST.find((l) => !progress.has(l.id) && isUnlocked(l.id, progress)) ?? LEVELS_LIST[0];
 
 function leaveLevel() {
+  if (!wB && gestureStart !== null) record('w_gesture_end', { reason: 'leave_level', distance_W: gestureDistance, reversals: gestureReversals });
+  if (wB) cancelInputs('leave_level', true, true);
+  record('level_leave');
   stationEffects.clear();
   if (frameId) cancelAnimationFrame(frameId);
   frameId = 0;
   previousTime = 0;
   trail = [];
   ripples.length = 0;
-  flash = 0;
+  flash = pulseUntil = 0;
   clearTimeout(introCueTimer);
   introCueUntil = 0;
   railPointer = null;
@@ -827,14 +1001,15 @@ function showTitle() {
   $('game-screen').hidden = true;
   $('title-screen').hidden = false;
   renderChapters();
+  if (measuring()) configureStudyTitle();
   $('play').focus({ preventScroll: true });
 }
 
 function keysHelp() {
-  const w = isFlat() ? '换层' : '移动 W';
+  const w = wB ? '沿 W 移动；松手停下' : isFlat() ? '换层' : '移动 W';
   const itemKey = isWalk() && level?.field?.item ? '<br><kbd>空格</kbd> / <kbd>F</kbd> 拿放晶核 / 操作机关' : '';
   return isWalk()
-    ? `<kbd>↑↓←→</kbd> / <kbd>WASD</kbd> 按画面方向移动<br><kbd>Q</kbd> <kbd>E</kbd> 或拖动滑轨${w}${itemKey}<br>拖动画面转视角 · 滚轮缩放 · <kbd>R</kbd> 重来 · <kbd>H</kbd> 提示`
+    ? `<kbd>↑↓←→</kbd> / <kbd>WASD</kbd> 按画面方向移动<br><kbd>Q</kbd> <kbd>E</kbd> ${wB ? '按住' : '或拖动滑轨'}${w}${itemKey}<br>拖动画面转视角 · 滚轮缩放 · <kbd>R</kbd> 重来 · <kbd>H</kbd> 提示`
     : `<kbd>↑</kbd> <kbd>↓</kbd> / <kbd>Q</kbd> <kbd>E</kbd> 或拖动滑轨${w} · <kbd>H</kbd> 提示`;
 }
 
@@ -845,7 +1020,9 @@ function resetCamera() {
 
 function startLevel(id, { skipIntro = false } = {}) {
   leaveLevel();
-  level = levelById(id);
+  level = studyLevel(levelById(id), measuring());
+  if (measuring() && studySegment >= 3) level = { ...level, objective: '请把晶核放进插座。' };
+  fieldEpoch = 0;
   const chapter = CHAPTERS[level.chapter];
   const trials = level.forceTrials ? level.trials : [];
   run = isWalk() ? new WalkRun(level.field, level.id, performance.now()) : new VisitRun(level.bodies, level.goal, trials, level.id);
@@ -854,7 +1031,7 @@ function startLevel(id, { skipIntro = false } = {}) {
   ripples.length = 0;
   flash = 0;
   lastGoalHint = 0;
-  lastRefuse = 0;
+  lastRefuse = wB ? -Infinity : 0;
   actorBob = 0;
   walkPhase = 0;
   if (isWalk()) {
@@ -887,6 +1064,8 @@ function startLevel(id, { skipIntro = false } = {}) {
   $('receiver-seals').innerHTML = sealMarkup();
   $('predict').hidden = true;
   $('keys').innerHTML = keysHelp();
+  if (wB) $('map-note').textContent = '按住 Q / E 或 ±W 移动，松手停下；滑轨可拖动。';
+  record('level_enter', { segment: studySegment });
   setObjective(level.objective);
   updateHintButton();
   updateErrors();
@@ -909,7 +1088,7 @@ function startLevel(id, { skipIntro = false } = {}) {
     return;
   }
   const firstOfChapter = !level.standalone && LEVELS_LIST.find((l) => l.chapter === level.chapter) === level;
-  if (firstOfChapter && !skipIntro && !introShown.has(level.chapter)) {
+  if (!measuring() && firstOfChapter && !skipIntro && !introShown.has(level.chapter)) {
     introShown.add(level.chapter);
     showCard({ ...chapter.intro, actions: [['开始', 'primary', () => hideCard()]] });
   } else focusStage();
@@ -980,6 +1159,7 @@ function updateMechanisms() {
 
 // ---------- Cards ----------
 function showCard({ kicker, title, body = '', formula = '', stats = '', actions }) {
+  if (wB) cancelInputs('card', true, true);
   pressed.clear();
   wHold = 0;
   $('card-kicker').textContent = kicker;
@@ -1011,6 +1191,8 @@ function hideCard(refocus = true) {
 }
 
 function win() {
+  if (wB) cancelInputs('complete', true, true);
+  record('complete');
   // A previous W/obstacle notice no longer describes the delivered core.
   clearTimeout(toastTimer);
   $('toast').classList.remove('show');
@@ -1021,6 +1203,11 @@ function win() {
   wHold = 0;
   $('w-rail').classList.remove('pulse');
   if (isWalk()) {
+    if (measuring()) {
+      setObjective(level.done);
+      showCard({ kicker: '完成', title: level.done, actions: [['继续', 'primary', advanceStudy]] });
+      return;
+    }
     if (level.id === 'gate' || level.id === 'gate-blind') {
       const next = completionAction();
       const actions = [[next.label, 'primary', () => startLevel(next.level)]];
@@ -1069,6 +1256,7 @@ function showWhy() {
 }
 
 function download() {
+  if (study.enabled) { exportStudy(); return; }
   const data = { ...run.toJSON(), exportedAt: new Date().toISOString() };
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a');
@@ -1086,6 +1274,7 @@ function updateHintButton() {
   $('hint').setAttribute('aria-expanded', String(open));
 }
 function revealHint() {
+  record('hint_open', { hint: hintLevel + 1 });
   if (!level || cardOpen) return;
   if (hintLevel < level.hints.length) {
     hintLevel += 1;
@@ -1098,7 +1287,7 @@ function revealHint() {
   }));
   $('hint-panel').hidden = false;
   $('hint-next').hidden = hintLevel >= level.hints.length;
-  $('hint-next').textContent = hintLevel === level.hints.length - 1 ? '查看完整解法' : '再给一点提示';
+  $('hint-next').textContent = measuring() ? '再看一条提示' : hintLevel === level.hints.length - 1 ? '查看完整解法' : '再给一点提示';
   updateHintButton();
 }
 function showHint() {
@@ -1126,6 +1315,7 @@ $('hint-close').addEventListener('click', () => {
 $('peek').addEventListener('click', () => {
   if (!run || mapPeeking) return;
   run.peeks += 1;
+  record('map_peek');
   mapPeeking = true;
   updateMapVisibility();
   updateStats();
@@ -1220,9 +1410,10 @@ $('next-trial').addEventListener('click', () => {
 
 // ---------- Input ----------
 window.addEventListener('keydown', (event) => {
-  if (!level || $('game-screen').hidden || cardOpen) return;
+  if (!level || $('game-screen').hidden || cardOpen || (wB && document.hidden)) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   const key = event.key;
+  if (wB && key === 'Escape') cancelInputs('escape', false);
   if (key === 'Escape' && !$('hint-panel').hidden) {
     event.preventDefault();
     $('hint-panel').hidden = true;
@@ -1233,7 +1424,7 @@ window.addEventListener('keydown', (event) => {
   if (event.target.closest?.('button') && (key === ' ' || key === 'Enter')) return;
   if (event.target.closest?.('#w-rail') && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(key)) return;
   if (key === 'h' || key === 'H') { if (!event.repeat) showHint(); return; }
-  if (key === 'r' || key === 'R') { if (!event.repeat) startLevel(level.id, { skipIntro: true }); return; }
+  if (key === 'r' || key === 'R') { if (!event.repeat) { record('restart'); startLevel(level.id, { skipIntro: true }); } return; }
   if (isWalk() && (level?.field?.item || run.won) && (key === ' ' || key === 'f' || key === 'F')) {
     event.preventDefault();
     if (!event.repeat) handleInteract();
@@ -1245,14 +1436,22 @@ window.addEventListener('keydown', (event) => {
     if (event.repeat || railLocked()) return;
     focusStage();
     sfxInit();
+    if (wB) {
+      beginW('keyboard-hold', key.toLowerCase(), W_KEYS[key] ?? (key === 'ArrowUp' ? 1 : -1));
+      return;
+    }
     wHold = W_KEYS[key] ?? (key === 'ArrowUp' ? 1 : -1);
     heldWKey = key;
-    beginGesture();
+    beginGesture('keyboard-hold');
+    if (lastWDirection && wHold !== lastWDirection) gestureReversals += 1;
+    record('w_direction_change', { direction: wHold });
+    lastWDirection = wHold;
     requestFrame();
     return;
   }
   if (isWalk() && MOVE_DIRS[key]) {
     event.preventDefault();
+    if (wB && event.repeat && !pressed.has(key)) return;
     focusStage();
     sfxInit();
     pressed.add(key);
@@ -1260,6 +1459,9 @@ window.addEventListener('keydown', (event) => {
   }
 });
 window.addEventListener('keyup', (event) => {
+  if (wB && wControl.source === 'keyboard-hold' && wControl.inputs.has(event.key.toLowerCase())) releaseW('keyboard-hold', event.key.toLowerCase());
+  if (wB && wControl.source === 'touch-w-button' && wControl.inputs.has(`button:${event.key}`)) releaseW('touch-w-button', `button:${event.key}`);
+  if (wB && wControl.source === 'rail-keyboard' && railKeys.delete(event.key)) releaseW('rail-keyboard', event.key);
   if (heldWKey && event.key.toLowerCase() === heldWKey.toLowerCase()) {
     wHold = 0;
     heldWKey = null;
@@ -1268,10 +1470,15 @@ window.addEventListener('keyup', (event) => {
   for (const key of [...pressed]) if (key.toLowerCase() === event.key.toLowerCase()) pressed.delete(key);
 });
 window.addEventListener('blur', () => {
+  record('pause', { reason: 'blur' });
+  if (wB) cancelInputs('blur', true, true);
   pressed.clear();
   if (heldWKey) { wHold = 0; heldWKey = null; commitW(); }
 });
+window.addEventListener('focus', () => record('resume', { reason: 'focus' }));
 document.addEventListener('visibilitychange', () => {
+  if (document.hidden && wB) cancelInputs('hidden', true, true);
+  record(document.hidden ? 'pause' : 'resume', { reason: 'visibility' });
   if (!document.hidden && level) { render(); requestFrame(); }
 });
 
@@ -1291,7 +1498,85 @@ document.querySelectorAll('#dpad button').forEach((button) => {
   button.addEventListener('lostpointercapture', release);
 });
 
-$('play').addEventListener('click', () => { sfxInit(); startLevel('gate'); });
+
+// Direction buttons accept a second touch alongside the ground d-pad.
+for (const button of document.querySelectorAll('[data-wdir]')) {
+  button.addEventListener('pointerdown', (event) => {
+    if (!wB || !beginW('touch-w-button', event.pointerId, Number(button.dataset.wdir))) return;
+    event.preventDefault();
+    sfxInit();
+    wPointers.set(event.pointerId, button);
+    try { button.setPointerCapture(event.pointerId); } catch { /* synthetic pointer */ }
+  });
+  const release = (event) => {
+    if (wPointers.get(event.pointerId) !== button) return;
+    wPointers.delete(event.pointerId);
+    if (event.type === 'pointerup') releaseW('touch-w-button', event.pointerId);
+    else cancelInputs(event.type, false);
+  };
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) button.addEventListener(type, release);
+  button.addEventListener('keydown', (event) => {
+    if (![' ', 'Enter'].includes(event.key)) return;
+    event.preventDefault();
+    if (!event.repeat) beginW('touch-w-button', `button:${event.key}`, Number(button.dataset.wdir));
+  });
+  button.addEventListener('keyup', (event) => {
+    if ([' ', 'Enter'].includes(event.key)) { event.preventDefault(); releaseW('touch-w-button', `button:${event.key}`); }
+  });
+}
+
+function configureStudyTitle() {
+  for (const id of ['play-routes', 'play-fetch', 'play-chapters', 'open-lab', 'unlock-all', 'chapter-list']) $(id).hidden = true;
+  document.querySelector('.tagline').textContent = '请按画面目标试着玩，界面里的帮助可以自己使用。';
+  $('play').textContent = '开始体验';
+}
+
+function advanceStudy() {
+  if (!measuring()) return;
+  if (studySegment < 2) {
+    studySegment += 1;
+    startLevel(STUDY_CHAIN[studySegment], { skipIntro: true });
+  } else if (studySegment < 4) {
+    studySegment += 1;
+    startLevel('station-routes', { skipIntro: true });
+  } else {
+    showCard({ kicker: '观察结束', title: '请完成观察记录', body: '记录完成后，可结束并导出本次记录。',
+      actions: [['回到画面', 'ghost', () => hideCard()]] });
+  }
+}
+function exportStudy() {
+  const data = session.export();
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `w1-${session.id}.json`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+$('study-next').addEventListener('click', () => {
+  record('research_transition', { reason: run?.won ? 'completed' : 'unfinished', segment: studySegment });
+  advanceStudy();
+});
+$('study-export').addEventListener('click', exportStudy);
+$('study-end').addEventListener('click', () => {
+  if (studySealed) { exportStudy(); return; }
+  showCard({ kicker: '观察员', title: '结束并封存本次记录',
+    body: '请先在观察表中记录 G1–G4 的证据、未到达和缺失项。封存后开放自由体验；后续操作不再计入本次记录。',
+    actions: [['记录已封存，结束并导出', 'primary', () => {
+      if (wB) cancelInputs('session_end', true, true);
+      record('level_leave', { reason: 'session_end' });
+      session.finish({ level: level?.id, run, dial: current });
+      studySealed = true;
+      exportStudy();
+      for (const id of ['play-routes', 'play-fetch', 'play-chapters', 'open-lab', 'unlock-all', 'chapter-list']) $(id).hidden = false;
+      $('study-next').disabled = true;
+      $('play').textContent = '先走球门';
+      showTitle();
+    }], ['继续观察', 'ghost', () => hideCard()]] });
+});
+record('session_start', { userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight] });
+
+$('play').addEventListener('click', () => { sfxInit(); if (measuring()) studySegment = 0; startLevel('gate'); });
 $('play-routes').addEventListener('click', () => { sfxInit(); startLevel('station-routes'); });
 $('play-fetch').addEventListener('click', () => { sfxInit(); startLevel('fetch'); });
 $('play-chapters')?.addEventListener('click', () => { sfxInit(); startLevel(firstOpenLevel().id); });
@@ -1301,7 +1586,7 @@ $('replay-btn').addEventListener('click', () => startLevel(level.id, { skipIntro
 $('return-levels').addEventListener('click', showTitle);
 $('unlock-all')?.addEventListener('click', () => { sandboxAll = !sandboxAll; renderChapters(); });
 $('back').addEventListener('click', showTitle);
-$('restart').addEventListener('click', () => { if (level) startLevel(level.id, { skipIntro: true }); });
+$('restart').addEventListener('click', () => { record('restart'); if (level) startLevel(level.id, { skipIntro: true }); });
 $('reset-view').addEventListener('click', () => { if (level) { resetCamera(); focusStage(); } });
 $('sound').addEventListener('click', () => {
   const on = $('sound').getAttribute('aria-pressed') !== 'true';
@@ -1328,6 +1613,8 @@ function placeRail() {
 }
 narrowStage.addEventListener('change', placeRail);
 placeRail();
-const requested = levelById(new URLSearchParams(location.search).get('level') ?? '');
+const requestedId = new URLSearchParams(location.search).get('level') ?? '';
+const requested = levelById(!measuring() || [...STUDY_CHAIN, 'fetch'].includes(requestedId) ? requestedId : '');
+if (measuring() && requested && STUDY_CHAIN.includes(requested.id)) studySegment = STUDY_CHAIN.indexOf(requested.id);
 if (requested) startLevel(requested.id);
 else showTitle();

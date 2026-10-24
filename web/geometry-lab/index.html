@@ -55,6 +55,12 @@
       </div>
     </header>
 
+    <details id="study-tools" class="study-tools" hidden>
+      <summary>研究记录（观察员）</summary>
+      <button id="study-next" class="ghost">进入下一段（未完成也可转场）</button>
+      <button id="study-export" class="ghost">导出当前记录</button>
+      <button id="study-end" class="ghost">结束并导出本次记录</button>
+    </details>
     <main class="play">
       <div class="stage" id="stage">
         <canvas id="scene" tabindex="0" aria-label="你的世界：当前的三维截面"></canvas>
@@ -85,6 +91,11 @@
         <div class="empty-notice" id="empty-notice" hidden><span class="empty-ring"></span><p>这一层，什么都没有碰到。</p></div>
         <div class="dpad" id="dpad" hidden aria-label="移动角色">
           <button data-dir="ArrowUp" class="d-up" aria-label="向前">▲</button><button data-dir="ArrowLeft" class="d-left" aria-label="向左">◀</button><button data-dir="ArrowRight" class="d-right" aria-label="向右">▶</button><button data-dir="ArrowDown" class="d-down" aria-label="向后">▼</button>
+        </div>
+        <div id="w-buttons" class="w-buttons" hidden aria-label="沿 W 移动">
+          <button type="button" data-wdir="-1" aria-label="按住向负 W 移动">−W</button>
+          <button type="button" data-wdir="1" aria-label="按住向正 W 移动">+W</button>
+          <span id="w-status" aria-live="polite"></span>
         </div>
         <div class="render-error" id="render-error" role="alert" hidden>当前浏览器无法显示三维画面。请使用支持 WebGL 的浏览器并开启硬件加速。</div>
         <div class="card-layer" id="card-layer" hidden>

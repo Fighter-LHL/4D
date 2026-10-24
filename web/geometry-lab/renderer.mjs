@@ -18,14 +18,17 @@ uniform vec4 uSph[${MAX}];
 uniform vec3 uSphTint[${MAX}];
 uniform float uSphRole[${MAX}];
 uniform vec2 uSphGhost[${MAX}];
+uniform float uSphRefused[${MAX}];
 uniform float uSphCount;
 uniform vec3 uBoxC[${MAX}];
 uniform vec4 uBoxH[${MAX}];
 uniform vec3 uBoxTint[${MAX}];
 uniform float uBoxRole[${MAX}];
 uniform float uBoxFooting[${MAX}];
+uniform float uBoxRefused[${MAX}];
 uniform float uBoxCount;
 uniform vec4 uToken;
+uniform float uFeedbackB;
 uniform vec4 uActor;
 uniform vec2 uActorPos;
 uniform vec4 uItem;
@@ -527,6 +530,10 @@ void main() {
           float dash = step(0.45, fract(atan(p.z - s.z, p.x - s.x) * 3.82));
           fl = mix(fl, uSphTint[i], sg.y * dash * (1.0 - smoothstep(0.008, 0.026, gd)) * 0.75);
         }
+        if (uSphRefused[i] > 0.0) {
+          float edge = abs(length(p.xz - s.xz) - sg.x);
+          fl = mix(fl, ALERT, uSphRefused[i] * (1.0 - smoothstep(0.01, 0.035, edge)));
+        }
         if (s.w < 0.0001) continue;
         if (hitSphere(p + vec3(0.0, 0.01, 0.0), SUN_DIR, s) > 0.0) shadow = max(shadow, 0.75);
         float ao = exp(- dot(p.xz - s.xz, p.xz - s.xz) / (s.w * s.w * 0.9 + 0.04));
@@ -535,6 +542,10 @@ void main() {
       for (int i = 0; i < ${MAX}; i += 1) {
         if (float(i) >= uBoxCount) break;
         vec4 h = uBoxH[i];
+        if (uBoxRefused[i] > 0.0) {
+          vec2 d = abs(p.xz - uBoxC[i].xz) - h.xz;
+          fl = mix(fl, ALERT, uBoxRefused[i] * (1.0 - smoothstep(0.01, 0.035, abs(max(d.x, d.y)))));
+        }
         if (h.w < -0.001) {
           float ghost = -h.w;
           vec2 d0 = abs(p.xz - uBoxC[i].xz) - h.xz;
@@ -556,7 +567,7 @@ void main() {
         float kd = length(rel);
         shadow = max(shadow, exp(-kd * kd * 28.0) * 0.55);
         vec3 tc = mix(IVORY, ALERT, clamp(uToken.w, 0.0, 1.0));
-        vec3 ringCol = uActor.z > 0.5 ? ITEM_COL : tc;
+        vec3 ringCol = uActor.z > 0.5 ? mix(ITEM_COL, ALERT, uFeedbackB * clamp(uToken.w, 0.0, 1.0)) : tc;
         float footRing = 1.0 - smoothstep(0.007, 0.022, abs(kd - uToken.z));
         fl = mix(fl, ringCol, footRing * (uActor.z > 0.5 ? 0.85 : 0.55));
       }
@@ -662,8 +673,8 @@ void main() {
 }
 `;
 
-const NAMES = ['uResolution', 'uEye', 'uLookY', 'uSph', 'uSphTint', 'uSphRole', 'uSphGhost', 'uSphCount', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxRole', 'uBoxFooting', 'uBoxCount',
-  'uToken', 'uActor', 'uActorPos', 'uItem', 'uSocket', 'uLatch', 'uRelayPorts', 'uRelayUsed', 'uPowerFx', 'uLatchFx', 'uStation', 'uEntrance', 'uChannel', 'uProps', 'uGoal', 'uStart', 'uBounds', 'uTrail', 'uRipples', 'uRippleTint', 'uLayerA', 'uLayerB', 'uLayerMix'];
+const NAMES = ['uResolution', 'uEye', 'uLookY', 'uSph', 'uSphTint', 'uSphRole', 'uSphGhost', 'uSphRefused', 'uSphCount', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxRole', 'uBoxFooting', 'uBoxRefused', 'uBoxCount',
+  'uToken', 'uFeedbackB', 'uActor', 'uActorPos', 'uItem', 'uSocket', 'uLatch', 'uRelayPorts', 'uRelayUsed', 'uPowerFx', 'uLatchFx', 'uStation', 'uEntrance', 'uChannel', 'uProps', 'uGoal', 'uStart', 'uBounds', 'uTrail', 'uRipples', 'uRippleTint', 'uLayerA', 'uLayerB', 'uLayerMix'];
 const VIEW = { yaw: 0.66, pitch: 0.58, distance: 12.2, minPitch: 0.2, maxPitch: 1.35, minDistance: 7.5, maxDistance: 20 };
 
 export class SliceRenderer {
@@ -747,6 +758,8 @@ export class SliceRenderer {
     const sph = new Float32Array(MAX * 4);
     const sphTint = new Float32Array(MAX * 3);
     const sphRole = new Float32Array(MAX);
+    const sphRefused = new Float32Array(MAX);
+    const boxRefused = new Float32Array(MAX);
     const sphGhost = new Float32Array(MAX * 2);
     const boxC = new Float32Array(MAX * 3);
     const boxH = new Float32Array(MAX * 4);
@@ -776,6 +789,7 @@ export class SliceRenderer {
         boxH.set([s.half[0] - eps, visHalfY, s.half[2] - eps, wState], nb * 4);
         boxTint.set(s.tint, nb * 3);
         boxRole[nb] = s.role ?? 0;
+        boxRefused[nb] = s.refused || 0;
         boxFooting[nb] = FOOTING_WALLS.has(s.id) ? 1 : 0;
         nb += 1;
       } else if (s.type === 'sphere' && ns < MAX) {
@@ -784,12 +798,15 @@ export class SliceRenderer {
         sphGhost.set([s.maxR || 0.35, walkGhost], ns * 2);
         sphTint.set(s.tint, ns * 3);
         sphRole[ns] = s.role ?? 0;
+        sphRefused[ns] = s.refused || 0;
         ns += 1;
       }
     }
     gl.uniform4fv(u.uSph, sph);
     gl.uniform3fv(u.uSphTint, sphTint);
     gl.uniform1fv(u.uSphRole, sphRole);
+    gl.uniform1fv(u.uSphRefused, sphRefused);
+    gl.uniform1fv(u.uBoxRefused, boxRefused);
     gl.uniform2fv(u.uSphGhost, sphGhost);
     gl.uniform1f(u.uSphCount, ns);
     gl.uniform3fv(u.uBoxC, boxC);
@@ -801,6 +818,7 @@ export class SliceRenderer {
 
     const { field, token, goalState } = frame;
     const goalW = !field ? -2 : (token?.won ? 2 : (goalState?.open ? 0.25 + 0.75 * goalState.wEdge : -(goalState?.wGhost ?? 0.5)));
+    gl.uniform1f(u.uFeedbackB, token?.feedbackB ? 1 : 0);
     gl.uniform4f(u.uToken, ...(token ? [token.pos[0], token.pos[1], field.tokenRadius, token.flash] : [0, 0, 0, -1]));
     gl.uniform4f(u.uActor, ...(token ? [token.yaw ?? 1.57, token.bob ?? 0, token.carrying ? 1 : 0, 1] : [0, 0, 0, 0]));
     // Only the courier mesh steps aside. Position, carry radius and collision
