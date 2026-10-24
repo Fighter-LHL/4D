@@ -1,0 +1,154 @@
+Browser tab: 2, Title: "四维回响庭院 · W-Slice", URL: "http://127.0.0.1:4173/?seed=1073782437".
+1 AXWebArea 四维回响庭院 · W-Slice, URL: 127.0.0.1:4173/?seed=1073782437
+	2 container
+		3 link Description: 回响庭院首页, Value: 127.0.0.1:4173/
+		4 container 游戏设置
+			5 checkbox Description: 关闭声音, Help: 切换声音, Value: 1, ID: sound
+				6 text 声音开
+			7 button 怎么玩, ID: help
+			8 button 暂停, ID: pause
+			9 button 新一局 ↗, ID: restart
+	10 container
+		11 container 庭院游戏
+			12 text NEW PATHS · THE SAME FOURTH DIMENSION
+			13 heading 远端折返庭, Value: 1, ID: room-name
+				403 text 远端折返庭
+			404 text 03
+			16 text 03
+			17 text 去远端换层完成接力，再折返起点层寻找出口。
+			18 container
+				19 image Description: 可点击落脚点的庭院场景；也可使用下方目的地按钮, ID: scene
+				340 text Ⅰ
+				341 text 潮汐层
+				405 text 位置 -2, 1, 0 · W 0.18
+				406 text 维度锚台 · 潮汐层
+			24 container 移动与切片控制
+				407 text 沿潮汐层的桥前往反照花
+				26 container 切换四维切片
+					27 checkbox Ⅰ 潮汐层 Z, Help: 潮汐层, Value: 1, ID: layer-0
+						28 text Ⅰ
+						29 text 潮汐层
+						30 text Z
+					31 checkbox Ⅱ 回声层 X, Help: 回声层, Value: 0, ID: layer-1
+						32 text Ⅱ
+						33 text 回声层
+						34 text X
+					35 checkbox Ⅲ 绽放层 C, Help: 绽放层, Value: 0, ID: layer-2
+						36 text Ⅲ
+						37 text 绽放层
+						38 text C
+				408 text 维度锚台 · 跨层支撑
+				40 text 拖动 W 可观察连续截面 下一步
+				409 container destinations
+					410 checkbox Description: 前往归响台, Help: 绽放层 · 实体桥, Value: 0
+						411 text 1
+						412 text 归响台
+						413 text Ⅲ
+					414 checkbox Description: 前往远端回声台, Help: 回声层 · 实体桥, Value: 0
+						415 text 2
+						416 text 远端回声台
+						417 text Ⅱ
+					418 checkbox Description: 前往反照花, Help: 潮汐层 · 实体桥, Value: 1
+						419 text 3
+						420 text 反照花
+						421 text Ⅰ
+					422 checkbox Description: 前往隐星台, Help: 潮汐层 · 秘径, Value: 0
+						423 text 4
+						424 text 隐星台
+						425 text Ⅰ 秘径
+				45 container
+					46 text W 调节空间切片
+				426 text 0.180
+				48 button 对齐切片 ↗, ID: align
+				49 container slider-wrap
+					50 slider (settable, float) W 调节空间切片, Value: 0.18000000715255737, Details: 0.18, ID: w-slider
+					51 text 0.0 0.25 0.5 0.75 1.0
+				427 text 这段路径已显现 · W 0.07 — 0.29
+				53 text ← → / A D 微调
+				54 container 穿越方式
+					55 checkbox 稳行 首次 +1, Value: 1, ID: safe-mode
+					56 checkbox 冒险 首次 +3, Value: 0, ID: risk-mode
+				57 button 穿越 Space ↗, ID: move
+					428 text 穿越
+					429 text Space ↗
+				60 button (disabled) 锚台跨层支撑 E, ID: interact
+					430 text 锚台跨层支撑
+					431 text E
+		63 container 本局进度
+			64 text YOUR JOURNEY
+			65 text #40009EA5
+			66 heading 新的路， 从另一层展开。, Value: 2
+				67 text 新的路，
+				68 text 从另一层展开。
+			69 container Description: 本局随机庭院, ID: room-itinerary
+				70 text ✓
+				71 text 分源架桥庭
+				72 text 双层封锁
+				73 text ✓
+				74 text 双源汇流庭
+				75 text 追层双涌
+				76 container
+					77 text 03 远端折返庭 单层回流
+			78 text 已存入  ◆
+			432 text 9
+			80 text 失手也会保留 随身回响  ◇
+			433 text 3
+			82 text 回中央岛存入 回程结
+			83 container Description: 剩余 2 次, ID: lives
+			84 text 冒险连响
+			85 container Description: 0 层, ID: combo
+			86 text 跨层接力
+			434 text 2 / 3
+			88 container mechanisms
+				89 container 向远端回声台发送能量，同时锁定桥梁
+					90 text 启程泵
+					435 text 已启动
+				92 container 向反照花发送能量，同时锁定桥梁
+					93 text 远端回声台
+					436 text ●
+					437 text 已启动
+				96 container 完成这一环，三机关全部启动后开门
+					97 text 反照花
+					438 text ●
+					439 text 已供能
+			100 text 单层回流
+			101 text +4
+			102 text 一波回流锁定开匣层，切到任意另一实体层。
+			103 container Description: 庭院连锁：等待首次冒险成功, ID: resonance-panel
+				104 text 冒险，让庭院生长
+				105 text 首次冒险成功，长出花匣与锚台之间的新桥
+			106 container
+				107 text 本局构筑 · 跨庭保留
+				108 text 3 件
+				109 container build-list
+					110 text 回流棱镜
+					111 text Ⅰ
+					112 text 蓄能 0/1 · 在锚台启动当前层已供能机关
+					113 text 接力线圈
+					114 text Ⅰ
+					182 text 本庭接力已用尽，下一庭恢复
+					116 text 缓落壳
+					117 text Ⅰ
+					384 text 本庭剩余 0 次保护
+				119 button (disabled) 释放跨层脉冲 Q, ID: ability-prism
+					120 text 释放跨层脉冲
+					121 text Q
+				122 text 远程启动机关 → 锚台三印 → 棱镜回廊
+			123 button (collapsed) ✧ 隐藏路线 1 / 3 ⌄, Secondary Actions: Expand
+				124 text ✧ 隐藏路线
+				248 text 1 / 3
+				402 text ⌄
+			250 container rift-panel
+				385 text 本庭试炼已结束
+				252 text +9
+				386 text 本庭不能再挑战；押注不返还，已解开的秘径仍可走。
+				254 container Description: 升庭进度, ID: rift-stages
+					255 text ◇ 归响台 ⌁ 锚台 ✧ 庭门
+			127 text 最佳带回
+			128 container best-score
+				129 text 55  回响
+	130 container
+		131 text 随机庭院 · 隐藏构筑 · 四维连锁 W–SLICE  WEB / 05
+	387 text 缓落壳接住了你，随身回响保留。
+
+The focused UI element is 50 slider (settable, float) W 调节空间切片, Value: 0.18000000715255737, Details: 0.18, ID: w-slider

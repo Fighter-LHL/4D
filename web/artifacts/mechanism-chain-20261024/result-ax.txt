@@ -1,0 +1,14 @@
+Browser tab: 2, Title: "四维回响庭院 · W-Slice", URL: "http://127.0.0.1:4173/?seed=1073782437".
+0 AXWebArea 四维回响庭院 · W-Slice, URL: 127.0.0.1:4173/?seed=1073782437
+	1 container result-dialog
+		2 text ✧
+		3 text JOURNEY COMPLETE
+		4 heading 庭院记住了你的回响。, Value: 2, ID: result-title
+			5 text 庭院记住了你的回响。
+		6 text 你让回响穿过了三层空间，也把这一路的能力组合带到了终点。
+		7 text 15
+		8 text 回响已带回
+		9 text 冒险成功 0 次 · 点亮机关 9 次 · 失稳 0 次
+		10 button 换一种走法，再来一局 ↗, ID: play-again
+
+The focused UI element is 10 button 换一种走法，再来一局 ↗, ID: play-again
