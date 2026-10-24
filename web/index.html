@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#eaece3">
+  <title>四维回响庭院 · W-Slice</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%232d665b' d='M20 2 38 12 20 22 2 12zm-18 16 18 10 18-10v8L20 38 2 26z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="回响庭院首页"><span class="brand-icon">◈</span><span>W–SLICE<span class="brand-sub">回响庭院</span></span></a>
+    <nav aria-label="游戏设置">
+      <button id="sound" class="icon-button" aria-pressed="true" title="切换声音"><span aria-hidden="true">♫</span><span id="sound-label">声音开</span></button>
+      <a class="icon-button" href="flatland.html">入门：平面国</a>
+      <button id="help" class="icon-button">怎么玩</button>
+      <button id="pause" class="icon-button" disabled>暂停</button>
+      <button id="restart" class="icon-button">新一局 ↗</button>
+    </nav>
+  </header>
+
+  <main class="game-layout">
+    <section class="play-area" aria-label="庭院游戏">
+      <p id="chapter-arrival" class="chapter-arrival" hidden><strong>平面国已完成 · 正式章节</strong><br>继续用 W 看不同截面；点选落脚点后 Space 穿越，E 启动机关。这里的移动方式与教学关不同。</p>
+      <div class="stage-heading"><div><p class="eyebrow">NEW PATHS · THE SAME FOURTH DIMENSION</p><h1 id="room-name">四维回响庭院</h1></div><div class="chapter"><span id="room-number">01</span><span class="chapter-line"></span><span>03</span></div></div>
+      <p id="room-description" class="room-description">每一庭，都有不同的跨层连锁。</p>
+      <div class="scene-wrap">
+        <canvas id="scene" aria-label="可点击落脚点的庭院场景；也可使用下方目的地按钮" role="img"></canvas>
+        <div class="layer-badge"><span id="layer-symbol">Ⅰ</span><div><strong id="layer-name">潮汐层</strong><small id="position-readout">同一空间，不同切片</small></div></div>
+        <div class="scene-caption"><span class="dot"></span><span id="scene-state">选择一件遗物，开始你的旅程</span></div>
+        <div id="stability-wrap" class="stability-wrap" hidden><span id="stability-label">稳定度</span><div class="stability-track"><i id="stability-bar"></i></div></div>
+        <div id="wave-warning" class="wave-warning" hidden><span class="wave-icon">◎</span><div><strong id="wave-label">回流正在接近</strong><span id="wave-instruction">切入安全层</span></div><output id="wave-time">2.4</output></div>
+      </div>
+      <section class="controls" aria-label="移动与切片控制">
+        <div id="objective" class="objective">观察供能关系，切换 W 寻找这一庭的起点</div>
+        <div id="seal-prompt" class="seal-prompt" hidden aria-live="polite"></div>
+        <div class="layer-controls" role="group" aria-label="切换四维切片"><button data-layer="0" id="layer-0"><span>Ⅰ</span>潮汐层 <kbd>Z</kbd></button><button data-layer="1" id="layer-1"><span>Ⅱ</span>回声层 <kbd>X</kbd></button><button data-layer="2" id="layer-2"><span>Ⅲ</span>绽放层 <kbd>C</kbd></button></div>
+        <div class="footing-row"><span id="footing">归响台 · 跨层支撑</span><span>拖动 W 可观察连续截面</span></div>
+        <div class="destination-row"><span class="control-label">下一步</span><div id="destinations" class="destinations"></div></div>
+        <div class="slice-heading"><label for="w-slider"><span class="w-symbol">W</span> 调节空间切片</label><output id="w-value" for="w-slider">0.280</output><button id="align" class="text-button">对齐切片 ↗</button></div>
+        <div class="slider-wrap" id="slider-wrap"><div class="slice-rail"><span id="slice-window"></span><span id="slice-marker"></span></div><input id="w-slider" aria-describedby="slice-hint" type="range" min="0" max="1" step="0.005" value="0.28"><div class="slice-ticks"><span>0.0</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1.0</span></div></div>
+        <div class="slice-meta"><span id="slice-hint">把白色光点放进亮起的区间</span><span class="keyboard-hint">← → / A D 微调</span></div>
+        <div class="action-row"><div class="mode-switch" role="group" aria-label="穿越方式"><button id="safe-mode" aria-pressed="true">稳行 <small>首次 +1</small></button><button id="risk-mode" aria-pressed="false">冒险 <small>首次 +3</small></button></div><button id="move" class="primary-button">穿越 <span>Space ↗</span></button><button id="interact" class="secondary-button">启动机关 <kbd>E</kbd></button></div>
+      </section>
+    </section>
+
+    <aside class="run-panel" aria-label="本局进度">
+      <div class="panel-top"><p class="eyebrow">YOUR JOURNEY</p><span id="seed-label">本次旅程</span></div>
+      <h2>新的路，<br>从另一层展开。</h2><div id="room-itinerary" class="room-itinerary" aria-label="本局随机庭院"></div>
+      <div class="scoreboard"><div><span class="score-label">已存入 <i>◆</i></span><strong id="banked">0</strong><small>失手也会保留</small></div><div><span class="score-label">随身回响 <i class="amber">◇</i></span><strong id="carried">0</strong><small>回中央岛存入</small></div></div>
+      <div class="lives-row"><span>回程结</span><div id="lives" aria-label="剩余 3 次"><i></i><i></i><i></i></div></div>
+      <div class="chain-row"><span>冒险连响</span><div id="combo" aria-label="0 层"><i></i><i></i><i></i></div></div>
+      <div class="panel-rule"></div>
+      <div class="mechanism-heading"><span>跨层接力</span><span id="mechanism-count">0 / 3</span></div>
+      <div id="mechanisms" class="mechanism-list"></div>
+      <div class="challenge-card"><div><span class="challenge-symbol" aria-hidden="true">◎</span><strong id="challenge-name">裂隙花匣</strong><span id="challenge-reward">+4</span></div><p id="challenge-description">可选冒险：切换 W 躲开回流。</p></div>
+      <section id="resonance-panel" class="resonance-panel"><strong id="resonance-title">冒险，让庭院生长</strong><div id="resonance-track" class="resonance-track" aria-hidden="true"><span>◇</span><span>◎</span><span>❋</span><span>⌁</span></div><p id="resonance-detail">首次冒险成功，长出花匣与锚台之间的新桥</p><small id="woven-count"></small></section>
+      <section class="relic-panel"><div class="build-heading"><span>本局构筑 · 跨庭保留</span><span id="build-count">0 件</span></div><div id="build-list"></div><div id="ability-list"></div><div id="synergy-list" class="synergy-list" hidden></div></section>
+      <details id="secret-panel" class="secret-panel"><summary><span>✧ 隐藏路线</span><span id="secret-count">0 / 3</span></summary><div id="secret-routes" class="secret-routes"></div></details>
+      <section id="rift-panel" class="rift-panel" hidden><div><span aria-hidden="true">✧</span><strong id="rift-title">隐星试炼</strong><b>+9</b></div><p id="rift-detail">押上 2 枚随身回响，连续换层躲过三波回流。</p><div id="rift-stages" class="rift-stages" aria-label="升庭进度"></div></section>
+      <div class="run-tip"><span aria-hidden="true">↳</span><p id="context-hint">冒险的光带会移动。跟随它，才能把更多回响带回庭院。</p></div>
+      <div class="best-row"><span>最佳带回</span><span id="best-score">0 <small>回响</small></span></div>
+    </aside>
+  </main>
+  <footer class="footer"><span>随机庭院 · 隐藏构筑 · 四维连锁</span><span>W–SLICE <span class="version">WEB / 05</span></span></footer>
+  <div class="sr-only" id="announcement" role="status" aria-live="polite"></div>
+
+  <dialog id="choice-dialog" class="choice-dialog">
+    <div class="dialog-kicker"><span>◈</span><span id="choice-kicker">新的庭院，新的走法</span></div><h2 id="choice-title">展开这一局，<br>未知的路径。</h2><p id="choice-intro">切换 W，发现同一位置的另一座机关。观察这一庭的供能关系，再选你的走法。</p>
+    <div id="choice-route" class="choice-route" aria-label="本局房间路线"></div>
+    <div class="choice-preview"><strong id="choice-room-name"></strong><span id="choice-room-description"></span></div>
+    <div id="choice-build" class="choice-build" hidden></div>
+    <div id="relic-choices" class="relic-choices"></div>
+    <div class="intro-rules"><span><b>Ⅰ</b>观察机关的供能关系</span><span><b>Ⅱ</b>在同一位置穿入另一层</span><span><b>Ⅲ</b>挑战回流，把收益带回来</span></div><p class="dialog-foot">每局抽取三座不同庭院 · 遗物跨庭保留并升级 · 复制网页地址可重走同一旅程</p>
+  </dialog>
+  <dialog id="help-dialog" class="small-dialog"><button class="dialog-close" id="close-help" aria-label="关闭玩法说明">×</button><p class="eyebrow">MOVE THROUGH W</p><h2>这一层的尽头，<br>可能是另一层的起点。</h2><ol class="help-steps"><li><b>空间有第四个方向：W</b><span>三层按钮快速切换，拖 W 看截面连续变化。淡轮廓在别的层，现在不能踩。归响台、维度锚台与花匣基座始终支撑你。</span></li><li><b>每庭的机关关系都不同</b><span>查看机关旁的供能槽。有的逐级接力，有的需要两个源同时点亮；能量到达才可启动。相同位置的另一层可能藏着下一环。</span></li><li><b>路径也会随切片改变</b><span>机关启动后实体桥才会接通。到安全锚台观察其他层；普通平台切出所在层会失稳，要及时切回或落到同位平台。</span></li><li><b>把遗物组合起来</b><span>棱镜点亮上游后，线圈可在锚台下一次换层时自动接力下游；织桥种消耗冒险挣来的桥种，在机关旁留下永久捷径。配合留影，还能从锚台远程种桥。缓落壳保护失手收益。</span></li><li><b>用构筑解开隐藏路线</b><span>棱镜＋线圈完成远程启动，留影＋织桥完成代种，缓落壳＋织桥完成种桥和花匣避波；随后到入口按符印顺序切换 W。每次都需真正进入新层，原地停留或层间隙不算。</span></li><li><b>隐星台的三重试炼</b><span>可选择押上 2 枚随身回响，连续三波切入指定安全层；全部成功得 9 枚，并唤醒整座庭院的升庭桥。失败不返押注，本庭不能重试；也可随时在开战前沿原路返回。</span></li><li><b>花匣有三种额外挑战</b><span>单次回流、连续追波或双层封锁。看危险层标记和安全层箭头，及时换层；连续追波必须再次切换，全部躲过才领奖。首次冒险成功还会让花匣与锚台间长出新花径。也可以不打开花匣。</span></li></ol><div class="shortcut-guide">Z / X / C 换层　·　← → / A D 微调 W<br>1–9 选落脚点　·　Space 穿越　·　E 机关 / 存入<br>Q 可用遗物　·　Esc 暂停</div><button id="help-done" class="primary-button">回到庭院 ↗</button></dialog>
+  <dialog id="pause-dialog" class="small-dialog"><p class="eyebrow">TAKE A BREATH</p><h2>庭院正在等你。</h2><p>路径、危险和遗物计时都已暂停。</p><button id="resume" class="primary-button">继续旅程 ↗</button></dialog>
+  <dialog id="result-dialog" class="small-dialog result-dialog"><div id="result-symbol" class="result-symbol">✧</div><p id="result-kicker" class="eyebrow">JOURNEY COMPLETE</p><h2 id="result-title">庭院记住了你的回响。</h2><p id="result-description"></p><div class="result-score"><strong id="result-score">0</strong><span>回响已带回</span></div><p id="result-stats"></p><button id="play-again" class="primary-button">换一种走法，再来一局 ↗</button></dialog>
+  <dialog id="restart-dialog" class="small-dialog"><p class="eyebrow">A NEW PATH</p><h2>从新的庭院出发？</h2><p>新一局会清除当前旅程进度，最佳记录保留。</p><div class="dialog-actions"><button id="cancel-restart" class="secondary-button">继续这一局</button><button id="confirm-restart" class="primary-button">开始新一局 ↗</button></div></dialog>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

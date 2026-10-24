@@ -1,0 +1,61 @@
+Browser tab: 2, Title: "四维回响庭院 · W-Slice", URL: "http://127.0.0.1:4173/?seed=1073782437".
+1 AXWebArea 四维回响庭院 · W-Slice, URL: 127.0.0.1:4173/?seed=1073782437
+	2 container choice-dialog
+		3 text ◈
+		4 text 第 2 庭完成 · 已带回 29 回响
+		5 heading 下一庭， 换一种解法。, Value: 2, ID: choice-title
+			6 text 下一庭，
+			7 text 换一种解法。
+		8 text 已有遗物全部保留。补齐一种组合，解开下一庭的隐藏路线；也可升阶现有能力。
+		9 container Description: 本局房间路线, ID: choice-route
+			10 text ✓
+			11 text 分源架桥庭
+			12 text 双层封锁
+			13 text ✓
+			14 text 双源汇流庭
+			15 text 追层双涌
+			16 container
+				17 text 03 远端折返庭 单层回流
+		18 text 即将进入 · 远端折返庭
+		19 text 去远端换层完成接力，再折返起点层寻找出口。
+		20 text 已有：留影扣 Ⅰ ＋ 织桥种 Ⅰ
+		21 container relic-choices
+			22 button 选择回流棱镜
+				23 heading 回流棱镜, Value: 3
+					24 text 回流棱镜
+				25 text 新路线首次冒险或花匣避波成功时蓄能；在归响台或维度锚台释放，启动当前层已供能的机关。升阶增加蓄能上限。
+				26 text 获得新能力 · 穿层送能 · 蓄能主动
+				27 text 一次冒险同时蓄脉冲与桥种 → 隔层启动后织路
+			28 button 选择留影扣
+				29 heading 留影扣, Value: 3
+					30 text 留影扣
+				31 text 在已启动的机关花费 1 点随身回响，留下跨层压桥的影子。每庭一次，持续 12 / 18 / 24 秒。
+				32 text 进阶 Ⅰ → Ⅱ · 跨层压板 · 主动留影
+				33 text 借影远程种桥 → 归响台三印 → 影织暗径
+			34 button 选择接力线圈
+				35 heading 接力线圈, Value: 3
+					36 text 接力线圈
+				37 text 下游机关收齐能量后蓄势；站在锚台从另一实体层切入它所在层，自动接力启动。每阶每庭可接力一次。
+				38 text 获得新能力 · 跨层接力 · 换层触发
+				39 text ＋ 回流棱镜：探寻棱镜回廊
+			40 button 选择织桥种
+				41 heading 织桥种, Value: 3
+					42 text 织桥种
+				43 text 新路线冒险或避波成功获得桥种；在已启动机关种出永久捷径。留影扣可让你在归响台或锚台远程种桥。升阶增加桥种容量。
+				44 text 进阶 Ⅰ → Ⅱ · 冒险落种 · 永久开路
+				45 text 借影远程种桥 → 归响台三印 → 影织暗径
+			46 button 选择缓落壳
+				47 heading 缓落壳, Value: 3
+					48 text 缓落壳
+				49 text 每阶每庭保护一次失手，保住随身回响和生命；连击、脉冲和影子仍会失去。
+				50 text 获得新能力 · 失稳保护 · 自动触发
+				51 text 种桥并躲过花匣 → 花匣三印 → 护生险径
+		52 text Ⅰ
+		53 text 观察机关的供能关系
+		54 text Ⅱ
+		55 text 在同一位置穿入另一层
+		56 text Ⅲ
+		57 text 挑战回流，把收益带回来
+		58 text 每局抽取三座不同庭院 · 遗物跨庭保留并升级 · 复制网页地址可重走同一旅程
+
+The focused UI element is 22 button 选择回流棱镜

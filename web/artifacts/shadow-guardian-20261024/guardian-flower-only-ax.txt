@@ -1,0 +1,151 @@
+Browser tab: 2, Title: "四维回响庭院 · W-Slice", URL: "http://127.0.0.1:4173/?seed=1073782437".
+1 AXWebArea 四维回响庭院 · W-Slice, URL: 127.0.0.1:4173/?seed=1073782437
+	2 container
+		3 link Description: 回响庭院首页, Value: 127.0.0.1:4173/
+		4 container 游戏设置
+			5 checkbox Description: 关闭声音, Help: 切换声音, Value: 1, ID: sound
+				6 text 声音开
+			7 button 怎么玩, ID: help
+			8 button 暂停, ID: pause
+			9 button 新一局 ↗, ID: restart
+	10 container
+		11 container 庭院游戏
+			12 text NEW PATHS · THE SAME FOURTH DIMENSION
+			13 heading 远端折返庭, Value: 1, ID: room-name
+				355 text 远端折返庭
+			356 text 03
+			16 text 03
+			17 text 去远端换层完成接力，再折返起点层寻找出口。
+			18 container
+				19 image Description: 可点击落脚点的庭院场景；也可使用下方目的地按钮, ID: scene
+				273 text Ⅰ
+				274 text 潮汐层
+				275 text 位置 3, -0.3, 4 · W 0.18
+				330 text 裂隙花匣 · 潮汐层
+			24 container 移动与切片控制
+				331 text 连锁已长出潮汐层的花匣—锚台桥；换层走新路，或沿原桥回归响台
+				303 container seal-prompt
+					304 text ✧ 护生险径
+					305 text Ⅰ
+					306 text Ⅲ
+					307 text Ⅱ
+					308 text 本庭已种桥，并成功躲过花匣回波
+				32 container 切换四维切片
+					33 checkbox Ⅰ 潮汐层 Z, Help: 潮汐层, Value: 1, ID: layer-0
+						34 text Ⅰ
+						35 text 潮汐层
+						36 text Z
+					37 checkbox Ⅱ 回声层 X, Help: 回声层, Value: 0, ID: layer-1
+						38 text Ⅱ
+						39 text 回声层
+						40 text X
+					41 checkbox Ⅲ 绽放层 C, Help: 绽放层, Value: 0, ID: layer-2
+						42 text Ⅲ
+						43 text 绽放层
+						44 text C
+				263 text 裂隙花匣 · 跨层支撑
+				46 text 拖动 W 可观察连续截面 下一步
+				332 container destinations
+					333 checkbox Description: 前往归响台, Help: 回声层 · 实体桥, Value: 0
+						334 text 1
+						335 text 归响台
+						336 text Ⅱ
+					337 checkbox Description: 前往维度锚台, Help: 潮汐层 · 花径, Value: 1
+						338 text 2
+						339 text 维度锚台
+						340 text Ⅰ 花径
+				51 container
+					52 text W 调节空间切片
+				357 text 0.180
+				54 button 对齐切片 ↗, ID: align
+				55 container slider-wrap
+					56 slider (settable, float) W 调节空间切片, Value: 0.18000000715255737, Details: 0.18, ID: w-slider
+					57 text 0.0 0.25 0.5 0.75 1.0
+				342 text 这段路径已显现 · W 0.07 — 0.29
+				59 text ← → / A D 微调
+				60 container 穿越方式
+					61 checkbox 稳行 首次 +1, Value: 1, ID: safe-mode
+					62 checkbox 冒险 首次 +3, Value: 0, ID: risk-mode
+				63 button 穿越 Space ↗, ID: move
+					270 text 穿越
+					343 text Space ↗
+				66 button (disabled) 花匣本庭已结束 E, ID: interact
+					315 text 花匣本庭已结束
+					316 text E
+		69 container 本局进度
+			70 text YOUR JOURNEY
+			71 text #40009EA5
+			72 heading 新的路， 从另一层展开。, Value: 2
+				73 text 新的路，
+				74 text 从另一层展开。
+			75 container Description: 本局随机庭院, ID: room-itinerary
+				76 text ✓
+				77 text 分源架桥庭
+				78 text 双层封锁
+				79 text ✓
+				80 text 双源汇流庭
+				81 text 追层双涌
+				82 container
+					83 text 03 远端折返庭 单层回流
+			84 text 已存入  ◆
+			358 text 29
+			86 text 失手也会保留 随身回响  ◇
+			359 text 11
+			88 text 回中央岛存入 回程结
+			89 container Description: 剩余 3 次, ID: lives
+			90 text 冒险连响
+			91 container Description: 1 层, ID: combo
+			92 text 跨层接力
+			360 text 2 / 3
+			94 container mechanisms
+				95 container 向远端回声台发送能量，同时锁定桥梁
+					96 text 启程泵
+					361 text 已启动
+				98 container 向反照花发送能量，同时锁定桥梁
+					99 text 远端回声台
+					362 text ●
+					363 text 已启动
+				102 container 完成这一环，三机关全部启动后开门
+					103 text 反照花
+					364 text ●
+					365 text 已供能
+			106 text 单层回流
+			107 text +4
+			108 text 一波回流锁定开匣层，切到任意另一实体层。
+			109 container Description: 庭院连锁：花径已长成, ID: resonance-panel
+				352 text 花径已长成
+				353 text 潮汐层 · 花匣 ↔ 维度锚台
+			112 container
+				113 text 本局构筑 · 跨庭保留
+				114 text 3 件
+				115 container build-list
+					116 text 留影扣
+					117 text Ⅰ
+					240 text 需已启动的机关与 1 点回响 · 持续 12 秒
+					119 text 织桥种
+					120 text Ⅰ
+					327 text 桥种 1/1 · 在已启动机关种桥；有机关影子时可在归响台或锚台远程种桥
+					122 text 缓落壳
+					123 text Ⅰ
+					124 text 本庭剩余 1 次保护
+				125 container ability-list
+					126 button (disabled) 留下压桥影子 Q, ID: ability-shadow
+						127 text 留下压桥影子
+						128 text Q
+					129 button (disabled) 种出永久捷径 Q, ID: ability-weave
+						130 text 种出永久捷径
+						131 text Q
+				132 container synergy-list
+					133 text 借影远程种桥 → 归响台三印 → 影织暗径 种桥并躲过花匣 → 花匣三印 → 护生险径
+			134 button (collapsed) ✧ 隐藏路线 0 / 3 ⌄, Secondary Actions: Expand
+				135 text ✧ 隐藏路线
+				136 text 0 / 3
+				298 text ⌄
+			138 text 最佳带回
+			139 container best-score
+				140 text 39  回响
+	141 container
+		142 text 随机庭院 · 隐藏构筑 · 四维连锁 W–SLICE  WEB / 05
+	354 text 庭院回应了冒险：潮汐层长出花匣—锚台花径。
+
+The focused UI element is 33 checkbox Ⅰ 潮汐层 Z, Help: 潮汐层, Value: 1, ID: layer-0

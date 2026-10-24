@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#eaece3">
+  <title>平面国 · W-Slice 入门</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%232d665b' d='M20 2 38 12 20 22 2 12zm-18 16 18 10 18-10v8L20 38 2 26z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="flatland.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="返回回响庭院"><span class="brand-icon">◈</span><span>W–SLICE<span class="brand-sub">入门 · 平面国</span></span></a>
+    <nav aria-label="游戏设置">
+      <button id="sound" class="icon-button" aria-pressed="true"><span aria-hidden="true">♫</span><span id="sound-label">声音开</span></button>
+      <button id="restart" class="icon-button">重来本关</button>
+      <a class="icon-button" href="./">去庭院 ↗</a>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <div class="heading">
+      <div><p class="eyebrow">CHAPTER 0 · FLATLAND</p><h1 id="title">平面国</h1></div>
+      <ol id="levels" class="levels" aria-label="关卡"></ol>
+    </div>
+    <p id="intro" class="intro"></p>
+    <div id="play-layout" class="play-layout">
+    <div class="play-area">
+    <div class="scene-wrap">
+      <canvas id="scene" role="img" aria-label="平面世界与侧视图"></canvas>
+      <div id="hint" class="hint" hidden aria-live="polite"></div>
+    </div>
+
+    <section class="controls" aria-label="切片控制">
+      <div class="slice-row">
+        <button id="s-down" class="hold-button" aria-label="降低 S">▼ <kbd>Q</kbd></button>
+        <label for="s-slider" class="s-label"><b id="slice-axis">S</b> <span id="slice-description">你所在的高度</span></label>
+        <input id="s-slider" type="range" min="0" max="6" step="0.005" value="0">
+        <output id="s-value" for="s-slider">0.00</output>
+        <button id="s-up" class="hold-button" aria-label="升高 S">▲ <kbd>E</kbd></button>
+      </div>
+      <div class="meta-row"><span id="move-hint">WASD / 方向键移动，或在画面里按住拖动</span><span id="timer">0.0 秒</span></div>
+      <div id="dimension-presets" class="dimension-presets" hidden role="group" aria-label="教学 W 切片"><button data-dimension-w="0.18">W 0.18 · 房间与出口</button><button data-dimension-w="0.82">W 0.82 · 另一片空间</button></div>
+      <section id="vault-controls" class="vault-controls" hidden aria-label="保险箱行动">
+        <button id="peek" class="hold-button" aria-pressed="false" aria-describedby="peek-help">按住透视 <kbd>Space</kbd></button>
+        <div><p id="peek-help">按住 Space 或此按钮，查看当前高度下方的虚影；松开恢复当前切片。</p>
+          <p id="vault-status" role="status" aria-live="polite"></p></div>
+        <p id="return-notice" class="return-notice" hidden role="status" aria-live="polite"></p>
+      </section>
+      <div class="observation-actions">
+        <p id="observation-status" hidden></p>
+        <button id="finish-observation" class="primary-button" hidden>完成观察，回答问题 ↗</button>
+      </div>
+      <ul id="stars" class="stars" aria-label="星级条件"></ul>
+    </section>
+    </div>
+      <section id="lesson-panel" class="lesson-panel" hidden aria-labelledby="round-heading">
+        <div class="round-heading"><div><p class="eyebrow" id="round-heading"></p><h2 id="round-prompt"></h2></div><div id="known-shape" class="known-shape" hidden></div></div>
+        <p id="round-instruction" class="round-instruction" aria-live="polite"></p>
+        <ol id="sample-strip" class="sample-strip" aria-label="观察记录"></ol>
+        <div id="round-options" class="round-options" role="group" aria-label="选择你的判断"></div>
+        <p id="round-feedback" class="round-feedback" hidden aria-live="polite"></p>
+        <button id="round-next" class="primary-button" hidden>下一轮 ↗</button>
+      </section>
+      <section id="mirror-panel" class="mirror-panel" hidden aria-labelledby="mirror-heading">
+        <p class="eyebrow">一次离开平面的翻转</p><h2 id="mirror-heading">钥匙与镜之锁</h2>
+        <div id="key-comparison" class="key-comparison" aria-label="钥匙和锁孔对比"><div id="key-card"></div><div id="lock-card"></div></div>
+        <p id="mirror-help" class="mirror-help">本关固定在 S=3。按 R 在平面内转 90°；带钥匙站上翻转台，再按 F。</p>
+        <div id="mirror-actions" class="mirror-actions"><button id="rotate-key" class="secondary-button">平面旋转 <kbd>R</kbd></button><button id="flip-key" class="primary-button">翻转台 <kbd>F</kbd></button></div>
+        <p id="mirror-status" class="mirror-status" role="status" aria-live="polite"></p>
+        <div id="flip-meter" class="flip-meter" hidden><label for="flip-progress">翻转角度 <span id="flip-angle"></span></label><progress id="flip-progress" max="180" value="0" aria-label="翻转角度"></progress></div>
+        <div id="flip-prediction" hidden>
+          <div id="flip-question"><h3>先预测，再翻转</h3><p>绕水平的 X 轴翻过半圈，回到平面时会是哪张图？选一张后开始翻转。</p></div>
+          <div id="flip-options" class="flip-options" role="group" aria-label="翻转后的钥匙预测"></div>
+          <p id="flip-feedback" class="flip-feedback" aria-live="polite"></p>
+        </div>
+      </section>
+      <section id="ascend-panel" class="ascend-panel" hidden aria-labelledby="dimension-heading">
+        <p class="eyebrow">把同一个发现，升高一维</p><h2 id="dimension-heading">再走出一次房间</h2>
+        <p id="dimension-story" aria-live="polite"></p>
+        <div id="dimension-meter" hidden><label for="dimension-progress">从平面到空间</label><progress id="dimension-progress" max="100" value="0"></progress></div>
+        <div class="dimension-map"><span>XY 平面 ＋ Z 高度</span><b>↓</b><span>XYZ 空间 ＋ W 切片</span></div>
+        <p id="dimension-position" class="dimension-position"></p><p id="dimension-status" role="status" aria-live="polite"></p>
+        <ol class="dimension-steps"><li id="dimension-flat-step">调 S，走出二维房间</li><li id="dimension-volume-step">换 W，走出三维房间</li><li>进入正式庭院，选择起手遗物</li></ol>
+      </section>
+    </div>
+  </main>
+  <div class="sr-only" id="announcement" role="status" aria-live="polite"></div>
+
+  <dialog id="intro-dialog" class="dialog">
+    <p class="eyebrow" id="intro-kicker">LEVEL 1</p><h2 id="intro-title"></h2><p id="intro-text"></p>
+    <ul id="intro-stars" class="stars compact"></ul>
+    <button id="start" class="primary-button">开始 ↗</button>
+  </dialog>
+  <dialog id="quiz-dialog" class="dialog">
+    <p class="eyebrow">QUICK QUESTION</p><h2 id="quiz-prompt"></h2>
+    <div id="quiz-options" class="quiz-options"></div>
+  </dialog>
+  <dialog id="result-dialog" class="dialog">
+    <div id="result-stars" class="result-stars" aria-hidden="true"></div>
+    <p class="eyebrow">你发现了</p><h2 id="result-title"></h2>
+    <p id="result-concept"></p><p id="result-quiz" class="result-quiz" hidden></p>
+    <ul id="result-list" class="stars compact"></ul>
+    <p id="result-stats" class="result-stats"></p>
+    <div class="dialog-actions"><button id="retry" class="secondary-button">再试一次</button><button id="next" class="primary-button">下一关 ↗</button><a id="enter-courtyard" class="primary-button" href="./?from=flatland" hidden>进入正式庭院 ↗</a></div>
+  </dialog>
+  <script type="module" src="src/flatland/main.js"></script>
+</body>
+</html>

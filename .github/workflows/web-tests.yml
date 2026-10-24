@@ -1,0 +1,33 @@
+name: Web games tests
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node-tests:
+    name: Flatland, courtyard and geometry lab
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check browser module syntax
+        run: |
+          for file in web/src/*.js web/src/flatland/*.js web/geometry-lab/*.mjs web/serve.js; do
+            node --check "$file"
+          done
+      - name: Test all browser games
+        run: node --test web/tests/*.test.js web/geometry-lab/tests/*.test.mjs
