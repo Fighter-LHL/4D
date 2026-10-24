@@ -1,0 +1,79 @@
+Browser tab: 1, Title: "平面国 · W-Slice 入门", URL: "http://127.0.0.1:4180/flatland.html?level=ascend".
+1 AXWebArea 平面国 · W-Slice 入门, URL: 127.0.0.1:4180/flatland.html?level=ascend
+	2 container
+		3 link Description: 返回回响庭院, Value: 127.0.0.1:4180/
+		4 container 游戏设置
+			5 checkbox 声音开, Value: 1, ID: sound
+				6 text 声音开
+			7 button 重来本关, ID: restart
+			8 link Description: 去庭院 ↗, Value: 127.0.0.1:4180/
+	9 container
+		10 text CHAPTER 0 · FLATLAND
+		11 heading 升维, Value: 1, ID: title
+			12 text 升维
+		13 content list Description: 关卡, ID: levels
+			14 button 1 · 访客 ★★★
+				15 text 1 · 访客
+				16 text ★★★
+			17 button 2 · 猜猜是谁 ★★★
+				18 text 2 · 猜猜是谁
+				19 text ★★★
+			20 button 3 · 跳出房间 ★★★
+				21 text 3 · 跳出房间
+				22 text ★★★
+			23 button 4 · 保险箱与守卫 ★★★
+				24 text 4 · 保险箱与守卫
+				25 text ★★★
+			26 button 5 · 镜之锁 ★★★
+				27 text 5 · 镜之锁
+				28 text ★★★
+			29 button 6 · 升维 ★★★
+				30 text 6 · 升维
+				31 text ★★★
+		32 text 先复习一次：换 S 走出平面房间，碰到门外的旗。然后，把同样的办法带进三维房间。
+		33 container play-layout
+			34 image Description: 平面世界与侧视图, ID: scene
+			35 container 切片控制
+				36 button (disabled) Description: 降低 S, ID: s-down
+					37 text ▼  Q
+				39 container
+					40 text S
+					41 text 你所在的高度
+				42 slider (disabled, settable, integer) S 你所在的高度, Value: 1, ID: s-slider
+				76 text 1.00
+				44 button (disabled) Description: 升高 S, ID: s-up
+					45 text ▲  E
+				91 text 14.0 秒
+				49 content list Description: 星级条件, ID: stars
+					78 container
+						79 text ☆ 完成平面与立体两次逃离
+					80 container
+						81 text ☆ 合计换切片不超过 4 次 2 / 4
+					82 container
+						83 text ☆ 没有被实体挡住
+			56 container 从平面国，升高一维, ID: ascend-panel
+				57 text 把同一个发现，升高一维
+				58 heading 从平面国，升高一维, Value: 2, ID: dimension-heading
+					84 text 从平面国，升高一维
+				85 text 你刚才对平面生物做的事，四维生物也能对你做。Z 高度变成 W 切片，二维平面变成三维空间。
+				86 container dimension-meter
+					87 text 从平面到空间
+					88 progress indicator 从平面到空间, Value: 41, ID: dimension-progress
+				61 text XY 平面 ＋ Z 高度
+				62 text ↓
+				63 text XYZ 空间 ＋ W 切片
+				64 text S 是平面在 Z 方向的高度
+				89 text 正在升维，稍后恢复移动。
+				66 content list
+					67 container dimension-flat-step
+						68 AXListMarker 1. 
+						69 text 调 S，走出二维房间
+					70 container dimension-volume-step
+						71 AXListMarker 2. 
+						72 text 换 W，走出三维房间
+					73 container
+						74 AXListMarker 3. 
+						75 text 进入正式庭院，选择起手遗物
+	90 text 平面房间已完成，正在升维。
+
+The focused UI element is 1 AXWebArea 平面国 · W-Slice 入门, URL: 127.0.0.1:4180/flatland.html?level=ascend

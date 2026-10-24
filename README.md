@@ -37,6 +37,12 @@ node --test web/geometry-lab/tests/*.test.mjs
 
 ---
 
+## 平面国六关与回响庭院
+
+独立的 Canvas 2D 教学章位于 [`web/flatland.html`](web/flatland.html)：访客、猜猜是谁、跳出房间、保险箱与守卫、镜之锁、升维。完成后可进入同目录下的三庭回响庭院。运行 `npm start --prefix web`，访问 `http://127.0.0.1:4173/flatland.html`；运行 `npm test --prefix web` 可验证六关与庭院规则。
+
+玩法、源码结构及历史验证范围见 [`web/README.md`](web/README.md)，六关的测试和浏览器记录保存在 [`web/artifacts/`](web/artifacts/)。几何实验室继续使用上面的独立入口与预览脚本。
+
 ## 历史存档：Unity 原型（v0.4.0 回响庭院）
 
 **历史阶段：** v0.4.0 本机独立应用验收通过。`190dd462` 通过 Unity 7 项校验、EditMode 130/130、PlayMode 74/74（含庭院 10/10）及 macOS 构建；同一应用完成三个启动尺寸目标的代理 GUI 回归，庭院共通关 4 次、旧五关各至少 2 次。五名陌生玩家试玩仍为 **0/5，未执行**。证据、尺寸口径和本机应用路径见[本轮运行记录](docs/releases/v0.4-courtyard-runtime.md)。

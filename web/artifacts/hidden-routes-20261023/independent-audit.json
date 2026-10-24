@@ -1,0 +1,186 @@
+{
+  "baselineRooms": 300,
+  "originalSeedLayouts": 300,
+  "endpointChecks": 2400,
+  "cases": [
+    {
+      "template": "cascade",
+      "recipe": "prism-coil",
+      "sequence": [
+        0,
+        1,
+        2
+      ],
+      "reward": 9,
+      "baselineGateRetained": true,
+      "hiddenRoundTripRepeatReward": 0
+    },
+    {
+      "template": "cascade",
+      "recipe": "shadow-weave",
+      "sequence": [
+        1,
+        2,
+        0
+      ],
+      "reward": 9,
+      "baselineGateRetained": true,
+      "hiddenRoundTripRepeatReward": 0
+    },
+    {
+      "template": "cascade",
+      "recipe": "shell-weave",
+      "sequence": [
+        2,
+        0,
+        1
+      ],
+      "reward": 9,
+      "baselineGateRetained": true,
+      "hiddenRoundTripRepeatReward": 0
+    },
+    {
+      "template": "confluence",
+      "recipe": "prism-coil",
+      "sequence": [
+        2,
+        0,
+        1
+      ],
+      "reward": 9,
+      "baselineGateRetained": true,
+      "hiddenRoundTripRepeatReward": 0
+    },
+    {
+      "template": "confluence",
+      "recipe": "shadow-weave",
+      "sequence": [
+        0,
+        1,
+        2
+      ],
+      "reward": 9,
+      "baselineGateRetained": true,
+      "hiddenRoundTripRepeatReward": 0
+    },
+    {
+      "template": "confluence",
+      "recipe": "shell-weave",
+      "sequence": [
+        1,
+        2,
+        0
+      ],
+      "reward": 9,
+      "baselineGateRetained": true,
+      "hiddenRoundTripRepeatReward": 0
+    },
+    {
+      "template": "return",
+      "recipe": "prism-coil",
+      "sequence": [
+        1,
+        2,
+        0
+      ],
+      "reward": 9,
+      "baselineGateRetained": true,
+      "hiddenRoundTripRepeatReward": 0
+    },
+    {
+      "template": "return",
+      "recipe": "shadow-weave",
+      "sequence": [
+        2,
+        0,
+        1
+      ],
+      "reward": 9,
+      "baselineGateRetained": true,
+      "hiddenRoundTripRepeatReward": 0
+    },
+    {
+      "template": "return",
+      "recipe": "shell-weave",
+      "sequence": [
+        0,
+        1,
+        2
+      ],
+      "reward": 9,
+      "baselineGateRetained": true,
+      "hiddenRoundTripRepeatReward": 0
+    },
+    {
+      "template": "split",
+      "recipe": "prism-coil",
+      "sequence": [
+        1,
+        0,
+        2
+      ],
+      "reward": 9,
+      "baselineGateRetained": true,
+      "hiddenRoundTripRepeatReward": 0
+    },
+    {
+      "template": "split",
+      "recipe": "shadow-weave",
+      "sequence": [
+        0,
+        2,
+        1
+      ],
+      "reward": 9,
+      "baselineGateRetained": true,
+      "hiddenRoundTripRepeatReward": 0
+    },
+    {
+      "template": "split",
+      "recipe": "shell-weave",
+      "sequence": [
+        2,
+        1,
+        0
+      ],
+      "reward": 9,
+      "baselineGateRetained": true,
+      "hiddenRoundTripRepeatReward": 0
+    }
+  ],
+  "edgeCases": [
+    {
+      "case": "leave-safe",
+      "failureCount": 1,
+      "returnedAndCompleted": true
+    },
+    {
+      "case": "gap-after-entry",
+      "failureCount": 1,
+      "returnedAndCompleted": true
+    },
+    {
+      "case": "same-layer-gap-bounce",
+      "failureCount": 1,
+      "returnedAndCompleted": true
+    },
+    {
+      "case": "second-wave",
+      "failureCount": 1,
+      "returnedAndCompleted": true
+    },
+    {
+      "case": "shell-does-not-refund-stake",
+      "postStakePreserved": true
+    },
+    {
+      "case": "retained-seals-still-require-fresh-entries",
+      "travelAndFailureReplay": false
+    },
+    {
+      "case": "earned-entry-can-recover-to-safe-before-deadline",
+      "nextStep": 2
+    }
+  ],
+  "simulationTicks": 467846
+}

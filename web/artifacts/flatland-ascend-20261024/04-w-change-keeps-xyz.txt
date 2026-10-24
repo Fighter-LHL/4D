@@ -1,0 +1,84 @@
+Browser tab: 1, Title: "平面国 · W-Slice 入门", URL: "http://127.0.0.1:4180/flatland.html?level=mirror".
+1 AXWebArea 平面国 · W-Slice 入门, URL: 127.0.0.1:4180/flatland.html?level=mirror
+	2 container
+		3 link Description: 返回回响庭院, Value: 127.0.0.1:4180/
+		4 container 游戏设置
+			5 checkbox 声音开, Value: 1, ID: sound
+				6 text 声音开
+			7 button 重来本关, ID: restart
+			8 link Description: 去庭院 ↗, Value: 127.0.0.1:4180/
+	9 container
+		10 text CHAPTER 0 · FLATLAND
+		11 heading 升维, Value: 1, ID: title
+			12 text 升维
+		13 content list Description: 关卡, ID: levels
+			14 button 1 · 访客 ★★★
+				15 text 1 · 访客
+				16 text ★★★
+			17 button 2 · 猜猜是谁 ★★★
+				18 text 2 · 猜猜是谁
+				19 text ★★★
+			20 button 3 · 跳出房间 ★★★
+				21 text 3 · 跳出房间
+				22 text ★★★
+			23 button 4 · 保险箱与守卫 ★★★
+				24 text 4 · 保险箱与守卫
+				25 text ★★★
+			26 button 5 · 镜之锁 ★★★
+				27 text 5 · 镜之锁
+				28 text ★★★
+			29 button 6 · 升维 ☆☆☆
+				30 text 6 · 升维
+				31 text ☆☆☆
+		113 text 现在你在 XYZ 空间里。换 W 找到通往门外的路，再回到出口所在的切片。
+		33 container play-layout
+			85 container
+				86 image Description: 三维房间的 W 截面：地板、四面墙、屋顶和出口, ID: scene
+				87 text 墙只存在于 W≤0.58。换到 W=0.82，走到房间外。
+			35 container 切片控制
+				36 button Description: 减小 W, ID: s-down
+					37 text ▼ 
+					88 text Q
+				39 container
+					89 text W
+					90 text 空间切片
+				42 slider (settable, float) W 空间切片, Value: 0.8199999928474426, Details: 0.82, ID: s-slider
+				104 text 0.82
+				44 button Description: 增大 W, ID: s-up
+					45 text ▲ 
+					92 text E
+				93 text WASD / 方向键移动，或在画面里按住拖动
+				114 text 76.8 秒
+				95 container Description: 教学 W 切片, ID: dimension-presets
+					96 checkbox W 0.18 · 房间与出口, Value: 0
+					97 checkbox W 0.82 · 另一片空间, Value: 1
+				49 content list Description: 星级条件, ID: stars
+					106 container
+						107 text ☆ 完成平面与立体两次逃离
+					108 container
+						109 text ☆ 合计换切片不超过 4 次 3 / 4
+					110 container
+						111 text ☆ 没有被实体挡住
+			56 container 这次，走出三维房间, ID: ascend-panel
+				57 text 把同一个发现，升高一维
+				58 heading 这次，走出三维房间, Value: 2, ID: dimension-heading
+					98 text 这次，走出三维房间
+				99 text 墙和屋顶只在部分 W 中存在。改变 W 不改变你的 XYZ；你正绕过三维空间中的封闭房间。
+				61 text XY 平面 ＋ Z 高度
+				62 text ↓
+				63 text XYZ 空间 ＋ W 切片
+				112 text X 10.00 · Y 0.40 · Z 6.00 ｜ W 0.82
+				101 text 试试另一片 W：墙和屋顶还在吗？WASD 沿地板移动。
+				66 content list
+					67 container dimension-flat-step
+						68 AXListMarker 1. 
+						69 text 调 S，走出二维房间
+					70 container dimension-volume-step
+						71 AXListMarker 2. 
+						72 text 换 W，走出三维房间
+					73 container
+						74 AXListMarker 3. 
+						75 text 进入正式庭院，选择起手遗物
+	102 text 墙只存在于 W≤0.58。换到 W=0.82，走到房间外。
+
+The focused UI element is 97 checkbox W 0.82 · 另一片空间, Value: 1

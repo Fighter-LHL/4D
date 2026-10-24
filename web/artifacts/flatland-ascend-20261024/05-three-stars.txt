@@ -1,0 +1,19 @@
+Browser tab: 1, Title: "平面国 · W-Slice 入门", URL: "http://127.0.0.1:4180/flatland.html?level=mirror".
+1 AXWebArea 平面国 · W-Slice 入门, URL: 127.0.0.1:4180/flatland.html?level=mirror
+	2 container result-dialog
+		3 text 你发现了
+		4 heading 升维, Value: 2, ID: result-title
+			5 text 升维
+		6 text 你刚才对平面生物做的事，四维生物也能对你做。换 W 时，你的 XYZ 位置没有改变；改变的是四维物体与当前空间相交的三维截面。
+		7 content list result-list
+			8 container
+				9 text ★ 完成平面与立体两次逃离
+			10 container
+				11 text ★ 合计换切片不超过 4 次
+			12 container
+				13 text ★ 没有被实体挡住
+		14 text 两次出房间均已完成 · 用时 88.0 秒 · 切片改变 4 次 · 被挡住 0 次。接下来选择起手遗物，进入正式庭院。
+		15 button 再试一次, ID: retry
+		16 link Description: 进入正式庭院 ↗, Value: 127.0.0.1:4180/?from=flatland, ID: enter-courtyard
+
+The focused UI element is 15 button 再试一次, ID: retry

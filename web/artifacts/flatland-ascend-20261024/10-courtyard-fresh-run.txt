@@ -1,0 +1,128 @@
+Browser tab: 1, Title: "四维回响庭院 · W-Slice", URL: "http://127.0.0.1:4180/?from=flatland&seed=457664250".
+1 AXWebArea 四维回响庭院 · W-Slice, URL: 127.0.0.1:4180/?from=flatland&seed=457664250
+	2 container
+		3 link Description: 回响庭院首页, Value: 127.0.0.1:4180/
+		4 container 游戏设置
+			5 checkbox Description: 关闭声音, Help: 切换声音, Value: 1, ID: sound
+				6 text 声音开
+			7 link Description: 入门：平面国, Value: 127.0.0.1:4180/flatland.html
+			8 button 怎么玩, ID: help
+			9 button 暂停, ID: pause
+			10 button 新一局 ↗, ID: restart
+	11 container
+		12 container 庭院游戏
+			13 container chapter-arrival
+				14 text 平面国已完成 · 正式章节
+				15 text 继续用 W 看不同截面；点选落脚点后 Space 穿越，E 启动机关。这里的移动方式与教学关不同。
+			16 text NEW PATHS · THE SAME FOURTH DIMENSION
+			17 heading 远端折返庭, Value: 1, ID: room-name
+				126 text 远端折返庭
+			127 text 01
+			20 text 03
+			21 text 去远端换层完成接力，再折返起点层寻找出口。
+			22 container
+				23 image Description: 可点击落脚点的庭院场景；也可使用下方目的地按钮, ID: scene
+				24 text Ⅰ
+				25 text 潮汐层
+				26 text 位置 0, 0, 2 · W 0.18
+				27 text 归响台 · 潮汐层
+			28 container 移动与切片控制
+				29 text 沿潮汐层的桥前往启程泵
+				30 container 切换四维切片
+					31 checkbox Ⅰ 潮汐层 Z, Help: 潮汐层, Value: 1, ID: layer-0
+						32 text Ⅰ
+						33 text 潮汐层
+						34 text Z
+					35 checkbox Ⅱ 回声层 X, Help: 回声层, Value: 0, ID: layer-1
+						36 text Ⅱ
+						37 text 回声层
+						38 text X
+					39 checkbox Ⅲ 绽放层 C, Help: 绽放层, Value: 0, ID: layer-2
+						40 text Ⅲ
+						41 text 绽放层
+						42 text C
+				43 text 归响台 · 跨层支撑
+				44 text 拖动 W 可观察连续截面 下一步
+				45 checkbox Description: 前往启程泵, Help: 潮汐层 · 实体桥, Value: 1
+					46 text 1
+					47 text 启程泵
+					48 text Ⅰ
+				49 container
+					50 text W 调节空间切片
+				128 text 0.180
+				52 button 对齐切片 ↗, ID: align
+				53 container slider-wrap
+					54 slider (settable, float) W 调节空间切片, Value: 0.18000000715255737, Details: 0.18, ID: w-slider
+					55 text 0.0 0.25 0.5 0.75 1.0
+				56 text 这段路径已显现 · W 0.08 — 0.28
+				57 text ← → / A D 微调
+				58 container 穿越方式
+					59 checkbox 稳行 首次 +1, Value: 1, ID: safe-mode
+					60 checkbox 冒险 首次 +3, Value: 0, ID: risk-mode
+				61 button 穿越 Space ↗, ID: move
+					62 text 穿越
+					63 text Space ↗
+				64 button (disabled) 存入随身回响 E, ID: interact
+					65 text 存入随身回响
+					66 text E
+		67 container 本局进度
+			68 text YOUR JOURNEY
+			69 text #1B4766FA
+			70 heading 新的路， 从另一层展开。, Value: 2
+				71 text 新的路，
+				72 text 从另一层展开。
+			73 container Description: 本局随机庭院, ID: room-itinerary
+				74 container
+					75 text 01 远端折返庭 单层回流
+				76 text 02
+				77 text 分源架桥庭
+				78 text 双层封锁
+				79 text 03
+				80 text 双源汇流庭
+				81 text 追层双涌
+			82 text 已存入  ◆
+			129 text 0
+			84 text 失手也会保留 随身回响  ◇
+			130 text 0
+			86 text 回中央岛存入 回程结
+			87 container Description: 剩余 3 次, ID: lives
+			88 text 冒险连响
+			89 container Description: 0 层, ID: combo
+			90 text 跨层接力
+			131 text 0 / 3
+			92 container mechanisms
+				93 container 向远端回声台发送能量，同时锁定桥梁
+					94 text 启程泵
+					132 text 起点
+				96 container 需要启程泵供能（0/1）
+					97 text 远端回声台
+					133 text ○
+					134 text 供能 0/1
+				100 container 需要远端回声台供能（0/1）
+					101 text 反照花
+					135 text ○
+					136 text 供能 0/1
+			104 text 单层回流
+			105 text +4
+			106 text 一波回流锁定开匣层，切到任意另一实体层。
+			107 container Description: 庭院连锁：等待首次冒险成功, ID: resonance-panel
+				108 text 冒险，让庭院生长
+				109 text 首次冒险成功，长出花匣与锚台之间的新桥
+			110 container
+				111 text 本局构筑 · 跨庭保留
+				112 text 1 件
+				113 container build-list
+					114 text 缓落壳
+					115 text Ⅰ
+					116 text 本庭剩余 1 次保护
+			117 button (collapsed) ✧ 隐藏路线 0 / 3 ⌄, Secondary Actions: Expand
+				118 text ✧ 隐藏路线
+				119 text 0 / 3
+				120 text ⌄
+			121 text 最佳带回
+			122 container best-score
+				123 text 0  回响
+	124 container
+		125 text 随机庭院 · 隐藏构筑 · 四维连锁 W–SLICE  WEB / 05
+
+The focused UI element is 61 button 穿越 Space ↗, ID: move

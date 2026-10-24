@@ -1,0 +1,18 @@
+Browser tab: 1, Title: "平面国 · W-Slice 入门", URL: "http://127.0.0.1:4180/flatland.html?level=vault".
+1 AXWebArea 平面国 · W-Slice 入门, URL: 127.0.0.1:4180/flatland.html?level=vault
+	2 container result-dialog
+		3 text 你发现了
+		4 heading 保险箱与守卫, Value: 2, ID: result-title
+			5 text 保险箱与守卫
+		6 text 盒墙只封住了平面。升到墙上方，你能俯视盒内，再从高处降到钥匙旁；低处的守卫看不到高处的你。
+		7 content list result-list
+			8 container
+				9 text ★ 拿到钥匙并打开出口
+			10 container
+				11 text ☆ 没有被守卫发现
+			12 container
+				13 text ★ 透视不超过 2 次
+		14 text 用时 36.7 秒 · 换高度 8 次 · 被卡住 0 次 · 提示 0 次 · 透视 1 次 · 被发现 1 次
+		15 button 再试一次, ID: retry
+
+The focused UI element is 15 button 再试一次, ID: retry

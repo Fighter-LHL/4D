@@ -1,0 +1,58 @@
+Browser tab: 1, Title: "平面国 · W-Slice 入门", URL: "http://127.0.0.1:4180/flatland.html?level=vault".
+1 AXWebArea 平面国 · W-Slice 入门, URL: 127.0.0.1:4180/flatland.html?level=vault
+	2 container
+		3 link Description: 返回回响庭院, Value: 127.0.0.1:4180/
+		4 container 游戏设置
+			5 checkbox 声音开, Value: 1, ID: sound
+				6 text 声音开
+			7 button 重来本关, ID: restart
+			8 link Description: 去庭院 ↗, Value: 127.0.0.1:4180/
+	9 container
+		10 text CHAPTER 0 · FLATLAND
+		11 heading 保险箱与守卫, Value: 1, ID: title
+			12 text 保险箱与守卫
+		13 content list Description: 关卡, ID: levels
+			14 button 1 · 访客 ★★★
+				15 text 1 · 访客
+				16 text ★★★
+			17 button 2 · 猜猜是谁 ★★★
+				18 text 2 · 猜猜是谁
+				19 text ★★★
+			20 button 3 · 跳出房间 ★★★
+				21 text 3 · 跳出房间
+				22 text ★★★
+			23 button 4 · 保险箱与守卫 ★★★
+				24 text 4 · 保险箱与守卫
+				25 text ★★★
+			26 button (disabled) 5 · 镜之锁, Help: 即将开放
+			27 button (disabled) 6 · 升维, Help: 即将开放
+		28 text 拿到盒内的钥匙，打开右侧出口。按住 Space 俯视透视，查看你所在高度下方的世界。
+		29 container play-layout
+			30 image Description: 平面世界与侧视图, ID: scene
+			31 container 切片控制
+				32 button Description: 降低 S, ID: s-down
+					33 text ▼ 
+					34 text Q
+				35 container
+					36 text S  你所在的高度
+				37 slider (settable, float) S 你所在的高度, Value: 1.2000000476837158, Details: 1.2, ID: s-slider
+				55 text 1.20
+				39 button Description: 升高 S, ID: s-up
+					40 text ▲ 
+					41 text E
+				42 text WASD / 方向键移动，或在画面里按住拖动
+				59 text 2.6 秒
+				44 container Description: 保险箱行动, ID: vault-controls
+					45 checkbox 按住透视 Space, Value: 0, ID: peek
+					46 text 按住 Space 或此按钮，查看当前高度下方的虚影；松开恢复当前切片。
+					57 text 钥匙已拿到。先升高离开盒子，带到右侧出口，再降到门所在的高度。
+				48 content list Description: 星级条件, ID: stars
+					49 container
+						50 text ☆ 拿到钥匙并打开出口
+					51 container
+						52 text ☆ 没有被守卫发现 被发现 0 次
+					53 container
+						54 text ☆ 透视不超过 2 次 0 / 2
+	58 text 拿到钥匙了。
+
+The focused UI element is 37 slider (settable, float) S 你所在的高度, Value: 1.2000000476837158, Details: 1.2, ID: s-slider
