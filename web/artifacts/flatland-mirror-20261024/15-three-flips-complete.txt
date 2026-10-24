@@ -1,0 +1,18 @@
+Browser tab: 1, Title: "平面国 · W-Slice 入门", URL: "http://127.0.0.1:4180/flatland.html?level=mirror".
+1 AXWebArea 平面国 · W-Slice 入门, URL: 127.0.0.1:4180/flatland.html?level=mirror
+	2 container result-dialog
+		3 text 你发现了
+		4 heading 镜之锁, Value: 2, ID: result-title
+			5 text 镜之锁
+		6 text 平移和在平面内旋转都保留钥匙的手性。借第三维绕 X 轴翻过半圈，钥匙回到平面时成为镜像，才能匹配镜之锁。
+		7 content list result-list
+			8 container
+				9 text ★ 用镜像钥匙打开锁
+			10 container
+				11 text ★ 翻转前的首次预测正确
+			12 container
+				13 text ☆ 只翻转 1 次
+		14 text 用时 30.9 秒 · 翻转 3 次 · 平面旋转 0 次 · 首次预测正确 · 提示 0 次
+		15 button 再试一次, ID: retry
+
+The focused UI element is 15 button 再试一次, ID: retry

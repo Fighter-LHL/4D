@@ -1,0 +1,20 @@
+Browser tab: 1, Title: "平面国 · W-Slice 入门", URL: "http://127.0.0.1:4180/flatland.html?level=visitor".
+0 AXWebArea 平面国 · W-Slice 入门, URL: 127.0.0.1:4180/flatland.html?level=visitor
+	1 container result-dialog
+		2 text 你发现了
+		3 heading 访客, Value: 2, ID: result-title
+			4 text 访客
+		5 text 三维的球穿过平面时，平面生物只能看到一个圆。圆的大小取决于你在第三维的高度，而且同样大小的圆会在球心上下各出现一次。
+		6 text 答对了。两个：球心下方 S≈1 和上方 S≈5。截面只告诉你大小，看不出你在球的哪一半。
+		7 content list result-list
+			8 container
+				9 text ★ 点亮三个圆环
+			10 container
+				11 text ☆ 30 秒内点亮三个圆环
+			12 container
+				13 text ★ 答对问题，并在两个高度都对上 1.5 的圆环
+		14 text 用时 43.1 秒 · 换高度 3 次 · 被卡住 0 次 · 提示 2 次
+		15 button 再试一次, ID: retry
+		16 button 下一关 ↗, ID: next
+
+The focused UI element is 15 button 再试一次, ID: retry

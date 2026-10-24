@@ -1,6 +1,7 @@
 import { GameModel, RELICS } from './model.js';
 import { SceneRenderer } from './scene.js';
 import { GameAudio } from './audio.js';
+import { isFlatlandArrival } from './flatland/handoff.js';
 
 const $ = id => document.getElementById(id);
 const setHTML = (id,html) => { const el=$(id); if(el.innerHTML!==html)el.innerHTML=html; };
@@ -15,6 +16,9 @@ function rememberSeed(seed) { const url=new URL(location.href);url.searchParams.
 const readPreference = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const savePreference = (key,value) => { try { localStorage.setItem(key,String(value)); } catch { /* Private browsing can disable persistence. */ } };
 const model = new GameModel(initialSeed);
+let fromFlatland = false;
+try { fromFlatland = isFlatlandArrival(location.search, JSON.parse(readPreference('wslice-flatland-stars', '{}'))); } catch { /* Unavailable progress keeps the normal introduction. */ }
+$('chapter-arrival').hidden = !fromFlatland;
 rememberSeed(initialSeed);
 const audio = new GameAudio();
 let soundEnabled = readPreference('wslice-sound','on') === 'on';
@@ -103,6 +107,10 @@ function showChoice(state) {
   $('choice-title').innerHTML = next ? '下一庭，<br>换一种解法。' : '展开这一局，<br>未知的路径。';
   $('choice-intro').textContent = next ? '已有遗物全部保留。补齐一种组合，解开下一庭的隐藏路线；也可升阶现有能力。' : '选一件起手遗物，随后跨庭补齐构筑。冒险唤醒花径，组合与 W 符印通往隐藏的隐星台。';
   renderItinerary('choice-route',state,next?state.room+1:0);
+  if (fromFlatland && !next) {
+    $('choice-title').textContent = '从平面国，走进回响庭院。';
+    $('choice-intro').textContent = '你已完成升维。现在选择一件起手遗物，开始正式章节：Z / X / C 换 W，点选落脚点后 Space 穿越，E 启动机关。';
+  }
   setText('choice-room-name',`${next?'即将进入':'首先进入'} · ${upcoming?.name || state.roomName}`);
   setText('choice-room-description',upcoming?.description || state.roomDescription);
   $('choice-build').hidden = !next;

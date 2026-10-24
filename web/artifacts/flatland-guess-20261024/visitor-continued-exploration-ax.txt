@@ -1,0 +1,51 @@
+Browser tab: 1, Title: "平面国 · W-Slice 入门", URL: "http://127.0.0.1:4180/flatland.html?level=visitor".
+0 AXWebArea 平面国 · W-Slice 入门, URL: 127.0.0.1:4180/flatland.html?level=visitor
+	1 container
+		2 link Description: 返回回响庭院, Value: 127.0.0.1:4180/
+		3 container 游戏设置
+			4 checkbox 声音开, Value: 1, ID: sound
+				5 text 声音开
+			6 button 重来本关, ID: restart
+			7 link Description: 去庭院 ↗, Value: 127.0.0.1:4180/
+	8 container
+		9 text CHAPTER 0 · FLATLAND
+		10 heading 访客, Value: 1, ID: title
+			11 text 访客
+		12 content list Description: 关卡, ID: levels
+			13 button 1 · 访客 ☆☆☆
+				14 text 1 · 访客
+				15 text ☆☆☆
+			16 button (disabled) 2 · 猜猜是谁 ☆☆☆
+				17 text 2 · 猜猜是谁 ☆☆☆
+			18 button (disabled) 3 · 跳出房间 ☆☆☆
+				19 text 3 · 跳出房间 ☆☆☆
+			20 button (disabled) 4 · 保险箱与守卫, Help: 即将开放
+			21 button (disabled) 5 · 镜之锁, Help: 即将开放
+			22 button (disabled) 6 · 升维, Help: 即将开放
+		23 text 有位看不见的访客正停在你的世界里。拖动 S，让它的截面依次和三个圆环吻合。
+		24 image Description: 平面世界与侧视图, ID: scene
+		39 text 看右边的侧视图：那条横线就是你所在的平面。
+		25 container 切片控制
+			26 button Description: 降低 S, ID: s-down
+				27 text ▼ 
+				28 text Q
+			29 container
+				30 text S  你所在的高度
+			31 slider (settable, integer) S 你所在的高度, Value: 3, ID: s-slider
+			50 text 3.00
+			33 button Description: 升高 S, ID: s-up
+				34 text ▲ 
+				35 text E
+			51 text 42.6 秒
+			52 text 3/3 个圆环已点亮 · 半径 1.5：已找到 1/2 个高度。可继续探索，准备好再回答问题。
+			53 button 完成观察，回答问题 ↗, ID: finish-observation
+			38 content list Description: 星级条件, ID: stars
+				43 container
+					44 text ☆ 点亮三个圆环
+				45 container
+					46 text ☆ 30 秒内点亮三个圆环 30 / 30
+				47 container
+					48 text ☆ 答对问题，并在两个高度都对上 1.5 的圆环
+	49 text 目标完成。
+
+The focused UI element is 31 slider (settable, integer) S 你所在的高度, Value: 3, ID: s-slider

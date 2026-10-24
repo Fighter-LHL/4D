@@ -1,0 +1,18 @@
+Browser tab: 1, Title: "平面国 · W-Slice 入门", URL: "http://127.0.0.1:4180/flatland.html?level=guess".
+1 AXWebArea 平面国 · W-Slice 入门, URL: 127.0.0.1:4180/flatland.html?level=guess
+	2 container result-dialog
+		3 text 你发现了
+		4 heading 跳出房间, Value: 2, ID: result-title
+			5 text 跳出房间
+		6 text 在平面里四面封死的房间，在第三维上可能是敞开的。你没有穿墙，只是从墙的“上方”绕了过去。四维空间对三维房间也是一样。
+		7 content list result-list
+			8 container
+				9 text ★ 碰到出口旗
+			10 container
+				11 text ★ 换高度不超过 4 次
+			12 container
+				13 text ★ 一次也没被卡住
+		14 text 用时 30.9 秒 · 换高度 2 次 · 被卡住 0 次 · 提示 1 次
+		15 button 再试一次, ID: retry
+
+The focused UI element is 15 button 再试一次, ID: retry

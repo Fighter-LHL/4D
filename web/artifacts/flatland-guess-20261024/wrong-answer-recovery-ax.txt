@@ -1,0 +1,65 @@
+Browser tab: 1, Title: "平面国 · W-Slice 入门", URL: "http://127.0.0.1:4180/flatland.html?level=guess".
+1 AXWebArea 平面国 · W-Slice 入门, URL: 127.0.0.1:4180/flatland.html?level=guess
+	2 container
+		3 link Description: 返回回响庭院, Value: 127.0.0.1:4180/
+		4 container 游戏设置
+			5 checkbox 声音开, Value: 1, ID: sound
+				6 text 声音开
+			7 button 重来本关, ID: restart
+			8 link Description: 去庭院 ↗, Value: 127.0.0.1:4180/
+	9 container
+		10 text CHAPTER 0 · FLATLAND
+		11 heading 猜猜是谁, Value: 1, ID: title
+			12 text 猜猜是谁
+		13 content list Description: 关卡, ID: levels
+			14 button 1 · 访客 ★★☆
+				15 text 1 · 访客
+				16 text ★★☆
+			17 button 2 · 猜猜是谁 ★★★
+				18 text 2 · 猜猜是谁
+				19 text ★★★
+			20 button 3 · 跳出房间 ★★★
+				21 text 3 · 跳出房间
+				22 text ★★★
+			23 button (disabled) 4 · 保险箱与守卫, Help: 即将开放
+			24 button (disabled) 5 · 镜之锁, Help: 即将开放
+			25 button (disabled) 6 · 升维, Help: 即将开放
+		26 text 同一个立体，换个高度就换了一张面孔。先观察、再猜测，最后亲手验证。
+		27 container play-layout
+			82 image Description: 平面世界与侧视图, ID: scene
+			29 container 切片控制
+				30 button Description: 降低 S, ID: s-down
+					31 text ▼ 
+					32 text Q
+				33 container
+					34 text S  你所在的高度
+				35 slider (settable, float) S 你所在的高度, Value: 4.300000190734863, Details: 4.3, ID: s-slider
+				68 text 4.30
+				37 button Description: 升高 S, ID: s-up
+					38 text ▲ 
+					39 text E
+				83 text 26.0 秒
+				41 content list Description: 星级条件, ID: stars
+					42 container
+						43 text ☆ 完成三轮猜测与验证
+					44 container
+						45 text ☆ 至少两轮首次答对 0 / 2
+					46 container
+						47 text ☆ 三轮全部首次答对 0 / 3
+			48 container 第 1 / 3 轮 · 从截面猜立体, ID: lesson-panel
+				49 text 第 1 / 3 轮 · 从截面猜立体
+				50 heading 拖动 S，在三个标记高度各停留片刻。这个藏起来的立体是什么？, Value: 2, ID: round-prompt
+					51 text 拖动 S，在三个标记高度各停留片刻。这个藏起来的立体是什么？
+				84 text 再验证：依次拖到标记高度，停留约 0.25 秒。
+				53 content list Description: 观察记录, ID: sample-strip
+					85 container
+						86 text S 3.00 在此停留
+				60 container Description: 选择你的判断, ID: round-options
+					87 checkbox (disabled) 球, Value: 1
+					88 checkbox (disabled) 立方体, Value: 0
+					89 checkbox (disabled) 圆锥, Value: 0
+					90 checkbox (disabled) 横躺的圆柱, Value: 0
+				91 text 这次没有猜中。现在拖 S 看看，验证后仍能继续。
+	81 text 已记录 S 4.30 的截面。
+
+The focused UI element is 1 AXWebArea 平面国 · W-Slice 入门, URL: 127.0.0.1:4180/flatland.html?level=guess
