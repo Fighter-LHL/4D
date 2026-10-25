@@ -1,6 +1,6 @@
 {
-  "buildCommit": "8998de6cf96774a008be51a2d6a835b4e91b1324",
-  "sourceDigest": "239c3ee183e3885011dba5ec51e32d8acd98e5cd21850f221a56ca1a5ab4da7d",
+  "buildCommit": "d5c269340c3a608e8360a2f02dba5b8530b7cb44",
+  "sourceDigest": "79b3fc7ae94ae98dbd2328c1575df6488e44cc795cc9dddc4f7a246a7a2ac7cf",
   "files": [
     "app.mjs",
     "challenge.mjs",
@@ -15,6 +15,7 @@
     "map-renderer.mjs",
     "renderer.mjs",
     "scene-details.mjs",
+    "sentry.mjs",
     "sfx.mjs",
     "states.html",
     "station-effects.mjs",
