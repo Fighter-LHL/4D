@@ -20,17 +20,17 @@ test('full app: Q/E neutrality, immediate release, continuous blocked-to-moving,
   h.key('keyup', 'e'); const released = h.app.current; h.advance(200);
   assert.equal(h.app.current, released);
   assert.equal(h.app.target, released);
-  h.app.setDial(wToDial(-1.9)); h.app.run.pos = [0, 0];
-  h.key('keydown', 'e'); h.advance(4000);
+  h.app.setDial(wToDial(1.9)); h.app.run.pos = [0, 0];
+  h.key('keydown', 'q'); h.advance(4000);
   const blocked = h.app.current;
   assert.equal(h.app.controller.state, 'BLOCKED');
-  assert.equal(h.app.wHold, 1);
+  assert.equal(h.app.wHold, -1);
   assert.equal(h.sounds.filter(([s]) => s === 'refused').length, 1);
   assert.equal(h.app.nudge, null, 'outline expired while the key stays held');
   assert.equal(h.app.flash, 0, 'pulse does not renew');
   h.app.run.pos = [...h.app.level.field.start]; h.advance(100);
-  assert.ok(h.app.current > blocked);
-  h.key('keyup', 'e'); h.advance(4000);
+  assert.ok(h.app.current < blocked);
+  h.key('keyup', 'q'); h.advance(4000);
   assert.equal(h.frames.size, 0, 'returns to no RAF after release and finite effects');
 });
 
@@ -113,8 +113,8 @@ test('full app: rail absolute changes are synchronous; fine keyboard and pointer
 
 test('full app: A retains collision stop and display trailing; normal copy and progress stay original', async () => {
   const a = await appHarness('?study=w1&wcontrol=a&level=gate');
-  a.app.setDial(wToDial(-1.9)); a.app.run.pos = [0, 0];
-  a.key('keydown', 'e'); a.advance(2500);
+  a.app.setDial(wToDial(1.9)); a.app.run.pos = [0, 0];
+  a.key('keydown', 'q'); a.advance(2500);
   assert.equal(a.app.wHold, 0);
   a.app.run.pos = [...a.app.level.field.start]; const stopped = a.app.target; a.advance(100);
   assert.equal(a.app.target, stopped);
@@ -186,6 +186,119 @@ test('full app: a new input interrupts docking and final release closes each ges
   assert.equal(events.filter((e) => e.type === 'w_gesture_start').length, 2);
   assert.equal(events.filter((e) => e.type === 'w_gesture_end').length, 2);
   assert.equal(events.filter((e) => e.type === 'dock_cancel').length, 1);
+});
+
+for (const search of ['?study=w1&wcontrol=b&level=station-routes', '?study=w1&wcontrol=a&level=station-routes', '?level=station-routes']) {
+  test(`full app ${search}: carrying onto a socket in another W points to it instead of dropping the core`, async () => {
+    const h = await appHarness(search);
+    const r = h.app.run, s = h.app.level.field.relay.socket;
+    r.pos = [...h.app.level.field.item.start.slice(0, 2)]; h.app.handleInteract();
+    r.pos = [s.x, s.z]; h.advance(50);
+    const btn = h.node('action-btn');
+    assert.equal(btn.disabled, true);
+    assert.equal(btn.textContent, '放入插座', 'a short verb, not a sentence');
+    assert.equal(btn.dataset.key, '−W', 'the chip shows the way');
+    assert.equal(h.document.body.dataset.guide, '-1', 'the −W control glows');
+    h.key('keydown', ' '); h.key('keyup', ' ');
+    assert.equal(r.carrying, true, 'core stays in hand');
+    assert.equal(h.node('toast').textContent, '', 'no sentence toast');
+    assert.match(h.node('sr-status').textContent, /往 −W/, 'screen readers still hear it');
+    h.app.setDial(wToDial(s.w)); h.advance(50);
+    assert.equal(btn.textContent, '放入插座');
+    assert.equal(btn.disabled, false);
+    assert.equal(btn.dataset.key, '空格');
+    assert.equal(h.document.body.dataset.guide, '', 'guide ends once the device is reachable');
+    h.app.setDial(wToDial(0)); h.advance(50);
+    r.pos = [s.x + 1, s.z]; h.advance(50);
+    h.app.handleInteract();
+    assert.equal(r.carrying, false, 'dropping away from devices still works');
+  });
+}
+
+test('full app: toasts give way to in-place feedback; the refusal sentence shows once per level', async () => {
+  const h = await appHarness('?study=w1&wcontrol=b&level=station-routes');
+  const r = h.app.run;
+  r.pos = [...h.app.level.field.item.start.slice(0, 2)];
+  h.app.handleInteract();
+  assert.equal(r.carrying, true);
+  assert.equal(h.node('toast').textContent, '', 'pickup has no toast');
+  assert.ok(h.node('stats').classes.has('pop'), 'the carry chip pops instead');
+  assert.equal(h.node('sr-status').textContent, '拿起晶核');
+  const g = await appHarness('?study=w1&wcontrol=b&level=gate');
+  for (let i = 0; i < 2; i++) {
+    g.app.setDial(wToDial(1.9)); g.app.run.pos = [0, 0];
+    g.key('keydown', 'q'); g.advance(1500); g.key('keyup', 'q');
+    if (i === 0) { assert.match(g.node('toast').textContent, /碰到障碍/); g.node('toast').textContent = ''; }
+  }
+  assert.equal(g.node('toast').textContent, '', 'second refusal is visual only');
+  assert.match(g.node('sr-status').textContent, /碰到障碍/);
+  g.app.startLevel('gate');
+  g.app.setDial(wToDial(1.9)); g.app.run.pos = [0, 0];
+  g.key('keydown', 'q'); g.advance(1500); g.key('keyup', 'q');
+  assert.match(g.node('toast').textContent, /碰到障碍/, 'a new level teaches once again');
+});
+
+test('full app: key HUD lights with real keys and fades after walking and moving in W', async () => {
+  const h = await appHarness('?study=w1&wcontrol=b&level=gate');
+  const cap = (k) => h.node(`#key-hud kbd[data-k="${k}"]`);
+  assert.equal(h.node('key-hud').hidden, false);
+  h.key('keydown', 'e'); assert.ok(cap('e').classes.has('on'));
+  h.key('keyup', 'e'); assert.ok(!cap('e').classes.has('on'));
+  assert.ok(!h.node('key-hud').classes.has('learned'));
+  h.key('keydown', 'ArrowRight'); assert.ok(cap('d').classes.has('on'), 'arrows light the WASD caps');
+  h.key('keyup', 'ArrowRight'); assert.ok(!cap('d').classes.has('on'));
+  assert.ok(h.node('key-hud').classes.has('learned'));
+});
+
+test('full app: pointing at a mechanism row outlines its door in the scene', async () => {
+  const h = await appHarness('?study=w1&wcontrol=b&level=station-routes');
+  const outline = () => h.app.frame().sections.find((s) => s.id === 'station-phase-door').refused;
+  assert.equal(outline(), 0);
+  h.app.pointAt('station-phase-door');
+  assert.equal(outline(), -1, 'negative = pointed at (mint), positive = refusal (red)');
+  h.app.pointAt(null);
+  assert.equal(outline(), 0);
+});
+
+test('full app: W gauge beside the character appears while W changes, then fades; A keeps rail-only feedback', async () => {
+  for (const [search, expected] of [['?study=w1&wcontrol=b&level=gate', true], ['?level=gate', true], ['?study=w1&wcontrol=a&level=gate', false]]) {
+    const h = await appHarness(search);
+    const gauge = h.node('w-gauge');
+    assert.equal(gauge.hidden, true, `${search}: nothing at rest`);
+    h.key('keydown', 'e'); h.advance(300);
+    assert.equal(!gauge.hidden, expected, `${search}: shown while moving in W`);
+    if (expected) {
+      assert.equal(gauge.dataset.move, '1', 'the +W chevron lights');
+      assert.ok(parseFloat(h.node('wg-thumb').style.top) < 50, 'thumb rises toward +W');
+      assert.ok(h.node('wg-marks').children.some((m) => m.className === 'wg-goal'), 'exit layer is marked');
+    }
+    h.key('keyup', 'e'); h.advance(2500);
+    assert.equal(gauge.hidden, true, `${search}: fades after W settles`);
+  }
+});
+
+test('full app: a refusal shows the gauge with its red zone, and chapter 2 keeps red zones hidden', async () => {
+  const h = await appHarness('?study=w1&wcontrol=b&level=gate');
+  h.app.setDial(wToDial(1.9)); h.app.run.pos = [0, 0];
+  h.key('keydown', 'q'); h.advance(1500);
+  assert.equal(h.node('w-gauge').hidden, false, 'still visible while held against the ball');
+  assert.ok(h.node('wg-marks').children.some((m) => m.className === 'wg-block'));
+  h.key('keyup', 'q');
+  const hidden = await appHarness('?level=2-3');
+  hidden.key('keydown', 'q'); hidden.advance(300);
+  assert.equal(hidden.node('w-gauge').hidden, false);
+  assert.ok(!hidden.node('wg-marks').children.some((m) => m.className === 'wg-block'), 'no W aids without the map');
+});
+
+test('full app: one ground key runs along the nearest world axis under the default iso camera', async () => {
+  for (const [key, axis, sign] of [['d', 0, 1], ['s', 1, 1], ['a', 0, -1], ['w', 1, -1]]) {
+    const h = await appHarness('?study=w1&wcontrol=b&level=gate');
+    const start = [...h.app.run.pos];
+    h.key('keydown', key); h.advance(200); h.key('keyup', key);
+    const moved = [h.app.run.pos[0] - start[0], h.app.run.pos[1] - start[1]];
+    assert.ok(sign * moved[axis] > .2, key);
+    assert.ok(Math.abs(moved[1 - axis]) < 1e-9, `${key} stays on its axis`);
+  }
 });
 
 test('full app: W endpoints have no refusal feedback and Escape cancels without snapping', async () => {

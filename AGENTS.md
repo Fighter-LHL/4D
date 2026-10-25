@@ -16,5 +16,6 @@
 - Chapters 0 and 1 share (x, z, W) layouts on purpose; chapter 2 hides the W map (peeks are counted). Every W aid (rail red zones, W-tinted floor outlines) goes through `wAids()` in `app.mjs`: it follows `mapVisible()`, so in chapter 2 it only shows while peeking, except that a refused W change briefly reveals just the floor outlines of the bodies that refused it (without exposing rail red zones).
 - Rail red zones, the W map's red token line and sphere floor outlines all derive from `blockedWIntervals` / `exclusionRadius`; never re-approximate them in a shader.
 - Browser check harness: `/tmp/wslice-check` (`npm i playwright-core@1.47.2`; headless Chrome needs `--use-angle=swiftshader --enable-unsafe-swiftshader` for WebGL).
-- Idle pages must not request animation frames.
+- Idle pages must not request animation frames. Exception: a level with `sentries` (e.g. `?level=sentry`) animates while its patrol runs; it stops once the run is won, a card is open or the tab is hidden.
+- Sentries (`sentry.mjs`) are detectors, never collision bodies: they see/touch the courier only while their W range holds the courier's W, and sight is cut by walls of the current section. Other layers' cones and the gauge's watched bands are W aids (follow `mapVisible()`). Re-verify solvability with the planner in `tests/sentry.test.mjs` after changing a patrol.
 - Scripted playthroughs are not evidence of player understanding (G0–G4 need real playtests).

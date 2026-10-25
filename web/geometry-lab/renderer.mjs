@@ -51,6 +51,11 @@ uniform vec3 uRippleTint[4];
 uniform vec4 uLayerA;
 uniform vec4 uLayerB;
 uniform float uLayerMix;
+uniform vec4 uSentry[6];      // x, z, yaw, alert
+uniform vec4 uSentryCone[6];  // range, half-angle, presence (1 here, 0.3 other W), unused
+uniform vec3 uSentryTint[6];
+uniform float uSentryCount;
+uniform vec3 uCheck;          // x, z, state (0 none, 1 open, 2 reached)
 
 const vec3 BG_LOW = vec3(0.014, 0.030, 0.037);
 const vec3 BG_HIGH = vec3(0.042, 0.070, 0.079);
@@ -198,6 +203,22 @@ vec4 shadeHit(int kind, float t, vec3 ro, vec3 rd, vec3 hc, vec4 hh, vec3 tint, 
     float ring2 = 1.0 - smoothstep(0.008, 0.02, abs(abs(n.y) - 0.5));
     c = mix(c, GOLD, eq * 0.48 + ring2 * 0.22);
     c += IVORY * pow(max(dot(reflect(-SUN_DIR, n), -rd), 0.0), 32.0) * 0.22;
+    if (role == 8) {
+      // Sentry: dark glass with one glowing eye facing its gaze; the eye
+      // heats from its W tint to red as it fills with alert.
+      float yaw = 0.0;
+      float alert = 0.0;
+      for (int i = 0; i < 6; i += 1) {
+        if (float(i) >= uSentryCount) break;
+        if (length(uSentry[i].xy - hc.xz) < 0.01) { yaw = uSentry[i].z; alert = uSentry[i].w; }
+      }
+      vec3 gaze = vec3(sin(yaw), 0.0, cos(yaw));
+      c = mix(vec3(0.05, 0.07, 0.08), tint * 0.35, 0.5 + 0.5 * sun);
+      c += pow(1.0 - max(dot(n, -rd), 0.0), 2.5) * tint * 0.55;
+      float eye = smoothstep(0.86, 0.95, dot(n, normalize(gaze + vec3(0.0, 0.18, 0.0))));
+      c = mix(c, mix(mix(tint, IVORY, 0.55), ALERT, alert), eye);
+      c += IVORY * pow(max(dot(reflect(-SUN_DIR, n), -rd), 0.0), 40.0) * 0.3;
+    }
     if (role == 7) {
       // Mineral shell: broad cut-face shading, with the exact sphere silhouette
       // and radius left intact so changing W still reads as a true section.
@@ -508,6 +529,51 @@ void main() {
         fl += mix(GOLD, IVORY, 0.45) * cablePulse(p.xz, uLatch.xy, uRelayPorts.zw, uLatchFx, false) * 0.85;
         if (uLatchFx.x >= 0.0) fl += GOLD * rgap * rbar * smoothstep(0.35, 0.65, uLatchFx.x) * uLatchFx.y * 0.65;
       }
+      if (uCheck.z > 0.5) {
+        float cd = length(p.xz - uCheck.xy);
+        float ring = 1.0 - smoothstep(0.012, 0.03, abs(cd - 0.32));
+        float dot0 = 1.0 - smoothstep(0.05, 0.08, cd);
+        fl = mix(fl, uCheck.z > 1.5 ? ITEM_COL : IVORY, ring * 0.75 + dot0 * (uCheck.z > 1.5 ? 0.6 : 0.2));
+      }
+      // Vision cones, cut by the walls of this section. Sentries in this W
+      // draw solid cones; other layers' gaze is a faint dashed outline.
+      for (int i = 0; i < 6; i += 1) {
+        if (float(i) >= uSentryCount) break;
+        vec4 sv = uSentry[i];
+        vec4 cone = uSentryCone[i];
+        if (cone.z <= 0.0) continue;
+        vec2 rel = p.xz - sv.xy;
+        float dist = length(rel);
+        if (dist > cone.x || dist < 0.02) continue;
+        float off = abs(atan(sin(atan(rel.x, rel.y) - sv.z), cos(atan(rel.x, rel.y) - sv.z)));
+        if (off > cone.y) continue;
+        bool blocked = false;
+        for (int k = 0; k < ${MAX}; k += 1) {
+          if (float(k) >= uBoxCount) break;
+          vec4 bh = uBoxH[k];
+          if (bh.w < 0.001 || bh.y < 0.001) continue;
+          // Slab test of the sight line against the wall footprint.
+          vec2 lo = uBoxC[k].xz - bh.xz - sv.xy;
+          vec2 hi = uBoxC[k].xz + bh.xz - sv.xy;
+          vec2 inv = 1.0 / (rel + vec2(1e-6));
+          vec2 t1 = lo * inv;
+          vec2 t2 = hi * inv;
+          float tn = max(max(min(t1.x, t2.x), min(t1.y, t2.y)), 0.0);
+          float tf = min(min(max(t1.x, t2.x), max(t1.y, t2.y)), 1.0);
+          if (tn < tf) { blocked = true; break; }
+        }
+        if (blocked) continue;
+        vec3 coneCol = mix(uSentryTint[i], ALERT, sv.w);
+        // Distance (world units) to the cone's straight sides or its far arc.
+        float edge = 1.0 - smoothstep(0.0, 0.035, min((cone.y - off) * dist, cone.x - dist));
+        float fade = 1.0 - smoothstep(cone.x * 0.6, cone.x, dist);
+        if (cone.z > 0.99) {
+          fl = mix(fl, coneCol, (0.16 + 0.22 * sv.w) * fade + edge * 0.55);
+        } else {
+          float dash = step(0.5, fract(dist * 6.0));
+          fl = mix(fl, coneCol, edge * dash * cone.z * 1.4);
+        }
+      }
       for (int i = 0; i < 8; i += 1) {
         if (uTrail[i].z <= 0.001) break;
         float td = length(p.xz - uTrail[i].xy);
@@ -530,9 +596,11 @@ void main() {
           float dash = step(0.45, fract(atan(p.z - s.z, p.x - s.x) * 3.82));
           fl = mix(fl, uSphTint[i], sg.y * dash * (1.0 - smoothstep(0.008, 0.026, gd)) * 0.75);
         }
-        if (uSphRefused[i] > 0.0) {
+        // Positive: the body refused a W change. Negative: the player is
+        // pointing at it from the mechanism panel.
+        if (uSphRefused[i] != 0.0) {
           float edge = abs(length(p.xz - s.xz) - sg.x);
-          fl = mix(fl, ALERT, uSphRefused[i] * (1.0 - smoothstep(0.01, 0.035, edge)));
+          fl = mix(fl, uSphRefused[i] > 0.0 ? ALERT : ITEM_COL, abs(uSphRefused[i]) * (1.0 - smoothstep(0.01, 0.035, edge)));
         }
         if (s.w < 0.0001) continue;
         if (hitSphere(p + vec3(0.0, 0.01, 0.0), SUN_DIR, s) > 0.0) shadow = max(shadow, 0.75);
@@ -542,9 +610,14 @@ void main() {
       for (int i = 0; i < ${MAX}; i += 1) {
         if (float(i) >= uBoxCount) break;
         vec4 h = uBoxH[i];
-        if (uBoxRefused[i] > 0.0) {
+        if (uBoxRefused[i] != 0.0) {
           vec2 d = abs(p.xz - uBoxC[i].xz) - h.xz;
-          fl = mix(fl, ALERT, uBoxRefused[i] * (1.0 - smoothstep(0.01, 0.035, abs(max(d.x, d.y)))));
+          float e = max(d.x, d.y);
+          // A pointed-at door gets a halo just outside its base, so a solid
+          // wall does not hide it.
+          float mark = uBoxRefused[i] > 0.0 ? 1.0 - smoothstep(0.01, 0.035, abs(e))
+            : smoothstep(-0.01, 0.02, e) * (1.0 - smoothstep(0.08, 0.16, e)) * 0.9;
+          fl = mix(fl, uBoxRefused[i] > 0.0 ? ALERT : ITEM_COL, abs(uBoxRefused[i]) * mark);
         }
         if (h.w < -0.001) {
           float ghost = -h.w;
@@ -674,7 +747,8 @@ void main() {
 `;
 
 const NAMES = ['uResolution', 'uEye', 'uLookY', 'uSph', 'uSphTint', 'uSphRole', 'uSphGhost', 'uSphRefused', 'uSphCount', 'uBoxC', 'uBoxH', 'uBoxTint', 'uBoxRole', 'uBoxFooting', 'uBoxRefused', 'uBoxCount',
-  'uToken', 'uFeedbackB', 'uActor', 'uActorPos', 'uItem', 'uSocket', 'uLatch', 'uRelayPorts', 'uRelayUsed', 'uPowerFx', 'uLatchFx', 'uStation', 'uEntrance', 'uChannel', 'uProps', 'uGoal', 'uStart', 'uBounds', 'uTrail', 'uRipples', 'uRippleTint', 'uLayerA', 'uLayerB', 'uLayerMix'];
+  'uToken', 'uFeedbackB', 'uActor', 'uActorPos', 'uItem', 'uSocket', 'uLatch', 'uRelayPorts', 'uRelayUsed', 'uPowerFx', 'uLatchFx', 'uStation', 'uEntrance', 'uChannel', 'uProps', 'uGoal', 'uStart', 'uBounds', 'uTrail', 'uRipples', 'uRippleTint', 'uLayerA', 'uLayerB', 'uLayerMix',
+  'uSentry', 'uSentryCone', 'uSentryTint', 'uSentryCount', 'uCheck'];
 const VIEW = { yaw: 0.66, pitch: 0.58, distance: 12.2, minPitch: 0.2, maxPitch: 1.35, minDistance: 7.5, maxDistance: 20 };
 
 export class SliceRenderer {
@@ -880,6 +954,21 @@ export class SliceRenderer {
     gl.uniform4f(u.uLayerA, ...a.color, a.pattern);
     gl.uniform4f(u.uLayerB, ...b.color, b.pattern);
     gl.uniform1f(u.uLayerMix, t);
+    const sentries = (frame.sentries ?? []).slice(0, 6);
+    const sentry = new Float32Array(24);
+    const sentryCone = new Float32Array(24);
+    const sentryTint = new Float32Array(18);
+    sentries.forEach((s, i) => {
+      sentry.set([s.x, s.z, s.yaw, s.alert], i * 4);
+      sentryCone.set([s.range, s.fov, s.presence, 0], i * 4);
+      sentryTint.set(s.tint, i * 3);
+    });
+    gl.uniform4fv(u.uSentry, sentry);
+    gl.uniform4fv(u.uSentryCone, sentryCone);
+    gl.uniform3fv(u.uSentryTint, sentryTint);
+    gl.uniform1f(u.uSentryCount, sentries.length);
+    const cp = frame.checkpoint;
+    gl.uniform3f(u.uCheck, ...(cp ? [cp.x, cp.z, cp.reached ? 2 : 1] : [0, 0, 0]));
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 }

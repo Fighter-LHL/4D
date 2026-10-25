@@ -18,6 +18,6 @@ export function rememberStationRun(storage, previous, run) {
 
 export function stationNextAction(seals) {
   return seals.stone && seals.copper
-    ? { label: '从序章开始', level: '0-1' }
-    : { label: '再走另一条', level: 'station-routes' };
+    ? { label: '去扁平国', level: '0-1' }
+    : { label: '再来一次', level: 'station-routes' };
 }

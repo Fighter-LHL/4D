@@ -47,20 +47,20 @@ test('held W stops at wall and resumes from new ground position without a new ge
   const level = levelById('gate');
   const run = new WalkRun(level.field, level.id);
   const c = new WControl();
-  run.setDial(wToDial(-1.9));
+  run.setDial(wToDial(1.9));
   run.pos = [0, 0];
-  c.press('keyboard-hold', 'e', 1);
+  c.press('keyboard-hold', 'q', -1);
   let contacts = 0;
   for (let i = 0; i < 300; i++) contacts += Number(drive(c, level, run)?.started ?? false);
   assert.equal(c.state, 'BLOCKED');
-  assert.equal(c.direction, 1);
+  assert.equal(c.direction, -1);
   assert.equal(contacts, 1);
   assert.equal(run.refused, 1);
   const blocked = run.dial;
   assert.equal(c.shouldDrive(run), false, 'unchanged obstruction is not retried');
   run.pos = [...level.field.start];
   for (let i = 0; i < 15; i++) drive(c, level, run);
-  assert.ok(run.dial > blocked + 0.05);
+  assert.ok(run.dial < blocked - 0.05);
   assert.equal(run.refused, 1);
 });
 
@@ -69,7 +69,45 @@ test('local speed is 0.50 W/s only beside a solid meaningful device; general spe
   const c = new WControl(); c.press('keyboard-hold', 'q', -1);
   assert.ok(Math.abs((run.dial - c.next(level, run, .1)) * 4 - .05) < 1e-9);
   run.pos[0] -= 1;
+  c.next(level, run, .5); // past the ramp
   assert.ok(Math.abs((run.dial - c.next(level, run, .1)) * 4 - .128) < 1e-9);
+});
+
+test('held direction ramps from a fine step to full speed; reversing restarts the ramp', () => {
+  const level = levelById('gate');
+  const run = new WalkRun(level.field, level.id);
+  const c = new WControl(); c.press('keyboard-hold', 'e', 1);
+  const step = (dt) => (c.next(level, run, dt) - run.dial) * 4 / dt;
+  const first = step(1 / 60);
+  assert.ok(first < W_PARAMS.rateW * .4, 'a tap moves at roughly a third of full speed');
+  c.next(level, run, W_PARAMS.rampMs / 1000);
+  assert.ok(Math.abs(step(1 / 60) - W_PARAMS.rateW) < 1e-9);
+  c.press('keyboard-hold', 'q', -1); c.release('keyboard-hold', 'e', level, run);
+  assert.ok(Math.abs(step(1 / 60)) < W_PARAMS.rateW * .4);
+});
+
+test('exit window slows and docks to its centre only when standing near it', () => {
+  const level = levelById('gate');
+  const run = new WalkRun(level.field, level.id);
+  run.pos = [level.field.goal[0] - .8, level.field.goal[1]];
+  run.setDial(wToDial(.33));
+  assert.equal(dockingCandidate(level, run).id, 'goal');
+  const c = new WControl(); c.press('keyboard-hold', 'q', -1);
+  c.next(level, run, 1);
+  assert.ok(Math.abs((run.dial - c.next(level, run, .1)) * 4 - .05) < 1e-9);
+  c.release('keyboard-hold', 'q', level, run);
+  assert.equal(c.state, 'DOCKING');
+  for (let i = 0; i < 8; i++) { const to = c.dockStep(level, run, .02); if (to !== null) run.reachDial(to); }
+  assert.ok(Math.abs(dialToW(run.dial)) < 1e-9);
+  run.setDial(wToDial(.4));
+  assert.equal(dockingCandidate(level, run), null, 'outside the capture band');
+  run.pos = [...level.field.start]; run.setDial(wToDial(.3));
+  assert.equal(dockingCandidate(level, run), null, 'far from the exit');
+  run.pos = [level.field.goal[0] - .5, level.field.goal[1]];
+  assert.equal(dockingCandidate({ ...level, map: 'hidden' }, run).id, 'goal', 'the exit layer is public even with the map hidden');
+  const station = levelById('station-routes'), empty = new WalkRun(station.field, station.id);
+  empty.pos = [station.field.goal[0] - .5, station.field.goal[1]]; empty.setDial(wToDial(.3));
+  assert.equal(dockingCandidate(station, empty), null, 'receiver is meaningless without the core');
 });
 
 for (const source of ['keyboard-hold', 'touch-w-button', 'rail-pointer', 'rail-keyboard']) {

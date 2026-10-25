@@ -1,10 +1,11 @@
-import { clampDial, dialToW, sliceAtW, wFootprint, flatShape, blockedWIntervals, exclusionRadius, wChangeEngulfs, goalSliceAtW, itemSectionAtW, itemFootprint, ITEM_TINT, PREDICTIONS } from './geometry.mjs';
+import { clampDial, dialToW, wToDial, corridorSections, sliceAtW, wFootprint, flatShape, blockedWIntervals, exclusionRadius, wChangeEngulfs, goalSliceAtW, itemSectionAtW, itemFootprint, ITEM_TINT, PREDICTIONS } from './geometry.mjs';
 import { WalkRun, VisitRun } from './game.mjs';
-import { CHAPTERS, LEVELS_LIST, STATION_ROUTES_LEVEL, levelById, nextLevel, isUnlocked } from './levels.mjs';
-import { screenToWorldMove, relayRailMarks, nearbyRailMark, railReleaseDial, WControl, W_PARAMS, studyConfig, nearbyDevices } from './controls.mjs';
+import { CHAPTERS, LEVELS_LIST, levelById, nextLevel, isUnlocked } from './levels.mjs';
+import { screenToWorldMove, movementYaw, relayRailMarks, nearbyRailMark, railReleaseDial, WControl, W_PARAMS, studyConfig, nearbyTargets } from './controls.mjs';
 import { StudySession, STUDY_CHAIN, studyLevel, readStudyBuild } from './study.mjs';
 import { readStationSeals, rememberStationRun, stationNextAction } from './station-progress.mjs';
 import { StationEffects } from './station-effects.mjs';
+import { Patrol, sentryBody, presentAt, sees, SENTRY } from './sentry.mjs';
 import { LAYERS, layerBlend, layerIndex, wColor, cssColor } from './layers.mjs';
 import { SliceRenderer } from './renderer.mjs';
 import { MapRenderer } from './map-renderer.mjs';
@@ -21,6 +22,8 @@ let studySealed = false;
 let studySegment = 0;
 const measuring = () => study.enabled && !studySealed;
 document.body.classList.toggle('w-direction', wB);
+// Product (non-study) pages drop the classroom framing; the study is frozen.
+document.body.classList.toggle('product', !study.enabled);
 document.body.classList.toggle('w-precise', study.precise);
 $('w-buttons').hidden = !wB;
 $('study-tools').hidden = !study.enabled;
@@ -44,6 +47,7 @@ const choiceButtons = [...document.querySelectorAll('[data-choice]')];
 const BODY_ROLES = Object.freeze({
   'gate-phase-wall': 2,
   'gate-orb': 7,
+  'gate-orb-cold': 7,
   'station-power-door': 1,
   'station-phase-door': 2,
   'station-return-door': 3,
@@ -58,10 +62,10 @@ const BODY_ROLES = Object.freeze({
 });
 const roleOf = (id) => BODY_ROLES[id] ?? 0;
 const DEVICE_FEEDBACK = Object.freeze({
-  'latch-other-w': '回廊开关不在当前 W。',
-  'socket-other-w': '插座不在当前 W。',
-  'socket-empty': '插座里还没有晶核。',
-  'latch-open': '回廊已打开，会保持开启。',
+  'latch-other-w': '回廊开关',
+  'socket-other-w': '插座',
+  'socket-empty': '插座是空的',
+  'latch-open': '回廊已打开',
 });
 
 // ---------- Progress ----------
@@ -161,6 +165,23 @@ let groundContactThisFrame = false;
 let pulseUntil = 0;
 const wPointers = new Map();
 const railKeys = new Set();
+let refusalNoted = false; // the W refusal sentence shows once per level
+let guide = null; // { w, reach, until }: a W direction the controls point toward
+let guideTimer = 0;
+let goalNoteUntil = 0;
+let highlightIds = new Set(); // bodies pointed at from the mechanism panel
+const hudUsed = new Set();
+// The W gauge beside the character (B and the normal entry; A keeps the
+// original rail-only feedback). It appears while W changes and fades after.
+const gaugeOn = wB || !study.enabled;
+const GAUGE_MS = 1400;
+let gaugeW = null;
+let gaugeUntil = 0;
+let gaugeTimer = 0;
+let gaugeKey = '';
+// Sentry levels: patrols run in level time; caught → back to a checkpoint.
+let patrol = null;
+let checkpointReached = false;
 
 let sandboxAll = false;
 const introShown = new Set();
@@ -186,6 +207,21 @@ function toast(text, tone = '', ms = 2600) {
   toastTimer = setTimeout(() => el.classList.remove('show'), ms);
 }
 const setObjective = (text) => { $('objective').textContent = text; };
+
+// Feedback that replaces sentences: the words still reach screen readers.
+const announce = (text) => { $('sr-status').textContent = text; };
+function pop(id, name = id.startsWith('mech-') ? 'flash' : 'pop') {
+  const el = $(id);
+  el.classList.remove(name);
+  void el.offsetWidth;
+  el.classList.add(name);
+}
+// Point the ±W controls toward a W for a moment (no sentence needed).
+function guideToward(w, reach = 0.12, ms = 1800) {
+  guide = { w, reach, until: performance.now() + ms };
+  clearTimeout(guideTimer);
+  guideTimer = setTimeout(() => { guide = null; if (level) render(); }, ms);
+}
 
 // ---------- Frame building ----------
 function displayBodies() {
@@ -218,7 +254,8 @@ function buildFrame() {
   const tinted = bodies.map((body) => ({ body, tint: wColor(body.center[3]), foot: wFootprint(body, y) }));
   const maxR = (body, foot) => (isWalk() && body.type === 'sphere' ? exclusionRadius(body, activeField) : foot.radius ?? 0);
   const aids = wAids(now);
-  const sections = tinted.map(({ body, tint, foot }) => ({ ...sliceAtW(body, w), role: roleOf(body.id), tint, maxR: maxR(body, foot), ghost: aids.ghost(body.id), refused: wB && nudge?.ids.has(body.id) && now < nudge.until ? 1 : 0 }));
+  const outline = (id) => (wB && nudge?.ids.has(id) && now < nudge.until ? 1 : highlightIds.has(id) ? -1 : 0);
+  const sections = tinted.map(({ body, tint, foot }) => ({ ...sliceAtW(body, w), role: roleOf(body.id), tint, maxR: maxR(body, foot), ghost: aids.ghost(body.id), refused: outline(body.id) }));
   const footprints = tinted.map(({ tint, foot }) => ({ ...foot, tint }));
   if (isWalk() && run?.item) {
     const itemSec = itemSectionAtW(level.field, run.itemState(), w);
@@ -226,6 +263,22 @@ function buildFrame() {
     const itemFoot = itemFootprint(level.field, run.itemState());
     if (itemFoot) footprints.push(itemFoot);
   }
+  // Sentries are drawn as the hyperspheres they are: only the ones whose W
+  // range holds this slice appear. Other layers' gaze shows only as faint
+  // floor cones, and only where W aids are allowed.
+  let sentries = null;
+  if (patrol) {
+    const ghosts = mapVisible();
+    sentries = patrol.poses().map(({ sentry, pose, alert }) => {
+      const body = sentryBody(sentry, pose);
+      const tint = wColor(sentry.w);
+      sections.push({ ...sliceAtW(body, w), role: 8, tint, maxR: 0, ghost: 0, refused: 0 });
+      footprints.push({ ...wFootprint(body, y), tint });
+      const presence = presentAt(sentry, w) ? 1 : ghosts ? 0.3 : 0;
+      return { x: pose.x, z: pose.z, yaw: pose.yaw, alert, presence, tint, range: sentry.range ?? SENTRY.range, fov: sentry.fov ?? SENTRY.fov };
+    });
+  }
+  const checkpoint = isWalk() && level.field.checkpoint ? { x: level.field.checkpoint.pos[0], z: level.field.checkpoint.pos[1], reached: checkpointReached } : null;
   const blend = layerBlend(w);
   while (trail.length && now - trail[0][2] > TRAIL_MS) trail.shift();
   while (ripples.length && now - ripples[0].t0 > RIPPLE_MS) ripples.shift();
@@ -241,6 +294,8 @@ function buildFrame() {
     goal: isWalk() ? level.field.goal : null,
     goalState: isWalk() ? goalSliceAtW(level.field, w) : null,
     relay,
+    sentries,
+    checkpoint,
     mechanismEffects: stationEffects.sample(now),
     station: level.id === 'station-routes' ? {
       airlock: run.airlockCleared, seals: stationSeals,
@@ -282,14 +337,18 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
     actorEl.hidden = true;
     itemEl.hidden = true;
     goalEl.hidden = true;
+    $('w-gauge').hidden = true;
+    updateSentryTags(null, null);
     return;
   }
   const view = isFlat() ? flat : slice;
   if (!view?.project) return;
+  updateGauge(view, frame);
+  updateSentryTags(view, frame);
   const moved = run.distance > 0.25;
   if (!moved) {
     const actorPt = view.project([run.pos[0], 0.88 + actorBob, run.pos[1]]);
-    placeTag(actorEl, actorPt, '你 · WASD 移动', false);
+    placeTag(actorEl, actorPt, '你', false);
   } else {
     actorEl.hidden = true;
   }
@@ -303,10 +362,12 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
     // Labels are local: the mechanism itself carries the state at a distance.
     const socketNear = socketDist <= 1.55;
     const latchNear = latchDist <= 1.55;
-    placeTag(socketEl, socketNear && socketHere ? view.project([socket.x, 0.92, socket.z]) : null,
-      powered ? '供电中' : '蓝层插座');
-    placeTag(latchEl, latchNear && latchHere ? view.project([latch.x, 0.92, latch.z]) : null,
-      latched ? '回廊已打开' : '回廊开关');
+    // Beside a device in another W, a faint dashed label says "right here,
+    // another slice"; the action button's chip says which way.
+    placeTag(socketEl, socketNear ? view.project([socket.x, 0.92, socket.z]) : null,
+      powered ? '供电中' : '蓝层插座', !socketHere);
+    placeTag(latchEl, latchNear ? view.project([latch.x, 0.92, latch.z]) : null,
+      latched ? '回廊已打开' : '回廊开关', !latchHere);
   }
 
   if (level.field.item && run.item && !run.carrying && !run.won && !run.socketPowered()) {
@@ -316,12 +377,10 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
     const nearSpot = itemDist <= level.field.item.pickupRadius;
     const itemPt = view.project([run.item.x, 0.62, run.item.z]);
     if (visible && (nearSpot || !moved)) {
-      const interaction = run.canInteract(current);
-      const label = interaction.action === 'pickup' ? '按 空格 拿起'
-        : interaction.reason === 'tight' ? '这里空间不足' : '晶核';
-      placeTag(itemEl, itemPt, nearSpot ? label : '晶核', false);
+      const tight = nearSpot && run.canInteract(current).reason === 'tight';
+      placeTag(itemEl, itemPt, tight ? '空间不足' : '晶核', false);
     } else if (!visible && mapVisible() && (!moved || itemDist < 3.2)) {
-      placeTag(itemEl, itemPt, wB && !study.precise ? '晶核留在另一截面' : `留在 W ${signed(run.item.w)}`, true);
+      placeTag(itemEl, itemPt, wB && !study.precise ? '晶核' : `晶核 · W ${signed(run.item.w)}`, true);
     } else {
       itemEl.hidden = true;
     }
@@ -347,10 +406,109 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
   if (!moved || goalDist < 1.7 || (!level.field.relay && !goalOpen)) {
     const goalPt = view.project([gx, 0.28, gz]);
     const goalName = level.field.item ? '接收台' : '出口';
-    placeTag(goalEl, goalPt, goalOpen ? goalName : `${goalName}（在中间层）`, !goalOpen);
+    const note = performance.now() < goalNoteUntil ? ' · 需要晶核' : goalOpen ? '' : '（在中间层）';
+    placeTag(goalEl, goalPt, goalName + note, !goalOpen);
   } else {
     goalEl.hidden = true;
   }
+}
+
+// "!" over a sentry that is watching you in your own slice.
+function updateSentryTags(view, frame) {
+  const host = $('world-tags');
+  const tags = (view && frame?.sentries ? frame.sentries : []).map((s, i) => {
+    let tag = $(`sentry-tag-${i}`);
+    if (!tag || !tag.classList) {
+      tag = document.createElement('span');
+      tag.id = `sentry-tag-${i}`;
+      tag.className = 'world-tag sentry-alert';
+      host.append(tag);
+    }
+    const sentry = level.sentries[i];
+    const pt = s.presence === 1 && s.alert > 0.02 ? view.project([s.x, sentry.y + sentry.radius + 0.25, s.z]) : null;
+    placeTag(tag, pt, s.alert > 0.6 ? '!!' : '!');
+    if (pt) tag.style.opacity = String(0.45 + 0.55 * s.alert);
+    return tag;
+  });
+  for (const extra of host.querySelectorAll?.('.sentry-alert') ?? []) if (!tags.includes(extra)) extra.hidden = true;
+}
+
+function showGauge() {
+  gaugeUntil = performance.now() + GAUGE_MS;
+  clearTimeout(gaugeTimer);
+  gaugeTimer = setTimeout(() => { if (level) render(); }, GAUGE_MS + 20);
+}
+
+// A small W scale floating beside the character: current W, the direction of
+// motion, the exit layer, a pointed-at target and (only where wAids allows)
+// the red engulf zones. Keyboard players never need to look at the side rail.
+function updateGauge(view, frame) {
+  const el = $('w-gauge');
+  if (gaugeW !== null && frame.w !== gaugeW) showGauge();
+  gaugeW = frame.w;
+  const pointed = activeGuide(frame.w);
+  // In a patrolled level choosing W is the whole game, so the gauge stays.
+  const wanted = gaugeOn && !run.won && (!!patrol || performance.now() < gaugeUntil || !!wHold || !!pointed || wControl.state === 'BLOCKED');
+  const pt = wanted ? view.project([run.pos[0], 0.62 + actorBob, run.pos[1]]) : null;
+  el.hidden = !pt;
+  if (!pt) return;
+  el.style.left = `${pt.x.toFixed(1)}%`;
+  el.style.top = `${pt.y.toFixed(1)}%`;
+  el.dataset.move = String(Math.sign(wHold));
+  $('wg-thumb').style.top = `${(1 - current) * 100}%`;
+  const top = (w) => (1 - (w + 2) / 4) * 100;
+  // Layers in which a sentry is looking at this very spot (a W aid, so
+  // only where the map is visible): the gauge says which W would be seen.
+  const field = run.activeField();
+  const watched = patrol && mapVisible() ? patrol.poses().filter(({ sentry, pose }) =>
+    sees(sentry, pose, run.pos, sentry.w, corridorSections(sentry.w, run.field), field.tokenY))
+    .map(({ sentry }) => ['wg-watch', sentry.w - sentry.radius, sentry.w + sentry.radius]) : [];
+  const bands = [
+    ...watched,
+    ...frame.blocked.map(([lo, hi]) => ['wg-block', lo, hi]),
+    ...(level.field.goalW ? [['wg-goal', ...level.field.goalW]] : []),
+    ...(pointed ? [['wg-guide', pointed.w, pointed.w]] : []),
+  ];
+  const key = bands.map((b) => b.join(':')).join('|');
+  if (key === gaugeKey) return;
+  gaugeKey = key;
+  $('wg-marks').replaceChildren(...bands.map(([name, lo, hi]) => {
+    const mark = document.createElement('span');
+    mark.className = name;
+    mark.style.top = `${top(hi)}%`;
+    if (name === 'wg-guide') mark.style.color = cssColor(wColor(lo));
+    else mark.style.bottom = `${100 - top(lo)}%`;
+    return mark;
+  }));
+}
+
+// Standing on a device that lives in another W (e.g. carrying the core onto
+// the socket at W 0, where "drop" would leave it in the wrong slice). The
+// button keeps its verb and gains a ±W chip; the matching W control glows.
+function deviceGuide() {
+  const relay = level?.field?.relay;
+  if (!relay || !run || run.won) return null;
+  const state = run.canInteract(current);
+  const w = dialToW(current);
+  for (const id of ['socket', 'latch']) {
+    const device = relay[id];
+    if ((id === 'latch' && run.relayLatched) || Math.abs(w - device.w) <= device.wReach
+      || Math.hypot(run.pos[0] - device.x, run.pos[1] - device.z) > device.reach) continue;
+    if (run.carrying ? state.action !== 'drop' : state.reason !== `${id}-other-w`) continue;
+    const label = id === 'latch' ? '拉开回廊' : run.carrying ? '放入插座' : run.socketPowered() ? '取回晶核' : '插座';
+    return { label, w: device.w, reach: device.wReach, dir: Math.sign(device.w - w) };
+  }
+  return null;
+}
+
+const dirLabel = (dir) => (dir > 0 ? '+W' : '−W');
+function setAction(btn, label, { disabled = false, guideDir = 0, key = true } = {}) {
+  btn.hidden = false;
+  btn.disabled = disabled;
+  btn.textContent = label;
+  btn.dataset.key = guideDir ? dirLabel(guideDir) : key ? '空格' : '';
+  btn.dataset.guide = guideDir ? String(guideDir) : '';
+  btn.setAttribute('aria-label', guideDir ? `${label}：往 ${dirLabel(guideDir)} 移动` : key ? `${label}（空格 / F）` : label);
 }
 
 function updateActionButton() {
@@ -367,35 +525,21 @@ function updateActionButton() {
     btn.hidden = !near;
     btn.disabled = false;
     btn.textContent = completionAction().label;
+    if (btn.dataset) btn.dataset.key = btn.dataset.guide = '';
     $('return-levels').hidden = !near;
     $('replay-btn').hidden = !near || !['station', 'fetch'].includes(level.id);
     return;
   }
   if (!level.field.item) { btn.hidden = true; return; }
   const state = run.canInteract(current);
-  if (state.action === 'latch' || state.action === 'dock') {
-    btn.hidden = false;
-    btn.disabled = false;
-    btn.textContent = state.action === 'latch' ? '拉开回廊 (空格 / F)' : '放入插座 (空格 / F)';
-  } else if (run.carrying) {
-    btn.hidden = false;
-    btn.disabled = false;
-    btn.textContent = '放下晶核 (空格 / F)';
-  } else if (state.action === 'pickup') {
-    btn.hidden = false;
-    btn.disabled = false;
-    btn.textContent = run.socketPowered() ? '取回晶核 (空格 / F)' : '拿起晶核 (空格 / F)';
-  } else if (state.action === 'blocked') {
-    btn.hidden = false;
-    btn.disabled = false;
-    btn.textContent = '这里容不下你和晶核';
-  } else if (DEVICE_FEEDBACK[state.reason]) {
-    btn.hidden = false;
-    btn.disabled = true;
-    btn.textContent = DEVICE_FEEDBACK[state.reason];
-  } else {
-    btn.hidden = true;
-  }
+  const here = deviceGuide();
+  if (state.action === 'latch' || state.action === 'dock') setAction(btn, state.action === 'latch' ? '拉开回廊' : '放入插座');
+  else if (here) setAction(btn, here.label, { disabled: true, guideDir: here.dir });
+  else if (run.carrying) setAction(btn, '放下晶核');
+  else if (state.action === 'pickup') setAction(btn, run.socketPowered() ? '取回晶核' : '拿起晶核');
+  else if (state.action === 'blocked') setAction(btn, '空间不足', { key: false });
+  else if (DEVICE_FEEDBACK[state.reason]) setAction(btn, DEVICE_FEEDBACK[state.reason], { disabled: true, key: false });
+  else btn.hidden = true;
 }
 
 function atReceiver() {
@@ -405,10 +549,10 @@ function atReceiver() {
 function completionAction() {
   if (measuring()) return { label: '继续', level: STUDY_CHAIN[studySegment + 1] };
 
-  if (level.id === 'gate' || level.id === 'gate-blind') return { label: '进入两种办法', level: 'station-routes' };
+  if (level.id === 'gate' || level.id === 'gate-blind') return { label: '下一关：中转站', level: 'station-routes' };
   if (level.id === 'station-routes') return stationNextAction(stationSeals);
-  if (level.id === 'fetch') return { label: '下一站：中转站', level: 'station' };
-  if (level.id === 'station') return { label: '下一站：两种办法', level: 'station-routes' };
+  if (level.id === 'fetch') return { label: '下一关：旧中转站', level: 'station' };
+  if (level.id === 'station') return { label: '下一关：中转站', level: 'station-routes' };
   const next = nextLevel(level.id);
   return { label: next ? '下一关' : '回到关卡', level: next?.id };
 }
@@ -425,6 +569,16 @@ function handleInteract() {
   }
   if (!level.field.item) return;
   sfxInit();
+  const here = deviceGuide();
+  if (here) {
+    record('interaction', { reason: 'device-other-w' });
+    sfx.blocked();
+    $('w-rail').classList.add('pulse');
+    guideToward(here.w, here.reach);
+    announce(`${here.label}：往 ${dirLabel(here.dir)} 移动`);
+    render();
+    return;
+  }
   const res = run.interact(performance.now(), current);
   if (['picked', 'dropped', 'docked', 'latched'].includes(res.action)) {
     fieldEpoch += 1;
@@ -439,28 +593,33 @@ function handleInteract() {
   if (res.action === 'docked' || res.action === 'latched') {
     sfx.appear();
     buildRailSpans();
-    toast(res.action === 'docked' ? '插座接通了。' : '回廊已打开。', 'good');
+    pop(res.action === 'docked' ? 'mech-power' : 'mech-latch');
+    announce(res.action === 'docked' ? '插座接通了' : '回廊已打开');
   } else if (res.action === 'picked') {
     sfx.appear();
     buildRailSpans();
     if (res.won) win();
-    else toast('拿起晶核。', 'good');
+    else { pop('stats'); announce('拿起晶核'); }
   } else if (res.action === 'dropped') {
     sfx.vanish();
     buildRailSpans();
     if (res.won) win();
-    else toast('晶核留在这一层。');
+    else { pop('stats'); announce('晶核留在这一层'); }
   } else if (res.reason === 'tight') {
     flash = 1;
     sfx.refused();
-    toast('这里容不下你和晶核。', 'warn');
+    toast('空间不足', 'warn');
   } else if (DEVICE_FEEDBACK[res.reason]) {
-    toast(DEVICE_FEEDBACK[res.reason]);
+    pop('action-btn');
+    announce(DEVICE_FEEDBACK[res.reason]);
   } else if (res.reason === 'other-w') {
     sfx.blocked();
-    toast('晶核不在当前层。', 'warn');
+    pop('item-tag');
+    if (run.item) guideToward(run.item.w, level.field.item.wReach);
+    announce('晶核不在当前层');
   } else if (res.reason === 'far') {
-    toast('靠近晶核后可拿起。');
+    pop('item-tag');
+    announce('靠近晶核后可拿起');
   }
   render();
 }
@@ -536,13 +695,47 @@ function tick(time) {
     else current += (target - current) * (1 - Math.exp(-14 * delta));
   }
   if (!wB && isWalk() && !cardOpen) stepToken(delta, time);
+  // A patrolled level is never idle: its sentries keep walking.
+  const patrolling = !!patrol && !run.won && !cardOpen;
+  if (patrolling) stepPatrol(delta);
   if (wB && groundContactThisFrame && !wContactThisFrame) sfx.blocked();
   if (wB && pulseUntil) { flash = Math.max(0, (pulseUntil - time) / W_PARAMS.pulseMs); if (!flash) pulseUntil = 0; }
   else if (flash > 0) flash = Math.max(0, flash - delta * 2.4);
   render();
   const arriving = isWalk() && run.won && !reducedMotion.matches && time < run.finishedAt + 280;
-  if (reveal || (wB && wControl.docking) || wHold || current !== target || ripples.length || pressed.size || flash > 0 || trail.length || nudge || time < introCueUntil || arriving || stationEffects.isActive(time)) requestFrame();
+  if (patrolling || reveal || (wB && wControl.docking) || wHold || current !== target || ripples.length || pressed.size || flash > 0 || trail.length || nudge || time < introCueUntil || arriving || stationEffects.isActive(time)) requestFrame();
   else previousTime = 0;
+}
+
+function stepPatrol(delta) {
+  const field = run.activeField();
+  const res = patrol.step(delta, run.pos, dialToW(current), run.sectionsAt(current), field.tokenY, field.tokenRadius);
+  if (res.spotted.length) { sfx.blocked(); buzz(); }
+  const cp = level.field.checkpoint;
+  if (cp && !checkpointReached && Math.hypot(run.pos[0] - cp.pos[0], run.pos[1] - cp.pos[1]) < 0.45) {
+    checkpointReached = true;
+    sfx.appear();
+    announce('检查点');
+  }
+  if (res.caught) caught();
+}
+
+// Caught: no lives or score, just back to the last checkpoint with held
+// input dropped (keys must be pressed again) and a short grace period.
+function caught() {
+  record('caught');
+  sfx.refused();
+  buzz();
+  if (wB) cancelInputs('caught', true, false);
+  else { pressed.clear(); wHold = 0; heldWKey = null; commitW('caught'); }
+  const cp = checkpointReached ? level.field.checkpoint : { pos: level.field.start, w: 0 };
+  run.respawn(cp.pos, wToDial(cp.w));
+  current = target = run.dial;
+  patrol.respawn();
+  trail = [];
+  flash = 1;
+  pop('stage', 'caught');
+  announce('被发现了，回到检查点');
 }
 
 let lastGoalHint = 0;
@@ -550,7 +743,7 @@ function stepToken(delta, now) {
   let dx = 0;
   let dz = 0;
   pressed.forEach((key) => { const d = MOVE_DIRS[key]; if (d) { dx += d[0]; dz += d[1]; } });
-  [dx, dz] = screenToWorldMove(dx, dz, isFlat() ? 0 : (slice?.orbit.yaw ?? 0));
+  [dx, dz] = screenToWorldMove(dx, dz, isFlat() ? 0 : movementYaw(slice?.orbit.yaw ?? 0));
   if (dx || dz) {
     actorYaw = Math.atan2(dx, dz);
   }
@@ -570,20 +763,20 @@ function stepToken(delta, now) {
     flash = 1;
     if (wB) groundContactThisFrame = true;
     else sfx.blocked();
-    if (run.carrying) {
-      toast('前方有障碍，过不去。', 'warn');
-    } else if (run.blockStreak >= 3) {
-      $('w-rail').classList.add('pulse');
-    }
+    if (!run.carrying && run.blockStreak >= 3) $('w-rail').classList.add('pulse');
   }
   if (result.goalNeedsItem && result.travelled > 0 && now - lastGoalHint > 1800) {
     lastGoalHint = now;
-    toast('接收台还没有晶核。');
+    goalNoteUntil = performance.now() + 1800;
+    setTimeout(() => { if (level) render(); }, 1850);
+    announce('接收台还没有晶核');
   }
   if (result.goalOtherW && result.travelled > 0 && now - lastGoalHint > 1800) {
     lastGoalHint = now;
     $('w-rail').classList.add('pulse');
-    toast(level.field.item ? '接收台在另一层。' : '出口在另一层。');
+    const [lo, hi] = level.field.goalW;
+    guideToward((lo + hi) / 2, (hi - lo) / 2);
+    announce(level.field.item ? '接收台在另一层' : '出口在另一层');
   }
   if (result.won) win();
 }
@@ -629,18 +822,35 @@ function requestDial(value, immediate = false, automatic = false) {
   return !clamped;
 }
 
+// A short haptic tick on touch devices, rate-limited with the refusal sound.
+const coarsePointer = window.matchMedia('(pointer: coarse)');
+const buzz = () => { if (coarsePointer.matches) navigator.vibrate?.(25); };
+
+// The sentence teaches once per level; after that the outline, foot ring,
+// sound and haptic carry the refusal on their own.
+function noteRefusal(text, ms) {
+  if (refusalNoted) { announce(text); return; }
+  refusalNoted = true;
+  toast(text, 'warn', ms);
+}
+
 function refuse() {
   flash = 1;
   const now = performance.now();
+  if (gaugeOn) { showGauge(); pop('w-gauge', 'hit'); }
   if (wB) {
     wContactThisFrame = true;
     pulseUntil = now + W_PARAMS.pulseMs;
-    if (now - lastRefuse >= W_PARAMS.soundGapMs && sfx.refused() !== false) lastRefuse = now;
-    toast(run?.carrying ? '晶核会碰到障碍' : '沿W会碰到障碍', 'warn', W_PARAMS.toastMs);
+    if (now - lastRefuse >= W_PARAMS.soundGapMs) {
+      buzz();
+      if (sfx.refused() !== false) lastRefuse = now;
+    }
+    noteRefusal(run?.carrying ? '晶核会碰到障碍' : '沿W会碰到障碍', W_PARAMS.toastMs);
   } else {
     if (now - lastRefuse > 700) {
+      buzz();
       sfx.refused();
-      toast(run?.carrying ? '这次换层会让晶核碰到障碍。' : '这次换层会碰到障碍。', 'warn');
+      noteRefusal(run?.carrying ? '这次换层会让晶核碰到障碍。' : '这次换层会碰到障碍。');
     }
     lastRefuse = now;
   }
@@ -785,21 +995,40 @@ function buildRailSpans() {
 
 let blocksKey = '';
 let marksKey = '';
+// The W direction the controls currently point toward: standing on a device
+// in another W, or a moment after an "elsewhere in W" bump.
+function activeGuide(w = dialToW(current)) {
+  if (!level || !run || cardOpen) return null;
+  const g = isWalk() ? deviceGuide() ?? (guide && performance.now() < guide.until ? guide : null) : null;
+  return g && Math.abs(g.w - w) > g.reach ? { w: g.w, dir: Math.sign(g.w - w) } : null;
+}
+
 function updateRail(w = dialToW(current), blocked = wAids().blocked) {
   const rail = $('w-rail');
-  const marks = wB ? nearbyDevices(level, run, current) : wAids().marks;
+  const pointed = activeGuide(w);
+  const marks = wB ? nearbyTargets(level, run, current) : wAids().marks;
   const mark = nearbyRailMark(current, marks);
-  const nextMarksKey = marks.map((m) => `${m.w}:${m.label}`).join('|');
+  const shown = pointed ? [...marks, { w: pointed.w, label: '', guide: true }] : marks;
+  const nextMarksKey = shown.map((m) => `${m.w}:${m.label}`).join('|');
   if (nextMarksKey !== marksKey) {
     marksKey = nextMarksKey;
-    $('rail-marks').replaceChildren(...marks.map((m) => {
+    $('rail-marks').replaceChildren(...shown.map((m) => {
       const el = document.createElement('span');
-      el.className = 'rail-mark';
+      el.className = m.guide ? 'rail-mark guide' : 'rail-mark';
       el.style.top = `${(1 - (m.w + 2) / 4) * 100}%`;
+      if (m.guide) el.style.color = cssColor(wColor(m.w));
       el.title = m.label;
       return el;
     }));
   }
+  // Controls carry the W state (blocked / at an end / docking / pointing).
+  const { body } = document;
+  body.dataset.guide = pointed ? String(pointed.dir) : '';
+  body.dataset.wstate = wB ? wControl.state.toLowerCase() : '';
+  body.dataset.wmove = String(wControl.direction);
+  body.dataset.wend = current >= 1 ? 'top' : current <= 0 ? 'bottom' : '';
+  const btn = $('action-btn');
+  $('key-hud').dataset.act = String(!btn.hidden && !btn.disabled);
   $('rail-thumb').style.top = `${(1 - current) * 100}%`;
   rail.setAttribute('aria-valuenow', w.toFixed(2));
   rail.setAttribute('aria-valuetext', `${isFlat() ? '高度' : 'W'} ${signed(w)}，第 ${LAYERS[layerIndex(w)].name} 层${mark ? `，${mark.label}` : ''}`);
@@ -836,7 +1065,7 @@ function updateRail(w = dialToW(current), blocked = wAids().blocked) {
   }
   const color = cssColor(wColor(w));
   $('layer-swatch').style.color = color;
-  $('layer-name').textContent = wB ? (wHold > 0 ? '向 +W' : wHold < 0 ? '向 −W' : '当前位置') : `第 ${LAYERS[layerIndex(w)].name} 层`;
+  $('layer-name').textContent = wB ? (wHold > 0 ? '↑' : wHold < 0 ? '↓' : '') : `第 ${LAYERS[layerIndex(w)].name} 层`;
   $('w-value').textContent = `${isFlat() ? '高度' : 'W'} ${signed(w)}${mark ? ` · ${mark.label}` : ''}`;
   if (wB) rail.setAttribute('aria-valuetext', `W ${signed(w)}${mark ? `，${mark.label}` : ''}`);
   $('w-status').textContent = wControl.state === 'BLOCKED' ? '受阻' : current === 0 || current === 1 ? '已到端点' : wControl.state === 'DOCKING' ? '轻停靠' : '';
@@ -913,33 +1142,34 @@ $('w-rail').addEventListener('keyup', (event) => {
 });
 
 // ---------- Screens ----------
+// The title screen is a level select: names, completion marks and route
+// seals. No instructions about what to play first or what each room teaches.
+const JOURNEY = ['gate', 'station-routes', 'sentry', 'fetch'];
 function renderChapters() {
   const list = $('chapter-list');
   const featured = document.createElement('section');
   featured.className = 'chapter featured';
-  featured.innerHTML = `
-    <div class="featured-copy">
-      <p class="kicker">新关卡 · 空间解谜</p>
-      <h2>${STATION_ROUTES_LEVEL.title}</h2>
-      <p>${STATION_ROUTES_LEVEL.objective}</p>
-      <div class="route-seals" aria-label="两种办法的记录">${sealMarkup()}</div>
-    </div>
-    <div class="featured-actions">
-      <button type="button" class="primary" data-start="station-routes">${progress.has('station-routes') ? '再玩一次：两种办法 →' : '开始：两种办法 →'}</button>
-      <button type="button" class="ghost" data-start="station">原版中转站 →</button>
-      <button type="button" class="ghost" data-start="fetch">无门取物 →</button>
-    </div>
-  `;
-  featured.querySelector('[data-start="fetch"]').addEventListener('click', () => startLevel('fetch'));
-  featured.querySelector('[data-start="station"]').addEventListener('click', () => startLevel('station'));
-  featured.querySelector('[data-start="station-routes"]').addEventListener('click', () => startLevel('station-routes'));
+  featured.innerHTML = '<h2>旅程</h2>';
+  const journey = document.createElement('div');
+  journey.className = 'levels';
+  for (const id of JOURNEY) {
+    const l = levelById(id);
+    const button = document.createElement('button');
+    button.className = 'level-button';
+    const seals = id === 'station-routes' ? `<span class="route-seals">${sealMarkup()}</span>` : '';
+    button.innerHTML = `<span>${l.title}</span>${seals}<span class="mark">${progress.has(id) ? '✓' : '→'}</span>`;
+    button.setAttribute('aria-label', `${l.title}${progress.has(id) ? '，已完成' : ''}`);
+    button.addEventListener('click', () => startLevel(id));
+    journey.append(button);
+  }
+  featured.append(journey);
 
   const cards = CHAPTERS.map((chapter) => {
     const levels = LEVELS_LIST.filter((l) => l.chapter === chapter.id);
     const el = document.createElement('section');
     const chapterOpen = sandboxAll || isUnlocked(levels[0].id, progress);
     el.className = `chapter${chapterOpen ? '' : ' locked'}`;
-    el.innerHTML = `<p class="kicker">第 ${chapter.id} 章 · ${chapter.tag}</p><h2>${chapter.name}</h2><p>${chapter.blurb}</p>`;
+    el.innerHTML = `<h2>${chapter.name}</h2>`;
     const box = document.createElement('div');
     box.className = 'levels';
     for (const l of levels) {
@@ -959,11 +1189,10 @@ function renderChapters() {
   const unlockBtn = $('unlock-all');
   if (unlockBtn) {
     unlockBtn.setAttribute('aria-pressed', String(sandboxAll));
-    unlockBtn.textContent = sandboxAll ? '已解锁全部关卡' : '解锁全部关卡';
+    unlockBtn.textContent = sandboxAll ? '已解锁全部' : '解锁全部';
   }
 }
 
-const firstOpenLevel = () => LEVELS_LIST.find((l) => !progress.has(l.id) && isUnlocked(l.id, progress)) ?? LEVELS_LIST[0];
 
 function leaveLevel() {
   if (!wB && gestureStart !== null) record('w_gesture_end', { reason: 'leave_level', distance_W: gestureDistance, reversals: gestureReversals });
@@ -1005,13 +1234,20 @@ function showTitle() {
   $('play').focus({ preventScroll: true });
 }
 
-function keysHelp() {
-  const w = wB ? '沿 W 移动；松手停下' : isFlat() ? '换层' : '移动 W';
-  const itemKey = isWalk() && level?.field?.item ? '<br><kbd>空格</kbd> / <kbd>F</kbd> 拿放晶核 / 操作机关' : '';
-  return isWalk()
-    ? `<kbd>↑↓←→</kbd> / <kbd>WASD</kbd> 按画面方向移动<br><kbd>Q</kbd> <kbd>E</kbd> ${wB ? '按住' : '或拖动滑轨'}${w}${itemKey}<br>拖动画面转视角 · 滚轮缩放 · <kbd>R</kbd> 重来 · <kbd>H</kbd> 提示`
-    : `<kbd>↑</kbd> <kbd>↓</kbd> / <kbd>Q</kbd> <kbd>E</kbd> 或拖动滑轨${w} · <kbd>H</kbd> 提示`;
+// The key HUD replaces the written key list: caps light up with the real
+// keys, and fade once the player has both walked and moved in W.
+const HUD_KEYS = { w: 'w', arrowup: 'w', a: 'a', arrowleft: 'a', s: 's', arrowdown: 's', d: 'd', arrowright: 'd',
+  q: 'q', pagedown: 'q', e: 'e', pageup: 'e', ' ': 'space', f: 'space' };
+function hudKey(key, on) {
+  let cap = HUD_KEYS[key.toLowerCase()];
+  if (!cap || !level) return;
+  if (!isWalk() && (cap === 'w' || cap === 's')) cap = cap === 'w' ? 'e' : 'q';
+  document.querySelector(`#key-hud kbd[data-k="${cap}"]`)?.classList.toggle('on', on);
+  if (!on) return;
+  hudUsed.add('wasd'.includes(cap) ? 'move' : cap === 'space' ? 'act' : 'w');
+  $('key-hud').classList.toggle('learned', hudUsed.has('w') && (hudUsed.has('move') || !isWalk()));
 }
+const hudRelease = () => document.querySelectorAll('#key-hud kbd.on').forEach((el) => el.classList.remove('on'));
 
 function resetCamera() {
   map?.fitTo(frameBounds(), isFlat() ? 0.16 : 0.66);
@@ -1043,13 +1279,13 @@ function startLevel(id, { skipIntro = false } = {}) {
   trialActive = false;
   $('title-screen').hidden = true;
   $('game-screen').hidden = false;
-  $('level-chapter').textContent = level.standalone ? '独立场景' : `${level.id} · ${chapter.name}`;
+  $('level-chapter').textContent = level.standalone ? '旅程' : `${level.id} · ${chapter.name}`;
   $('level-title').textContent = level.title;
   const flatView = isFlat();
   $('scene').hidden = flatView;
   $('flat').hidden = !flatView;
   $('reset-view').hidden = flatView;
-  $('stage-tag').textContent = flatView ? '你的世界 · 二维俯视 (X-Z)' : '你的世界 · 三维截面 (X-Y-Z)';
+  $('stage-tag').textContent = flatView ? '二维俯视' : '三维截面';
   $('map-title').textContent = flatView ? '全貌 (3D)' : 'W 地图';
   $('map-kicker').textContent = flatView ? '三维全貌' : '四维全貌';
   $('map-sub').textContent = flatView ? '竖直方向 = 高度（第三维）' : '竖直方向 = W（第四维，非高度）';
@@ -1063,10 +1299,22 @@ function startLevel(id, { skipIntro = false } = {}) {
   $('dpad').hidden = !isWalk();
   $('receiver-seals').innerHTML = sealMarkup();
   $('predict').hidden = true;
-  $('keys').innerHTML = keysHelp();
   if (wB) $('map-note').textContent = '按住 Q / E 或 ±W 移动，松手停下；滑轨可拖动。';
+  if (isWalk()) $('map-note').textContent += ' 拖动画面转视角，R 重来，H 提示。';
+  $('key-hud').hidden = false;
+  $('key-hud').dataset.mode = isWalk() ? 'walk' : 'visit';
+  patrol = level.sentries ? new Patrol(level.sentries) : null;
+  checkpointReached = false;
+  refusalNoted = false;
+  gaugeW = null;
+  gaugeUntil = 0;
+  guide = null;
+  goalNoteUntil = 0;
+  highlightIds = new Set();
   record('level_enter', { segment: studySegment });
-  setObjective(level.objective);
+  // Outside the study the goal is a word or two; the room explains the rest.
+  const shortGoal = level.sentries ? '避开守卫，到达出口' : level.field?.item ? '送达晶核' : '到达出口';
+  setObjective(study.enabled || !isWalk() ? level.objective : shortGoal);
   updateHintButton();
   updateErrors();
   prevVisible = visibleIds(displayBodies().map((b) => sliceAtW(b, dialToW(current))));
@@ -1090,7 +1338,8 @@ function startLevel(id, { skipIntro = false } = {}) {
   const firstOfChapter = !level.standalone && LEVELS_LIST.find((l) => l.chapter === level.chapter) === level;
   if (!measuring() && firstOfChapter && !skipIntro && !introShown.has(level.chapter)) {
     introShown.add(level.chapter);
-    showCard({ ...chapter.intro, actions: [['开始', 'primary', () => hideCard()]] });
+    // A chapter opens on its name and one line, not a lecture.
+    showCard({ kicker: chapter.name, title: chapter.intro.title, actions: [['开始', 'primary', () => hideCard()]] });
   } else focusStage();
 }
 
@@ -1202,6 +1451,9 @@ function win() {
   pressed.clear();
   wHold = 0;
   $('w-rail').classList.remove('pulse');
+  // Result cards report how the run went instead of explaining the principle.
+  const statLine = isWalk() && run.seconds
+    ? `用时 ${run.seconds(run.finishedAt)} 秒 · 换 W ${run.wMoves} 次${level.sentries ? ` · 被发现 ${patrol.caught} 次` : ''}` : undefined;
   if (isWalk()) {
     if (measuring()) {
       setObjective(level.done);
@@ -1212,18 +1464,24 @@ function win() {
       const next = completionAction();
       const actions = [[next.label, 'primary', () => startLevel(next.level)]];
       if (level.id === 'gate') {
-        actions.push(['再走一次，地图收起', 'ghost', () => startLevel('gate-blind')]);
+        actions.push(['盲走一次', 'ghost', () => startLevel('gate-blind')]);
       }
       setObjective('已到达出口。');
-      showCard({ kicker: '到达出口', title: level.done, actions });
+      showCard({ kicker: '到达出口', title: level.title, stats: statLine, actions });
       updateActionButton();
+      return;
+    }
+    if (level.sentries) {
+      setObjective('已到达出口。');
+      showCard({ kicker: level.done, title: level.title, stats: statLine,
+        actions: [['再来一次', 'primary', () => startLevel(level.id)], ['回到关卡', 'ghost', () => showTitle()]] });
       return;
     }
     stationSeals = rememberStationRun(sealStorage, stationSeals, run);
     $('receiver-seals').innerHTML = sealMarkup();
     updateActionButton();
     setObjective(level.field.item ? '晶核已送达。可以留在这里走走。' : '已到达出口。可以留在这里走走。');
-    toast(level.done, 'good');
+    toast(statLine ? `${level.field.item ? '晶核已送达' : '到达出口'} · ${statLine}` : level.done, 'good');
     return;
   }
   updateActionButton();
@@ -1241,7 +1499,7 @@ function win() {
     actions.push(['回到章节', 'ghost', () => showTitle()]);
   } else {
     actions.push([next ? '下一关 →' : '回到章节', 'primary', () => (next ? startLevel(next.id) : showTitle())]);
-    if (chapterEnd) actions.push(['原理说明（可选）', 'ghost', () => showWhy()]);
+    if (chapterEnd) actions.push(['为什么？', 'ghost', () => showWhy()]);
     actions.push(['再来一次', 'ghost', () => startLevel(level.id, { skipIntro: true })]);
   }
   actions.push(['保存记录 ↓', 'ghost', download]);
@@ -1287,7 +1545,7 @@ function revealHint() {
   }));
   $('hint-panel').hidden = false;
   $('hint-next').hidden = hintLevel >= level.hints.length;
-  $('hint-next').textContent = measuring() ? '再看一条提示' : hintLevel === level.hints.length - 1 ? '查看完整解法' : '再给一点提示';
+  $('hint-next').textContent = measuring() ? '再看一条提示' : hintLevel === level.hints.length - 1 ? '直接告诉我' : '再给一点';
   updateHintButton();
 }
 function showHint() {
@@ -1413,6 +1671,7 @@ window.addEventListener('keydown', (event) => {
   if (!level || $('game-screen').hidden || cardOpen || (wB && document.hidden)) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   const key = event.key;
+  hudKey(key, true);
   if (wB && key === 'Escape') cancelInputs('escape', false);
   if (key === 'Escape' && !$('hint-panel').hidden) {
     event.preventDefault();
@@ -1459,6 +1718,7 @@ window.addEventListener('keydown', (event) => {
   }
 });
 window.addEventListener('keyup', (event) => {
+  hudKey(event.key, false);
   if (wB && wControl.source === 'keyboard-hold' && wControl.inputs.has(event.key.toLowerCase())) releaseW('keyboard-hold', event.key.toLowerCase());
   if (wB && wControl.source === 'touch-w-button' && wControl.inputs.has(`button:${event.key}`)) releaseW('touch-w-button', `button:${event.key}`);
   if (wB && wControl.source === 'rail-keyboard' && railKeys.delete(event.key)) releaseW('rail-keyboard', event.key);
@@ -1473,6 +1733,7 @@ window.addEventListener('blur', () => {
   record('pause', { reason: 'blur' });
   if (wB) cancelInputs('blur', true, true);
   pressed.clear();
+  hudRelease();
   if (heldWKey) { wHold = 0; heldWKey = null; commitW(); }
 });
 window.addEventListener('focus', () => record('resume', { reason: 'focus' }));
@@ -1525,8 +1786,37 @@ for (const button of document.querySelectorAll('[data-wdir]')) {
   });
 }
 
+// Map notes and legends on demand instead of always on screen.
+$('map-info-toggle').addEventListener('click', (event) => {
+  const open = !document.querySelector('.map-panel').classList.contains('info-open');
+  document.querySelector('.map-panel').classList.toggle('info-open', open);
+  $('map-info-toggle').setAttribute('aria-pressed', String(open));
+  if (event.detail > 0 && level) focusStage();
+});
+
+// Pointing at a mechanism row outlines its door on the floor of the scene.
+let highlightTimer = 0;
+function pointAt(id, ms = 0) {
+  highlightIds = id ? new Set([id]) : new Set();
+  clearTimeout(highlightTimer);
+  if (ms) highlightTimer = setTimeout(() => pointAt(null), ms);
+  if (level) render();
+}
+for (const row of document.querySelectorAll('.mech-row')) {
+  row.addEventListener('pointerenter', () => pointAt(row.dataset.body));
+  row.addEventListener('pointerleave', () => pointAt(null));
+  row.addEventListener('focus', () => pointAt(row.dataset.body));
+  row.addEventListener('blur', () => { if (!highlightTimer) pointAt(null); });
+  // A tap (touch has no hover) keeps the outline briefly, then hands
+  // the keyboard back to the stage so Space keeps operating the game.
+  row.addEventListener('click', (event) => {
+    pointAt(row.dataset.body, 1600);
+    if (event.detail > 0) focusStage();
+  });
+}
+
 function configureStudyTitle() {
-  for (const id of ['play-routes', 'play-fetch', 'play-chapters', 'open-lab', 'unlock-all', 'chapter-list']) $(id).hidden = true;
+  for (const id of ['unlock-all', 'chapter-list']) $(id).hidden = true;
   document.querySelector('.tagline').textContent = '请按画面目标试着玩，界面里的帮助可以自己使用。';
   $('play').textContent = '开始体验';
 }
@@ -1568,19 +1858,16 @@ $('study-end').addEventListener('click', () => {
       session.finish({ level: level?.id, run, dial: current });
       studySealed = true;
       exportStudy();
-      for (const id of ['play-routes', 'play-fetch', 'play-chapters', 'open-lab', 'unlock-all', 'chapter-list']) $(id).hidden = false;
+      for (const id of ['unlock-all', 'chapter-list']) $(id).hidden = false;
       $('study-next').disabled = true;
-      $('play').textContent = '先走球门';
+      $('play').textContent = '开始';
       showTitle();
     }], ['继续观察', 'ghost', () => hideCard()]] });
 });
 record('session_start', { userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight] });
 
 $('play').addEventListener('click', () => { sfxInit(); if (measuring()) studySegment = 0; startLevel('gate'); });
-$('play-routes').addEventListener('click', () => { sfxInit(); startLevel('station-routes'); });
-$('play-fetch').addEventListener('click', () => { sfxInit(); startLevel('fetch'); });
-$('play-chapters')?.addEventListener('click', () => { sfxInit(); startLevel(firstOpenLevel().id); });
-$('open-lab')?.addEventListener('click', () => { sfxInit(); startLevel('lab'); });
+
 $('action-btn')?.addEventListener('click', () => { handleInteract(); if (level) focusStage(); });
 $('replay-btn').addEventListener('click', () => startLevel(level.id, { skipIntro: true }));
 $('return-levels').addEventListener('click', showTitle);

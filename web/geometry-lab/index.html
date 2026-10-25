@@ -20,16 +20,13 @@
     <div class="title-copy">
       <p class="kicker">A SMALL GAME ABOUT THE FOURTH DIMENSION</p>
       <h1 id="wordmark" class="wordmark">W<span>/</span>SLICE</h1>
-      <p class="tagline">你只能看见一层。<br>先走过球门，再去庭院试试两种办法。</p>
+      <p class="tagline">你只能看见一层。</p>
       <div class="title-actions">
-        <button id="play" class="primary big">先走球门 <span aria-hidden="true">→</span></button>
-        <button id="play-routes" class="ghost">试玩两种办法</button>
-        <button id="play-fetch" class="ghost">无门取物</button>
-        <button id="play-chapters" class="ghost">从序章开始</button>
-        <button id="open-lab" class="ghost">原理实验室（可选）</button>
-        <button id="unlock-all" class="ghost unlock-toggle" type="button" aria-pressed="false">解锁全部关卡</button>
+        <button id="play" class="primary big">开始 <span aria-hidden="true">→</span></button>
       </div>
-      <p class="title-note">键盘或触屏 · 无需安装</p>
+      <p class="title-note title-links">
+        <button id="unlock-all" class="link unlock-toggle" type="button" aria-pressed="false">解锁全部</button>
+      </p>
     </div>
     <nav id="chapter-list" class="chapter-list" aria-label="章节与关卡"></nav>
   </section>
@@ -49,7 +46,7 @@
         <div class="tools">
           <button id="restart" class="ghost tool compact-tool" aria-label="重新开始这一关" title="重新开始这一关 (R)"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/></svg><span class="tool-text">重来</span></button>
           <button id="reset-view" class="ghost tool compact-tool" aria-label="视角复位" title="恢复初始视角"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5"/><circle cx="12" cy="12" r="4"/></svg><span class="tool-text">视角复位</span></button>
-          <button id="hint" class="ghost tool" aria-controls="hint-panel" aria-expanded="false"><span id="hint-label">观察提示</span> <span id="hint-count" class="count"></span></button>
+          <button id="hint" class="ghost tool" aria-controls="hint-panel" aria-expanded="false" aria-label="线索" title="线索 (H)"><span id="hint-label">观察提示</span> <span id="hint-count" class="count"></span></button>
           <button id="sound" class="ghost icon" aria-pressed="true" aria-label="音效开关" title="音效">♪</button>
         </div>
       </div>
@@ -72,6 +69,7 @@
           <span class="world-tag goal" id="goal-tag" hidden>◎ 接收台</span>
           <span class="world-tag socket" id="socket-tag" hidden>蓝层插座</span>
           <span class="world-tag latch" id="latch-tag" hidden>回廊开关</span>
+          <span class="w-gauge" id="w-gauge" hidden><span class="wg-track"><span id="wg-marks"></span><i class="wg-thumb" id="wg-thumb"></i></span></span>
         </div>
         <div id="receiver-seals" class="route-seals receiver-seals" aria-label="接收台的路线记录" hidden></div>
         <div class="stage-actions">
@@ -83,10 +81,16 @@
         </div>
         <div id="stage-rail" class="stage-rail" hidden></div>
         <p class="toast" id="toast" role="status" aria-live="polite"></p>
+        <p class="sr-only" id="sr-status" role="status" aria-live="polite"></p>
+        <div id="key-hud" class="key-hud" aria-hidden="true" hidden>
+          <kbd data-k="q" class="cool">Q</kbd><kbd data-k="w">W</kbd><kbd data-k="e" class="warm">E</kbd>
+          <kbd data-k="a">A</kbd><kbd data-k="s">S</kbd><kbd data-k="d">D</kbd>
+          <kbd data-k="space" class="space">空格</kbd>
+        </div>
         <section id="hint-panel" class="hint-panel" aria-labelledby="hint-heading" hidden>
-          <div class="hint-head"><b id="hint-heading">已查看的提示</b><button id="hint-close" class="ghost" aria-label="收起提示">收起</button></div>
+          <div class="hint-head"><b id="hint-heading">线索</b><button id="hint-close" class="ghost" aria-label="收起线索">收起</button></div>
           <ol id="hint-history" aria-live="polite"></ol>
-          <button id="hint-next" class="ghost">再给一点提示</button>
+          <button id="hint-next" class="ghost">再给一点</button>
         </section>
         <div class="empty-notice" id="empty-notice" hidden><span class="empty-ring"></span><p>这一层，什么都没有碰到。</p></div>
         <div class="dpad" id="dpad" hidden aria-label="移动角色">
@@ -114,10 +118,11 @@
         <section class="map-panel" aria-labelledby="map-title">
           <div class="map-head">
             <div class="map-heading">
-              <p class="panel-kicker" id="map-kicker">空间全貌</p>
+              <p class="panel-kicker map-info" id="map-kicker">空间全貌</p>
               <b id="map-title">W 地图</b>
             </div>
-            <small id="map-sub">竖直方向 = W</small>
+            <small id="map-sub" class="map-info">竖直方向 = W</small>
+            <button id="map-info-toggle" class="ghost icon info-toggle" type="button" aria-pressed="false" aria-label="地图说明" title="地图说明">i</button>
           </div>
           <div class="map-body">
             <div class="map-view">
@@ -144,30 +149,28 @@
             </div>
           </div>
           <div class="layer-readout"><i class="swatch" id="layer-swatch"></i><span id="layer-name"></span><span class="w-value" id="w-value"></span></div>
-          <p class="color-legend" id="color-legend"><span class="cool-tag">● 冷蓝在下 (−W)</span><span class="warm-tag">● 暖橙在上 (+W)</span><span class="legend-sep" id="legend-block-hint" hidden>● 红区 = 墙会撞上你</span></p>
-          <p class="map-note" id="map-note">拖动滑轨观察截面变化</p>
+          <p class="color-legend map-info" id="color-legend"><span class="cool-tag">● 冷蓝在下 (−W)</span><span class="warm-tag">● 暖橙在上 (+W)</span><span class="legend-sep" id="legend-block-hint" hidden>● 红区 = 墙会撞上你</span></p>
+          <p class="map-note map-info" id="map-note">拖动滑轨观察截面变化</p>
         </section>
 
         <section class="mechanisms" id="mechanisms" hidden aria-labelledby="mech-title">
           <div class="mech-head">
-            <p class="panel-kicker">机构读法</p>
             <b id="mech-title">机关状态</b>
           </div>
           <div class="mech-list">
-            <div class="mech-row" id="mech-power" data-state="off">
+            <button type="button" class="mech-row" id="mech-power" data-state="off" data-body="station-power-door">
               <span class="mech-glyph power" aria-hidden="true"></span><span class="mech-name">供电</span><span class="mech-val">未接通</span>
-            </div>
-            <div class="mech-row" id="mech-phase" data-state="solid">
+            </button>
+            <button type="button" class="mech-row" id="mech-phase" data-state="solid" data-body="station-phase-door">
               <span class="mech-glyph phase" aria-hidden="true"></span><span class="mech-name">相位墙</span><span class="mech-val">实心</span>
-            </div>
-            <div class="mech-row" id="mech-latch" data-state="closed">
+            </button>
+            <button type="button" class="mech-row" id="mech-latch" data-state="closed" data-body="station-return-door">
               <span class="mech-glyph latch" aria-hidden="true"></span><span class="mech-name">回廊</span><span class="mech-val">关闭</span>
-            </div>
-            <div class="mech-row" id="mech-middle" data-state="solid" hidden>
+            </button>
+            <button type="button" class="mech-row" id="mech-middle" data-state="solid" data-body="station-middle-door" hidden>
               <span class="mech-glyph phase" aria-hidden="true"></span><span class="mech-name">中间入口</span><span class="mech-val">实心</span>
-            </div>
+            </button>
           </div>
-          <p class="mech-note">材质会随状态改变</p>
         </section>
 
         <section class="predict" id="predict" hidden aria-labelledby="predict-question">
@@ -180,8 +183,6 @@
           <button id="reveal" class="primary" disabled>看看结果 <span aria-hidden="true">→</span></button>
           <button id="next-trial" class="primary" hidden>下一题 <span aria-hidden="true">→</span></button>
         </section>
-
-        <p class="keys" id="keys"></p>
       </aside>
     </main>
   </section>

@@ -8,6 +8,7 @@ import * as study from '../study.mjs';
 import * as progress from '../station-progress.mjs';
 import * as effects from '../station-effects.mjs';
 import * as layers from '../layers.mjs';
+import * as sentry from '../sentry.mjs';
 
 // Execute the WHOLE app with its real model/controller. Only DOM, rendering,
 // clocks and audio are adapters. This is not installed in the browser game.
@@ -48,9 +49,9 @@ export async function appHarness(search = '?study=w1&wcontrol=b&level=station-ro
   window.matchMedia = () => ({ matches: false, addEventListener() {} });
   class Renderer {
     constructor(canvas) { this.canvas = canvas; this.orbit = { yaw: .66 }; }
-    render(frame) { this.frame = frame; } draw() {} project() { return null; } fitTo() {} resetView() {}
+    render(frame) { this.frame = frame; } draw() {} project() { return { x: 50, y: 50 }; } fitTo() {} resetView() {}
   }
-  const context = vm.createContext({ ...geometry, ...game, ...levels, ...controls, ...study, ...progress, ...effects, ...layers,
+  const context = vm.createContext({ ...geometry, ...game, ...levels, ...controls, ...study, ...progress, ...effects, ...layers, ...sentry,
     readStudyBuild: async () => ({ buildCommit: 'test-implementation', status: 'test' }),
     document, window, location: { search }, navigator: { userAgent: 'test' }, innerWidth: 1280, innerHeight: 720,
     URLSearchParams, URL, Blob, crypto: { randomUUID: () => 'integration' }, console,
@@ -64,7 +65,8 @@ export async function appHarness(search = '?study=w1&wcontrol=b&level=station-ro
   });
   const source = readFileSync(new URL('../app.mjs', import.meta.url), 'utf8').replace(/^import .*;\n/gm, '');
   const app = await vm.runInContext(`(async () => { ${source}\nreturn {
-    startLevel, showTitle, handleInteract, advanceStudy, showCard, hideCard, cancelInputs, requestDial, beginW, releaseW,
+    startLevel, showTitle, handleInteract, advanceStudy, showCard, hideCard, cancelInputs, requestDial, beginW, releaseW, pointAt,
+    frame: () => buildFrame(),
     get run() { return run; }, get level() { return level; }, get current() { return current; }, get target() { return target; },
     get controller() { return wControl; }, get session() { return session; }, get pressed() { return pressed; },
     get wHold() { return wHold; }, get gestureStart() { return gestureStart; }, get nudge() { return nudge; },

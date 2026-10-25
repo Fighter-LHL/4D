@@ -250,6 +250,17 @@ export class WalkRun {
     return true;
   }
 
+  // Return to a checkpoint (after being caught). The spot must be legal in
+  // its own section; this is a reset, not a W change, so no sweep applies.
+  respawn(pos, dial) {
+    if (!legalCorridorSpot(corridorSections(dialToW(dial), this.activeField()), pos[0], pos[1], this.activeField())) return false;
+    this.pos = [...pos];
+    this.dial = clampDial(dial);
+    this.refusing = false;
+    this.blockedLast = false;
+    return true;
+  }
+
   // One finished W gesture (drag released, key released).
   noteWAdjust() {
     if (this.won) return;

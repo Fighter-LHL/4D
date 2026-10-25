@@ -2,11 +2,13 @@ import { dialToW } from './geometry.mjs';
 import { W_PARAMS } from './controls.mjs';
 
 export const BASE_COMMIT = '359ea294b8934f1d61473e3ae47247e56a406d75';
-export const COPY_VERSION = 'w1-copy-1';
-export const PARAMS_VERSION = 'w1-params-1';
+export const COPY_VERSION = 'w1-copy-3';
+export const PARAMS_VERSION = 'w1-params-2';
+// levels-2: the gate gains a cold ball, so only the +W route opens.
+export const LEVEL_VERSION = 'w1-levels-2';
 export const STUDY_CHAIN = Object.freeze(['gate', 'station-routes', '2-3']);
 export const STUDY_COPY = Object.freeze({
-  gate: { objective: '到达金色出口。', hints: ['沿W移动一点，观察球和板墙的变化。', '通路让开时，留意出口是否仍然亮着。'], done: '已到达出口。' },
+  gate: { objective: '到达金色出口。', hints: ['往 +W 和 −W 都走一走，比较球的变化。', '通路让开时，留意出口是否仍然亮着。'], done: '已到达出口。' },
   'station-routes': { objective: '把晶核送到金色接收台。', hints: ['留意开口旁的球体、线路和机械锁。', '一处开口让路时，另一处未必也能通过。'], done: '晶核已送达。' },
   '2-3': { objective: '到达金色出口。', hints: ['观察相邻球体之间的空隙。', '沿W移动时，留意途中出现的空隙。'], done: '已到达出口。' },
   fetch: { objective: '把屋里的晶核带到金色接收台。', hints: ['沿W移动时，留意房间边界的变化。', '拿起晶核后，看看你占的空间有什么变化。'], done: '晶核已送达。' },
@@ -45,7 +47,7 @@ export class StudySession {
     this.id = id;
     this.config = config;
     this.metadata = { baseCommit: BASE_COMMIT, buildCommit: build.buildCommit ?? null,
-      sourceDigest: build.sourceDigest ?? null, buildStatus: build.status ?? 'unverified', declaredBuildCommit: build.declaredBuildCommit ?? null, copyVersion: COPY_VERSION, paramsVersion: PARAMS_VERSION,
+      sourceDigest: build.sourceDigest ?? null, buildStatus: build.status ?? 'unverified', declaredBuildCommit: build.declaredBuildCommit ?? null, copyVersion: COPY_VERSION, paramsVersion: PARAMS_VERSION, levelVersion: LEVEL_VERSION,
       parameters: W_PARAMS, actualCondition: config.condition, requestedCondition: config.requested };
     this.events = [];
     this.ended = false;

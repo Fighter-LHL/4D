@@ -7,6 +7,12 @@ export function screenToWorldMove(right, down, yaw = 0) {
   const s = Math.sin(yaw);
   return [right * c + down * s, -right * s + down * c];
 }
+
+// Every walking layout is axis-aligned, so ground input follows the world axis
+// nearest to the camera's screen axes (classic isometric control). A single
+// key or d-pad button then runs straight along corridors instead of drifting
+// diagonally into wall ends; two keys still give the 45° world diagonals.
+export const movementYaw = (yaw = 0) => Math.round(yaw / (Math.PI / 2)) * (Math.PI / 2);
 export const RAIL_SNAP_W = 0.12;
 
 // These marks identify devices, not safe W ranges. Chapter 2 never adds them.
@@ -34,8 +40,12 @@ export function railReleaseDial(dial, marks) {
 
 // Study B: physical W remains continuous. These parameters are experiment
 // defaults, not validated player outcomes; freeze/version before formal use.
+// rampFloor/rampMs: a held direction starts at 35% speed and reaches full
+// speed after 450 ms, so a short tap is a fine step and a long hold travels.
+// goalReach: floor distance at which the exit/receiver W window slows/docks.
 export const W_PARAMS = Object.freeze({ rateW: 1.28, nearRateW: 0.50, captureW: 0.12,
-  dockMs: 120, rearmW: 0.02, pulseMs: 200, outlineMs: 1600, soundGapMs: 700, toastMs: 1200 });
+  dockMs: 120, rearmW: 0.02, pulseMs: 200, outlineMs: 1600, soundGapMs: 700, toastMs: 1200,
+  rampFloor: 0.35, rampMs: 450, goalReach: 1.2 });
 
 export function studyConfig(search) {
   const params = new URLSearchParams(search);
@@ -58,10 +68,30 @@ export function nearbyDevices(level, run, dial = run?.dial) {
   });
 }
 
-// No ghost, color center, goal, free core or geometry-event candidates.
+// The exit / receiver W window is public information (its label already says
+// "在中间层"), so it may slow and dock even when the map is hidden. It only
+// counts while the goal is still meaningful and the player stands near it.
+export function nearbyGoal(level, run, dial = run?.dial) {
+  const field = level?.field;
+  if (level?.kind !== 'walk' || !field?.goalW || !run || run.won || (field.item && !run.carrying)) return null;
+  if (Math.hypot(run.pos[0] - field.goal[0], run.pos[1] - field.goal[1]) > W_PARAMS.goalReach) return null;
+  const [lo, hi] = field.goalW;
+  const w = (lo + hi) / 2;
+  const capture = (hi - lo) / 2 + W_PARAMS.captureW;
+  if (Math.abs(dialToW(dial) - w) > capture) return null;
+  return { id: 'goal', w, capture, dial: wToDial(w), label: field.item ? '接收台' : '出口' };
+}
+
+export function nearbyTargets(level, run, dial = run?.dial) {
+  const goal = nearbyGoal(level, run, dial);
+  return goal ? [...nearbyDevices(level, run, dial), goal] : nearbyDevices(level, run, dial);
+}
+
+// No ghost, color center, free core or geometry-event candidates.
 // Reject ambiguity BEFORE checking safety; never search for a safer second point.
 export function dockingCandidate(level, run, dial = run?.dial) {
-  const candidates = nearbyDevices(level, run, dial).filter((d) => Math.abs(dialToW(dial) - d.w) <= W_PARAMS.captureW + 1e-9);
+  const candidates = nearbyTargets(level, run, dial)
+    .filter((d) => Math.abs(dialToW(dial) - d.w) <= (d.capture ?? W_PARAMS.captureW) + 1e-9);
   return candidates.length === 1 && run.canSetDial(candidates[0].dial, dial) ? candidates[0] : null;
 }
 const stateSignature = (run) => JSON.stringify([run.carrying, run.carrying ? null : run.item, run.relayLatched, run.socketUses, run.won]);
@@ -76,6 +106,7 @@ export class WControl {
   contact = false;
   safeTravel = 0;
   blockedAt = null;
+  heldFor = 0;
 
   press(source, id, direction = 0) {
     if (this.source !== null && this.source !== source) return false;
@@ -91,14 +122,19 @@ export class WControl {
 
   updateDirection() {
     const directions = new Set(this.inputs.values());
-    this.direction = directions.has(1) && directions.has(-1) ? 0 : directions.has(1) ? 1 : directions.has(-1) ? -1 : 0;
+    const direction = directions.has(1) && directions.has(-1) ? 0 : directions.has(1) ? 1 : directions.has(-1) ? -1 : 0;
+    if (direction !== this.direction) this.heldFor = 0;
+    this.direction = direction;
     this.state = this.direction ? 'DRIVING' : 'NEUTRAL';
     this.blockedAt = null;
   }
 
   next(level, run, seconds) {
-    const rate = nearbyDevices(level, run).length ? W_PARAMS.nearRateW : W_PARAMS.rateW;
-    return clampDial(run.dial + this.direction * rate / 4 * seconds);
+    this.heldFor += seconds;
+    const { rampFloor, rampMs, rateW, nearRateW } = W_PARAMS;
+    const rate = rateW * Math.min(1, rampFloor + (1 - rampFloor) * this.heldFor * 1000 / rampMs);
+    const speed = nearbyTargets(level, run).length ? Math.min(rate, nearRateW) : rate;
+    return clampDial(run.dial + this.direction * speed / 4 * seconds);
   }
 
   shouldDrive(run) {
@@ -130,7 +166,7 @@ export class WControl {
     if (this.source !== source || !this.inputs.delete(id)) return false;
     if (this.inputs.size) { this.updateDirection(); return false; }
     this.source = null;
-    this.direction = 0;
+    this.direction = this.heldFor = 0;
     const candidate = this.eligible ? dockingCandidate(level, run) : null;
     this.docking = candidate && Math.abs(candidate.dial - run.dial) > 1e-9
       ? { ...candidate, from: run.dial, elapsed: 0, signature: stateSignature(run), field: run.activeField() } : null;
@@ -148,7 +184,7 @@ export class WControl {
   cancel(locked = false) {
     this.source = null;
     this.inputs.clear();
-    this.direction = 0;
+    this.direction = this.heldFor = 0;
     this.docking = null;
     this.eligible = true;
     this.contact = false;
