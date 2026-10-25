@@ -14,10 +14,10 @@ test('seals persist only after delivery and merge across routes without touching
   assert.equal(data.has(STATION_SEALS_KEY), false);
   let seals = rememberStationRun(storage, empty, run({ stone: true, copper: false }));
   assert.deepEqual(readStationSeals(storage), { stone: true, copper: false });
-  assert.deepEqual(stationNextAction(seals), { label: '再走另一条', level: 'station-routes' });
+  assert.deepEqual(stationNextAction(seals), { label: '再来一次', level: 'station-routes' });
   seals = rememberStationRun(storage, seals, run({ stone: false, copper: true }));
   assert.deepEqual(readStationSeals(storage), { stone: true, copper: true });
-  assert.deepEqual(stationNextAction(seals), { label: '从序章开始', level: '0-1' });
+  assert.deepEqual(stationNextAction(seals), { label: '去扁平国', level: '0-1' });
   assert.equal(data.get('wslice-progress-v1'), '["1-1"]');
   assert.deepEqual(rememberStationRun(storage, seals, run(empty)), seals, 'replaying cannot erase an earned seal');
 });

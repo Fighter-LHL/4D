@@ -248,6 +248,10 @@ export const ISLANDS = Object.freeze({
 // outside every body's swept volume. Permanent side walls narrow the east
 // passage: a warm-offset ball grows across it and a middle-W slab closes it.
 // After passing the slab, the player must return to goalW beyond its footprint.
+// A cold ball shares the warm ball's place: absent at W 0, it grows as the
+// warm one shrinks toward −W, so the cold side never opens. The only way is
+// +W, where the warm ball first grows, then shrinks and vanishes — the player
+// passes through a 4D ball instead of nudging an obstacle away.
 // No item, relay or authored route participates in collision.
 export const GATE_ROOM = Object.freeze({
   start: Object.freeze([-2.35, 0]),
@@ -260,7 +264,27 @@ export const GATE_ROOM = Object.freeze({
     hyperbox('gate-north', [0.65, 0.65, -1.2, 0], [1.65, 0.85, 0.55, 2.2]),
     hyperbox('gate-south', [0.65, 0.65, 1.2, 0], [1.65, 0.85, 0.55, 2.2]),
     hypersphere('gate-orb', [0, 0.55, 0, 0.8], 0.95, true),
+    hypersphere('gate-orb-cold', [0, 0.55, 0, -1.2], 1.19, false),
     hyperbox('gate-phase-wall', [1.55, 0.75, 0, 0], [0.13, 0.95, 0.66, 0.55]),
+  ]),
+});
+
+// Stealth hall "哨兵回廊": two walls with one gap each. Only walls and a crate
+// collide; the sentries (levels.mjs) are detectors, not bodies.
+export const SENTRY_HALL = Object.freeze({
+  start: Object.freeze([-3.3, 0]),
+  goal: Object.freeze([3.3, 0]),
+  goalW: Object.freeze([-0.25, 0.25]),
+  bounds: Object.freeze({ x: 3.8, z: 2.0 }),
+  tokenRadius: 0.22,
+  tokenY: 0.22,
+  checkpoint: Object.freeze({ pos: Object.freeze([0, -1.55]), w: 0 }),
+  bodies: Object.freeze([
+    hyperbox('hall-west-n', [-1.5, 0.6, -1.225, 0], [0.15, 0.8, 0.775, 2.2]),
+    hyperbox('hall-west-s', [-1.5, 0.6, 1.225, 0], [0.15, 0.8, 0.775, 2.2]),
+    hyperbox('hall-east-n', [1.5, 0.6, -1.225, 0], [0.15, 0.8, 0.775, 2.2]),
+    hyperbox('hall-east-s', [1.5, 0.6, 1.225, 0], [0.15, 0.8, 0.775, 2.2]),
+    hyperbox('hall-crate', [2.65, 0.4, -0.9, 0], [0.28, 0.4, 0.28, 2.2]),
   ]),
 });
 

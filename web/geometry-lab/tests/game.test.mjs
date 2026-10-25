@@ -758,9 +758,20 @@ test('slice gate has a changing-W solution but none of 51 fixed-W samples reache
   for (let d = 0; d < DIALS; d += 1) {
     assert.equal(solve(GATE_ROOM, { fixedDial: d }), false, `fixed W sample ${d}`);
   }
-  // goalW is deliberately part of this room's puzzle: the cold passage is
+  // goalW is deliberately part of this room's puzzle: the warm passage is
   // walkable, but finishing there requires a return to the middle layer.
-  assert.ok(solve({ ...GATE_ROOM, goalW: [-2, 2] }, { fixedDial: 0 }));
+  assert.ok(solve({ ...GATE_ROOM, goalW: [-2, 2] }, { fixedDial: DIALS - 1 }));
+});
+
+test('slice gate cold side never opens: the cold ball grows as the warm one shrinks', () => {
+  for (let d = 0; d < DIALS; d += 1) {
+    const w = dialToW(d / (DIALS - 1));
+    const open = [-0.4, -0.2, 0, 0.2, 0.4].some((z) => legalCorridorSpot(corridorSections(w, GATE_ROOM), 0, z, GATE_ROOM));
+    assert.equal(open, w > 1.69, `ball plane at W ${w.toFixed(2)}`);
+  }
+  const cold = GATE_ROOM.bodies.find((body) => body.id === 'gate-orb-cold');
+  assert.equal(sliceAtW(cold, 0).kind, 'empty', 'absent from the starting slice');
+  assert.ok(sliceAtW(cold, -2).radius > 0);
 });
 
 test('slice gate west yard allows the entire slider sweep across a region', () => {
@@ -793,12 +804,11 @@ test('slice gate refuses engulfing corridor changes, including a sweep with empt
   for (const x of [-0.2, 0, 0.2]) {
     for (const z of [-0.25, 0, 0.25]) {
       const run = new WalkRun({ ...GATE_ROOM, start: [x, z] }, 'gate');
-      run.dial = wToDial(-1);
+      run.dial = wToDial(2);
       assert.ok(legalCorridorSpot(run.sectionsAt(), ...run.pos, GATE_ROOM));
       assert.equal(run.setDial(wToDial(0.8)), false);
-      assert.equal(run.dial, wToDial(-1));
-      assert.ok(legalCorridorSpot(corridorSections(2, GATE_ROOM), x, z, GATE_ROOM));
-      assert.equal(run.setDial(wToDial(2)), false, 'cannot sweep through the ball to another empty layer');
+      assert.equal(run.dial, wToDial(2));
+      assert.equal(run.setDial(wToDial(-2)), false, 'cannot sweep through either ball');
     }
   }
   for (const z of [-0.25, 0, 0.25]) {
@@ -820,7 +830,7 @@ test('both slice gate variants share geometry and finish through real movement o
     assert.equal(level.field.item, undefined);
     assert.equal(level.field.relay, undefined);
     const run = new WalkRun(level.field, id, 1000);
-    assert.ok(run.setDial(wToDial(-1)));
+    assert.ok(run.setDial(wToDial(2)));
     walkTo(run, 0, 0);
     assert.equal(run.setDial(wToDial(0.8)), false);
     walkTo(run, 1.55, 0);
