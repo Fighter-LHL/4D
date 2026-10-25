@@ -38,8 +38,9 @@ export function railReleaseDial(dial, marks) {
 }
 
 
-// Study B: physical W remains continuous. These parameters are experiment
-// defaults, not validated player outcomes; freeze/version before formal use.
+// Physical W remains continuous. Product controls share Study B's rates but
+// disable release docking. These parameters are not validated player outcomes;
+// freeze/version the study before formal use.
 // rampFloor/rampMs: a held direction starts at 35% speed and reaches full
 // speed after 450 ms, so a short tap is a fine step and a long hold travels.
 // goalReach: floor distance at which the exit/receiver W window slows/docks.
@@ -108,6 +109,10 @@ export class WControl {
   blockedAt = null;
   heldFor = 0;
 
+  constructor({ dockOnRelease = true } = {}) {
+    this.dockOnRelease = dockOnRelease;
+  }
+
   press(source, id, direction = 0) {
     if (this.source !== null && this.source !== source) return false;
     if (this.inputs.has(id)) return false;
@@ -129,12 +134,12 @@ export class WControl {
     this.blockedAt = null;
   }
 
-  next(level, run, seconds) {
+  next(level, run, seconds, dial = run.dial) {
     this.heldFor += seconds;
     const { rampFloor, rampMs, rateW, nearRateW } = W_PARAMS;
     const rate = rateW * Math.min(1, rampFloor + (1 - rampFloor) * this.heldFor * 1000 / rampMs);
     const speed = nearbyTargets(level, run).length ? Math.min(rate, nearRateW) : rate;
-    return clampDial(run.dial + this.direction * speed / 4 * seconds);
+    return clampDial(dial + this.direction * speed / 4 * seconds);
   }
 
   shouldDrive(run) {
@@ -167,7 +172,7 @@ export class WControl {
     if (this.inputs.size) { this.updateDirection(); return false; }
     this.source = null;
     this.direction = this.heldFor = 0;
-    const candidate = this.eligible ? dockingCandidate(level, run) : null;
+    const candidate = this.dockOnRelease && this.eligible ? dockingCandidate(level, run) : null;
     this.docking = candidate && Math.abs(candidate.dial - run.dial) > 1e-9
       ? { ...candidate, from: run.dial, elapsed: 0, signature: stateSignature(run), field: run.activeField() } : null;
     this.state = this.docking ? 'DOCKING' : 'IDLE';

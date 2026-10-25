@@ -14,18 +14,20 @@ import { sfxInit, sfx, sfxSetMuted } from './sfx.mjs';
 
 const $ = (id) => document.getElementById(id);
 const study = studyConfig(location.search);
-const wB = study.enabled && study.condition === 'b';
-const wControl = new WControl();
+const studyB = study.enabled && study.condition === 'b';
+// Product controls stop exactly on release. Study B alone keeps auto-docking.
+const directionalW = !study.enabled || studyB;
+const wControl = new WControl({ dockOnRelease: studyB });
 const buildInfo = study.enabled ? await readStudyBuild() : {};
 const session = study.enabled ? new StudySession(study, buildInfo) : null;
 let studySealed = false;
 let studySegment = 0;
 const measuring = () => study.enabled && !studySealed;
-document.body.classList.toggle('w-direction', wB);
+document.body.classList.toggle('w-direction', directionalW);
 // Product (non-study) pages drop the classroom framing; the study is frozen.
 document.body.classList.toggle('product', !study.enabled);
 document.body.classList.toggle('w-precise', study.precise);
-$('w-buttons').hidden = !wB;
+$('w-buttons').hidden = !directionalW;
 $('study-tools').hidden = !study.enabled;
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -174,7 +176,7 @@ let highlightIds = new Set(); // bodies pointed at from the mechanism panel
 const hudUsed = new Set();
 // The W gauge beside the character (B and the normal entry; A keeps the
 // original rail-only feedback). It appears while W changes and fades after.
-const gaugeOn = wB || !study.enabled;
+const gaugeOn = directionalW;
 const GAUGE_MS = 1400;
 let gaugeW = null;
 let gaugeUntil = 0;
@@ -256,7 +258,7 @@ function buildFrame() {
   const tinted = bodies.map((body) => ({ body, tint: wColor(body.center[3]), foot: wFootprint(body, y) }));
   const maxR = (body, foot) => (isWalk() && body.type === 'sphere' ? exclusionRadius(body, activeField) : foot.radius ?? 0);
   const aids = wAids(now);
-  const outline = (id) => (wB && nudge?.ids.has(id) && now < nudge.until ? 1 : highlightIds.has(id) ? -1 : 0);
+  const outline = (id) => (directionalW && nudge?.ids.has(id) && now < nudge.until ? 1 : highlightIds.has(id) ? -1 : 0);
   const sections = tinted.map(({ body, tint, foot }) => ({ ...sliceAtW(body, w), role: roleOf(body.id), tint, maxR: maxR(body, foot), ghost: aids.ghost(body.id), refused: outline(body.id) }));
   const footprints = tinted.map(({ tint, foot }) => ({ ...foot, tint }));
   if (isWalk() && run?.item) {
@@ -291,7 +293,7 @@ function buildFrame() {
     footprints,
     field: activeField,
     blocked: aids.blocked,
-    token: isWalk() ? { pos: run.pos, flash, feedbackB: wB, won: run.won, carrying: run.carrying, yaw: actorYaw, bob: actorBob,
+    token: isWalk() ? { pos: run.pos, flash, feedbackB: directionalW, won: run.won, carrying: run.carrying, yaw: actorYaw, bob: actorBob,
       arrival: run.won ? (reducedMotion.matches ? 1 : Math.min(1, (now - run.finishedAt) / 280)) : 0 } : null,
     goal: isWalk() ? level.field.goal : null,
     goalState: isWalk() ? goalSliceAtW(level.field, w) : null,
@@ -389,7 +391,7 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
       const tight = nearSpot && run.canInteract(current).reason === 'tight';
       placeTag(itemEl, itemPt, tight ? '空间不足' : '晶核', false);
     } else if (!visible && mapVisible() && (!moved || itemDist < 3.2)) {
-      placeTag(itemEl, itemPt, wB && !study.precise ? '晶核' : `晶核 · W ${signed(run.item.w)}`, true);
+      placeTag(itemEl, itemPt, directionalW && !study.precise ? '晶核' : `晶核 · W ${signed(run.item.w)}`, true);
     } else {
       itemEl.hidden = true;
     }
@@ -558,6 +560,7 @@ function updateActionButton() {
     btn.hidden = !near;
     btn.disabled = false;
     btn.textContent = completionAction().label;
+    btn.setAttribute('aria-label', btn.textContent);
     if (btn.dataset) btn.dataset.key = btn.dataset.guide = '';
     $('return-levels').hidden = !near;
     $('replay-btn').hidden = !near || !['station', 'fetch'].includes(level.id);
@@ -615,7 +618,7 @@ function handleInteract() {
   const res = run.interact(performance.now(), current);
   if (['picked', 'dropped', 'docked', 'latched'].includes(res.action)) {
     fieldEpoch += 1;
-    if (wB) {
+    if (directionalW) {
       const docking = !!wControl.docking;
       wControl.invalidate();
       if (docking) { record('dock_cancel', { reason: 'state_changed' }); commitW(); }
@@ -701,15 +704,15 @@ function tick(time) {
   const delta = previousTime ? Math.min((time - previousTime) / 1000, 0.05) : 1 / 60;
   previousTime = time;
   wContactThisFrame = groundContactThisFrame = false;
-  if (wB && isWalk() && !cardOpen) stepToken(delta, time);
+  if (directionalW && isWalk() && !cardOpen) stepToken(delta, time);
   if (reveal) {
     const p = reducedMotion.matches ? 1 : Math.min(1, (time - reveal.started) / 1100);
     const ease = p * p * (3 - 2 * p);
     current = target = reveal.from + (reveal.to - reveal.from) * ease;
     if (p === 1) { reveal = null; finishReveal(); }
-  } else if (wB) {
+  } else if (directionalW) {
     if (!railLocked() && wControl.direction && wControl.shouldDrive(run)) {
-      const next = isWalk() ? wControl.next(level, run, delta) : clampDial(current + wControl.direction * W_RATE * delta);
+      const next = isWalk() || !study.enabled ? wControl.next(level, run, delta, current) : clampDial(current + wControl.direction * W_RATE * delta);
       if (next !== current) requestDial(next);
     } else if (!railLocked() && wControl.docking) {
       const dial = wControl.dockStep(level, run, delta);
@@ -727,16 +730,16 @@ function tick(time) {
     if (reducedMotion.matches || Math.abs(current - target) < 1e-4) current = target;
     else current += (target - current) * (1 - Math.exp(-14 * delta));
   }
-  if (!wB && isWalk() && !cardOpen) stepToken(delta, time);
+  if (!directionalW && isWalk() && !cardOpen) stepToken(delta, time);
   // A patrolled level is never idle: its sentries keep walking.
   const patrolling = !!patrol && !run.won && !cardOpen;
   if (patrolling) stepPatrol(delta);
-  if (wB && groundContactThisFrame && !wContactThisFrame) sfx.blocked();
-  if (wB && pulseUntil) { flash = Math.max(0, (pulseUntil - time) / W_PARAMS.pulseMs); if (!flash) pulseUntil = 0; }
+  if (directionalW && groundContactThisFrame && !wContactThisFrame) sfx.blocked();
+  if (directionalW && pulseUntil) { flash = Math.max(0, (pulseUntil - time) / W_PARAMS.pulseMs); if (!flash) pulseUntil = 0; }
   else if (flash > 0) flash = Math.max(0, flash - delta * 2.4);
   render();
   const arriving = isWalk() && run.won && !reducedMotion.matches && time < run.finishedAt + 280;
-  if (patrolling || reveal || (wB && wControl.docking) || wHold || current !== target || ripples.length || pressed.size || flash > 0 || trail.length || nudge || time < introCueUntil || arriving || stationEffects.isActive(time)) requestFrame();
+  if (patrolling || reveal || (directionalW && wControl.docking) || wHold || current !== target || ripples.length || pressed.size || flash > 0 || trail.length || nudge || time < introCueUntil || arriving || stationEffects.isActive(time)) requestFrame();
   else previousTime = 0;
 }
 
@@ -817,7 +820,7 @@ function stepToken(delta, now) {
   }
   if (result.newlyBlocked) {
     flash = 1;
-    if (wB) groundContactThisFrame = true;
+    if (directionalW) groundContactThisFrame = true;
     else sfx.blocked();
     if (!run.carrying && run.blockStreak >= 3) $('w-rail').classList.add('pulse');
   }
@@ -841,7 +844,7 @@ function stepToken(delta, now) {
 function requestDial(value, immediate = false, automatic = false) {
   let dial = clampDial(value);
   let clamped = false;
-  const before = wB ? current : target;
+  const before = directionalW ? current : target;
   if (isWalk()) {
     const from = run.dial;
     const fromW = dialToW(from);
@@ -850,7 +853,7 @@ function requestDial(value, immediate = false, automatic = false) {
     if (automatic && !run.canSetDial(dial)) return false;
     ({ dial, clamped } = run.reachDial(dial));
     if (!hadAirlock && run.airlockCleared) sfx.appear();
-    if (wB && !automatic) {
+    if (directionalW && !automatic) {
       const contact = wControl.accepted(run, from, clamped);
       if (contact.ended) record('w_contact_end', { actual_W: dialToW(dial), reason: 'safe_displacement' });
       if (contact.started) {
@@ -860,7 +863,7 @@ function requestDial(value, immediate = false, automatic = false) {
       }
     } else if (clamped) revealBlockers(fromW, dialToW(clampDial(value)));
   }
-  if (clamped && !wB) refuse();
+  if (clamped && !directionalW) refuse();
   target = dial;
   const direction = Math.sign(dial - before);
   if (direction && gestureSource?.startsWith('rail-')) {
@@ -868,12 +871,12 @@ function requestDial(value, immediate = false, automatic = false) {
     if (direction !== lastWDirection) record('w_direction_change', { direction });
     lastWDirection = direction;
   }
-  if (wB || immediate || reducedMotion.matches) {
+  if (directionalW || immediate || reducedMotion.matches) {
     current = target;
     if (gestureStart !== null) gestureDistance += Math.abs(dialToW(dial) - dialToW(before));
     if (isWalk() && !run.won && run.step(0, 0, 0, performance.now(), current).won) win();
   }
-  if (!wB && !immediate && !reducedMotion.matches && gestureStart !== null) gestureDistance += Math.abs(dialToW(dial) - dialToW(before));
+  if (!directionalW && !immediate && !reducedMotion.matches && gestureStart !== null) gestureDistance += Math.abs(dialToW(dial) - dialToW(before));
   requestFrame();
   return !clamped;
 }
@@ -894,7 +897,7 @@ function refuse() {
   flash = 1;
   const now = performance.now();
   if (gaugeOn) { showGauge(); pop('w-gauge', 'hit'); }
-  if (wB) {
+  if (directionalW) {
     wContactThisFrame = true;
     pulseUntil = now + W_PARAMS.pulseMs;
     if (now - lastRefuse >= W_PARAMS.soundGapMs) {
@@ -914,7 +917,7 @@ function refuse() {
 }
 
 function revealBlockers(fromW, toW) {
-  if (mapVisible() && !wB) return;
+  if (mapVisible() && !directionalW) return;
   const field = run.activeField();
   const ids = field.bodies.filter((b) => wChangeEngulfs({ ...field, bodies: [b] }, run.pos, fromW, toW)).map((b) => b.id);
   if (!ids.length) return;
@@ -994,7 +997,7 @@ function cancelInputs(reason, ground = true, locked = false) {
   }
   if (ground) clearGroundInputs();
   commitW(reason);
-  if (!wB && patrol) { target = current; run.dial = current; }
+  if (!directionalW && patrol) { target = current; run.dial = current; }
   if (locked) {
     previousTime = 0;
     flash = pulseUntil = 0;
@@ -1008,7 +1011,7 @@ function cancelInputs(reason, ground = true, locked = false) {
 
 function commitW(reason = 'release') {
   if (gestureStart === null) return;
-  const moved = wB ? gestureDistance > 1e-6 : Math.abs(target - gestureStart) > 1e-6;
+  const moved = directionalW ? gestureDistance > 1e-6 : Math.abs(target - gestureStart) > 1e-6;
   record('w_gesture_end', { reason, distance_W: gestureDistance, reversals: gestureReversals });
   gestureStart = null;
   if (run && isWalk()) run.endWGesture();
@@ -1073,7 +1076,7 @@ function activeGuide(w = dialToW(current)) {
 function updateRail(w = dialToW(current), blocked = wAids().blocked) {
   const rail = $('w-rail');
   const pointed = activeGuide(w);
-  const marks = wB ? nearbyTargets(level, run, current) : wAids().marks;
+  const marks = directionalW ? nearbyTargets(level, run, current) : wAids().marks;
   const mark = nearbyRailMark(current, marks);
   const shown = pointed ? [...marks, { w: pointed.w, label: '', guide: true }] : marks;
   const nextMarksKey = shown.map((m) => `${m.w}:${m.label}`).join('|');
@@ -1091,9 +1094,13 @@ function updateRail(w = dialToW(current), blocked = wAids().blocked) {
   // Controls carry the W state (blocked / at an end / docking / pointing).
   const { body } = document;
   body.dataset.guide = pointed ? String(pointed.dir) : '';
-  body.dataset.wstate = wB ? wControl.state.toLowerCase() : '';
+  body.dataset.wstate = directionalW ? wControl.state.toLowerCase() : '';
   body.dataset.wmove = String(wControl.direction);
   body.dataset.wend = current >= 1 ? 'top' : current <= 0 ? 'bottom' : '';
+  for (const button of document.querySelectorAll('[data-wdir]')) {
+    const held = [...wControl.inputs.values()].includes(Number(button.dataset.wdir));
+    button.classList.toggle('held', held);
+  }
   const btn = $('action-btn');
   $('key-hud').dataset.act = String(!btn.hidden && !btn.disabled);
   $('rail-thumb').style.top = `${(1 - current) * 100}%`;
@@ -1132,10 +1139,21 @@ function updateRail(w = dialToW(current), blocked = wAids().blocked) {
   }
   const color = cssColor(wColor(w));
   $('layer-swatch').style.color = color;
-  $('layer-name').textContent = wB ? (wHold > 0 ? '↑' : wHold < 0 ? '↓' : '') : `第 ${LAYERS[layerIndex(w)].name} 层`;
+  $('layer-name').textContent = directionalW ? (wHold > 0 ? '↑' : wHold < 0 ? '↓' : '') : `第 ${LAYERS[layerIndex(w)].name} 层`;
   $('w-value').textContent = `${isFlat() ? '高度' : 'W'} ${signed(w)}${mark ? ` · ${mark.label}` : ''}`;
-  if (wB) rail.setAttribute('aria-valuetext', `W ${signed(w)}${mark ? `，${mark.label}` : ''}`);
-  $('w-status').textContent = wControl.state === 'BLOCKED' ? '受阻' : current === 0 || current === 1 ? '已到端点' : wControl.state === 'DOCKING' ? '轻停靠' : '';
+  if (directionalW) rail.setAttribute('aria-valuetext', `W ${signed(w)}${mark ? `，${mark.label}` : ''}`);
+  if (study.enabled) {
+    $('w-status').textContent = wControl.state === 'BLOCKED' ? '受阻' : current === 0 || current === 1 ? '已到端点' : wControl.state === 'DOCKING' ? '轻停靠' : '';
+  } else {
+    const neutral = wControl.inputs.size > 1 && !wControl.direction;
+    const atEnd = (current === 1 && wHold > 0) || (current === 0 && wHold < 0);
+    $('layer-name').textContent = cardOpen ? '暂停' : atEnd ? '已到端点' : wControl.state === 'BLOCKED' ? '受阻'
+      : neutral ? '两向抵消' : wHold ? (isFlat() ? (wHold > 0 ? '↑ 高度' : '↓ 高度') : (wHold > 0 ? '↑ +W' : '↓ −W')) : '已停';
+    const movement = isFlat() ? `${wHold > 0 ? '升高' : '降低'}高度` : `沿 ${dirLabel(wHold)} 移动`;
+    const status = cardOpen ? '已暂停' : atEnd ? '已到端点' : wControl.state === 'BLOCKED' ? '受阻，移开角色后继续'
+      : neutral ? '两向同按，暂停移动' : wHold ? `${movement}，松手停下` : '已停';
+    if ($('w-status').textContent !== status) $('w-status').textContent = status;
+  }
 }
 
 function railDial(event) {
@@ -1146,13 +1164,13 @@ function railDial(event) {
 let railPointer = null;
 $('w-rail').addEventListener('pointerdown', (event) => {
   if (railLocked() || !event.isPrimary || railPointer !== null) return;
-  if (wB && !beginW('rail-pointer', event.pointerId)) return;
+  if (directionalW && !beginW('rail-pointer', event.pointerId)) return;
   event.preventDefault();
   sfxInit();
   railPointer = event.pointerId;
   try { $('w-rail').setPointerCapture(event.pointerId); } catch { /* synthetic pointer */ }
   beginGesture('rail-pointer');
-  if (wB) wPointers.set(event.pointerId, $('w-rail'));
+  if (directionalW) wPointers.set(event.pointerId, $('w-rail'));
   requestDial(railDial(event));
 });
 $('w-rail').addEventListener('pointermove', (event) => {
@@ -1162,7 +1180,7 @@ $('w-rail').addEventListener('pointermove', (event) => {
 const railRelease = (event) => {
   if (railPointer !== event.pointerId) return;
   railPointer = null;
-  if (wB) {
+  if (directionalW) {
     wPointers.delete(event.pointerId);
     if (event.type === 'pointerup' && !railLocked()) releaseW('rail-pointer', event.pointerId);
     else cancelInputs(event.type, false);
@@ -1190,11 +1208,11 @@ $('w-rail').addEventListener('keydown', (event) => {
   event.preventDefault();
   event.stopPropagation();
   if (railLocked()) return;
-  if (patrol && !wB) {
+  if (patrol && !directionalW) {
     if (event.repeat && !railKeys.has(event.key)) return;
     railKeys.add(event.key);
   }
-  if (wB) {
+  if (directionalW) {
     if (event.repeat && !railKeys.has(event.key)) return;
     if (!railKeys.has(event.key) && !beginW('rail-keyboard', event.key)) return;
     if (wControl.source !== 'rail-keyboard') return;
@@ -1207,7 +1225,7 @@ $('w-rail').addEventListener('keydown', (event) => {
 $('w-rail').addEventListener('keyup', (event) => {
   if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) {
     event.stopPropagation();
-    if (wB) { railKeys.delete(event.key); releaseW('rail-keyboard', event.key); }
+    if (directionalW) { railKeys.delete(event.key); releaseW('rail-keyboard', event.key); }
     else { railKeys.delete(event.key); commitW(); }
   }
 });
@@ -1266,8 +1284,8 @@ function renderChapters() {
 
 
 function leaveLevel() {
-  if (!wB && gestureStart !== null) record('w_gesture_end', { reason: 'leave_level', distance_W: gestureDistance, reversals: gestureReversals });
-  if (wB || patrol) cancelInputs('leave_level', true, true);
+  if (!directionalW && gestureStart !== null) record('w_gesture_end', { reason: 'leave_level', distance_W: gestureDistance, reversals: gestureReversals });
+  if (directionalW || patrol) cancelInputs('leave_level', true, true);
   record('level_leave');
   stationEffects.clear();
   if (frameId) cancelAnimationFrame(frameId);
@@ -1338,7 +1356,7 @@ function startLevel(id, { skipIntro = false } = {}) {
   ripples.length = 0;
   flash = 0;
   lastGoalHint = 0;
-  lastRefuse = wB ? -Infinity : 0;
+  lastRefuse = directionalW ? -Infinity : 0;
   actorBob = 0;
   walkPhase = 0;
   if (isWalk()) {
@@ -1363,6 +1381,13 @@ function startLevel(id, { skipIntro = false } = {}) {
   $('map-note').textContent = isWalk() ? '拖动滑轨换层 · 红区表示当前截面会把角色包进墙里' : '拖动滑轨观察截面变化';
   $('rail-top').textContent = flatView ? '上' : '+W';
   $('rail-bottom').textContent = flatView ? '下' : '−W';
+  if (!study.enabled) for (const button of document.querySelectorAll('[data-wdir]')) {
+    const positive = Number(button.dataset.wdir) > 0;
+    const direction = flatView ? `${positive ? '升高' : '降低'}高度` : `向${positive ? '正' : '负'} W 移动`;
+    button.querySelector('.w-sign').textContent = flatView ? (positive ? '↑' : '↓') : (positive ? '+W' : '−W');
+    button.setAttribute('aria-label', `按住${direction}`);
+    button.title = `短按微调，按住${direction}，松手停下`;
+  }
   if ($('leg-token')) $('leg-token').hidden = !isWalk();
   if ($('leg-goal')) $('leg-goal').hidden = !isWalk();
   $('w-rail').setAttribute('aria-label', flatView ? '把你的这一层上下移动' : '沿 W 移动这一片');
@@ -1370,7 +1395,8 @@ function startLevel(id, { skipIntro = false } = {}) {
   $('dpad').hidden = !isWalk();
   $('receiver-seals').innerHTML = sealMarkup();
   $('predict').hidden = true;
-  if (wB) $('map-note').textContent = '按住 Q / E 或 ±W 移动，松手停下；滑轨可拖动。';
+  if (directionalW) $('map-note').textContent = '按住 Q / E 或 ±W 移动，松手停下；滑轨可拖动。';
+  if (!study.enabled) $('map-note').textContent = `短按 Q / E 或${flatView ? ' ↑ / ↓ ' : ' ±W '}微调，按住移动，松手停下；滑轨可拖动。`;
   if (isWalk()) $('map-note').textContent += ' 拖动画面转视角，R 重来，H 提示。';
   $('key-hud').hidden = false;
   $('key-hud').dataset.mode = isWalk() ? 'walk' : 'visit';
@@ -1483,7 +1509,7 @@ function updateMechanisms() {
 
 // ---------- Cards ----------
 function showCard({ kicker, title, body = '', formula = '', stats = '', actions }) {
-  if (wB || patrol) cancelInputs('card', true, true);
+  if (directionalW || patrol) cancelInputs('card', true, true);
   pressed.clear();
   wHold = 0;
   $('card-kicker').textContent = kicker;
@@ -1515,7 +1541,7 @@ function hideCard(refocus = true) {
 }
 
 function win() {
-  if (wB) cancelInputs('complete', true, true);
+  if (directionalW) cancelInputs('complete', true, true);
   record('complete');
   // A previous W/obstacle notice no longer describes the delivered core.
   clearTimeout(toastTimer);
@@ -1743,7 +1769,7 @@ $('next-trial').addEventListener('click', () => {
 
 // ---------- Input ----------
 window.addEventListener('keydown', (event) => {
-  if (!level || $('game-screen').hidden || cardOpen || (wB && document.hidden)) return;
+  if (!level || $('game-screen').hidden || cardOpen || (directionalW && document.hidden)) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   const key = event.key;
   if (patrol && (key.toLowerCase() === 'p' || (key === 'Escape' && $('hint-panel').hidden))) {
@@ -1752,7 +1778,7 @@ window.addEventListener('keydown', (event) => {
     return;
   }
   hudKey(key, true);
-  if (wB && key === 'Escape') cancelInputs('escape', false);
+  if (directionalW && key === 'Escape') cancelInputs('escape', false);
   if (key === 'Escape' && !$('hint-panel').hidden) {
     event.preventDefault();
     $('hint-panel').hidden = true;
@@ -1775,7 +1801,7 @@ window.addEventListener('keydown', (event) => {
     if (event.repeat || railLocked()) return;
     focusStage();
     sfxInit();
-    if (wB) {
+    if (directionalW) {
       beginW('keyboard-hold', key.toLowerCase(), W_KEYS[key] ?? (key === 'ArrowUp' ? 1 : -1));
       return;
     }
@@ -1790,7 +1816,7 @@ window.addEventListener('keydown', (event) => {
   }
   if (isWalk() && MOVE_DIRS[key]) {
     event.preventDefault();
-    if ((wB || patrol) && event.repeat && !pressed.has(key)) return;
+    if ((directionalW || patrol) && event.repeat && !pressed.has(key)) return;
     focusStage();
     sfxInit();
     pressed.add(key);
@@ -1799,9 +1825,9 @@ window.addEventListener('keydown', (event) => {
 });
 window.addEventListener('keyup', (event) => {
   hudKey(event.key, false);
-  if (wB && wControl.source === 'keyboard-hold' && wControl.inputs.has(event.key.toLowerCase())) releaseW('keyboard-hold', event.key.toLowerCase());
-  if (wB && wControl.source === 'touch-w-button' && wControl.inputs.has(`button:${event.key}`)) releaseW('touch-w-button', `button:${event.key}`);
-  if (wB && wControl.source === 'rail-keyboard' && railKeys.delete(event.key)) releaseW('rail-keyboard', event.key);
+  if (directionalW && wControl.source === 'keyboard-hold' && wControl.inputs.has(event.key.toLowerCase())) releaseW('keyboard-hold', event.key.toLowerCase());
+  if (directionalW && wControl.source === 'touch-w-button' && wControl.inputs.has(`button:${event.key}`)) releaseW('touch-w-button', `button:${event.key}`);
+  if (directionalW && wControl.source === 'rail-keyboard' && railKeys.delete(event.key)) releaseW('rail-keyboard', event.key);
   if (heldWKey && event.key.toLowerCase() === heldWKey.toLowerCase()) {
     wHold = 0;
     heldWKey = null;
@@ -1812,7 +1838,7 @@ window.addEventListener('keyup', (event) => {
 window.addEventListener('blur', () => {
   pausePatrol('blur');
   record('pause', { reason: 'blur' });
-  if (wB) cancelInputs('blur', true, true);
+  if (directionalW) cancelInputs('blur', true, true);
   pressed.clear();
   hudRelease();
   if (heldWKey) { wHold = 0; heldWKey = null; commitW(); }
@@ -1820,7 +1846,7 @@ window.addEventListener('blur', () => {
 window.addEventListener('focus', () => record('resume', { reason: 'focus' }));
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) pausePatrol('hidden');
-  if (document.hidden && wB) cancelInputs('hidden', true, true);
+  if (document.hidden && directionalW) cancelInputs('hidden', true, true);
   record(document.hidden ? 'pause' : 'resume', { reason: 'visibility' });
   if (!document.hidden && level) { render(); requestFrame(); }
 });
@@ -1850,7 +1876,7 @@ document.querySelectorAll('#dpad button').forEach((button) => {
 // Direction buttons accept a second touch alongside the ground d-pad.
 for (const button of document.querySelectorAll('[data-wdir]')) {
   button.addEventListener('pointerdown', (event) => {
-    if (!wB || !beginW('touch-w-button', event.pointerId, Number(button.dataset.wdir))) return;
+    if (!directionalW || !beginW('touch-w-button', event.pointerId, Number(button.dataset.wdir))) return;
     event.preventDefault();
     sfxInit();
     wPointers.set(event.pointerId, button);
@@ -1940,7 +1966,7 @@ $('study-end').addEventListener('click', () => {
   showCard({ kicker: '观察员', title: '结束并封存本次记录',
     body: '请先在观察表中记录 G1–G4 的证据、未到达和缺失项。封存后开放自由体验；后续操作不再计入本次记录。',
     actions: [['记录已封存，结束并导出', 'primary', () => {
-      if (wB) cancelInputs('session_end', true, true);
+      if (directionalW) cancelInputs('session_end', true, true);
       record('level_leave', { reason: 'session_end' });
       session.finish({ level: level?.id, run, dial: current });
       studySealed = true;

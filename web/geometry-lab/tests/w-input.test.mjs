@@ -111,7 +111,7 @@ test('full app: rail absolute changes are synchronous; fine keyboard and pointer
   }
 });
 
-test('full app: A retains collision stop and display trailing; normal copy and progress stay original', async () => {
+test('full app: A retains collision stop and display trailing; product controls keep normal copy and progress', async () => {
   const a = await appHarness('?study=w1&wcontrol=a&level=gate');
   a.app.setDial(wToDial(1.9)); a.app.run.pos = [0, 0];
   a.key('keydown', 'q'); a.advance(2500);
@@ -123,7 +123,7 @@ test('full app: A retains collision stop and display trailing; normal copy and p
   assert.equal(normal.app.level.hints.length, 3);
   assert.ok(normal.reads.length >= 2);
   normal.key('keydown', 'e'); normal.advance(100);
-  assert.notEqual(normal.app.current, normal.app.target);
+  assert.equal(normal.app.current, normal.app.target, 'product input has no display tail');
 });
 
 test('full app: research navigation/copy/storage/export span unfinished levels, with no completion invented', async () => {
