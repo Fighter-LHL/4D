@@ -1,6 +1,6 @@
 {
-  "buildCommit": "1e7d7533ab5bcd84d2d460fb52758c85b04e5c70",
-  "sourceDigest": "d797e64c2e5a5f193499d212bcd76f6858e669fa2fd6230f2b32ba7abcf63511",
+  "buildCommit": "923ce71c2e1391c147f7a3f9fd80957204920b0d",
+  "sourceDigest": "e848043f8572da518c6e8c6f3c2bcda974d69e030447c25431e7cf12a90c3259",
   "files": [
     "app.mjs",
     "challenge.mjs",
