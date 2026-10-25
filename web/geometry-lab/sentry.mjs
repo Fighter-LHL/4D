@@ -127,6 +127,7 @@ export class Patrol {
     this.sentries = sentries;
     this.t = 0;
     this.alert = new Map(sentries.map((s) => [s.id, 0]));
+    this.watching = new Set();
     this.grace = 0;
     this.caught = 0;
   }
@@ -141,10 +142,12 @@ export class Patrol {
     this.t += dt;
     this.grace = Math.max(0, this.grace - dt);
     const spotted = [];
+    this.watching.clear();
     let caught = null;
     for (const { sentry, pose } of this.poses()) {
       const before = this.alert.get(sentry.id);
       const seen = !this.grace && sees(sentry, pose, pos, w, sections, y);
+      if (seen) this.watching.add(sentry.id);
       let next = seen ? Math.min(1, before + dt / SENTRY.fillSeconds) : Math.max(0, before - dt * SENTRY.coolPerSecond);
       if (!this.grace && touches(sentry, pose, pos, w, y, tokenRadius)) next = 1;
       this.alert.set(sentry.id, next);
@@ -157,6 +160,7 @@ export class Patrol {
 
   respawn() {
     for (const id of this.alert.keys()) this.alert.set(id, 0);
+    this.watching.clear();
     this.grace = SENTRY.graceSeconds;
   }
 }

@@ -164,6 +164,7 @@ let wContactThisFrame = false;
 let groundContactThisFrame = false;
 let pulseUntil = 0;
 const wPointers = new Map();
+const groundPointers = new Map();
 const railKeys = new Set();
 let refusalNoted = false; // the W refusal sentence shows once per level
 let guide = null; // { w, reach, until }: a W direction the controls point toward
@@ -182,6 +183,7 @@ let gaugeKey = '';
 // Sentry levels: patrols run in level time; caught → back to a checkpoint.
 let patrol = null;
 let checkpointReached = false;
+let stealthState = null;
 
 let sandboxAll = false;
 const introShown = new Set();
@@ -323,6 +325,8 @@ function placeTag(el, pt, text, faint = false) {
 }
 
 function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
+  updateStealthStatus();
+  $('checkpoint-tag').hidden = true;
   const actorEl = $('actor-tag');
   const itemEl = $('item-tag');
   const goalEl = $('goal-tag');
@@ -345,6 +349,11 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
   if (!view?.project) return;
   updateGauge(view, frame);
   updateSentryTags(view, frame);
+  if (frame.checkpoint) {
+    const cp = frame.checkpoint;
+    placeTag($('checkpoint-tag'), view.project([cp.x, 0.2, cp.z]), cp.reached ? '✓ 检查点' : '检查点');
+    $('checkpoint-tag').classList.toggle('reached', cp.reached);
+  }
   const moved = run.distance > 0.25;
   if (!moved) {
     const actorPt = view.project([run.pos[0], 0.88 + actorBob, run.pos[1]]);
@@ -410,6 +419,30 @@ function updateWorldTags(frame = slice?.frame ?? flat?.frame) {
     placeTag(goalEl, goalPt, goalName + note, !goalOpen);
   } else {
     goalEl.hidden = true;
+  }
+}
+
+// The meter shows actual accumulated alert, including cooling after a W
+// escape. It never labels an unwatched position as a guaranteed safe route.
+function updateStealthStatus() {
+  const el = $('stealth-status');
+  el.hidden = !patrol || !level || run.won || cardOpen;
+  if (el.hidden) return;
+  const alert = Math.max(0, ...patrol.alert.values());
+  const mode = patrol.grace > 0 ? 'grace' : patrol.watching.size ? 'watched' : alert > 0 ? 'cooling' : 'clear';
+  const label = mode === 'grace' ? `返回${checkpointReached ? '检查点' : '入口'} · 保护中`
+    : mode === 'watched' ? '被注视 · 快躲开' : mode === 'cooling' ? '警戒消退' : '未被注视';
+  el.dataset.state = mode;
+  $('stealth-label').textContent = label;
+  const value = Math.round(100 * (mode === 'grace' ? patrol.grace / SENTRY.graceSeconds : alert));
+  $('stealth-fill').style.width = `${value}%`;
+  $('stealth-meter').setAttribute('aria-label', mode === 'grace' ? '剩余保护' : '守卫警戒');
+  $('stealth-meter').setAttribute('aria-valuenow', String(value));
+  $('stealth-meter').setAttribute('aria-valuetext', mode === 'grace' ? `${patrol.grace.toFixed(1)} 秒保护` : `${value}%`);
+  if (mode !== stealthState) {
+    // Capture/checkpoint messages are announced by their actual transitions.
+    if (mode !== 'grace' && stealthState !== null) announce(label);
+    stealthState = mode;
   }
 }
 
@@ -664,7 +697,7 @@ function requestFrame() {
 
 function tick(time) {
   frameId = 0;
-  if (!level || (wB && document.hidden)) { previousTime = 0; return; }
+  if (!level || document.hidden) { previousTime = 0; return; }
   const delta = previousTime ? Math.min((time - previousTime) / 1000, 0.05) : 1 / 60;
   previousTime = time;
   wContactThisFrame = groundContactThisFrame = false;
@@ -715,7 +748,8 @@ function stepPatrol(delta) {
   if (cp && !checkpointReached && Math.hypot(run.pos[0] - cp.pos[0], run.pos[1] - cp.pos[1]) < 0.45) {
     checkpointReached = true;
     sfx.appear();
-    announce('检查点');
+    toast('检查点已保存', 'good', 1600);
+    announce('检查点已保存，被发现后从这里继续');
   }
   if (res.caught) caught();
 }
@@ -726,8 +760,10 @@ function caught() {
   record('caught');
   sfx.refused();
   buzz();
-  if (wB) cancelInputs('caught', true, false);
-  else { pressed.clear(); wHold = 0; heldWKey = null; commitW('caught'); }
+  cancelInputs('caught', true, false);
+  clearTimeout(toastTimer);
+  $('toast').classList.remove('show');
+  $('toast').textContent = '';
   const cp = checkpointReached ? level.field.checkpoint : { pos: level.field.start, w: 0 };
   run.respawn(cp.pos, wToDial(cp.w));
   current = target = run.dial;
@@ -735,7 +771,27 @@ function caught() {
   trail = [];
   flash = 1;
   pop('stage', 'caught');
-  announce('被发现了，回到检查点');
+  announce(`被发现了，回到${checkpointReached ? '检查点' : '入口'}。短暂保护中，松开后重新操作。`);
+}
+
+function pausePatrol(reason = 'manual') {
+  if (!patrol || !level || run.won || cardOpen) return;
+  const pausedRun = run;
+  const pausedAt = performance.now();
+  record('pause', { reason });
+  showCard({ kicker: '哨兵回廊', title: '已暂停', body: '守卫和警戒已停住。', actions: [
+    ['继续潜行', 'primary', () => {
+      if (run !== pausedRun || document.hidden) return;
+      if (run.startedAt) run.startedAt += performance.now() - pausedAt;
+      record('resume', { reason: 'manual' });
+      hideCard();
+      render();
+      requestFrame();
+    }],
+    ['重新开始', 'ghost', () => startLevel(level.id, { skipIntro: true })],
+    ['返回章节', 'ghost', showTitle],
+  ] });
+  render();
 }
 
 let lastGoalHint = 0;
@@ -912,22 +968,33 @@ function releaseW(source, id) {
   requestFrame();
 }
 
+function clearGroundInputs() {
+  pressed.clear();
+  const touches = [...groundPointers];
+  groundPointers.clear();
+  for (const [id, button] of touches) if (button.hasPointerCapture?.(id)) button.releasePointerCapture(id);
+  hudRelease();
+}
+
 function cancelInputs(reason, ground = true, locked = false) {
   if (wControl.docking) record('dock_cancel', { reason });
   if (wControl.contact) record('w_contact_end', { reason });
   wControl.cancel(locked);
   wHold = 0;
   heldWKey = null;
+  const oldRailPointer = railPointer;
   railPointer = null;
   railKeys.clear();
   // Clear ownership BEFORE releasing capture: lostcapture is then a no-op.
   const pointers = [...wPointers];
+  if (oldRailPointer !== null && !wPointers.has(oldRailPointer)) pointers.push([oldRailPointer, $('w-rail')]);
   wPointers.clear();
   for (const [id, button] of pointers) {
     if (button.hasPointerCapture?.(id)) button.releasePointerCapture(id);
   }
-  if (ground) pressed.clear();
+  if (ground) clearGroundInputs();
   commitW(reason);
+  if (!wB && patrol) { target = current; run.dial = current; }
   if (locked) {
     previousTime = 0;
     flash = pulseUntil = 0;
@@ -1123,6 +1190,10 @@ $('w-rail').addEventListener('keydown', (event) => {
   event.preventDefault();
   event.stopPropagation();
   if (railLocked()) return;
+  if (patrol && !wB) {
+    if (event.repeat && !railKeys.has(event.key)) return;
+    railKeys.add(event.key);
+  }
   if (wB) {
     if (event.repeat && !railKeys.has(event.key)) return;
     if (!railKeys.has(event.key) && !beginW('rail-keyboard', event.key)) return;
@@ -1137,7 +1208,7 @@ $('w-rail').addEventListener('keyup', (event) => {
   if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) {
     event.stopPropagation();
     if (wB) { railKeys.delete(event.key); releaseW('rail-keyboard', event.key); }
-    else commitW();
+    else { railKeys.delete(event.key); commitW(); }
   }
 });
 
@@ -1196,7 +1267,7 @@ function renderChapters() {
 
 function leaveLevel() {
   if (!wB && gestureStart !== null) record('w_gesture_end', { reason: 'leave_level', distance_W: gestureDistance, reversals: gestureReversals });
-  if (wB) cancelInputs('leave_level', true, true);
+  if (wB || patrol) cancelInputs('leave_level', true, true);
   record('level_leave');
   stationEffects.clear();
   if (frameId) cancelAnimationFrame(frameId);
@@ -1208,7 +1279,7 @@ function leaveLevel() {
   clearTimeout(introCueTimer);
   introCueUntil = 0;
   railPointer = null;
-  pressed.clear();
+  clearGroundInputs();
   wHold = 0;
   heldWKey = null;
   gestureStart = null;
@@ -1305,6 +1376,10 @@ function startLevel(id, { skipIntro = false } = {}) {
   $('key-hud').dataset.mode = isWalk() ? 'walk' : 'visit';
   patrol = level.sentries ? new Patrol(level.sentries) : null;
   checkpointReached = false;
+  stealthState = null;
+  $('sr-status').textContent = '';
+  $('pause').hidden = !patrol;
+  $('stage').classList.remove('caught');
   refusalNoted = false;
   gaugeW = null;
   gaugeUntil = 0;
@@ -1408,7 +1483,7 @@ function updateMechanisms() {
 
 // ---------- Cards ----------
 function showCard({ kicker, title, body = '', formula = '', stats = '', actions }) {
-  if (wB) cancelInputs('card', true, true);
+  if (wB || patrol) cancelInputs('card', true, true);
   pressed.clear();
   wHold = 0;
   $('card-kicker').textContent = kicker;
@@ -1671,6 +1746,11 @@ window.addEventListener('keydown', (event) => {
   if (!level || $('game-screen').hidden || cardOpen || (wB && document.hidden)) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   const key = event.key;
+  if (patrol && (key.toLowerCase() === 'p' || (key === 'Escape' && $('hint-panel').hidden))) {
+    event.preventDefault();
+    if (!event.repeat) pausePatrol();
+    return;
+  }
   hudKey(key, true);
   if (wB && key === 'Escape') cancelInputs('escape', false);
   if (key === 'Escape' && !$('hint-panel').hidden) {
@@ -1710,7 +1790,7 @@ window.addEventListener('keydown', (event) => {
   }
   if (isWalk() && MOVE_DIRS[key]) {
     event.preventDefault();
-    if (wB && event.repeat && !pressed.has(key)) return;
+    if ((wB || patrol) && event.repeat && !pressed.has(key)) return;
     focusStage();
     sfxInit();
     pressed.add(key);
@@ -1730,6 +1810,7 @@ window.addEventListener('keyup', (event) => {
   for (const key of [...pressed]) if (key.toLowerCase() === event.key.toLowerCase()) pressed.delete(key);
 });
 window.addEventListener('blur', () => {
+  pausePatrol('blur');
   record('pause', { reason: 'blur' });
   if (wB) cancelInputs('blur', true, true);
   pressed.clear();
@@ -1738,6 +1819,7 @@ window.addEventListener('blur', () => {
 });
 window.addEventListener('focus', () => record('resume', { reason: 'focus' }));
 document.addEventListener('visibilitychange', () => {
+  if (document.hidden) pausePatrol('hidden');
   if (document.hidden && wB) cancelInputs('hidden', true, true);
   record(document.hidden ? 'pause' : 'resume', { reason: 'visibility' });
   if (!document.hidden && level) { render(); requestFrame(); }
@@ -1746,14 +1828,19 @@ document.addEventListener('visibilitychange', () => {
 document.querySelectorAll('#dpad button').forEach((button) => {
   const dir = button.dataset.dir;
   button.addEventListener('pointerdown', (event) => {
-    if (!isWalk() || cardOpen) return;
+    if (!isWalk() || cardOpen || document.hidden) return;
     event.preventDefault();
     sfxInit();
     try { button.setPointerCapture(event.pointerId); } catch { /* synthetic pointer */ }
+    groundPointers.set(event.pointerId, button);
     pressed.add(dir);
     requestFrame();
   });
-  const release = () => pressed.delete(dir);
+  const release = (event) => {
+    if (groundPointers.get(event.pointerId) !== button) return;
+    groundPointers.delete(event.pointerId);
+    if (![...groundPointers.values()].includes(button)) pressed.delete(dir);
+  };
   button.addEventListener('pointerup', release);
   button.addEventListener('pointercancel', release);
   button.addEventListener('lostpointercapture', release);
@@ -1874,6 +1961,7 @@ $('return-levels').addEventListener('click', showTitle);
 $('unlock-all')?.addEventListener('click', () => { sandboxAll = !sandboxAll; renderChapters(); });
 $('back').addEventListener('click', showTitle);
 $('restart').addEventListener('click', () => { record('restart'); if (level) startLevel(level.id, { skipIntro: true }); });
+$('pause').addEventListener('click', () => pausePatrol());
 $('reset-view').addEventListener('click', () => { if (level) { resetCamera(); focusStage(); } });
 $('sound').addEventListener('click', () => {
   const on = $('sound').getAttribute('aria-pressed') !== 'true';

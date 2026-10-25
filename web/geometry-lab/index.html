@@ -44,6 +44,7 @@
       <div class="topbar-right">
         <span id="stats" class="stats" data-state="empty" aria-live="off"></span>
         <div class="tools">
+          <button id="pause" class="ghost tool" aria-label="暂停潜行" title="暂停 (P / Esc)" hidden>暂停</button>
           <button id="restart" class="ghost tool compact-tool" aria-label="重新开始这一关" title="重新开始这一关 (R)"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6"/></svg><span class="tool-text">重来</span></button>
           <button id="reset-view" class="ghost tool compact-tool" aria-label="视角复位" title="恢复初始视角"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5"/><circle cx="12" cy="12" r="4"/></svg><span class="tool-text">视角复位</span></button>
           <button id="hint" class="ghost tool" aria-controls="hint-panel" aria-expanded="false" aria-label="线索" title="线索 (H)"><span id="hint-label">观察提示</span> <span id="hint-count" class="count"></span></button>
@@ -63,12 +64,17 @@
         <canvas id="scene" tabindex="0" aria-label="你的世界：当前的三维截面"></canvas>
         <canvas id="flat" tabindex="0" aria-label="你的世界：二维的一层" hidden></canvas>
         <div class="stage-tag"><i class="live"></i><span id="stage-tag">你的世界</span></div>
+        <div id="stealth-status" class="stealth-status" data-state="clear" hidden>
+          <span id="stealth-label"></span>
+          <span id="stealth-meter" class="stealth-meter" role="meter" aria-label="守卫警戒" aria-valuemin="0" aria-valuemax="100"><i id="stealth-fill"></i></span>
+        </div>
         <div class="world-tags" id="world-tags" aria-hidden="true">
           <span class="world-tag actor" id="actor-tag" hidden>▼ 你</span>
           <span class="world-tag item" id="item-tag" hidden>◆ 能量晶核</span>
           <span class="world-tag goal" id="goal-tag" hidden>◎ 接收台</span>
           <span class="world-tag socket" id="socket-tag" hidden>蓝层插座</span>
           <span class="world-tag latch" id="latch-tag" hidden>回廊开关</span>
+          <span class="world-tag checkpoint" id="checkpoint-tag" hidden>检查点</span>
           <span class="w-gauge" id="w-gauge" hidden><span class="wg-track"><span id="wg-marks"></span><i class="wg-thumb" id="wg-thumb"></i></span></span>
         </div>
         <div id="receiver-seals" class="route-seals receiver-seals" aria-label="接收台的路线记录" hidden></div>

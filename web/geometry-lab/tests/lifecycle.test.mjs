@@ -29,7 +29,7 @@ test('leaving a moving or rippling level cancels frames and cannot restart on th
     patrol: null, document: { hidden: false }, stationEffects,
     requestAnimationFrame(callback) { pending.set(++scheduled, callback); return scheduled; },
     cancelAnimationFrame(id) { pending.delete(id); },
-    clearTimeout() {}, $: (id) => id === 'hint-panel' ? hintPanel : node, hideCard() {}, renderChapters() {},
+    clearTimeout() {}, $: (id) => id === 'hint-panel' ? hintPanel : node, hideCard() {}, renderChapters() {}, clearGroundInputs() {},
     render() { rendered += 1; },
   });
   vm.runInContext(`

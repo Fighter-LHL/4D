@@ -71,6 +71,7 @@ export async function appHarness(search = '?study=w1&wcontrol=b&level=station-ro
     get controller() { return wControl; }, get session() { return session; }, get pressed() { return pressed; },
     get wHold() { return wHold; }, get gestureStart() { return gestureStart; }, get nudge() { return nudge; },
     get flash() { return flash; }, get segment() { return studySegment; },
+    get patrol() { return patrol; },
     setDial(dial) { run.setDial(dial); current = target = run.dial; },
   }; })()`, context);
   function advance(ms) {
