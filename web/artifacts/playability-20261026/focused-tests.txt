@@ -1,0 +1,25 @@
+✔ challenge URLs accept zero and the uint32 boundary but reject ambiguous seeds (0.418208ms)
+✔ pause freezes every level and ignores movement, slicing and ability input (17.6045ms)
+✔ pausing a mirror flip preserves the exact animation and completes only after resume (1.723875ms)
+✔ pause also freezes the dimension transition and its later W controls (1.93425ms)
+✔ precision is continuous and slow even after acceleration, without adding gestures (1.248541ms)
+✔ an active near miss pays once on safe exit, without changing shard combo (0.579125ms)
+✔ continuous slice movement can earn a near miss; standing still and teleports cannot (1.363ms)
+✔ a collision cancels pending near misses and invulnerability grants none (1.709083ms)
+✔ every level renders finite geometry across the slice range, wide and narrow (70.673458ms)
+✔ full bot runs draw score popups, particles and the HUD for every story level (613.944667ms)
+✔ hazards, warnings and deaths draw in the danger colour with a screen flash (7.796083ms)
+✔ storm draws hearts, waves and hazard profiles in the side view (70.293792ms)
+✔ pause freezes particles, popups and the current shake offset (0.6145ms)
+✔ blocked events flash the blocking solid (1.138042ms)
+✔ screenToWorld maps canvas pixels into the flat world (0.554458ms)
+✔ locks hide the side view behind a question mark until revealed (0.693666ms)
+✔ ascend renders both dimensions and a reversible pointer projection (49.258334ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 877.54725

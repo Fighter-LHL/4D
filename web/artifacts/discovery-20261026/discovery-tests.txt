@@ -1,0 +1,16 @@
+✔ each friend can be found through real movement and abilities across 12 seeded layouts (111.245542ms)
+✔ chase requires the current layer and leaves a visible trace without revealing future positions (1.757167ms)
+✔ sleeping friend is hidden behind the box and needs a nearby overhead peek to wake (1.309ms)
+✔ mirror friend rejects the wrong hand or orientation, then recognises the real flipped key (2.338791ms)
+✔ exploration has no ring expiry or forced end screen; completed worlds remain playable (52.751958ms)
+✔ collection survives level changes and reload; re-encounters do not duplicate finds (8.654375ms)
+✔ pet interaction has a cooldown, respects pause, and cannot unlock or award points (4.64775ms)
+✔ malformed collection data cannot create friends or unlock the group reward (0.114875ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 234.61275

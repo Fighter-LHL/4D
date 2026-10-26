@@ -4,9 +4,10 @@ import { FlatlandModel, RETURN_GRACE } from '../src/flatland/model.js';
 import { FLATLAND_LEVELS } from '../src/flatland/levels.js';
 import { guardPose, guardSees, sightFan, lowerPrismGhosts } from '../src/flatland/perception.js';
 import { segmentHitsShape } from '../src/flatland/geometry.js';
+import { goto } from './flatland-helpers.js';
 
 const vault = FLATLAND_LEVELS.findIndex(level => level.id === 'vault');
-function play() { const model = new FlatlandModel(vault); model.start(); model.drainEvents(); return model; }
+function play(seed = 7) { const model = new FlatlandModel(vault, { seed }); model.start(); model.drainEvents(); return model; }
 function wait(model, seconds) { for (let t = 0; t < seconds - 1e-9; t += .05) model.update(Math.min(.05, seconds - t)); }
 function slide(model, s) { model.setSlice(s); model.endSliceGesture(); }
 function walk(model, x, y, seconds) { model.setMove(x, y); wait(model, seconds); model.setMove(0, 0); }
@@ -97,12 +98,12 @@ test('peek counts holds once, rejects unavailable phases and resets on restart',
   assert.equal(visitor.setPeek(true), false);
 });
 
-test('vault intended route earns three stars; completion stops peek and emits pickup and unlock once', () => {
+test('vault intended route completes undetected; completion stops peek and emits pickup and unlock once', () => {
   const model = play();
   slide(model, 5); model.setPeek(true);
   takeKey(model); exitWithKey(model);
   assert.equal(model.phase, 'complete');
-  assert.deepEqual(model.stars, [true, true, true]);
+  assert.deepEqual(model.stars, [true, false, true], 'shards were skipped');
   assert.equal(model.peek, false);
   assert.equal(model.setPeek(true), false);
   const events = model.drainEvents();
@@ -159,15 +160,46 @@ test('capture after pickup restores the key and objectives, then allows a comple
   assert.ok(model.snapshot().ghosts.some(section => section.id === 'vault-key'));
   model.setPeek(false); takeKey(model); exitWithKey(model);
   assert.equal(model.phase, 'complete');
-  assert.deepEqual(model.stars, [true, false, true]);
+  assert.deepEqual(model.stars, [true, false, false]);
   assert.equal(model.counters.peekUses, 2);
 });
 
-test('extra peek uses affect only their star and large frame gaps cannot advance patrols by seconds', () => {
+test('peeking is unlimited and large frame gaps cannot advance patrols by seconds', () => {
   const model = play();
-  for (let i = 0; i < 3; i++) { model.setPeek(true); model.setPeek(false); }
+  for (let i = 0; i < 5; i++) { model.setPeek(true); model.setPeek(false); }
   model.update(60);
   assert.ok(model.time <= .1 + 1e-9);
   takeKey(model); exitWithKey(model);
-  assert.deepEqual(model.stars, [true, true, false]);
+  assert.deepEqual(model.stars, [true, false, true]);
+});
+
+// Drop onto a guard-height shard only while that guard walks away from it.
+function dipBehindGuard(model, shard) {
+  const def = FLATLAND_LEVELS[vault].guards.find(g => Math.abs(g.patrol[0][0] - shard.x) < .1);
+  slide(model, 5); goto(model, shard.x, shard.y);
+  const away = Math.sign(shard.y - 6) < 0 ? Math.PI / 2 : -Math.PI / 2;
+  for (let i = 0; i < 600; i++) {
+    const pose = guardPose(def, model.time);
+    if (Math.abs(Math.atan2(Math.sin(pose.facing - away), Math.cos(pose.facing - away))) < .01 && Math.abs(pose.y - shard.y) > 2.5) break;
+    model.update(1 / 60);
+  }
+  slide(model, 1.2); model.update(1 / 60); slide(model, 5);
+}
+
+test('every shard variant can be taken without being seen for three stars', () => {
+  const variants = new Set();
+  for (let seed = 1; seed <= 30; seed++) {
+    const model = play(seed), [box, risky, high] = model.shards;
+    variants.add(model.shards.map(s => s.x).join());
+    slide(model, 5); goto(model, box.x, box.y); slide(model, 2.8); model.update(1 / 60); slide(model, 5);
+    dipBehindGuard(model, risky);
+    goto(model, high.x, high.y); slide(model, 5.4); model.update(1 / 60); slide(model, 5);
+    goto(model, 10, 6); slide(model, 1.2); model.update(1 / 60);
+    assert.equal(model.carrying, 'vault-key', `seed ${seed}`);
+    slide(model, 5); goto(model, 17, 6); slide(model, 1.2); model.update(1 / 60);
+    assert.equal(model.phase, 'complete', `seed ${seed}`);
+    assert.equal(model.counters.guardAlerts, 0, `seed ${seed}`);
+    assert.deepEqual(model.stars, [true, true, true], `seed ${seed}`);
+  }
+  assert.equal(variants.size, 8);
 });

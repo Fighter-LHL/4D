@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SceneRenderer } from '../src/scene.js';
 import { GameModel } from '../src/model.js';
+import { courtyardFriends } from '../src/courtyard-friends.js';
+import { FriendGuide } from '../src/friend-guide.js';
+import { FLATLAND_LEVELS } from '../src/flatland/levels.js';
 import { start, advance, travel, activateAll, openVault, seedFor, finishRoom } from './model-helpers.js';
 
 function scene(reducedMotion = false) {
@@ -27,6 +30,51 @@ function scene(reducedMotion = false) {
   return { renderer: new SceneRenderer(canvas), calls };
 }
 function state(seed = 1) { const model = new GameModel(seed); model.chooseRelic('shadow'); return model.snapshot(); }
+
+test('collected companions and the real next-layer guide render at desktop and mobile scales', () => {
+  for (const reduced of [true, false]) {
+    const { renderer, calls } = scene(reduced);
+    renderer.friends = courtyardFriends({ found: ['sprout', 'lantern', 'ribbon'] });
+    for (const scale of [.32, 1]) for (let seed = 1; seed <= 12; seed++) {
+      const m = new GameModel(seed); m.chooseRelic('shell');
+      renderer.scale = scale; renderer.setState(m.snapshot()); renderer.render(.016);
+      assert.ok(calls.some(call => call.method === 'bezierCurveTo'), 'recognisable ribbon follows the avatar');
+    }
+    assert.ok(calls.some(call => call.method === 'fillText' && /这边|换到这一层/.test(call.args[0])));
+    renderer.destroy();
+  }
+});
+
+test('courtyard friends follow without revealing the route; clicking their current position requests one hint', () => {
+  const { renderer, calls } = scene();
+  renderer.friends = courtyardFriends({ found: ['sprout', 'lantern', 'ribbon'] });
+  const snapshot = state(), guide = new FriendGuide();
+  renderer.setState(guide.present(snapshot)); renderer.render(.016);
+  assert.equal(calls.some(call => call.method === 'fillText' && /这边|换到这一层/.test(call.args[0])), false);
+  assert.equal(renderer.friendTargets.length, 3);
+  const click = p => ({ clientX: p.x * renderer.scale + renderer.offsetX, clientY: p.y * renderer.scale + renderer.offsetY, button: 0 });
+  for (const p of renderer.friendTargets) assert.equal(renderer.hitFriend(click(p)), true);
+  let selected = false, asked = false;
+  renderer.onSelect = () => { selected = true; };
+  renderer.onFriend = () => { asked = true; guide.request(snapshot); };
+  renderer.pointerDown(click(renderer.friendTargets[0]));
+  assert.equal(asked, true); assert.equal(selected, false);
+  renderer.setState(guide.present(snapshot)); renderer.render(.016);
+  assert.ok(calls.some(call => call.method === 'fillText' && /这边|换到这一层/.test(call.args[0])));
+  renderer.setState({ ...snapshot, wave: {} }); assert.equal(renderer.hitFriend(click(renderer.friendTargets[0])), false);
+  renderer.destroy();
+});
+
+test('the six-garden flower crowns remain visible on all courtyard companions', () => {
+  const { renderer, calls } = scene();
+  const gardens = Object.fromEntries(FLATLAND_LEVELS.filter(l => l.garden).map(l => [l.id, true]));
+  const friends = { found: ['sprout', 'lantern', 'ribbon'], companion: 'sprout' };
+  renderer.friends = courtyardFriends(friends, gardens); renderer.setState(state()); renderer.render(.016);
+  assert.equal(calls.filter(c => c.method === 'fill' && c.fill === '#fff4d9').length, 45);
+  calls.length = 0; renderer.friends = courtyardFriends(friends, { ...gardens, ascend: false }); renderer.render(.016);
+  assert.equal(calls.filter(c => c.method === 'fill' && c.fill === '#fff4d9').length, 0);
+  renderer.destroy();
+});
 
 // Rendering the actual generated snapshots catches assumptions about W roles,
 // same-position nodes, mirrored geometry, and optional wave metadata.

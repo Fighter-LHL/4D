@@ -2,6 +2,8 @@ import { GameModel, RELICS } from './model.js';
 import { SceneRenderer } from './scene.js';
 import { GameAudio } from './audio.js';
 import { isFlatlandArrival } from './flatland/handoff.js';
+import { courtyardFriends, friendGuideText } from './courtyard-friends.js';
+import { FriendGuide } from './friend-guide.js';
 
 const $ = id => document.getElementById(id);
 const setHTML = (id,html) => { const el=$(id); if(el.innerHTML!==html)el.innerHTML=html; };
@@ -15,9 +17,9 @@ const initialSeed = requestedSeed !== null && /^\d{1,10}$/.test(requestedSeed) &
 function rememberSeed(seed) { const url=new URL(location.href);url.searchParams.set('seed',String(seed));history.replaceState(null,'',url); }
 const readPreference = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const savePreference = (key,value) => { try { localStorage.setItem(key,String(value)); } catch { /* Private browsing can disable persistence. */ } };
+const readJSON = key => { try { return JSON.parse(readPreference(key, '{}')); } catch { return {}; } };
 const model = new GameModel(initialSeed);
-let fromFlatland = false;
-try { fromFlatland = isFlatlandArrival(location.search, JSON.parse(readPreference('wslice-flatland-stars', '{}'))); } catch { /* Unavailable progress keeps the normal introduction. */ }
+const fromFlatland = isFlatlandArrival(location.search, readJSON('wslice-flatland-stars'), readJSON('wslice-flatland-visits'));
 $('chapter-arrival').hidden = !fromFlatland;
 rememberSeed(initialSeed);
 const audio = new GameAudio();
@@ -38,7 +40,14 @@ let transientTime = 0;
 const dialogs = ['choice-dialog','help-dialog','pause-dialog','result-dialog','restart-dialog'];
 const isModal = () => dialogs.some(id => $(id).open);
 const canAct = () => !paused && !isModal() && model.snapshot().phase === 'playing';
-const scene = new SceneRenderer($('scene'), { onSelect: id => { if (canAct()) action(() => model.select(id)); } });
+const guide = new FriendGuide();
+function askFriend() { if (canAct() && scene.friends.length) { guide.request(model.snapshot()); updateUI(); } }
+const scene = new SceneRenderer($('scene'), { onSelect: id => { if (canAct()) action(() => model.selectOrMove(id)); }, onFriend: askFriend });
+function refreshFriends() { scene.friends = courtyardFriends(readJSON('wslice-flatland-friends'), readJSON('wslice-flatland-gardens')); }
+refreshFriends();
+window.addEventListener('storage', event => {
+  if (['wslice-flatland-friends', 'wslice-flatland-gardens', null].includes(event.key)) refreshFriends();
+});
 
 function updateSoundButton() {
   $('sound').setAttribute('aria-pressed', String(soundEnabled));
@@ -49,11 +58,11 @@ function unlockAudio() { if (soundEnabled) void audio.unlock(); }
 // Automatic choice/result dialogs freeze play while the outcome melody finishes.
 // User-requested pauses (including help/restart confirmation) stop every sound.
 function syncAudio() { audio.syncWave(model.snapshot().wave,paused||document.hidden); }
-function action(fn) { unlockAudio(); syncAudio(); fn(); consumeEvents(); updateUI(); syncAudio(); }
+function action(fn) { guide.activity(); unlockAudio(); syncAudio(); fn(); consumeEvents(); updateUI(); syncAudio(); }
 function consumeEvents() {
   const events = model.drainEvents();
   if (!events.length) return;
-  scene.setState(model.snapshot());
+  scene.setState(guide.present(model.snapshot()));
   scene.pushEvents(events);
   audio.handle(events);
   for (const event of events) {
@@ -109,7 +118,7 @@ function showChoice(state) {
   renderItinerary('choice-route',state,next?state.room+1:0);
   if (fromFlatland && !next) {
     $('choice-title').textContent = '从平面国，走进回响庭院。';
-    $('choice-intro').textContent = '你已完成升维。现在选择一件起手遗物，开始正式章节：Z / X / C 换 W，点选落脚点后 Space 穿越，E 启动机关。';
+    $('choice-intro').textContent = scene.friends.length ? `${scene.friends.map(f => f.name).join('、')}也来了。先选一件遗物；需要线索时，点伙伴或按 H。` : '带一件喜欢的遗物出发。这次，路会在不同的 W 层接起来。';
   }
   setText('choice-room-name',`${next?'即将进入':'首先进入'} · ${upcoming?.name || state.roomName}`);
   setText('choice-room-description',upcoming?.description || state.roomDescription);
@@ -255,9 +264,15 @@ function updateRoom(state) {
 }
 
 function updateUI() {
-  const state = model.snapshot();
+  const state = guide.present(model.snapshot());
   updateRoom(state);
   scene.setState(state);
+  const friendHint = friendGuideText(state, scene.friends);
+  $('ask-friend').hidden = !scene.friends.length;
+  $('ask-friend').disabled = !canAct() || !model.snapshot().companionGuide;
+  $('friend-guide').hidden = !friendHint;
+  setText('friend-guide', friendHint);
+  for (let i = 0; i < 3; i++) $('layer-' + i).classList.toggle('friend-layer', !!friendHint && state.companionGuide?.layer === i);
   $('room-name').textContent = state.roomName;
   $('room-number').textContent = String(state.room + 1).padStart(2,'0');
   setText('seed-label',`#${state.seed.toString(16).toUpperCase().padStart(8,'0')}`);
@@ -365,6 +380,7 @@ $('safe-mode').addEventListener('click',()=>{ if(canAct()) action(()=>model.setR
 $('risk-mode').addEventListener('click',()=>{ if(canAct()) action(()=>model.setRisk(true)); });
 $('move').addEventListener('click',()=>{ if(canAct()) { action(()=>model.move()); if(model.snapshot().travel) $('w-slider').focus({preventScroll:true}); } });
 $('interact').addEventListener('click',()=>{ if(canAct()) action(()=>model.interact()); });
+$('ask-friend').addEventListener('click', askFriend);
 for(const button of document.querySelectorAll('.layer-controls [data-layer]'))button.addEventListener('click',()=>{if(canAct())action(()=>model.setW(model.snapshot().layers[Number(button.dataset.layer)].center));});
 $('sound').addEventListener('click',()=>{ soundEnabled = !soundEnabled; audio.setEnabled(soundEnabled); unlockAudio(); savePreference('wslice-sound',soundEnabled?'on':'off'); updateSoundButton(); });
 function pauseGame() { if(model.snapshot().phase!=='playing'||isModal())return; paused=true; $('pause-dialog').showModal(); syncAudio(); }
@@ -384,6 +400,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&!isModal()){e.preventDefault();pauseGame();return;}
   if(!canAct()||e.altKey||e.ctrlKey||e.metaKey)return;
   const key=e.key.toLowerCase();
+  if(key==='h'&&!e.repeat){e.preventDefault();askFriend();return;}
   // Preserve native arrows on the range and activation keys on focused buttons.
   // Other game shortcuts remain available after a click or slider adjustment.
   if(e.target===$('w-slider')&&['arrowleft','arrowright','arrowup','arrowdown','home','end','pageup','pagedown'].includes(key))return;
@@ -402,6 +419,7 @@ window.addEventListener('pageshow',event=>{if(event.persisted){audio.setEnabled(
 function frame(now) {
   const dt=Math.max(0,Math.min(.05,(now-lastFrame)/1000));lastFrame=now;
   if(!paused&&!isModal()&&!document.hidden){model.update(dt);if(transientTime>0){transientTime-=dt;if(transientTime<=0)transient=null;}}
+  guide.update(dt, model.snapshot(), !paused && !isModal() && !document.hidden && scene.friends.length > 0);
   consumeEvents();updateUI();syncAudio();scene.render(paused||document.hidden?0:dt);requestAnimationFrame(frame);
 }
 updateSoundButton();consumeEvents();updateUI();requestAnimationFrame(frame);

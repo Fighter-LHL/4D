@@ -1,3 +1,4 @@
+import { drawCourtyardFriends } from './courtyard-friends.js';
 const WORLD_W = 1000;
 const WORLD_H = 650;
 const TAU = Math.PI * 2;
@@ -48,10 +49,11 @@ function hash(n) {
 
 /** Canvas presentation only. The model remains the sole rule authority. */
 export class SceneRenderer {
-  constructor(canvas, { onSelect } = {}) {
+  constructor(canvas, { onSelect, onFriend } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.onSelect = typeof onSelect === 'function' ? onSelect : () => {};
+    this.onFriend = typeof onFriend === 'function' ? onFriend : () => {};
     this.state = null;
     this.time = 0;
     this.effects = [];
@@ -78,11 +80,12 @@ export class SceneRenderer {
     this.pointerMove = event => {
       const node = this.hitTest(event);
       this.hover = node?.id ?? null;
-      canvas.style.cursor = node ? 'pointer' : 'default';
+      canvas.style.cursor = node || this.hitFriend(event) ? 'pointer' : 'default';
     };
     this.pointerLeave = () => { this.hover = null; canvas.style.cursor = 'default'; };
     this.pointerDown = event => {
       if (event.button !== undefined && event.button !== 0) return;
+      if (this.hitFriend(event)) { this.onFriend(); return; }
       const node = this.hitTest(event);
       if (node) this.onSelect(node.id);
     };
@@ -109,6 +112,14 @@ export class SceneRenderer {
     this.scale = Math.min(this.width / WORLD_W, this.height / WORLD_H);
     this.offsetX = (this.width - WORLD_W * this.scale) / 2;
     this.offsetY = (this.height - WORLD_H * this.scale) / 2;
+  }
+
+  hitFriend(event) {
+    if (!this.state || this.state.phase !== 'playing' || this.state.travel || this.state.wave) return false;
+    const rect = this.canvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left - this.offsetX) / this.scale;
+    const y = (event.clientY - rect.top - this.offsetY) / this.scale;
+    return (this.friendTargets || []).some(p => Math.hypot(x - p.x, y - p.y) <= 18);
   }
 
   hitTest(event) {
@@ -370,6 +381,7 @@ export class SceneRenderer {
       this.drawGhost();
       this.drawWave();
       this.drawPlayer();
+      drawCourtyardFriends(this);
       this.drawEffects(true);
       this.drawParticles();
       this.drawAtmosphere();

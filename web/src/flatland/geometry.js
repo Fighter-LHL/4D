@@ -141,3 +141,74 @@ export function cube(id, { center, size, matrix = [[1, 0, 0], [0, 1, 0], [0, 0, 
 export function rect(id, x0, y0, x1, y1, z, extra = {}) {
   return { id, kind: 'prism', polygon: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], z, ...extra };
 }
+
+const IDENTITY = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+const apply = (matrix, v) => [0, 1, 2].map(row => matrix[row].reduce((sum, value, k) => sum + value * v[k], 0));
+
+// Every pair of vertices of a convex polytope spans a segment inside it, so
+// using all pairs as "edges" still slices to the exact convex section.
+export function polytope(id, { center, local, matrix = IDENTITY, ...extra }) {
+  const vertices = local.map(v => apply(matrix, v).map((value, i) => value + center[i]));
+  const edges = [];
+  for (let i = 0; i < vertices.length; i++) for (let j = i + 1; j < vertices.length; j++) edges.push([i, j]);
+  return { id, kind: 'polytope', vertices, edges, ...extra };
+}
+const OCTAHEDRON = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+const TETRAHEDRON = [[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]].map(v => v.map(x => x / Math.sqrt(3)));
+export const octahedron = (id, { size, ...rest }) => polytope(id, { local: OCTAHEDRON.map(v => v.map(x => x * size)), ...rest });
+export const tetrahedron = (id, { size, ...rest }) => polytope(id, { local: TETRAHEDRON.map(v => v.map(x => x * size)), ...rest });
+
+export function rotationFromQuaternion([w, x, y, z]) {
+  const n = Math.hypot(w, x, y, z) || 1; w /= n; x /= n; y /= n; z /= n;
+  return [
+    [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+    [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+    [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+  ];
+}
+// Uniform random rotation (Shoemake) from a seeded generator.
+export function randomRotation(rng) {
+  const u1 = rng.next(), u2 = rng.next() * Math.PI * 2, u3 = rng.next() * Math.PI * 2;
+  const a = Math.sqrt(1 - u1), b = Math.sqrt(u1);
+  return rotationFromQuaternion([a * Math.sin(u2), a * Math.cos(u2), b * Math.sin(u3), b * Math.cos(u3)]);
+}
+export const rotateZ = angle => [[Math.cos(angle), -Math.sin(angle), 0], [Math.sin(angle), Math.cos(angle), 0], [0, 0, 1]];
+export const multiply = (a, b) => [0, 1, 2].map(i => [0, 1, 2].map(j => a[i][0] * b[0][j] + a[i][1] * b[1][j] + a[i][2] * b[2][j]));
+
+export function shapeArea(shape) { return !shape ? 0 : shape.type === 'circle' ? Math.PI * shape.r ** 2 : polygonArea(shape.points); }
+// Merge vertices joined by very short edges, so a section that barely clips a
+// corner is not counted as a different polygon.
+export function simplifyPolygon(points, minEdge = .08) {
+  let out = [...points];
+  for (let changed = true; changed && out.length > 3;) {
+    changed = false;
+    for (let i = 0; i < out.length && out.length > 3; i++) {
+      const a = out[i], b = out[(i + 1) % out.length];
+      if (Math.hypot(b[0] - a[0], b[1] - a[1]) < minEdge) { out.splice((i + 1) % out.length, 1); changed = true; }
+    }
+  }
+  return out;
+}
+// Closeness 0..1 between a live section and a target outline, plus a strict match flag.
+export function shapeMatch(shape, target, { radius = .1, area = .08 } = {}) {
+  if (!shape || !target || shape.type !== target.type) return { match: false, closeness: 0 };
+  if (shape.type === 'circle') {
+    const d = Math.abs(shape.r - target.r) + Math.hypot(shape.cx - target.cx, shape.cy - target.cy);
+    return { match: d <= radius, closeness: clamp01(1 - d / 1.2) };
+  }
+  const a = shapeArea(shape), b = shapeArea(target), ratio = Math.abs(a - b) / Math.max(b, EPSILON);
+  const [ax, ay] = shapeCentroid(shape), [bx, by] = shapeCentroid(target), offset = Math.hypot(ax - bx, ay - by);
+  const sameSides = simplifyPolygon(shape.points).length === simplifyPolygon(target.points).length;
+  return { match: sameSides && ratio <= area && offset <= .3, closeness: clamp01(1 - ratio * 1.6 - offset * .4) * (sameSides ? 1 : .65) };
+}
+const clamp01 = value => Math.max(0, Math.min(1, value));
+
+export function translateSolidXY(solid, dx, dy) {
+  const copy = structuredClone(solid);
+  const move = p => [p[0] + dx, p[1] + dy, ...p.slice(2)];
+  if (copy.center) copy.center = move(copy.center);
+  if (copy.base) copy.base = move(copy.base);
+  if (copy.vertices) copy.vertices = copy.vertices.map(move);
+  if (copy.polygon) copy.polygon = copy.polygon.map(move);
+  return copy;
+}

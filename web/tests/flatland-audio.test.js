@@ -30,7 +30,7 @@ test('peek audio has one voice per hold and releases it on release, mute, return
   t.after(() => { if (prior) globalThis.AudioContext = prior; else delete globalThis.AudioContext; });
   const audio = new FlatlandAudio();
   await audio.unlock();
-  for (const type of ['peek_end', 'guard_alert', 'load', 'complete']) {
+  for (const type of ['peek_end', 'guard_alert', 'load', 'complete', 'pause']) {
     audio.handle([{ type: 'peek_start' }]);
     const voice = audio.peekVoice;
     assert.ok(voice.osc.started);
@@ -53,6 +53,28 @@ test('peek audio has one voice per hold and releases it on release, mute, return
   audio.dispose();
   assert.equal(last.osc.stops, 1);
   assert.equal(context.state, 'closed');
+});
+
+test('pause and retry cancel scheduled tones rather than replaying them on resume', async t => {
+  class ScheduledContext extends Context {
+    createOscillator() {
+      const node = super.createOscillator();
+      node.stop = at => { node.stops++; node.stopAt = at; };
+      return node;
+    }
+  }
+  const prior = globalThis.AudioContext; globalThis.AudioContext = ScheduledContext;
+  t.after(() => { if (prior) globalThis.AudioContext = prior; else delete globalThis.AudioContext; });
+  const audio = new FlatlandAudio(); await audio.unlock();
+  for (const type of ['pause', 'load']) {
+    audio.handle([{ type: 'ring_hit', combo: 2 }]);
+    const voices = [...audio.voices]; assert.equal(voices.length, 3);
+    audio.handle([{ type }]);
+    assert.equal(audio.voices.size, 0);
+    for (const { osc, amp } of voices) { assert.equal(osc.stopAt, 0); assert.equal(amp.gain.value, 0); }
+    audio.handle([{ type: 'resume' }]); assert.equal(audio.voices.size, 0);
+  }
+  audio.dispose();
 });
 
 test('audio events remain safe before Web Audio unlock and delayed unlock does not revive a released peek', async t => {

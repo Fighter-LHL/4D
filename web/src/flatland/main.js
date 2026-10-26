@@ -1,28 +1,39 @@
 import { FlatlandModel } from './model.js';
 import { FlatlandRenderer } from './scene.js';
 import { FlatlandAudio } from './audio.js';
-import { FLATLAND_LEVELS, UPCOMING } from './levels.js';
-import { normalizeProgress, isLevelUnlocked } from './progress.js';
-import { illustration, sectionThumbnail, sectionDescription, keyThumbnail } from './cards.js';
-import { keyPoints } from './mirror.js';
+import { FLATLAND_LEVELS, UNLOCK_FROM } from './levels.js';
+import { normalizeProgress, normalizeBest, isLevelUnlocked } from './progress.js';
 import { COURTYARD_ENTRY } from './handoff.js';
+import { parseSeed, randomSeed } from './random.js';
+import { FRIENDS, friendPortrait } from './discoveries.js';
+import { COMPANION_HELP, gardenCollection } from './companions.js';
 
 const $ = id => document.getElementById(id);
 const setText = (id, text) => { const el = $(id), value = String(text); if (el.textContent !== value) el.textContent = value; };
-// Compare the authored string, not serialized DOM: SVG normalization would
-// otherwise rebuild every card each frame and repeatedly drop keyboard focus.
 const htmlCache = new WeakMap();
 const setHTML = (id, html) => { const el = $(id); if (htmlCache.get(el) !== html) { el.innerHTML = html; htmlCache.set(el, html); } };
 const escapeHTML = text => String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const readPreference = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const savePreference = (key, value) => { try { localStorage.setItem(key, String(value)); } catch { /* Private browsing can disable persistence. */ } };
-const PROGRESS_KEY = 'wslice-flatland-stars';
-let progress = {};
-try { progress = normalizeProgress(JSON.parse(readPreference(PROGRESS_KEY, '{}')), FLATLAND_LEVELS); } catch { progress = {}; }
-const unlocked = index => isLevelUnlocked(FLATLAND_LEVELS, progress, index);
+const readJSON = key => { try { return JSON.parse(readPreference(key, '{}')); } catch { return {}; } };
+const PROGRESS_KEY = 'wslice-flatland-stars', BEST_KEY = 'wslice-flatland-best';
+const progress = normalizeProgress(readJSON(PROGRESS_KEY), FLATLAND_LEVELS);
+const best = normalizeBest(readJSON(BEST_KEY), FLATLAND_LEVELS);
+const COLLECTION_KEY = 'wslice-flatland-friends', VISITS_KEY = 'wslice-flatland-visits';
+const GARDENS_KEY = 'wslice-flatland-gardens';
+const savedVisits = readJSON(VISITS_KEY);
+const visits = Object.fromEntries(FLATLAND_LEVELS.filter(level => savedVisits?.[level.id] === true).map(level => [level.id, true]));
+const unlocked = index => (playStyle === 'explore' && !!FLATLAND_LEVELS[index] && !FLATLAND_LEVELS[index].endless) ||
+  isLevelUnlocked(FLATLAND_LEVELS, { ...progress, ...Object.fromEntries(Object.keys(visits).map(id => [id, 1])) }, index, UNLOCK_FROM);
 
-const requested = FLATLAND_LEVELS.findIndex(level => level.id === new URL(location.href).searchParams.get('level'));
-const model = new FlatlandModel(requested >= 0 ? requested : Math.max(0, FLATLAND_LEVELS.findIndex((_, i) => !progress[FLATLAND_LEVELS[i].id])));
+const params = new URL(location.href).searchParams;
+let playStyle = params.get('play') === 'challenge' ? 'challenge' : 'explore';
+const requested = FLATLAND_LEVELS.findIndex(level => level.id === params.get('level'));
+const firstOpen = FLATLAND_LEVELS.findIndex(level => !progress[level.id] && !level.endless);
+const model = new FlatlandModel(requested >= 0 ? requested : playStyle === 'explore' ? 2 : Math.max(0, firstOpen), {
+  seed: parseSeed(params.get('seed')) ?? randomSeed(), playStyle, collection: readJSON(COLLECTION_KEY), gardenMemories: readJSON(GARDENS_KEY),
+});
+if (model.exploration) model.start();
 const scene = new FlatlandRenderer($('scene'));
 const audio = new FlatlandAudio();
 let soundEnabled = readPreference('wslice-sound', 'on') === 'on';
@@ -32,12 +43,23 @@ const peekSources = new Set();
 const suppressedKeys = new Set();
 let pointer = null;
 let sliderDragging = false;
+let wheelTimer = 0;
 let lastPhase = '';
 let lastS = model.s;
 let resultTimer = 0;
 let lastFrame = performance.now();
-const dialogs = ['intro-dialog', 'quiz-dialog', 'result-dialog'];
+let fineControl = false;
+let previousRun = null;
+let albumWasPaused = false;
+const dialogs = ['intro-dialog', 'result-dialog', 'pause-dialog', 'collection-dialog'];
 const isModal = () => dialogs.some(id => $(id).open);
+function syncChallengeURL() {
+  const url = new URL(location.href);
+  url.searchParams.set('level', model.level.id); url.searchParams.set('seed', model.seed);
+  url.searchParams.set('play', model.exploration ? 'explore' : 'challenge');
+  history.replaceState(null, '', url);
+}
+const canReroll = () => !!model.level.build || !!model.storm;
 
 function unlockAudio() { if (soundEnabled) void audio.unlock(); }
 function announce(text) { setText('announcement', text); }
@@ -46,202 +68,189 @@ function updateSoundButton() {
   setText('sound-label', soundEnabled ? '声音开' : '声音关');
 }
 
-function starStatus(star, snap) {
-  if (snap.phase === 'complete') return { cls: star.earned ? 'earned' : 'failed', extra: '' };
-  if (star.kind === 'maxTime') {
-    const time = snap.matchedAt ?? snap.time;
-    return { cls: time > star.value ? 'failed' : snap.matchedAt !== null ? 'earned' : '', extra: `${Math.min(time, star.value).toFixed(0)} / ${star.value}` };
-  }
-  if (star.kind === 'firstCorrect') return { cls: snap.counters.firstCorrect >= star.value ? 'earned' : '', extra: `${Math.min(snap.counters.firstCorrect, star.value)} / ${star.value}` };
-  if (star.kind === 'maxSliceMoves') return { cls: snap.counters.sliceMoves > star.value ? 'failed' : '', extra: `${snap.counters.sliceMoves} / ${star.value}` };
-  if (star.kind === 'noBlocked') return { cls: snap.counters.blockedCount ? 'failed' : '', extra: '' };
-  if (star.kind === 'noAlerts') return { cls: snap.counters.guardAlerts ? 'failed' : '', extra: `被发现 ${snap.counters.guardAlerts} 次` };
-  if (star.kind === 'maxPeekUses') return { cls: snap.counters.peekUses > star.value ? 'failed' : '', extra: `${snap.counters.peekUses} / ${star.value}` };
-  if (star.kind === 'flipPrediction') return { cls: snap.mirror.prediction?.correct === false ? 'failed' : snap.mirror.prediction?.correct === true ? 'earned' : '', extra: '' };
-  if (star.kind === 'singleFlip') return { cls: snap.counters.flips > 1 ? 'failed' : '', extra: `已翻转 ${snap.counters.flips} 次` };
-  return { cls: '', extra: '' };
+function starExtra(star, snap) {
+  if (snap.phase === 'complete') return '';
+  if (star.kind === 'parTime') return `${Math.min(snap.time, star.value).toFixed(0)} / ${star.value}`;
+  if (star.kind === 'allShards') return `${snap.shards.filter(s => s.taken).length} / ${snap.shards.length}`;
+  if (star.kind === 'perfectRings') return `${snap.rings.hits} / ${snap.rings.count}`;
+  if (star.kind === 'complete' && snap.rings) return `${snap.rings.hits} / ${snap.rings.need}`;
+  if (star.kind === 'complete' && snap.locks) return `${snap.locks.solved} / ${snap.locks.count}`;
+  if (star.kind === 'complete' && snap.mirror) return `${snap.mirror.locks.filter(l => l.open).length} / ${snap.mirror.locks.length}`;
+  if (star.kind === 'parActions') return `${snap.mirror.actions} / ${snap.mirror.par}`;
+  if (star.kind === 'maxSliceMoves') return `${snap.counters.sliceMoves} / ${star.value}`;
+  if (star.kind === 'noAlerts' && snap.counters.guardAlerts) return `被发现 ${snap.counters.guardAlerts} 次`;
+  return '';
 }
 const starList = (snap, live) => snap.stars.map(star => {
-  const status = live ? starStatus(star, snap) : { cls: star.earned ? 'earned' : '', extra: '' };
-  return `<li class="${status.cls}">${escapeHTML(star.label)}${status.extra ? ` <small>${status.extra}</small>` : ''}</li>`;
+  const cls = live ? star.status : star.earned ? 'earned' : '', extra = live ? starExtra(star, snap) : '';
+  return `<li class="${cls}">${escapeHTML(star.label)}${extra ? ` <small>${extra}</small>` : ''}</li>`;
 }).join('');
 
 function renderLevels(snap) {
-  const items = FLATLAND_LEVELS.map((level, i) => {
-    const stars = progress[level.id] || 0;
-    return `<li><button data-level="${i}" ${i === snap.index ? 'aria-current="true"' : ''} ${unlocked(i) ? '' : 'disabled'}>${i + 1} · ${escapeHTML(level.title)}<span class="level-stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</span></button></li>`;
-  });
-  const later = UPCOMING.map((title, i) => `<li><button disabled title="即将开放">${FLATLAND_LEVELS.length + i + 1} · ${escapeHTML(title)}</button></li>`);
-  setHTML('levels', [...items, ...later].join(''));
+  setHTML('levels', FLATLAND_LEVELS.map((level, i) => {
+    const stars = progress[level.id] || 0, label = level.endless ? `∞ · ${level.title}` : `${i + 1} · ${level.title}`;
+    const friend = FRIENDS.find(f => f.level === level.id);
+    const badge = playStyle === 'explore' ? `${friend ? model.collection.found.includes(friend.id) ? friend.icon : '◌' : visits[level.id] ? '·' : ''}${model.gardenMemories[level.id] ? ' ✿' : ''}` : `${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`;
+    return `<li><button data-level="${i}" class="${level.endless ? 'endless' : ''}" ${i === snap.index ? 'aria-current="true"' : ''} ${unlocked(i) || i === snap.index ? '' : 'disabled'}>${escapeHTML(label)}<span class="level-stars">${badge}</span></button></li>`;
+  }).join(''));
+  revealCurrentLevel();
 }
+function revealCurrentLevel() {
+  const list = $('levels'), active = list.querySelector('[aria-current="true"]');
+  if (active && list.scrollWidth > list.clientWidth) {
+    list.scrollLeft = active.offsetLeft - list.offsetLeft - (list.clientWidth - active.offsetWidth) / 2;
+  }
+}
+window.addEventListener('resize', revealCurrentLevel);
 
-function openPhaseDialog(snap) {
-  if (snap.phase === 'intro') {
-    setText('intro-kicker', `LEVEL ${snap.index + 1} / ${snap.count}`);
-    setText('intro-title', snap.title); setText('intro-text', snap.intro);
-    setHTML('intro-stars', starList(snap, false));
-    if (!$('intro-dialog').open) $('intro-dialog').showModal();
-  }
-  if (snap.phase === 'quiz') {
-    setText('quiz-prompt', snap.quiz.prompt);
-    setHTML('quiz-options', snap.quiz.options.map((option, i) => `<button data-choice="${i}">${escapeHTML(option)}</button>`).join(''));
-    $('quiz-dialog').showModal();
-  }
-  if (snap.phase === 'complete') resultTimer = .9;
+function openIntro(snap) {
+  setText('intro-kicker', snap.endless ? 'ENDLESS' : `LEVEL ${snap.index + 1}`);
+  setText('intro-title', snap.title); setText('intro-text', snap.tagline);
+  setHTML('intro-stars', starList(snap, false));
+  setText('intro-best', best[snap.levelId] ? `最高分 ${best[snap.levelId]}` : '');
+  setText('intro-controls', controlHint(snap));
+  if (!$('intro-dialog').open) $('intro-dialog').showModal();
 }
 function showResult(snap) {
   const earned = snap.stars.filter(star => star.earned).length;
-  progress[snap.levelId] = Math.max(progress[snap.levelId] || 0, earned);
+  if (snap.cleared) progress[snap.levelId] = Math.max(progress[snap.levelId] || 0, earned);
+  const record = snap.score > (best[snap.levelId] || 0);
+  if (record) best[snap.levelId] = snap.score;
   savePreference(PROGRESS_KEY, JSON.stringify(progress));
-  setHTML('result-stars', snap.stars.map((star, i) => `<span class="${star.earned ? '' : 'off'}" style="animation-delay:${i * .15}s">★</span>`).join(''));
-  setText('result-title', snap.title); setText('result-concept', snap.concept);
-  const quiz = $('result-quiz');
-  quiz.hidden = !snap.quiz;
-  if (snap.quiz) { quiz.className = `result-quiz${snap.quiz.correct ? '' : ' wrong'}`; quiz.textContent = `${snap.quiz.correct ? '答对了。' : '再想想：'}${snap.quiz.explain}`; }
+  savePreference(BEST_KEY, JSON.stringify(best));
+  setHTML('result-stars', snap.stars.map((star, i) => `<span class="${star.earned ? '' : 'off'}" style="animation-delay:${.15 + i * .18}s">★</span>`).join(''));
+  setText('result-title', snap.endless ? `撑过 ${snap.time.toFixed(0)} 秒` : !snap.cleared ? '差一点' : earned === 3 ? '完美' : '过关');
+  setText('result-score', snap.score);
+  $('result-record').hidden = !record || snap.score === 0;
+  setText('result-best', record ? '' : `最高分 ${best[snap.levelId] || 0}`);
   setHTML('result-list', starList(snap, false));
-  setText('result-stats', `用时 ${snap.time.toFixed(1)} 秒 · 换高度 ${snap.counters.sliceMoves} 次 · 被卡住 ${snap.counters.blockedCount} 次 · 提示 ${snap.counters.hintsShown} 次${snap.round ? ` · 首次答对 ${snap.counters.firstCorrect}/3 · 猜错 ${snap.counters.quizWrong} 次` : ''}${snap.abilities.peek ? ` · 透视 ${snap.counters.peekUses} 次 · 被发现 ${snap.counters.guardAlerts} 次` : ''}`);
-  if (snap.mirror) setText('result-stats', `用时 ${snap.time.toFixed(1)} 秒 · 翻转 ${snap.counters.flips} 次 · 平面旋转 ${snap.counters.planarTurns} 次 · 首次预测${snap.mirror.prediction?.correct ? '正确' : '错误'} · 提示 ${snap.counters.hintsShown} 次`);
-  $('next').hidden = snap.index + 1 >= snap.count;
-  if (snap.ascend) setText('result-stats', `两次出房间均已完成 · 用时 ${snap.time.toFixed(1)} 秒 · 切片改变 ${snap.counters.sliceMoves} 次 · 被挡住 ${snap.counters.blockedCount} 次。接下来选择起手遗物，进入正式庭院。`);
+  const stats = [`${snap.time.toFixed(1)} 秒`];
+  if (snap.rings) stats.push(`接住 ${snap.rings.hits} / ${snap.rings.count}`);
+  if (snap.locks) stats.push(`偷看 ${snap.counters.reveals} 次`);
+  if (snap.mirror) stats.push(`转动 ${snap.counters.planarTurns} · 翻面 ${snap.counters.flips}`);
+  if (snap.shards.length && !snap.endless) stats.push(`光屑 ${snap.shards.filter(s => s.taken).length} / ${snap.shards.length}`);
+  if (snap.storm) stats.push(`第 ${snap.storm.level} 波`);
+  if (snap.storm?.grazes) stats.push(`擦身脱险 ${snap.storm.grazes} 次`);
+  if (snap.combo.best > 1) stats.push(`最长连击 ${snap.combo.best}`);
+  if (snap.deaths) stats.push(`失手 ${snap.deaths} 次`);
+  if (snap.counters.guardAlerts) stats.push(`被发现 ${snap.counters.guardAlerts} 次`);
+  setText('result-stats', stats.join(' · '));
+  const nextIndex = snap.index + 1;
+  $('next').hidden = !snap.cleared || nextIndex >= snap.count || !unlocked(nextIndex);
+  setText('result-challenge', `挑战 #${snap.seed} · 同题重来保留布局`);
+  const same = previousRun?.levelId === snap.levelId && previousRun.seed === snap.seed;
+  const delta = same ? snap.score - previousRun.score : 0;
+  setText('result-comparison', same ? `上次 ${previousRun.score} 分 · 本次 ${delta >= 0 ? '+' : '−'}${Math.abs(delta)} 分` : '');
+  previousRun = { levelId: snap.levelId, seed: snap.seed, score: snap.score };
+  $('new-challenge').hidden = !canReroll();
   $('enter-courtyard').hidden = !snap.ascend?.readyForCourtyard;
   $('enter-courtyard').href = COURTYARD_ENTRY;
   $('result-dialog').showModal();
+  ($('next').hidden ? $('retry') : $('next')).focus();
   renderLevels(snap);
-  announce(`完成 ${snap.title}，获得 ${earned} 颗星。`);
+  announce(`${snap.title}：${snap.score} 分，${earned} 颗星。`);
+}
+
+function controlHint(snap) {
+  if (snap.exploration && snap.rings) return '走到光环边 · Q / E 换层接住 · 点击访客';
+  if (snap.exploration && snap.locks) return 'WASD / 拖动：搬动截面 · Q / E：对准金色拓印';
+  if (snap.mirror) return 'WASD / 拖动移动 · Space 转动 · 紫色台上 F 翻面';
+  const move = snap.canMove ? 'WASD / 拖动移动 · ' : '';
+  return `${move}Q / E 换层 · Shift 精调`;
+}
+
+const EXPLORE_LINES = {
+  visitor: '它好像在跟你打招呼。', guess: '这东西，还能变成什么样？', escape: '墙那头，好像有东西在动。',
+  vault: '嘘。盒子里传来了呼噜声。', mirror: '那边的倒影，似乎有自己的想法。', ascend: '门外，还有一扇门。',
+};
+function saveCollection() { savePreference(COLLECTION_KEY, JSON.stringify(model.collection)); }
+function renderCollection() {
+  const { found, companion } = model.collection;
+  const gardens = gardenCollection(model.gardenMemories, FLATLAND_LEVELS);
+  setHTML('friend-cards', FRIENDS.map(friend => {
+    const has = found.includes(friend.id);
+    return `<article class="friend-card ${has ? 'found' : ''}"><span class="friend-portrait">${friendPortrait(friend, has, { crowned: gardens.complete })}</span><h3>${has ? friend.name : '还没遇见'}</h3><p>${has ? COMPANION_HELP[friend.id] : friend.clue}</p><button class="secondary-button" ${has ? `data-companion="${friend.id}" aria-pressed="${companion === friend.id}"` : `data-visit="${friend.level}"`}>${has ? companion === friend.id ? '正跟着你' : '一起走' : '去看看'}</button></article>`;
+  }).join(''));
+  $('travel-together').disabled = found.length < FRIENDS.length;
+  setHTML('garden-memories', FLATLAND_LEVELS.filter(level => level.garden).map(level => `<span class="${model.gardenMemories[level.id] ? 'bloomed' : ''}">${model.gardenMemories[level.id] ? '✿' : '○'} ${level.title}</span>`).join(''));
+  setText('garden-tally', `花园 ${gardens.count} / ${gardens.total} ✿`);
+  $('garden-keepsake').hidden = !gardens.complete;
+  $('travel-together').setAttribute('aria-pressed', String(companion === 'all'));
+  setText('collection-caption', !model.exploration ? '计分挑战里，伙伴只陪你看风景。回到自由探索就能一起玩。' : found.length === FRIENDS.length ? '都到齐了，一起出去玩。' : '能力只在自由探索生效。还有朋友藏在别的角落。');
+}
+function openCollection() {
+  albumWasPaused = model.paused;
+  clearInputs(); action(() => model.setPaused(true)); renderCollection();
+  $('collection-dialog').showModal();
+}
+function closeCollection() {
+  $('collection-dialog').close();
+  if (!albumWasPaused) action(() => model.setPaused(false));
+  lastFrame = performance.now(); $('scene').focus({ preventScroll: true });
 }
 
 function updateUI() {
   const snap = model.snapshot();
-  if (snap.phase !== lastPhase) { lastPhase = snap.phase; renderLevels(snap); openPhaseDialog(snap); }
-  setText('title', snap.title); setText('intro', snap.intro);
+  if (snap.phase !== lastPhase) {
+    lastPhase = snap.phase; renderLevels(snap);
+    if (snap.phase === 'intro') openIntro(snap);
+    if (snap.phase === 'complete') resultTimer = .9;
+  }
+  setText('title', snap.title); setText('tagline', snap.exploration ? EXPLORE_LINES[snap.levelId] : snap.tagline);
+  document.body.classList.toggle('exploring', snap.exploration);
+  setText('style-toggle', snap.exploration ? '计分挑战' : '随便逛逛');
+  setText('collection-label', snap.collection.found.length ? `朋友 ${snap.collection.found.length}` : '口袋里的秘密');
+  const companion = snap.collection.companion, toys = snap.companions;
+  $('pet').hidden = !companion || !toys.enabled;
+  $('pet').disabled = !toys.canUse;
+  const petLabel = companion === 'sprout' ? '跨层跳' : companion === 'lantern' ? '照远一点' : companion === 'ribbon' ? toys.mirror ? '收回倒影' : '镜像同步' : '一起玩';
+  setText('pet-label', `${petLabel}${toys.cooldown > 0 ? ` ${toys.cooldown.toFixed(1)}s` : ''}`);
+  $('pet').setAttribute('aria-pressed', String(!!toys.mirror));
+  $('probe-direction').hidden = !toys.enabled || !['sprout', 'all'].includes(companion);
+  $('probe-direction').disabled = !toys.canAim;
+  const direction = toys.direction > 0 ? '上层 ↑' : toys.direction < 0 ? '下层 ↓' : '同层 →';
+  setText('probe-direction-label', `跳向${direction}`);
+  $('probe-direction').setAttribute('aria-label', `跳跳当前跳向${direction}，点击或按 C 切换`);
+  $('garden-progress').hidden = !toys.garden;
+  setText('garden-progress', toys.garden ? `${toys.garden.bloomed ? '✿ 已点亮 · ' : ''}花种 ${'●'.repeat(toys.garden.petals)}${'○'.repeat(3 - toys.garden.petals)}` : '');
+  $('companion-hint').hidden = !companion || !toys.enabled;
+  setText('companion-hint', companion ? COMPANION_HELP[companion] : '');
+  $('poke').hidden = !snap.exploration || !snap.rings;
+  $('poke').disabled = !snap.canPoke;
+  $('explore-next').hidden = !snap.exploration || !snap.cleared || snap.levelId === 'ascend';
+  setText('explore-next', `去${FLATLAND_LEVELS[snap.index + 1]?.title || '下一站'} ↗`);
+  $('explore-courtyard').hidden = !snap.exploration || !snap.ascend?.readyForCourtyard;
+  $('explore-courtyard').href = COURTYARD_ENTRY;
+  setText('control-hint', controlHint(snap));
+  $('pause').disabled = snap.phase !== 'playing';
+  $('fine-control').hidden = !!snap.mirror;
+  $('fine-control').disabled = !snap.canSlice;
+  $('fine-control').setAttribute('aria-pressed', String(fineControl || keys.has('shift')));
+  $('slice-row').classList.toggle('precise', snap.precision);
+  const volume = snap.ascend?.stage === 'volume';
+  setText('slice-axis', volume ? 'W' : 'S');
   setText('s-value', snap.s.toFixed(2));
   const slider = $('s-slider');
-  slider.min = snap.slice.min; slider.max = snap.slice.max;
+  slider.setAttribute('aria-label', volume ? 'W 切片位置' : 'S 切片高度');
+  slider.min = snap.slice.min; slider.max = snap.slice.max; slider.step = volume ? .005 : .01;
   if (!sliderDragging) slider.value = snap.s;
   slider.disabled = $('s-up').disabled = $('s-down').disabled = !snap.canSlice;
-  $('move-hint').hidden = !snap.canMove;
-  setText('timer', `${snap.time.toFixed(1)} 秒`);
+  $('slice-row').hidden = !!snap.mirror;
+  const par = snap.stars.find(star => star.kind === 'parTime')?.value;
+  setText('timer', snap.time.toFixed(1)); setText('par', par ? `/ ${par} 秒` : '秒');
+  $('timer').parentElement.classList.toggle('over', !!par && snap.time > par);
   setHTML('stars', starList(snap, true));
-  const hint = $('hint');
-  hint.hidden = !snap.hint || snap.phase !== 'playing';
+  $('hint').hidden = !snap.hint || snap.phase !== 'playing';
   if (snap.hint) setText('hint', snap.hint);
-  updateVault(snap);
-  updateMirror(snap);
-  updateAscend(snap);
-  updateLesson(snap);
+  $('peek').hidden = !snap.abilities.peek;
+  $('peek').disabled = !snap.canSlice;
+  $('peek').setAttribute('aria-pressed', String(snap.peek));
+  $('reveal').hidden = !snap.abilities.reveal;
+  $('reveal').disabled = !snap.locks || snap.locks.revealed || !snap.locks.active || snap.phase !== 'playing';
+  $('rotate-key').hidden = $('flip-key').hidden = !snap.mirror;
+  if (snap.mirror) { $('rotate-key').disabled = !snap.mirror.canRotate; $('flip-key').disabled = !snap.mirror.canFlip; }
+  $('scene').setAttribute('aria-label', volume ? '三维房间的 W 截面' : '平面世界与侧面');
   return snap;
-}
-
-function updateAscend(snap) {
-  const a = snap.ascend, volume = a?.stage === 'volume', transition = a?.stage === 'transition';
-  $('play-layout').classList.toggle('ascending', !!a);
-  $('ascend-panel').hidden = !a;
-  $('dimension-presets').hidden = !volume;
-  setText('slice-axis', volume ? 'W' : 'S');
-  setText('slice-description', volume ? '空间切片' : '你所在的高度');
-  $('s-down').setAttribute('aria-label', volume ? '减小 W' : '降低 S');
-  $('s-up').setAttribute('aria-label', volume ? '增大 W' : '升高 S');
-  $('scene').setAttribute('aria-label', volume ? '三维房间的 W 截面：地板、四面墙、屋顶和出口' : '平面世界与侧视图');
-  if (!a) return;
-  if (volume) setText('intro', '现在你在 XYZ 空间里。换 W 找到通往门外的路，再回到出口所在的切片。');
-  setText('dimension-heading', volume ? '这次，走出三维房间' : transition ? '从平面国，升高一维' : '再走出一次房间');
-  setText('dimension-story', volume ? '墙和屋顶只在部分 W 中存在。改变 W 不改变你的 XYZ；你正绕过三维空间中的封闭房间。' : transition ? '你刚才对平面生物做的事，四维生物也能对你做。Z 高度变成 W 切片，二维平面变成三维空间。' : '先复习刚才的发现：调 S 离开围墙，再回到旗子所在的高度。');
-  $('dimension-meter').hidden = !transition;
-  $('dimension-progress').value = Math.round(a.progress * 100);
-  setText('dimension-position', volume ? `X ${a.position.x.toFixed(2)} · Y ${a.position.y.toFixed(2)} · Z ${a.position.z.toFixed(2)} ｜ W ${snap.s.toFixed(2)}` : 'S 是平面在 Z 方向的高度');
-  setText('dimension-status', snap.phase === 'complete' ? '已完成两次逃出房间。可以进入正式庭院了。' : transition ? '正在升维，稍后恢复移动。' : !volume ? '先找到门外的旗。' : a.blocked ? '这个 W 的墙挡住了你。先在空旷切片中移开，再切回去。' : a.leftRoom ? snap.s > .32 ? '已走到房间外。出口出现在 W ≤ 0.32，回到那一片空间。' : '出口已经出现，靠近金色门即可完成。' : '试试另一片 W：墙和屋顶还在吗？WASD 沿地板移动。');
-  $('dimension-flat-step').classList.toggle('done', a.flatComplete);
-  $('dimension-volume-step').classList.toggle('done', snap.phase === 'complete');
-  for (const button of $('dimension-presets').children) { button.disabled = !snap.canSlice; button.setAttribute('aria-pressed', String(Math.abs(snap.s - Number(button.dataset.dimensionW)) < .005)); }
-}
-
-function updateMirror(snap) {
-  const m = snap.mirror;
-  $('play-layout').classList.toggle('mirroring', !!m);
-  $('mirror-panel').hidden = !m;
-  document.querySelector('.slice-row').hidden = !!m;
-  if (!m) return;
-  const predicting = !!m.prediction && m.prediction.correct === null;
-  for (const id of ['key-comparison', 'mirror-help', 'mirror-actions']) $(id).hidden = predicting;
-  $('flip-question').hidden = $('flip-options').hidden = !predicting;
-  $('flip-meter').hidden = !m.motion;
-  if (m.motion) {
-    const angle = Math.round(m.motion.progress * 180);
-    $('flip-progress').value = angle;
-    $('flip-progress').setAttribute('aria-valuenow', String(angle));
-    setText('flip-angle', `${angle}° / 180°`);
-  }
-  setHTML('key-card', keyThumbnail(keyPoints(m.chirality, m.turns), snap.carrying ? '手中的钥匙' : '待拾取的钥匙'));
-  setHTML('lock-card', keyThumbnail(keyPoints(-1, 0), '目标锁孔'));
-  $('rotate-key').disabled = !m.canRotate;
-  $('flip-key').disabled = !m.canFlip;
-  let status = !snap.carrying ? '先走到左边的 L 形钥匙旁，把它拿起来。'
-    : m.lockReason === 'chirality' ? '锁孔对不上：平面内旋转不会改变手性。带钥匙回翻转台试试。'
-      : m.lockReason === 'orientation' ? '已经是镜像钥匙，方向还没对齐。按 R 旋转，比较上面两张图。'
-        : m.onPad && m.chirality === 1 ? '你站在翻转台上。按 F，借第三维把钥匙翻过来。'
-          : m.chirality === -1 ? '钥匙已成为镜像。比较两张图，用 R 调整方向，再靠近右侧锁孔。'
-            : '钥匙已拿到。可先去右侧试锁，或带到翻转台。R 可以在平面内旋转。';
-  if (m.prediction?.choice === null) status = '先选一张预测图。选择期间暂停移动，选错也能继续。';
-  if (m.motion) status = '正在绕 X 轴翻转。左边显示投影变窄再展开，右边显示离开平面的轨迹。';
-  if (snap.phase === 'complete') status = '镜像与方向都匹配，锁已经打开。';
-  setText('mirror-status', status);
-  $('flip-prediction').hidden = !m.prediction;
-  if (m.prediction) {
-    setHTML('flip-options', m.prediction.options.map((option, i) => `<button data-flip-choice="${i}" aria-pressed="${m.prediction.choice === i}" ${m.prediction.choice !== null ? 'disabled' : ''}>${keyThumbnail(option.points)}<span>${escapeHTML(option.label)}</span></button>`).join(''));
-    const feedback = m.prediction.correct === null ? m.motion ? '预测已记录，翻完后看结果。' : '首次选择决定预测星；不用担心选错。'
-      : `${m.prediction.correct ? '预测正确。' : '这次预测不同，仍可继续通关。'} 你选了 ${m.prediction.options[m.prediction.choice].label}。绕 X 轴翻转后，X 不变、Y 反向，得到上下镜像；平面内转半圈会同时改变 X 和 Y。`;
-    setText('flip-feedback', feedback);
-  }
-}
-
-function updateVault(snap) {
-  $('play-layout').classList.toggle('vault', snap.abilities.peek);
-  $('vault-controls').hidden = !snap.abilities.peek;
-  if (!snap.abilities.peek) return;
-  const peek = $('peek');
-  peek.disabled = !snap.canSlice;
-  peek.setAttribute('aria-pressed', String(snap.peek));
-  peek.classList.toggle('active', snap.peek);
-  const ghostKey = snap.ghosts.find(section => section.role === 'item');
-  let status = snap.carrying ? '钥匙已拿到。先升高离开盒子，带到右侧出口，再降到门所在的高度。'
-    : snap.doorLocked ? '门还锁着：需要先拿到盒内的钥匙。'
-      : ghostKey ? `下方发现钥匙，位于 S=${ghostKey.z[0]}–${ghostKey.z[1]}。走到它上方，再降低高度去拿。`
-        : '钥匙尚未拿到。虚影只供观察；碰到当前切片里的钥匙才会拾取。';
-  if (snap.returning > 0) status = '已回到入口，稍候即可继续。';
-  setText('vault-status', status);
-  $('return-notice').hidden = !snap.alert;
-  if (snap.alert) setText('return-notice', `${snap.alert.label}发现了你，已回到入口。${snap.alert.returnedKey ? '钥匙已放回盒内。' : ''}本次“没有被发现”星已失去，仍可继续通关。`);
-}
-
-function updateLesson(snap) {
-  $('play-layout').classList.toggle('guessing', !!snap.round);
-  $('finish-observation').hidden = !snap.observationReady;
-  $('observation-status').hidden = !snap.quiz || snap.phase !== 'playing';
-  if (snap.quiz) {
-    const sides = snap.goals.find(goal => goal.id === 'r15')?.sides.length || 0;
-    setText('observation-status', `${snap.goals.filter(goal => goal.done).length}/3 个圆环已点亮 · 半径 1.5：已找到 ${sides}/2 个高度${snap.observationReady ? '。可继续探索，准备好再回答问题。' : ''}`);
-  }
-  const r = snap.round;
-  $('lesson-panel').hidden = !r || snap.phase !== 'playing';
-  if (!r) return;
-  setText('round-heading', `第 ${r.index + 1} / ${r.count} 轮 · ${r.title}`);
-  setText('round-prompt', r.prompt);
-  const stages = { observe: '先观察：依次拖到标记高度，停留约 0.25 秒。', answer: '三处都看过了。选择你的判断。',
-    predict: '先预测：选择一张卡片，再解锁 S 亲手验证。', verify: '再验证：依次拖到标记高度，停留约 0.25 秒。', review: '验证完成。你可以继续拖 S 比较，也可以进入下一轮。' };
-  setText('round-instruction', stages[r.stage]);
-  $('known-shape').hidden = !r.knownShape;
-  if (r.knownShape) setHTML('known-shape', `${illustration(r.icon)}<span>${escapeHTML(r.knownShape)}</span>`);
-  const mayAnswer = r.stage === 'answer' || r.stage === 'predict';
-  setHTML('round-options', r.options.map((option, i) => `<button data-round-choice="${i}" aria-pressed="${r.choice === i}" ${mayAnswer ? '' : 'disabled'}>${illustration(option.icon)}<span>${escapeHTML(option.label)}</span></button>`).join(''));
-  $('sample-strip').hidden = r.stage === 'predict';
-  setHTML('sample-strip', r.targets.map((s, i) => {
-    const sample = r.samples[i], active = i === r.samples.length && ['observe', 'verify'].includes(r.stage);
-    return `<li class="${sample ? 'observed' : active ? 'current' : ''}">${sample ? sectionThumbnail(sample.shape) : '<span class="empty-section" aria-hidden="true">?</span>'}<span>S ${s.toFixed(2)}<small>${sample ? escapeHTML(sectionDescription(sample.shape)) : active ? '在此停留' : '等待观察'}</small></span></li>`;
-  }).join(''));
-  $('round-feedback').hidden = r.choice === null;
-  setText('round-feedback', r.choice === null ? '' : r.stage === 'review' ? r.explain : r.correct ? '猜对了。再亲手切一遍，看看为什么。' : '这次没有猜中。现在拖 S 看看，验证后仍能继续。');
-  $('round-next').hidden = r.stage !== 'review';
-  setText('round-next', r.index + 1 === r.count ? '完成本关 ↗' : '下一轮 ↗');
 }
 
 function consumeEvents() {
@@ -251,29 +260,66 @@ function consumeEvents() {
   scene.pushEvents(events);
   audio.handle(events);
   for (const event of events) {
-    if (event.type === 'blocked') announce('这个高度有东西挡住了你。');
-    if (event.type === 'goal_done') announce('目标完成。');
+    if (event.type === 'load') announce('');
+    if (event.type === 'friend_found') {
+      saveCollection(); renderLevels(model.snapshot());
+      announce(`${FRIENDS.find(f => f.id === event.id).name}跟上来了。`);
+    }
+    if (event.type === 'explore_clear') {
+      visits[event.level] = true; savePreference(VISITS_KEY, JSON.stringify(visits));
+      renderLevels(model.snapshot()); announce('路通了，也可以留下再逛逛。');
+    }
+    if (event.type === 'shard') announce(`光屑 ${event.taken} / ${event.total}`);
+    if (event.type === 'friend_garden') announce(event.kind === 'probe' ? '花苞醒了，金色光屑落到花垫那层。' : '你和反反一起打开了花匣，金色光屑出现了。');
+    if (event.type === 'garden_bloom') { savePreference(GARDENS_KEY, JSON.stringify(model.gardenMemories)); renderLevels(model.snapshot()); announce('这座花园点亮了，已经收进口袋。'); }
+    if (event.type === 'gardens_complete') announce('六座花园全部盛开，朋友们戴上了小花冠。');
+    if (event.type === 'garden_seed') announce(`收下花种 ${event.petals} / 3`);
+    if (event.type === 'friend_blocked') announce(event.reason === 'height' ? '跳跳到高度边缘了，请切换跳跃方向。' : '跳跳要去的那层有墙，请挪一挪。');
+    if (event.type === 'ring_hit') announce(model.exploration ? '接住啦。' : `接住，+${event.points}`);
+    if (event.type === 'ring_miss') announce('错过一道光环');
+    if (event.type === 'lock_open') announce('锁开了');
+    if (event.type === 'pickup') announce('拿到钥匙');
+    if (event.type === 'unlock') announce('门开了');
+    if (event.type === 'death' || event.type === 'hurt') { clearInputs(true); announce(event.type === 'hurt' ? `被击中，剩 ${event.lives} 条命` : '被撞到了，重来一次'); }
+    if (event.type === 'guard_alert') { clearInputs(true); announce('被发现了，回到入口'); }
+    if (event.type === 'storm_level') announce(`第 ${event.level} 波`);
+    if (event.type === 'graze') announce(`擦身脱险，+${event.points}`);
+    if (event.type === 'flip_start') clearInputs(true);
+    if (event.type === 'dimension_start' || event.type === 'dimension_ready') { clearInputs(true); lastS = model.s; }
     if (event.type === 'hint') announce(event.text);
-    if (event.type === 'observation') announce(`已记录 S ${event.s.toFixed(2)} 的截面。`);
-    if (event.type === 'round_verified') announce('这一轮验证完成。');
-    if (event.type === 'pickup') announce('拿到钥匙了。');
-    if (event.type === 'unlock') announce('钥匙打开了出口。');
-    if (event.type === 'guard_alert') { clearInputs(true); announce(`被守卫发现，已回到入口。${event.returnedKey ? '钥匙已放回盒内。' : ''}可以继续尝试。`); }
-    if (event.type === 'flip_predict' || event.type === 'flip_start') { clearInputs(true); announce(event.type === 'flip_predict' ? '请先选择翻转后的钥匙。' : '钥匙正在离开平面翻转。'); }
-    if (event.type === 'flip_end') announce('翻转完成，钥匙已回到平面。');
-    if (event.type === 'dimension_start' || event.type === 'dimension_ready') { clearInputs(true); lastS = model.s; announce(event.type === 'dimension_start' ? '平面房间已完成，正在升维。' : '现在换 W 探索三维房间。'); }
-    if (event.type === 'dimension_escape') announce('已绕到三维房间外。回到出口的 W 切片。');
-    if (event.type === 'lock_reject') announce(event.reason === 'chirality' ? '钥匙与锁孔的手性不同。' : '钥匙的方向还没对齐。');
   }
 }
 function action(fn) { unlockAudio(); fn(); consumeEvents(); updateUI(); }
-function loadLevel(index) {
+function loadLevel(index, quick = false, seed = index === model.index ? model.seed : randomSeed()) {
   if (!unlocked(index) && index !== model.index) return;
   dialogs.forEach(id => $(id).open && $(id).close());
-  lastPhase = ''; resultTimer = 0;
+  resultTimer = 0;
   clearInputs();
-  action(() => model.load(index));
-  const url = new URL(location.href); url.searchParams.set('level', model.level.id); history.replaceState(null, '', url);
+  fineControl = false;
+  quick ||= playStyle === 'explore' && !FLATLAND_LEVELS[index].endless;
+  lastPhase = quick ? 'intro' : '';
+  action(() => { model.playStyle = playStyle; model.load(index, seed); if (quick) model.start(); });
+  if (quick) lastPhase = model.phase;
+  renderLevels(model.snapshot());
+  syncChallengeURL();
+  if (quick) $('scene').focus({ preventScroll: true });
+}
+const retry = () => loadLevel(model.index, true);
+const reroll = () => { const seed = randomSeed(); loadLevel(model.index, true, seed === model.seed ? (seed + 1) >>> 0 : seed); };
+function goNext() { if (!$('next').hidden) loadLevel(model.index + 1); else retry(); }
+
+function pauseGame() {
+  if (model.phase !== 'playing' || model.paused) return;
+  suppressedKeys.clear(); clearInputs();
+  action(() => model.setPaused(true));
+  $('pause-new').hidden = !canReroll();
+  $('pause-dialog').showModal();
+}
+function resumeGame() {
+  $('pause-dialog').close(); clearInputs();
+  lastFrame = performance.now();
+  action(() => model.setPaused(false));
+  $('scene').focus({ preventScroll: true });
 }
 
 function applyInput() {
@@ -284,49 +330,60 @@ function applyInput() {
     if (distance > .15) { const speed = Math.min(1, distance / .8); x = dx / distance * speed; y = dy / distance * speed; }
   }
   model.setMove(x, y);
+  model.setPrecision(fineControl || keys.has('shift'));
   const slice = (keys.has('e') || $('s-up').classList.contains('active') ? 1 : 0) - (keys.has('q') || $('s-down').classList.contains('active') ? 1 : 0);
   model.setSliceVelocity(slice);
   model.setPeek(peekSources.size > 0);
 }
-
 function clearInputs(suppressHeld = false) {
   if (suppressHeld) {
     keys.forEach(key => suppressedKeys.add(key));
     if (peekSources.has('space')) suppressedKeys.add(' ');
-    if (peekSources.has('enter')) suppressedKeys.add('enter');
   }
   keys.clear(); peekSources.clear(); pointer = null; sliderDragging = false;
+  clearTimeout(wheelTimer);
   $('s-up').classList.remove('active'); $('s-down').classList.remove('active');
-  model.setMove(0, 0); model.setSliceVelocity(0); model.setPeek(false);
+  model.setMove(0, 0); model.setSliceVelocity(0); model.setPeek(false); model.setPrecision(false);
 }
 
-$('start').addEventListener('click', () => { $('intro-dialog').close(); action(() => model.start()); });
+$('start').addEventListener('click', () => { $('intro-dialog').close(); action(() => model.start()); $('scene').focus({ preventScroll: true }); });
 $('intro-dialog').addEventListener('cancel', event => { event.preventDefault(); $('start').click(); });
-for (const id of ['quiz-dialog', 'result-dialog']) $(id).addEventListener('cancel', event => event.preventDefault());
-$('quiz-options').addEventListener('click', event => {
-  const button = event.target.closest('[data-choice]');
-  if (!button) return;
-  $('quiz-dialog').close();
-  action(() => model.answerQuiz(Number(button.dataset.choice)));
+$('result-dialog').addEventListener('cancel', event => event.preventDefault());
+$('retry').addEventListener('click', retry);
+$('next').addEventListener('click', goNext);
+$('restart').addEventListener('click', retry);
+$('new-challenge').addEventListener('click', reroll);
+$('pause-new').addEventListener('click', reroll);
+$('pause-retry').addEventListener('click', retry);
+$('pause').addEventListener('click', pauseGame);
+$('resume').addEventListener('click', resumeGame);
+$('pause-dialog').addEventListener('cancel', event => { event.preventDefault(); resumeGame(); });
+$('choose-level').addEventListener('click', () => { $('result-dialog').close(); $('levels').querySelector('[aria-current="true"]').focus(); });
+$('fine-control').addEventListener('click', () => { fineControl = !fineControl; action(() => model.setPrecision(fineControl)); });
+$('style-toggle').addEventListener('click', () => {
+  playStyle = model.exploration ? 'challenge' : 'explore';
+  loadLevel(model.storm && playStyle === 'explore' ? 2 : model.index);
 });
-$('finish-observation').addEventListener('click', () => action(() => model.finishObservation()));
-$('round-options').addEventListener('click', event => {
-  const button = event.target.closest('[data-round-choice]');
-  if (button) action(() => model.answerRound(Number(button.dataset.roundChoice)));
+$('collection').addEventListener('click', openCollection);
+$('collection-close').addEventListener('click', closeCollection);
+$('collection-dialog').addEventListener('cancel', event => { event.preventDefault(); closeCollection(); });
+$('friend-cards').addEventListener('click', event => {
+  const button = event.target.closest('button');
+  if (button?.dataset.companion) { model.setCompanion(button.dataset.companion); saveCollection(); renderCollection(); }
+  if (button?.dataset.visit) {
+    playStyle = 'explore'; loadLevel(FLATLAND_LEVELS.findIndex(level => level.id === button.dataset.visit));
+  }
 });
-$('round-next').addEventListener('click', () => action(() => model.nextRound()));
-$('rotate-key').addEventListener('click', () => action(() => model.rotateKey()));
-$('flip-key').addEventListener('click', () => action(() => model.requestFlip()));
-$('dimension-presets').addEventListener('click', event => { const button = event.target.closest('[data-dimension-w]'); if (button) action(() => { model.setSlice(Number(button.dataset.dimensionW)); model.endSliceGesture(); }); });
-$('flip-options').addEventListener('click', event => {
-  const button = event.target.closest('[data-flip-choice]');
-  if (button) action(() => model.answerFlipPrediction(Number(button.dataset.flipChoice)));
-});
-$('retry').addEventListener('click', () => loadLevel(model.index));
-$('next').addEventListener('click', () => { $('result-dialog').close(); loadLevel(model.index + 1); });
-$('restart').addEventListener('click', () => loadLevel(model.index));
+$('travel-together').addEventListener('click', () => { model.setCompanion('all'); saveCollection(); renderCollection(); });
+$('pet').addEventListener('click', () => action(() => model.petCompanion()));
+$('probe-direction').addEventListener('click', () => action(() => model.cycleProbeDirection()));
+$('poke').addEventListener('click', () => action(() => model.pokeVisitor()));
+$('explore-next').addEventListener('click', () => loadLevel(model.index + 1));
 $('levels').addEventListener('click', event => { const button = event.target.closest('[data-level]'); if (button) loadLevel(Number(button.dataset.level)); });
 $('sound').addEventListener('click', () => { soundEnabled = !soundEnabled; audio.setEnabled(soundEnabled); unlockAudio(); savePreference('wslice-sound', soundEnabled ? 'on' : 'off'); updateSoundButton(); });
+$('rotate-key').addEventListener('click', () => action(() => model.rotateKey()));
+$('flip-key').addEventListener('click', () => action(() => model.requestFlip()));
+$('reveal').addEventListener('click', () => action(() => model.reveal()));
 
 const slider = $('s-slider');
 slider.addEventListener('pointerdown', () => { sliderDragging = true; unlockAudio(); });
@@ -348,68 +405,97 @@ peekButton.addEventListener('pointerdown', event => {
   peekButton.setPointerCapture?.(event.pointerId);
   action(() => model.setPeek(true));
 });
-for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) peekButton.addEventListener(type, () => {
-  peekSources.delete('pointer'); action(() => model.setPeek(peekSources.size > 0));
-});
-peekButton.addEventListener('keydown', event => {
-  if (event.key !== 'Enter') return;
-  if (suppressedKeys.has('enter')) { event.preventDefault(); return; }
-  event.preventDefault(); peekSources.add('enter'); action(() => model.setPeek(true));
-});
-peekButton.addEventListener('keyup', event => {
-  if (event.key !== 'Enter') return;
-  event.preventDefault(); peekSources.delete('enter'); action(() => model.setPeek(peekSources.size > 0));
-});
-peekButton.addEventListener('blur', () => {
-  peekSources.delete('enter'); peekSources.delete('pointer'); action(() => model.setPeek(peekSources.size > 0));
-});
+for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) peekButton.addEventListener(type, () => { peekSources.delete('pointer'); action(() => model.setPeek(peekSources.size > 0)); });
 
 const canvas = $('scene');
 const pointAt = event => scene.screenToWorld(event.clientX, event.clientY);
-canvas.addEventListener('pointerdown', event => { unlockAudio(); pointer = pointAt(event); if (pointer) canvas.setPointerCapture?.(event.pointerId); });
+canvas.addEventListener('pointerdown', event => {
+  if (isModal() || model.phase !== 'playing') return;
+  unlockAudio(); canvas.focus({ preventScroll: true }); pointer = pointAt(event);
+  if (pointer) { action(() => model.pokeVisitor(pointer)); canvas.setPointerCapture?.(event.pointerId); }
+});
 canvas.addEventListener('pointermove', event => { if (pointer) pointer = pointAt(event) || pointer; });
-for (const type of ['pointerup', 'pointercancel']) canvas.addEventListener(type, () => { pointer = null; });
+for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(type, () => { pointer = null; });
+// Mouse wheel / trackpad scroll nudges the slice; a short pause ends the gesture.
+canvas.addEventListener('wheel', event => {
+  if (isModal() || !model.canSlice()) return;
+  event.preventDefault(); unlockAudio();
+  const range = model.sliceRange(), step = (range.max - range.min) * .012 * Math.max(-4, Math.min(4, event.deltaY / 25)) * (fineControl || event.shiftKey ? .2 : 1);
+  action(() => model.setSlice(model.s - step));
+  clearTimeout(wheelTimer);
+  wheelTimer = setTimeout(() => action(() => model.endSliceGesture()), 220);
+}, { passive: false });
 
 const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'q', 'e']);
 document.addEventListener('keydown', event => {
   const key = event.key.toLowerCase();
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+  if ($('collection-dialog').open) {
+    if (key === 'escape') { event.preventDefault(); if (!event.repeat) closeCollection(); }
+    return;
+  }
+  if ($('pause-dialog').open) {
+    if (key === 'p' || key === 'escape') { event.preventDefault(); if (!event.repeat) resumeGame(); }
+    return;
+  }
+  if ($('intro-dialog').open) { if (key === 'enter' || key === ' ') { event.preventDefault(); $('start').click(); } return; }
+  if ($('result-dialog').open) {
+    if (key === 'enter' && !event.target.closest('button, a')) { event.preventDefault(); goNext(); }
+    if (key === 'r') { event.preventDefault(); retry(); }
+    return;
+  }
   if (suppressedKeys.has(key)) { event.preventDefault(); return; }
-  if ((key === 'f' || key === 'r') && model.level.abilities?.flip && !isModal() && !event.metaKey && !event.ctrlKey) {
+  if ((key === 'escape' || key === 'p') && !event.repeat) { event.preventDefault(); pauseGame(); return; }
+  if (key === 'shift') { keys.add(key); return; }
+  // Focused controls keep their native activation; Space only acts on the key
+  // or peek ability when focus is in the game itself.
+  if ((key === ' ' || key === 'enter') && event.target.closest('button, a, input')) return;
+  if (key === 'r' && !event.repeat) { event.preventDefault(); retry(); return; }
+  if (key === 'b' && !event.repeat) { event.preventDefault(); action(() => model.petCompanion()); return; }
+  if (key === 'c' && !event.repeat && !event.isComposing && !event.target.isContentEditable) { event.preventDefault(); action(() => model.cycleProbeDirection()); return; }
+  if (key === ' ' && model.exploration && model.rings) { event.preventDefault(); if (!event.repeat) action(() => model.pokeVisitor()); return; }
+  if (key === 'v' && !event.repeat && model.level.abilities?.reveal) { event.preventDefault(); action(() => model.reveal()); return; }
+  if (model.level.abilities?.flip && (key === 'f' || key === ' ')) {
     event.preventDefault();
     if (!event.repeat) action(() => key === 'f' ? model.requestFlip() : model.rotateKey());
     return;
   }
-  if (key === ' ' && model.level.abilities?.peek && !isModal() && !event.metaKey && !event.ctrlKey) {
-    event.preventDefault(); peekSources.add('space'); action(() => model.setPeek(true)); return;
-  }
-  if (isModal() || !MOVE_KEYS.has(key) || event.metaKey || event.ctrlKey) return;
+  if (key === ' ' && model.level.abilities?.peek) { event.preventDefault(); peekSources.add('space'); action(() => model.setPeek(true)); return; }
+  if (!MOVE_KEYS.has(key)) return;
   if (key.startsWith('arrow') && event.target === slider) return;
   event.preventDefault();
   unlockAudio();
   keys.add(key);
+  canvas.focus({ preventScroll: true });
 });
 document.addEventListener('keyup', event => {
   suppressedKeys.delete(event.key.toLowerCase());
   keys.delete(event.key.toLowerCase());
   if (event.key === ' ') { peekSources.delete('space'); action(() => model.setPeek(peekSources.size > 0)); }
 });
-window.addEventListener('blur', () => { suppressedKeys.clear(); clearInputs(); consumeEvents(); updateUI(); });
-document.addEventListener('visibilitychange', () => { if (document.hidden) { suppressedKeys.clear(); clearInputs(); consumeEvents(); updateUI(); } });
+window.addEventListener('blur', pauseGame);
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
 
+function closeness(snap) {
+  if (snap.rings?.active) return Number.isFinite(snap.rings.error) ? Math.max(0, 1 - snap.rings.error / .7) : 0;
+  if (snap.locks?.active) return snap.locks.closeness;
+  return null;
+}
 function frame(now) {
   const dt = Math.min(.1, Math.max(0, (now - lastFrame) / 1000));
   lastFrame = now;
   if (!isModal() && !document.hidden) { applyInput(); model.update(dt); }
-  else { clearInputs(); }
+  else clearInputs();
   consumeEvents();
   const snap = updateUI();
-  if (Math.abs(snap.s - lastS) > 1e-6) { audio.slice(snap.s, snap.slice.max); lastS = snap.s; }
+  if (Math.abs(snap.s - lastS) > 1e-6) { audio.slice(snap.s - snap.slice.min, snap.slice.max - snap.slice.min, closeness(snap)); lastS = snap.s; }
   if (resultTimer > 0) { resultTimer -= dt; if (resultTimer <= 0 && snap.phase === 'complete') showResult(snap); }
   scene.setState(snap);
-  scene.render(document.hidden ? 0 : dt);
+  scene.render(document.hidden || model.paused ? 0 : dt);
   requestAnimationFrame(frame);
 }
 updateSoundButton();
+syncChallengeURL();
 consumeEvents();
 updateUI();
 requestAnimationFrame(frame);

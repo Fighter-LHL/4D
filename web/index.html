@@ -13,7 +13,7 @@
     <a class="brand" href="./" aria-label="回响庭院首页"><span class="brand-icon">◈</span><span>W–SLICE<span class="brand-sub">回响庭院</span></span></a>
     <nav aria-label="游戏设置">
       <button id="sound" class="icon-button" aria-pressed="true" title="切换声音"><span aria-hidden="true">♫</span><span id="sound-label">声音开</span></button>
-      <a class="icon-button" href="flatland.html">入门：平面国</a>
+      <a class="icon-button" href="flatland.html">去平面国玩</a>
       <button id="help" class="icon-button">怎么玩</button>
       <button id="pause" class="icon-button" disabled>暂停</button>
       <button id="restart" class="icon-button">新一局 ↗</button>
@@ -22,11 +22,11 @@
 
   <main class="game-layout">
     <section class="play-area" aria-label="庭院游戏">
-      <p id="chapter-arrival" class="chapter-arrival" hidden><strong>平面国已完成 · 正式章节</strong><br>继续用 W 看不同截面；点选落脚点后 Space 穿越，E 启动机关。这里的移动方式与教学关不同。</p>
+      <p id="chapter-arrival" class="chapter-arrival" hidden><strong>从平面国，走进回响庭院</strong><br>Z / X / C 换层 · 点平台预览，再点稳行 · E 启动机关</p>
       <div class="stage-heading"><div><p class="eyebrow">NEW PATHS · THE SAME FOURTH DIMENSION</p><h1 id="room-name">四维回响庭院</h1></div><div class="chapter"><span id="room-number">01</span><span class="chapter-line"></span><span>03</span></div></div>
       <p id="room-description" class="room-description">每一庭，都有不同的跨层连锁。</p>
       <div class="scene-wrap">
-        <canvas id="scene" aria-label="可点击落脚点的庭院场景；也可使用下方目的地按钮" role="img"></canvas>
+        <canvas id="scene" aria-label="庭院场景：点平台预览，再点已选平台稳行；也可选目的地后按 Space 穿越" role="img"></canvas>
         <div class="layer-badge"><span id="layer-symbol">Ⅰ</span><div><strong id="layer-name">潮汐层</strong><small id="position-readout">同一空间，不同切片</small></div></div>
         <div class="scene-caption"><span class="dot"></span><span id="scene-state">选择一件遗物，开始你的旅程</span></div>
         <div id="stability-wrap" class="stability-wrap" hidden><span id="stability-label">稳定度</span><div class="stability-track"><i id="stability-bar"></i></div></div>
@@ -34,6 +34,8 @@
       </div>
       <section class="controls" aria-label="移动与切片控制">
         <div id="objective" class="objective">观察供能关系，切换 W 寻找这一庭的起点</div>
+        <p id="friend-guide" class="friend-guide" hidden aria-live="polite"></p>
+        <button id="ask-friend" class="icon-button" hidden>问问伙伴 <kbd>H</kbd></button>
         <div id="seal-prompt" class="seal-prompt" hidden aria-live="polite"></div>
         <div class="layer-controls" role="group" aria-label="切换四维切片"><button data-layer="0" id="layer-0"><span>Ⅰ</span>潮汐层 <kbd>Z</kbd></button><button data-layer="1" id="layer-1"><span>Ⅱ</span>回声层 <kbd>X</kbd></button><button data-layer="2" id="layer-2"><span>Ⅲ</span>绽放层 <kbd>C</kbd></button></div>
         <div class="footing-row"><span id="footing">归响台 · 跨层支撑</span><span>拖动 W 可观察连续截面</span></div>

@@ -240,6 +240,19 @@ export class GameModel {
     this._emit('select', { node: id });
     return true;
   }
+  selectOrMove(id) {
+    if (!this._availableNodes().includes(id)) return false;
+    // An automatically suggested target still needs a first click to preview.
+    // Repeated clicks use the real safe bridge range, even if risk was selected.
+    if (id === this.selected && this.selectionExplicit) {
+      const edge = this._selectedEdge();
+      if (edge && this._supported() && this._inRange(edge)) {
+        this.setRisk(false);
+        return this.move();
+      }
+    }
+    return this.select(id);
+  }
   _range() {
     if (this.travel) {
       const { layer, risky, progress, min, max } = this.travel;
@@ -618,6 +631,18 @@ export class GameModel {
     return `影子托住${LAYERS[edge.layer].name}的${this._node(edge.from).name}—${this._node(edge.to).name}捷径${this._gateOpen(edge) ? '' : '（永久返程接通后可用）'}`;
   }
 
+  _companionGuide() {
+    if (this.phase !== 'playing' || this.travel || this.wave) return null;
+    let step;
+    if (MECHANISMS.includes(this.node) && this.powered.has(this.node) && !this.activated.has(this.node)) {
+      step = { type: 'activate', to: this.node, layer: this._node().layer };
+    } else step = this._nextRoute()?.[0];
+    if (!step) return null;
+    const target = this._node(step.to);
+    return { kind: step.type, node: step.to, layer: step.layer, w: LAYERS[step.layer].center,
+      x: target.x, y: target.y, aligned: this._inLayer(step.layer) };
+  }
+
   snapshot() {
     const range = this._range();
     const nodes = this.nodes.map(node => {
@@ -651,6 +676,7 @@ export class GameModel {
       roomDescription: this.roomPlan[this.room].template.description, roomSignature: this.roomPlan[this.room].signature,
       roomPlan: this.roomPlan.map(roomMetadata), nextRoom: this.roomPlan[this.room + 1] ? roomMetadata(this.roomPlan[this.room + 1]) : null,
       mechanismOrder: [...this.roomConfig.order], roomChallenge: { ...this.roomConfig.challenge }, shadowDescription: this._shadowDescription(),
+      companionGuide: this._companionGuide(),
       nodes, node: this.node, selected: this.selected, layers: LAYERS.map(layer => ({ ...layer })), layer: nearestLayer(this.w),
       w: this.w, riskMode: this.riskMode, range, canMove: this._canMove(), availableNodes: this._availableNodes(), edges: this._edges(),
       travel: this.travel ? { ...this.travel, source: { ...this.travel.source } } : null,

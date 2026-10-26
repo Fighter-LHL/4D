@@ -1,0 +1,27 @@
+✔ each friend can be found through real movement and abilities across 12 seeded layouts (104.919042ms)
+✔ chase requires the current layer and leaves a visible trace without revealing future positions (1.334875ms)
+✔ sleeping friend is hidden behind the box and needs a nearby overhead peek to wake (1.130083ms)
+✔ mirror friend rejects the wrong hand or orientation, then recognises the real flipped key (3.168959ms)
+✔ exploration has no ring expiry or forced end screen; completed worlds remain playable (56.762917ms)
+✔ collection survives level changes and reload; re-encounters do not duplicate finds (7.07575ms)
+✔ pet interaction has a cooldown, respects pause, and cannot unlock or award points (4.35125ms)
+✔ malformed collection data cannot create friends or unlock the group reward (0.181625ms)
+✔ poking the visitor moves the actual sphere through the slice, pauses and returns (0.836041ms)
+✔ every level renders finite geometry across the slice range, wide and narrow (73.771875ms)
+✔ full bot runs draw score popups, particles and the HUD for every story level (616.73975ms)
+✔ hazards, warnings and deaths draw in the danger colour with a screen flash (11.614459ms)
+✔ storm draws hearts, waves and hazard profiles in the side view (60.999917ms)
+✔ pause freezes particles, popups and the current shake offset (0.570875ms)
+✔ exploration draws encounters, companion parties and toy faces with finite geometry (31.259875ms)
+✔ blocked events flash the blocking solid (0.892417ms)
+✔ screenToWorld maps canvas pixels into the flat world (0.441833ms)
+✔ locks hide the side view behind a question mark until revealed (0.5145ms)
+✔ ascend renders both dimensions and a reversible pointer projection (47.236042ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 914.353417

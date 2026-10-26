@@ -1,6 +1,6 @@
 // Unequal arms matter: a symmetric L could match its reflection by a planar turn.
 export const KEY_OUTLINE = Object.freeze([[-.8,-1.4],[-.25,-1.4],[-.25,.7],[.85,.7],[.85,1.3],[-.8,1.3]].map(Object.freeze));
-export const FLIP_DURATION = 1.8;
+export const FLIP_DURATION = 1.2;
 // Briefly hold the edge-on pose so the dimensional change can be seen.
 export function flipProgress(elapsed) {
   const p = Math.max(0, Math.min(1, elapsed / FLIP_DURATION));
@@ -22,11 +22,3 @@ export function flipVertices(chirality, turns, progress) {
   return keyPoints(chirality, turns).map(([x, y]) => [x, y * Math.cos(angle), y * Math.sin(angle)]);
 }
 export function flippedPose(chirality, turns) { return { chirality: -chirality, turns: quarterTurn(-turns) }; }
-export function predictionChoices(chirality, turns) {
-  const after = flippedPose(chirality, turns);
-  return [
-    { label: 'A · 保持原样', points: keyPoints(chirality, turns) },
-    { label: 'B · 上下翻成镜像', points: keyPoints(after.chirality, after.turns) },
-    { label: 'C · 在平面内转半圈', points: keyPoints(chirality, turns + 2) },
-  ];
-}

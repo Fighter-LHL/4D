@@ -1,4 +1,4 @@
-import { EPSILON, segmentHitsShape, sliceSolid } from './geometry.js';
+import { EPSILON, segmentHitsShape, sliceSolid, circleHitsShape } from './geometry.js';
 
 export const sightBlocked = (from, to, walls) => walls.some(shape => segmentHitsShape(from, to, shape));
 
@@ -43,5 +43,20 @@ export function lowerPrismGhosts(solids, s) {
   return solids.filter(solid => solid.kind === 'prism' && solid.z[0] < s - EPSILON).map(solid => {
     const top = Math.min(solid.z[1], s), height = (solid.z[0] + top) / 2;
     return { id: solid.id, role: solid.role, label: solid.label, shape: sliceSolid(solid, height), s: height, z: [...solid.z] };
+  });
+}
+
+// Exact adjacent sections, clipped by the renderer to a local light circle.
+// They carry no collision or pickup authority, including occluded items.
+export function adjacentSliceGhosts(solids, s, player, radius, range) {
+  if (!radius) return [];
+  return [-1, 1].flatMap(direction => {
+    const height = s + direction * 1.2;
+    if (height < range.min || height > range.max) return [];
+    return solids.flatMap(solid => {
+      const shape = sliceSolid(solid, height);
+      return shape && circleHitsShape(player.x, player.y, radius, shape)
+        ? [{ id: solid.id, role: solid.role, shape, s: height, direction, lantern: true }] : [];
+    });
   });
 }

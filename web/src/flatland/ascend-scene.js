@@ -1,4 +1,6 @@
 import { projectFloor, unprojectFloor } from './ascend.js';
+import { FRIENDS } from './discoveries.js';
+import { drawCreature } from './friends-scene.js';
 const mix = (a, b, t) => a + (b - a) * t;
 function polygon(ctx, points, fill, stroke) {
   ctx.beginPath(); points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath();
@@ -12,7 +14,7 @@ export function drawAscendScene(renderer, view, dt) {
   const t = moving ? a.progress : 1;
   const blend = renderer.reducedMotion ? Number(t >= .5) : t * t * (3 - 2 * t);
   const box = { x: 14, y: 14, w: view.width - 28, h: view.height - 28 };
-  renderer.card(box, moving ? '同一间房 · 从平面转向空间' : box.w < 500 ? `三维截面 · W = ${state.s.toFixed(2)}` : `三维截面 · W = ${state.s.toFixed(2)} · 换 W 不改变 XYZ`);
+  renderer.card(box);
   const raw = (x, y, z) => { const [u, v] = projectFloor(x, z, blend); return [u, v - y * blend]; };
   const extent = [[0,0,0],[20,0,0],[20,0,12],[0,0,12],[7,3.35,3.5],[13,3.35,8.5]].map(p => raw(...p));
   const minX = Math.min(...extent.map(p => p[0])), maxX = Math.max(...extent.map(p => p[0]));
@@ -57,19 +59,21 @@ export function drawAscendScene(renderer, view, dt) {
   const [px, py] = project(player.x, player.y, player.z), [sx, sy] = project(player.x, 0, player.z);
   ctx.save(); ctx.fillStyle = '#28483b26'; ctx.beginPath(); ctx.ellipse(sx, sy, .65 * k, .24 * k, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#294b46'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(px, py, .4*k, .4*k, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(px+.12*k,py-.12*k,.09*k,.09*k,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#243b35'; ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('你',px,py-.65*k); ctx.restore();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(px+.12*k,py-.12*k,.11*k,.11*k,0,0,Math.PI*2); ctx.fill(); ctx.restore();
+  const friends = state.collection?.companion === 'all' ? FRIENDS : FRIENDS.filter(f => f.id === state.collection?.companion);
+  friends.forEach((friend, i) => {
+    const [x, y] = project(Math.max(.6, player.x - .9 - i * .65), player.y, player.z + .45);
+    drawCreature(ctx, friend.id, x, y, renderer.reducedMotion ? 0 : renderer.time, { scale: k * .7, happy: state.petting > 0, crowned: state.gardenCollection?.complete });
+  });
   const roof = a.boxes.find(item => item.role === 'roof');
   if (roof.present && blend > 0) prism(roof, .22 * blend);
   const [gx, gy] = project(17, 1.1, 6);
   ctx.fillStyle = '#8b6527'; ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText(state.phase === 'complete' ? '教学出口 · 已抵达' : '出口 · W≤0.32', gx, gy - 12);
+  if (a.boxes.find(item => item.role === 'goal').present) ctx.fillText(state.phase === 'complete' ? '✓' : '出口', gx, gy - 12);
   ctx.textAlign = 'right'; ctx.font = '600 22px system-ui, sans-serif'; ctx.fillStyle = '#397d93';
   ctx.globalAlpha = 1 - blend; ctx.fillText('Z',box.x+box.w-24,box.y+32);
   ctx.globalAlpha = blend; ctx.fillText('W',box.x+box.w-24,box.y+32); ctx.globalAlpha = 1;
-  ctx.fillStyle = '#75837a'; ctx.font = '500 10px system-ui, sans-serif'; ctx.textAlign = 'left';
-  const caption = moving ? '平面里的高处 → 空间之外的另一个方向' : box.w < 500 ? '半透明便于观察；虚线无碰撞。地板跨 W 支撑。' : '墙与屋顶半透明仅便于观察；虚线轮廓不参与碰撞。地板跨 W 保持支撑。';
-  ctx.fillText(caption,box.x+12,box.y+box.h-12);
+  if (!moving) { ctx.font = '600 12px system-ui, sans-serif'; ctx.fillText(state.s.toFixed(2), box.x + box.w - 24, box.y + 50); }
 }
 
 export function ascendScreenToWorld(renderer, clientX, clientY) {

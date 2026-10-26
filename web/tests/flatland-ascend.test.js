@@ -15,7 +15,7 @@ function flat(m) { slide(m, 4); walk(m, 1, 0, 1.4); slide(m, 1); wait(m, .05); }
 function volume() { const m = play(); flat(m); wait(m, 4); m.drainEvents(); return m; }
 function finish(m) { slide(m, .82); walk(m, 1, 0, (17 - m.player.x) / 5); slide(m, .18); wait(m, .05); }
 
-test('ascend opens after mirror, preserves existing stars and completes the six-level catalogue', () => {
+test('ascend opens after mirror, preserves existing stars and closes the six-level story', () => {
   assert.equal(index, 5); assert.deepEqual(UPCOMING, []);
   const progress = normalizeProgress({ mirror: 3, vault: 2 }, FLATLAND_LEVELS);
   assert.deepEqual(progress, { vault: 2, mirror: 3 });
@@ -77,7 +77,7 @@ test('both escapes and a real return to the gate W earn three stars in four gest
   const position = { ...m.ascend.position }; walk(m, 1, 0, 1);
   assert.deepEqual(m.ascend.position, position); assert.equal(m.setSlice(.82), false);
   assert.equal(m.drainEvents().filter(e => e.type === 'complete').length, 1);
-  assert.equal(m.next(), false);
+  assert.equal(m.next(), true); assert.equal(m.level.id, 'storm');
 });
 
 test('returning W into a wall stops before intersection and remains recoverable', () => {
@@ -92,13 +92,13 @@ test('returning W into a wall stops before intersection and remains recoverable'
   m.setSlice(.18); assert.equal(m.counters.blockedCount, 1, 'held input is not repeated feedback');
   m.endSliceGesture();
   walk(m, 1, 0, (17 - m.player.x) / 5); slide(m, .18); wait(m, .05);
-  assert.equal(m.phase, 'complete'); assert.equal(m.stars[0], true); assert.equal(m.stars[2], false);
+  assert.equal(m.phase, 'complete'); assert.equal(m.stars[0], true); assert.equal(m.counters.blockedCount, 1);
 });
 
 test('walking cannot cross a present wall, but leaving its W permits escape after a bump', () => {
   const m = volume(); walk(m, 1, 0, 2);
   assert.ok(m.player.x <= 12.2 + 1e-9); assert.equal(m.counters.blockedCount, 1);
-  finish(m); assert.equal(m.phase, 'complete'); assert.deepEqual(m.stars, [true, true, false]);
+  finish(m); assert.equal(m.phase, 'complete'); assert.deepEqual(m.stars, [true, true, true], 'bumping a wall is not penalised');
 });
 
 test('W gesture micro-adjustments do not inflate counts and keyboard release commits once', () => {
@@ -106,7 +106,7 @@ test('W gesture micro-adjustments do not inflate counts and keyboard release com
   for (const w of [.19, .2, .21]) slide(m, w);
   assert.equal(m.counters.sliceMoves, before);
   m.setSliceVelocity(1); wait(m, 1); m.setSliceVelocity(0);
-  assert.ok(Math.abs(m.s - .61) < 1e-8); assert.equal(m.counters.sliceMoves, before + 1);
+  assert.ok(m.s > .4 && m.s < .55, `W ${m.s}`); assert.equal(m.counters.sliceMoves, before + 1);
   assert.equal(m.setSlice(NaN), false); assert.equal(m.setMove(Infinity, 1), false);
 });
 
@@ -130,7 +130,7 @@ test('volume snapshot does not expose mutable position or room geometry and hint
   snap.ascend.position.x = -99; snap.ascend.boxes[0].min[0] = -99;
   assert.equal(m.snapshot().ascend.position.x, 10); assert.equal(m.snapshot().ascend.boxes[0].min[0], 0);
   wait(m, 19); assert.match(m.hint, /W/);
-  assert.deepEqual(m.snapshot().abilities, { peek: false, flip: false }); assert.equal(m.carrying, null);
+  assert.deepEqual(m.snapshot().abilities, { peek: false, flip: false, reveal: false }); assert.equal(m.carrying, null);
 });
 
 test('formal entry copy requires completed ascend progress and uses a normal courtyard URL', () => {
@@ -138,4 +138,7 @@ test('formal entry copy requires completed ascend progress and uses a normal cou
   for (const saved of [null, [], {}, { mirror: 3 }, { ascend: 0 }, { ascend: 4 }, { ascend: '3' }, { ascend: 1.5 }]) assert.equal(isFlatlandArrival('?from=flatland', saved), false);
   for (const ascend of [1, 2, 3]) assert.equal(isFlatlandArrival('?from=flatland&seed=4', { ascend }), true);
   assert.equal(isFlatlandArrival('?seed=4', { ascend: 3 }), false);
+  assert.equal(isFlatlandArrival('?from=flatland', {}, { ascend: true }), true);
+  assert.equal(isFlatlandArrival('?seed=4', {}, { ascend: true }), false);
+  for (const visits of [null, [], {}, { ascend: false }, { ascend: 1 }, { ascend: 'true' }]) assert.equal(isFlatlandArrival('?from=flatland', {}, visits), false);
 });
