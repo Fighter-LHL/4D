@@ -157,7 +157,7 @@ function showChoice(state) {
     button.innerHTML = next ? `<span class="relic-art" aria-hidden="true">${icons[relic.id]}</span><span class="choice-arrow" aria-hidden="true">↗</span><h3>${relic.name}</h3><p>${relic.description}</p><small>${rank?`进阶 ${'ⅠⅡⅢ'[rank-1]} → ${'ⅠⅡⅢ'[rank] || 'Ⅲ'}`:'获得新能力'} · ${traits[relic.id]}</small>${combo?`<span class="choice-synergy">${combo}</span>`:''}`
       : `<span class="relic-art" aria-hidden="true">${icons[relic.id]}</span><h3>${relic.name}</h3><p>${STARTER_RELICS[relic.id]}</p>`;
     button.classList.toggle('has-synergy',!!combo);
-    button.addEventListener('click', () => { $('choice-dialog').close(); paused = false; action(() => { model.chooseRelic(relic.id); if (!next) guide.request(model.snapshot()); }); $('w-slider').focus({preventScroll:true}); });
+    button.addEventListener('click', () => { $('choice-dialog').close(); paused = false; action(() => { model.chooseRelic(relic.id); if (!next && !momentum.firstEntry) guide.request(model.snapshot()); }); $('w-slider').focus({preventScroll:true}); });
     return button;
   }));
   $('choice-dialog').showModal();
@@ -462,7 +462,7 @@ window.addEventListener('pageshow',event=>{if(event.persisted){audio.setEnabled(
 function frame(now) {
   const dt=Math.max(0,Math.min(.05,(now-lastFrame)/1000));lastFrame=now;
   if(!paused&&!isModal()&&!document.hidden){model.update(dt);if(transientTime>0){transientTime-=dt;if(transientTime<=0)transient=null;}}
-  guide.update(dt, model.snapshot(), !paused && !isModal() && !document.hidden, scene.friends.length > 0);
+  guide.update(dt, model.snapshot(), !paused && !isModal() && !document.hidden, scene.friends.length > 0 && !momentum.firstEntry);
   momentum.update(dt, model.snapshot(), guide, !paused && !isModal() && !document.hidden);
   consumeEvents();updateUI();syncAudio();scene.render(paused||document.hidden?0:dt);requestAnimationFrame(frame);
 }

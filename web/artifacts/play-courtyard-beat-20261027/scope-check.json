@@ -1,0 +1,184 @@
+{
+  "baseline": "a08e2108dec97b6db9fbc3616659bfbeaef5dc3e",
+  "changedTrackedFiles": [
+    "web/scripts/verify-penpal.mjs",
+    "web/scripts/verify-top5.mjs",
+    "web/src/courtyard-momentum.js",
+    "web/src/main.js",
+    "web/tests/courtyard-momentum.test.js"
+  ],
+  "newBrowserHelper": "web/scripts/courtyard-first-beat.mjs",
+  "outsideWebChanges": [],
+  "protectedFiles": [
+    {
+      "file": "src/model.js",
+      "unchanged": true,
+      "sha256": "503e8c5bb264cfcd9ef645f5be8886958030ee1d5e7fd2b78496edf37432c940"
+    },
+    {
+      "file": "src/rooms.js",
+      "unchanged": true,
+      "sha256": "53d202c4cacfbb0ebc6005980e0da74a0ef5888aa04356a4f175ec144eaacff4"
+    },
+    {
+      "file": "src/friend-guide.js",
+      "unchanged": true,
+      "sha256": "e59559a6d7dadc2352c085b378907a1224d6b88d9a434c16d75cce6eacfdeceb"
+    },
+    {
+      "file": "src/scene.js",
+      "unchanged": true,
+      "sha256": "add737b9df4edac6f4584139cc21542c2dda95c0e8632049e3e7bdead5613c39"
+    },
+    {
+      "file": "src/audio.js",
+      "unchanged": true,
+      "sha256": "51a7097f87a74a6e893f70e3d04424f781cdf50eb010d723a4a7910cee0967d6"
+    },
+    {
+      "file": "src/play-feedback.js",
+      "unchanged": true,
+      "sha256": "e324417008f20fdf185098171b448b18526ab3385d5a235605e261c5485443bb"
+    },
+    {
+      "file": "index.html",
+      "unchanged": true,
+      "sha256": "81ad1f035e6e8cc48c69aa1af6f735af0ba8f1e9df82a6b390a500b54b77eba7"
+    },
+    {
+      "file": "style.css",
+      "unchanged": true,
+      "sha256": "f4b1b471912aa5433224d43fe920faec9a572aa61aad50d2681250994bed74a5"
+    },
+    {
+      "file": "flatland.html",
+      "unchanged": true,
+      "sha256": "0f07459755a699650a6f03069855d097ed562cf27a07191ab9f8c6863efde4d7"
+    },
+    {
+      "file": "flatland.css",
+      "unchanged": true,
+      "sha256": "ebd60475acf14cda5a37362300044f58e2d5e218a003b1e7e199142c33ee9687"
+    },
+    {
+      "file": "package.json",
+      "unchanged": true,
+      "sha256": "7d2006a2bc7c446d7bdfe7d692a87071687fa6e40d9acb57941fdca6455d051a"
+    },
+    {
+      "file": "src/flatland/ascend-scene.js",
+      "unchanged": true,
+      "sha256": "a96148325b8704bc071180cc48fd6081de8c88251a63ac36e0ca30dd5d3d3d25"
+    },
+    {
+      "file": "src/flatland/ascend.js",
+      "unchanged": true,
+      "sha256": "96f171829432a60315c25885ce18b130592c8354807457f872d6e6fb6b056412"
+    },
+    {
+      "file": "src/flatland/audio.js",
+      "unchanged": true,
+      "sha256": "6668cd50695de6a465960726d30fd354e40a72eef062138226b0f9f19b1a6a76"
+    },
+    {
+      "file": "src/flatland/companions.js",
+      "unchanged": true,
+      "sha256": "87e5416c556964c64c884ac21777b7606257e8af944fd2ba636283cdf271bcec"
+    },
+    {
+      "file": "src/flatland/discoveries.js",
+      "unchanged": true,
+      "sha256": "f7efd0296a69454fe548c65bc5329a7df39e217b138800fa3a437d1c4974e1dd"
+    },
+    {
+      "file": "src/flatland/friends-scene.js",
+      "unchanged": true,
+      "sha256": "8e4d03953fa06ba29d3558b34963171f1720403018eafba6a4085ef42bcf5de8"
+    },
+    {
+      "file": "src/flatland/geometry.js",
+      "unchanged": true,
+      "sha256": "efa8bb2704ab2dfb8e43a5a1da05e753a8276e48a9f27658ef0c68d6124333c5"
+    },
+    {
+      "file": "src/flatland/handoff.js",
+      "unchanged": true,
+      "sha256": "e91977f70b1faa9501e35e399953b973f6a4eb565f80b012fbe539b2d43d1170"
+    },
+    {
+      "file": "src/flatland/hazards.js",
+      "unchanged": true,
+      "sha256": "7ec7c4cc960dec82a98680a22c79b7f04da2c1471e50090c7299afd240615aa3"
+    },
+    {
+      "file": "src/flatland/levels.js",
+      "unchanged": true,
+      "sha256": "095e4ff15ca20dbd0d3386bbeb2490d5650d69652a43c6f657ab3594b0a4d0b4"
+    },
+    {
+      "file": "src/flatland/main.js",
+      "unchanged": true,
+      "sha256": "a5ff05fbc5b1ea7374dad326b2a56d03e001d4f2a3b075adcb75afcb44aba2c0"
+    },
+    {
+      "file": "src/flatland/mirror.js",
+      "unchanged": true,
+      "sha256": "c18b446f90506bb5f02a1f76543e947e1512b97fa49b206ca762aebbaaf3d518"
+    },
+    {
+      "file": "src/flatland/model.js",
+      "unchanged": true,
+      "sha256": "b8e1fef4126d3e57072a120fc29349be510052881d72372d5361b7d5d1523763"
+    },
+    {
+      "file": "src/flatland/perception.js",
+      "unchanged": true,
+      "sha256": "ae0e1c39fb977620743efeb72d29c2c2c97d2deff264d93983b11f62594ee8b8"
+    },
+    {
+      "file": "src/flatland/progress.js",
+      "unchanged": true,
+      "sha256": "cca9ed2b656d1e37e5172bc64adc76035d2214e3f4b7c8e79271755e52ec3411"
+    },
+    {
+      "file": "src/flatland/random.js",
+      "unchanged": true,
+      "sha256": "6889d35720a84598fca7b2aa7294046caaea930efde884ea044a179ebed817e6"
+    },
+    {
+      "file": "src/flatland/scene.js",
+      "unchanged": true,
+      "sha256": "a49fa9842ea6aa51d5a0934df331bd6aaf98feac5a9667cac65e94e3d20bea4a"
+    },
+    {
+      "file": "src/flatland/visitor-cue.js",
+      "unchanged": true,
+      "sha256": "6f28f841a2c1b2b38ec9a8a8411309c4957e7be7cbdee57ecc0a5cb9455e8aca"
+    },
+    {
+      "file": "CONTRACT.md",
+      "unchanged": true,
+      "sha256": "1ae8c59744dcce791e56ed6985e86be179274fddc606229cddb32fdc36ba0c65"
+    },
+    {
+      "file": "HIDDEN-ROUTES-CONTRACT.md",
+      "unchanged": true,
+      "sha256": "5276097811e329e3d239aee8010ddf02139ae857d731ab939587cff50d47b92c"
+    },
+    {
+      "file": "RANDOM-ROOMS-CONTRACT.md",
+      "unchanged": true,
+      "sha256": "6ebd092bbb8cc1f6323c1ac950a0c5b779e5de416a7b210a30bcfdd3ff26993d"
+    },
+    {
+      "file": "SLICE-CONTRACT.md",
+      "unchanged": true,
+      "sha256": "b55364f0b364f95a657b0c46fa63384e0f3bdbecdf38d77a76acf44f1fd38e2b"
+    },
+    {
+      "file": "SYNERGY-CONTRACT.md",
+      "unchanged": true,
+      "sha256": "ae3f102f2e9dcd7543ffc51859836aebb41bb71989895bb7272ea08e93d162c7"
+    }
+  ]
+}

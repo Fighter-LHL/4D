@@ -1,0 +1,135 @@
+[
+  {
+    "script": "browser-penpal",
+    "width": 1280,
+    "invitationGameSeconds": 1.2166999999999972,
+    "cueNode": "dew",
+    "invitationPaintedStrokes": 2,
+    "observedBeats": [
+      {
+        "beat": "arrival",
+        "node": "dew",
+        "time": 1.2166999999999972
+      },
+      {
+        "beat": "follow",
+        "node": "dew",
+        "time": 9.590599999857073
+      }
+    ],
+    "completionPaintedStrokes": 2,
+    "helpInterruptedInvitation": false,
+    "revisitBeats": [],
+    "conflicts": []
+  },
+  {
+    "script": "browser-penpal",
+    "width": 390,
+    "invitationGameSeconds": 1.2165999999999977,
+    "cueNode": "dew",
+    "invitationPaintedStrokes": 2,
+    "observedBeats": [
+      {
+        "beat": "arrival",
+        "node": "dew",
+        "time": 1.2165999999999977
+      },
+      {
+        "beat": "follow",
+        "node": "dew",
+        "time": 9.55819999990477
+      }
+    ],
+    "completionPaintedStrokes": 2,
+    "helpInterruptedInvitation": false,
+    "revisitBeats": [],
+    "conflicts": []
+  },
+  {
+    "script": "browser-penpal",
+    "width": 320,
+    "invitationGameSeconds": 1.216699999999997,
+    "cueNode": "dew",
+    "invitationPaintedStrokes": 2,
+    "observedBeats": [
+      {
+        "beat": "arrival",
+        "node": "dew",
+        "time": 1.216699999999997
+      },
+      {
+        "beat": "follow",
+        "node": "dew",
+        "time": 9.55869999985708
+      }
+    ],
+    "completionPaintedStrokes": 2,
+    "helpInterruptedInvitation": false,
+    "revisitBeats": [],
+    "conflicts": []
+  },
+  {
+    "script": "browser-top5",
+    "width": 1280,
+    "invitationGameSeconds": 1.2000999999999973,
+    "cueNode": "dew",
+    "invitationPaintedStrokes": 2,
+    "observedBeats": [
+      {
+        "beat": "arrival",
+        "node": "dew",
+        "time": 1.2000999999999973
+      },
+      {
+        "beat": "follow",
+        "node": "dew",
+        "time": 9.592499999952448
+      }
+    ],
+    "completionPaintedStrokes": 2,
+    "helpInterruptedInvitation": false,
+    "revisitBeats": [],
+    "conflicts": []
+  },
+  {
+    "script": "browser-top5",
+    "width": 390,
+    "invitationGameSeconds": 1.2165999999999977,
+    "cueNode": "dew",
+    "invitationPaintedStrokes": 2,
+    "observedBeats": [
+      {
+        "beat": "arrival",
+        "node": "dew",
+        "time": 1.2165999999999977
+      },
+      {
+        "beat": "follow",
+        "node": "dew",
+        "time": 9.576300000000137
+      }
+    ],
+    "completionPaintedStrokes": 2,
+    "helpInterruptedInvitation": false,
+    "revisitBeats": [],
+    "conflicts": []
+  },
+  {
+    "script": "browser-top5",
+    "width": 320,
+    "invitationGameSeconds": 1.2165999999999975,
+    "cueNode": "dew",
+    "invitationPaintedStrokes": 2,
+    "observedBeats": [
+      {
+        "beat": "arrival",
+        "node": "dew",
+        "time": 1.2165999999999975
+      }
+    ],
+    "completionPaintedStrokes": null,
+    "helpInterruptedInvitation": true,
+    "revisitBeats": [],
+    "conflicts": []
+  }
+]

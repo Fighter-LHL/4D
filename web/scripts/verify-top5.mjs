@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { courtyardBeatObserver, verifyCourtyardFirstBeat } from './courtyard-first-beat.mjs';
 
 const baseURL = process.env.BASE_URL || 'http://127.0.0.1:4173';
 const out = process.env.ARTIFACT_DIR || fileURLToPath(new URL(`../artifacts/play-fun-top5-20261027/browser-${Date.now()}/`, import.meta.url));
@@ -99,6 +100,7 @@ scene.render = dt => {
   top5CourtyardRender(dt);
 };
 window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, friends: scene.friends.length, cue: scene.state?.courtyardMomentum, used: [...momentum.used] });
+${courtyardBeatObserver}
 ` });
     });
     const page = await context.newPage();
@@ -289,23 +291,7 @@ window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, frie
     await page.locator('#start').click();
     // Real handoff link, using the freshly earned collection and untouched storage.
     await page.getByRole('link', { name: '去庭院 ↗', exact: true }).first().click();
-    assert.equal(new URL(page.url()).searchParams.get('from'), 'discovery');
-    await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
-    await page.locator('#align').click(); // the player dismisses the existing first-step hint
-    await page.waitForFunction(() => window.__top5Courtyard().cue?.beat === 'arrival' && window.__top5Courtyard().cue.age >= .25);
-    const courtyardEntry = await page.evaluate(() => window.__top5Courtyard());
-    assert.equal(await page.locator('#friend-guide').isVisible(), false);
-    await screenshot('courtyard-entry');
-    await page.waitForFunction(() => !window.__top5Courtyard().cue);
-    await page.waitForFunction(t => window.__top5Courtyard().time >= t + 4.2, courtyardEntry.time);
-    assert.equal(await page.evaluate(() => window.__top5Courtyard().cue), null);
-    assert.deepEqual(await page.evaluate(() => window.__top5EntryConflicts), []);
-    await page.reload();
-    await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
-    await page.locator('#align').click();
-    await page.waitForFunction(() => window.__top5Courtyard().time >= 2.8);
-    assert.equal(await page.evaluate(() => window.__top5Courtyard().cue), null, 'return entry does not replay');
-    assert.deepEqual(await page.evaluate(() => window.__top5Courtyard().used), []);
+    const courtyardEntry = await verifyCourtyardFirstBeat(page, out, width, { interrupt: width === 320 });
     // Continue deterministic courtyard coverage with the same earned collection.
     await page.goto(`${baseURL}/?seed=2`);
     await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();

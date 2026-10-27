@@ -1,0 +1,8 @@
+{
+  "src/courtyard-momentum.js": "66c1936ea86a9bf960b86fe7c1f10aa5e14325ea327a9aa89099f0a1e86a28a4",
+  "src/main.js": "7c272601a0f04e6eefaeda0a5097c76057747348ec66bddf549218c060c439bf",
+  "tests/courtyard-momentum.test.js": "1621b84fa7407a2dfaa5223eb9c18ccbda97fa2b056a96c137b35eba622162ee",
+  "scripts/verify-penpal.mjs": "19c214293495d069d21e695cef041fa697fe6cfc7bb4d121c74e4d7b39421022",
+  "scripts/verify-top5.mjs": "287ceb69cc3f92062470c41408d828cd7655b9e7adbe957bb18a5b46d02b8994",
+  "scripts/courtyard-first-beat.mjs": "d3c01e10c8a60af12f002fd9104a2c114c5d03e863017810a1a05cd914a7017e"
+}

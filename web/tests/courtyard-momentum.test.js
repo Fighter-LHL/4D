@@ -9,10 +9,10 @@ function setup(options) {
   const update = model.update.bind(model);
   const tick = (seconds, active = true) => {
     for (let t = 0; t < seconds; t += .01) {
-      const s = model.snapshot(); guide.update(.01, s, active); momentum.update(.01, s, guide, active);
+      const s = model.snapshot(); guide.update(.01, s, active, !momentum.firstEntry); momentum.update(.01, s, guide, active);
     }
   };
-  model.update = dt => { update(dt); guide.update(dt, model.snapshot()); momentum.update(dt, model.snapshot(), guide); };
+  model.update = dt => { update(dt); guide.update(dt, model.snapshot(), true, !momentum.firstEntry); momentum.update(dt, model.snapshot(), guide); };
   return { model, guide, momentum, tick, view: () => momentum.view(model.snapshot(), guide) };
 }
 
@@ -66,6 +66,7 @@ test('first discovery entry has one quiet opportunity, freezes and yields to occ
   const before = m.snapshot();
   tick(1); tick(4, false); assert.equal(view(), null);
   tick(.65); assert.equal(view().beat, 'arrival');
+  assert.equal(view().node, m.selected); assert.notEqual(view().node, m.node, 'point at the reachable next step');
   tick(6); assert.equal(view(), null); assert.deepEqual([...momentum.used], ['arrival']);
   assert.deepEqual(m.snapshot(), before);
   for (const reason of ['help', 'crossing']) {
@@ -75,6 +76,42 @@ test('first discovery entry has one quiet opportunity, freezes and yields to occ
     run.tick(2);
     assert.equal(run.momentum.used.has('arrival'), false, 'do not queue a welcome behind another beat');
     run.tick(10); assert.equal(run.view(), null);
+  }
+});
+
+test('first entry closes exactly one beat on a real safe landing, with no idle sequel or model changes', () => {
+  for (const wait of [0, 8]) {
+    const { model: m, guide, momentum, tick, view } = setup({ arrival: true });
+    tick(1.5); assert.equal(view().beat, 'arrival');
+    const target = view().node;
+    tick(wait); assert.equal(guide.view(m.snapshot()), null, 'idle never adds a second guide');
+    travel(m, target); tick(.2);
+    assert.equal(view().beat, 'follow'); assert.equal(view().node, m.node);
+    assert.equal(guide.settled, true); assert.equal(guide.view(m.snapshot()), null);
+    const before = m.snapshot(), frozen = view(); tick(3, false);
+    assert.deepEqual(view(), frozen); tick(10);
+    assert.equal(view(), null); assert.deepEqual(m.snapshot(), before);
+    m.interact(); guide.activity(); tick(8);
+    assert.equal(view(), null, 'activation does not turn the first beat into a tutorial route');
+    travel(m, 'hub'); travel(m, target); tick(1);
+    assert.equal(view(), null); assert.deepEqual([...momentum.used], ['arrival', 'follow']);
+  }
+});
+
+test('first entry cannot reward failed, risky, diverted, off-slice, unseen or help-interrupted travel', () => {
+  for (const reason of ['failed', 'risky', 'diverted', 'slice', 'unseen', 'help']) {
+    const { model: m, guide, momentum, tick, view } = setup({ arrival: true });
+    const target = m.selected;
+    tick(reason === 'unseen' ? .2 : 1.5);
+    if (reason === 'failed') fall(m, target);
+    if (reason === 'risky') travel(m, target, true);
+    if (reason === 'diverted') { assert.equal(m.select('bloom'), true); tick(.1); }
+    if (reason === 'slice') { m.setW(.5); tick(.1); }
+    if (reason === 'help') { momentum.cancel(); guide.request(m.snapshot()); assert.equal(view(), null); tick(.1); }
+    if (m.node !== target) travel(m, target);
+    tick(.2); assert.equal(view(), null, reason);
+    assert.equal(momentum.used.has('follow'), false, reason);
+    tick(8); assert.equal(view(), null, reason);
   }
 });
 
