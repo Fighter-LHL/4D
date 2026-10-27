@@ -1,0 +1,5272 @@
+{
+  "status": "passed",
+  "baseURL": "http://127.0.0.1:4201",
+  "checks": [
+    {
+      "width": 1280,
+      "height": 900,
+      "firstCrossingMs": 1671,
+      "secondSourceCueMs": 995,
+      "landingGuideQuiet": true,
+      "landingAndOnwardGlints": true,
+      "landing": {
+        "cue": {
+          "beat": "landing",
+          "node": "dew",
+          "age": 0.3165999999999999,
+          "duration": 2.1
+        },
+        "renderedNode": "dew",
+        "currentNode": "dew",
+        "interactLabel": "启动潮汐源",
+        "used": [
+          "landing"
+        ],
+        "time": 2.499799999999993,
+        "labels": [
+          {
+            "text": "维度锚台",
+            "left": 362.2998374560211,
+            "right": 405.2891978492303,
+            "top": 218.0028789959175,
+            "bottom": 228.29657616089924
+          },
+          {
+            "text": "裂隙花匣",
+            "left": 664.8098229395525,
+            "right": 707.3592833456341,
+            "top": 277.5040225889329,
+            "bottom": 287.7647273165021
+          },
+          {
+            "text": "归响台",
+            "left": 502.4405542988394,
+            "right": 534.2234263478399,
+            "top": 330.3896623907624,
+            "bottom": 340.6943560078477
+          },
+          {
+            "text": "潮汐源",
+            "left": 300.5106208794799,
+            "right": 332.645413904135,
+            "top": 355.06448202738795,
+            "bottom": 365.2921930851039
+          },
+          {
+            "text": "W  0.82",
+            "left": 174.79353604533577,
+            "right": 209.4622294117903,
+            "top": 132.35532488384536,
+            "bottom": 139.74006577829283
+          }
+        ],
+        "glints": [
+          {
+            "left": 274.19081792251944,
+            "right": 359.0092014370692,
+            "top": 283.45047886970974,
+            "bottom": 314.8880021989014
+          },
+          {
+            "left": 274.19081792251944,
+            "right": 359.0092014370692,
+            "top": 283.45047886970974,
+            "bottom": 314.8880021989014
+          },
+          {
+            "left": 274.19081792251944,
+            "right": 359.0092014370692,
+            "top": 280.66154762251034,
+            "bottom": 311.6769332502569
+          },
+          {
+            "left": 352.8868761721208,
+            "right": 355.88687627004276,
+            "top": 290.6288952749669,
+            "bottom": 293.6288953728888
+          },
+          {
+            "left": 337.25875145477295,
+            "right": 340.25875155269483,
+            "top": 284.4467587357709,
+            "bottom": 287.44675883369285
+          },
+          {
+            "left": 315.10000963083337,
+            "right": 318.10000972875525,
+            "top": 282.16154767147134,
+            "bottom": 285.1615477693932
+          },
+          {
+            "left": 292.9412678068938,
+            "right": 295.94126790481573,
+            "top": 284.4467587357709,
+            "bottom": 287.44675883369285
+          },
+          {
+            "left": 277.3131430895459,
+            "right": 280.3131431874678,
+            "top": 290.6288952749669,
+            "bottom": 293.6288953728888
+          }
+        ]
+      },
+      "onwardLayout": {
+        "cue": {
+          "beat": "onward",
+          "node": "hub",
+          "age": 0.3165999999999998,
+          "duration": 2.1
+        },
+        "renderedNode": "hub",
+        "currentNode": "dew",
+        "interactLabel": "潮汐源已启动",
+        "used": [
+          "landing",
+          "onward"
+        ],
+        "time": 3.3830999999999896,
+        "labels": [
+          {
+            "text": "维度锚台",
+            "left": 362.2998374560211,
+            "right": 405.2891978492303,
+            "top": 218.0028789959175,
+            "bottom": 228.29657616089924
+          },
+          {
+            "text": "裂隙花匣",
+            "left": 664.8098229395525,
+            "right": 707.3592833456341,
+            "top": 277.5040225889329,
+            "bottom": 287.7647273165021
+          },
+          {
+            "text": "归响台",
+            "left": 502.4405542988394,
+            "right": 534.2234263478399,
+            "top": 330.3896623907624,
+            "bottom": 340.6943560078477
+          },
+          {
+            "text": "潮汐源",
+            "left": 300.5106208794799,
+            "right": 332.645413904135,
+            "top": 355.06448202738795,
+            "bottom": 365.2921930851039
+          },
+          {
+            "text": "辉光源 · 回声层",
+            "left": 548.469321729076,
+            "right": 622.0337906360514,
+            "top": 45.269940137307685,
+            "bottom": 55.497652427464345
+          },
+          {
+            "text": "启动！1/3",
+            "left": 290.58312251560756,
+            "right": 342.39656602624245,
+            "top": 216.3445931086965,
+            "bottom": 228.4629532313734
+          },
+          {
+            "text": "W  0.82",
+            "left": 174.79353604533577,
+            "right": 209.4622294117903,
+            "top": 132.35532488384536,
+            "bottom": 139.74006577829283
+          }
+        ],
+        "glints": [
+          {
+            "left": 457.8994467302719,
+            "right": 578.5005857900223,
+            "top": 248.46912536709624,
+            "bottom": 280.0847380390851
+          },
+          {
+            "left": 457.8994467302719,
+            "right": 578.5005857900223,
+            "top": 248.46912536709624,
+            "bottom": 280.0847380390851
+          },
+          {
+            "left": 457.8994467302719,
+            "right": 578.5005857900223,
+            "top": 245.76923879129546,
+            "bottom": 276.784624419042
+          },
+          {
+            "left": 570.4282170745793,
+            "right": 573.4282171725011,
+            "top": 255.736586443752,
+            "bottom": 258.7365865416739
+          },
+          {
+            "left": 548.2069772421003,
+            "right": 551.2069773400221,
+            "top": 249.554449904556,
+            "bottom": 252.55445000247792
+          },
+          {
+            "left": 516.7000162111862,
+            "right": 519.700016309108,
+            "top": 247.26923884025643,
+            "bottom": 250.26923893817832
+          },
+          {
+            "left": 485.19305518027204,
+            "right": 488.193055278194,
+            "top": 249.554449904556,
+            "bottom": 252.55445000247792
+          },
+          {
+            "left": 462.97181534779304,
+            "right": 465.9718154457149,
+            "top": 255.736586443752,
+            "bottom": 258.7365865416739
+          }
+        ]
+      },
+      "compactProgress": false,
+      "singleSupplyProgress": true,
+      "remotePower": {
+        "time": 11.799500000000084,
+        "firstEntry": false,
+        "firstAction": null,
+        "objective": "辉光源已启动（2/3）；观察供能槽，切层或沿桥前往下一处机关",
+        "moveLabel": "稳行 Space ↗",
+        "cue": null,
+        "strokes": 0,
+        "node": "bloom",
+        "selected": "hub",
+        "settled": true,
+        "used": [
+          "landing",
+          "onward",
+          "follow"
+        ],
+        "activated": [
+          "dew",
+          "bloom"
+        ],
+        "nodes": [
+          {
+            "id": "hub",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "dew",
+            "required": [],
+            "received": [],
+            "powered": true,
+            "present": false
+          },
+          {
+            "id": "bell",
+            "required": [
+              "dew",
+              "bloom"
+            ],
+            "received": [
+              "dew",
+              "bloom"
+            ],
+            "powered": true,
+            "present": false
+          },
+          {
+            "id": "relay",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "bloom",
+            "required": [],
+            "received": [],
+            "powered": true,
+            "present": true
+          },
+          {
+            "id": "exit",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": false
+          },
+          {
+            "id": "vault",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "rift",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          }
+        ],
+        "beats": [
+          {
+            "beat": "landing",
+            "node": "dew",
+            "time": 2.199799999999994
+          },
+          {
+            "beat": "onward",
+            "node": "hub",
+            "time": 3.0830999999999906
+          },
+          {
+            "beat": "follow",
+            "node": "hub",
+            "time": 9.516200000000133
+          }
+        ],
+        "ends": [
+          {
+            "key": "landing:dew",
+            "time": 2.5997999999999926
+          },
+          {
+            "key": "onward:hub",
+            "time": 5.183100000000037
+          },
+          {
+            "key": "follow:hub",
+            "time": 9.816200000000125
+          }
+        ],
+        "events": [
+          {
+            "type": "activate",
+            "room": 0,
+            "node": "dew",
+            "via": "touch",
+            "layer": 2,
+            "tier": 1,
+            "time": 2.6164999999999923
+          },
+          {
+            "type": "power",
+            "room": 0,
+            "from": "dew",
+            "to": "bell",
+            "node": "bell",
+            "layer": 0,
+            "complete": false,
+            "received": 1,
+            "required": 2,
+            "time": 3.1330999999999904
+          },
+          {
+            "type": "activate",
+            "room": 0,
+            "node": "bloom",
+            "via": "touch",
+            "layer": 1,
+            "tier": 2,
+            "time": 11.299500000000094
+          },
+          {
+            "type": "power",
+            "room": 0,
+            "from": "bloom",
+            "to": "bell",
+            "node": "bell",
+            "layer": 0,
+            "complete": true,
+            "received": 2,
+            "required": 2,
+            "time": 11.799500000000084
+          }
+        ],
+        "conflicts": [],
+        "powerFrames": [
+          {
+            "time": 3.1330999999999904,
+            "node": "dew",
+            "cue": {
+              "beat": "onward",
+              "node": "hub",
+              "age": 0.06659999999999985,
+              "duration": 2.1
+            },
+            "events": [
+              {
+                "type": "power",
+                "room": 0,
+                "from": "dew",
+                "to": "bell",
+                "node": "bell",
+                "layer": 0,
+                "complete": false,
+                "received": 1,
+                "required": 2,
+                "beat": "onward",
+                "slotsVisible": true
+              }
+            ],
+            "notes": [],
+            "text": "潮汐源已启动 · 1/3",
+            "status": "潮汐源已启动 · 1/3",
+            "announcement": "潮汐源已启动 · 1/3",
+            "primary": [
+              "move"
+            ],
+            "effects": [
+              "ring",
+              "ring",
+              "power",
+              "ring"
+            ],
+            "slots": [
+              {
+                "id": "dew",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bloom",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bell",
+                "received": 1,
+                "total": 2
+              }
+            ]
+          },
+          {
+            "time": 11.799500000000084,
+            "node": "bloom",
+            "cue": null,
+            "events": [
+              {
+                "type": "power",
+                "room": 0,
+                "from": "bloom",
+                "to": "bell",
+                "node": "bell",
+                "layer": 0,
+                "complete": true,
+                "received": 2,
+                "required": 2,
+                "beat": null,
+                "slotsVisible": true
+              }
+            ],
+            "notes": [],
+            "text": "双源汇流台供能到齐 · 到台上按 E",
+            "status": "辉光源 · 回声层",
+            "announcement": "双源汇流台供能到齐 · 到台上按 E",
+            "primary": [
+              "move"
+            ],
+            "effects": [
+              "ring",
+              "ring",
+              "power",
+              "ring"
+            ],
+            "slots": [
+              {
+                "id": "dew",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bloom",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bell",
+                "received": 2,
+                "total": 2
+              }
+            ]
+          }
+        ],
+        "powerConflicts": []
+      },
+      "powerAtReceiver": {
+        "time": 5.483200000000059,
+        "firstEntry": false,
+        "firstAction": null,
+        "objective": "启动双源汇流台（按 E）；锁定通向锚台的桥梁；三机关完成后开门",
+        "moveLabel": "稳行 Space ↗",
+        "cue": null,
+        "strokes": 0,
+        "node": "bell",
+        "selected": "hub",
+        "settled": true,
+        "used": [
+          "landing",
+          "onward",
+          "follow"
+        ],
+        "activated": [
+          "bloom",
+          "dew"
+        ],
+        "nodes": [
+          {
+            "id": "hub",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "dew",
+            "required": [],
+            "received": [],
+            "powered": true,
+            "present": false
+          },
+          {
+            "id": "bell",
+            "required": [
+              "dew",
+              "bloom"
+            ],
+            "received": [
+              "bloom",
+              "dew"
+            ],
+            "powered": true,
+            "present": true
+          },
+          {
+            "id": "relay",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "bloom",
+            "required": [],
+            "received": [],
+            "powered": true,
+            "present": false
+          },
+          {
+            "id": "exit",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "vault",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "rift",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          }
+        ],
+        "beats": [
+          {
+            "beat": "onward",
+            "node": "hub",
+            "time": 1.9665999999999957
+          }
+        ],
+        "ends": [
+          {
+            "key": "onward:hub",
+            "time": 2.133299999999995
+          }
+        ],
+        "events": [
+          {
+            "type": "activate",
+            "room": 0,
+            "node": "bloom",
+            "via": "touch",
+            "layer": 1,
+            "tier": 1,
+            "time": 1.4999999999999967
+          },
+          {
+            "type": "power",
+            "room": 0,
+            "from": "bloom",
+            "to": "bell",
+            "node": "bell",
+            "layer": 0,
+            "complete": false,
+            "received": 1,
+            "required": 2,
+            "time": 2.0165999999999955
+          },
+          {
+            "type": "activate",
+            "room": 0,
+            "node": "dew",
+            "via": "touch",
+            "layer": 2,
+            "tier": 2,
+            "time": 4.983200000000036
+          },
+          {
+            "type": "power",
+            "room": 0,
+            "from": "dew",
+            "to": "bell",
+            "node": "bell",
+            "layer": 0,
+            "complete": true,
+            "received": 2,
+            "required": 2,
+            "time": 5.483200000000059
+          }
+        ],
+        "conflicts": [],
+        "powerFrames": [
+          {
+            "time": 2.0165999999999955,
+            "node": "bloom",
+            "cue": {
+              "beat": "onward",
+              "node": "hub",
+              "age": 0.06659999999999987,
+              "duration": 2.1
+            },
+            "events": [
+              {
+                "type": "power",
+                "room": 0,
+                "from": "bloom",
+                "to": "bell",
+                "node": "bell",
+                "layer": 0,
+                "complete": false,
+                "received": 1,
+                "required": 2,
+                "beat": "onward",
+                "slotsVisible": true
+              }
+            ],
+            "notes": [],
+            "text": "辉光源已启动 · 1/3",
+            "status": "辉光源已启动 · 1/3",
+            "announcement": "辉光源已启动 · 1/3",
+            "primary": [
+              "move"
+            ],
+            "effects": [
+              "ring",
+              "ring",
+              "power",
+              "ring"
+            ],
+            "slots": [
+              {
+                "id": "dew",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bloom",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bell",
+                "received": 1,
+                "total": 2
+              }
+            ]
+          },
+          {
+            "time": 5.483200000000059,
+            "node": "bell",
+            "cue": null,
+            "events": [
+              {
+                "type": "power",
+                "room": 0,
+                "from": "dew",
+                "to": "bell",
+                "node": "bell",
+                "layer": 0,
+                "complete": true,
+                "received": 2,
+                "required": 2,
+                "beat": null,
+                "slotsVisible": true
+              }
+            ],
+            "notes": [],
+            "text": "",
+            "status": "位置没有变，脚下已是另一层的机关。",
+            "announcement": "位置没有变，脚下已是另一层的机关。",
+            "primary": [
+              "interact"
+            ],
+            "effects": [
+              "ring",
+              "ring",
+              "power",
+              "ring"
+            ],
+            "slots": [
+              {
+                "id": "dew",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bloom",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bell",
+                "received": 2,
+                "total": 2
+              }
+            ]
+          }
+        ],
+        "powerConflicts": []
+      },
+      "followAfterExpiry": true,
+      "unfollowedQuietSeconds": 4.2,
+      "glintYieldsToExplicitHelp": true,
+      "explicitHelpAfterLanding": true,
+      "firstEntryBeat": {
+        "invitation": {
+          "time": 1.4833999999999967,
+          "firstEntry": true,
+          "firstAction": {
+            "action": "move",
+            "node": "dew"
+          },
+          "objective": "先到架桥泵 · 稳行过去",
+          "moveLabel": "到架桥泵 Space ↗",
+          "cue": {
+            "beat": "arrival",
+            "node": "dew",
+            "age": 0.30000000000000004,
+            "duration": 2.1
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "hub",
+          "selected": "dew",
+          "settled": false,
+          "used": [
+            "arrival"
+          ],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2000999999999973
+            }
+          ],
+          "ends": [],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "completed": {
+          "time": 9.808900000095491,
+          "firstEntry": true,
+          "firstAction": null,
+          "objective": "启动架桥泵（按 E）；锁定通向锚台的桥梁；三机关完成后开门",
+          "moveLabel": "稳行 Space ↗",
+          "cue": {
+            "beat": "follow",
+            "node": "dew",
+            "age": 0.21329999999999927,
+            "duration": 0.85
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow"
+          ],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2000999999999973
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.608900000095495
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.2925000000953584
+            }
+          ],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "secondInvitation": {
+          "time": 11.192100000095463,
+          "firstEntry": true,
+          "firstAction": {
+            "action": "interact",
+            "node": "dew"
+          },
+          "objective": "启动脚下的架桥泵 · 按 E",
+          "moveLabel": "稳行 Space ↗",
+          "cue": {
+            "beat": "mechanism",
+            "node": "dew",
+            "age": 0.30000000000000004,
+            "duration": 2.1
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism"
+          ],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2000999999999973
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.608900000095495
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.90880000009547
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.2925000000953584
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.45880000009548
+            }
+          ],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "secondCompleted": {
+          "time": 17.732900000047575,
+          "firstEntry": true,
+          "firstAction": null,
+          "objective": "架桥泵已启动（1/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "moveLabel": "稳行 Space ↗",
+          "cue": {
+            "beat": "mechanism-follow",
+            "node": "dew",
+            "age": 0.2,
+            "duration": 0.85
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism",
+            "mechanism-follow"
+          ],
+          "activated": [
+            "dew"
+          ],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2000999999999973
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.608900000095495
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.90880000009547
+            },
+            {
+              "beat": "mechanism-follow",
+              "node": "dew",
+              "time": 17.549600000047587
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.2925000000953584
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.45880000009548
+            },
+            {
+              "key": "mechanism:dew",
+              "time": 12.99980000004774
+            }
+          ],
+          "events": [
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "dew",
+              "via": "touch",
+              "layer": 2,
+              "tier": 1,
+              "time": 17.532900000047587
+            }
+          ],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "settled": {
+          "time": 23.742700000094928,
+          "firstEntry": true,
+          "firstAction": null,
+          "objective": "架桥泵已启动（1/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "moveLabel": "稳行 Space ↗",
+          "cue": null,
+          "strokes": 0,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism",
+            "mechanism-follow"
+          ],
+          "activated": [
+            "dew"
+          ],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2000999999999973
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.608900000095495
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.90880000009547
+            },
+            {
+              "beat": "mechanism-follow",
+              "node": "dew",
+              "time": 17.549600000047587
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.2925000000953584
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.45880000009548
+            },
+            {
+              "key": "mechanism:dew",
+              "time": 12.99980000004774
+            },
+            {
+              "key": "mechanism-follow:dew",
+              "time": 18.39290000009522
+            }
+          ],
+          "events": [
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "dew",
+              "via": "touch",
+              "layer": 2,
+              "tier": 1,
+              "time": 17.532900000047587
+            }
+          ],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "powerChain": {
+          "time": 36.04210000009375,
+          "firstEntry": true,
+          "firstAction": null,
+          "objective": "承光花已启动（3/3）；三座机关全部共鸣，通往庭门的实体桥已开放",
+          "moveLabel": "稳行 Space ↗",
+          "cue": null,
+          "strokes": 0,
+          "node": "bloom",
+          "selected": "relay",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism",
+            "mechanism-follow"
+          ],
+          "activated": [
+            "dew",
+            "bell",
+            "bloom"
+          ],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "bell",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [
+                "bell"
+              ],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2000999999999973
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.608900000095495
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.90880000009547
+            },
+            {
+              "beat": "mechanism-follow",
+              "node": "dew",
+              "time": 17.549600000047587
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.2925000000953584
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.45880000009548
+            },
+            {
+              "key": "mechanism:dew",
+              "time": 12.99980000004774
+            },
+            {
+              "key": "mechanism-follow:dew",
+              "time": 18.39290000009522
+            }
+          ],
+          "events": [
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "dew",
+              "via": "touch",
+              "layer": 2,
+              "tier": 1,
+              "time": 17.532900000047587
+            },
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "bell",
+              "via": "touch",
+              "layer": 0,
+              "tier": 2,
+              "time": 23.976000000094913
+            },
+            {
+              "type": "power",
+              "room": 0,
+              "from": "bell",
+              "to": "bloom",
+              "node": "bloom",
+              "layer": 1,
+              "complete": true,
+              "received": 1,
+              "required": 1,
+              "time": 24.476000000094885
+            },
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "bloom",
+              "via": "touch",
+              "layer": 1,
+              "tier": 3,
+              "time": 29.109100000094625
+            }
+          ],
+          "conflicts": [],
+          "powerFrames": [
+            {
+              "time": 24.476000000094885,
+              "node": "bell",
+              "cue": null,
+              "events": [
+                {
+                  "type": "power",
+                  "room": 0,
+                  "from": "bell",
+                  "to": "bloom",
+                  "node": "bloom",
+                  "layer": 1,
+                  "complete": true,
+                  "received": 1,
+                  "required": 1,
+                  "beat": null,
+                  "slotsVisible": true
+                }
+              ],
+              "notes": [],
+              "text": "承光花供能到齐 · 到台上按 E",
+              "status": "供能回声台 · 潮汐层",
+              "announcement": "承光花供能到齐 · 到台上按 E",
+              "primary": [
+                "move"
+              ],
+              "effects": [
+                "ring",
+                "ring",
+                "power",
+                "ring"
+              ],
+              "slots": [
+                {
+                  "id": "dew",
+                  "received": 0,
+                  "total": 0
+                },
+                {
+                  "id": "bell",
+                  "received": 0,
+                  "total": 0
+                },
+                {
+                  "id": "bloom",
+                  "received": 1,
+                  "total": 1
+                }
+              ]
+            }
+          ],
+          "powerConflicts": []
+        },
+        "revisit": {
+          "time": 3.5163999999999898,
+          "firstEntry": false,
+          "firstAction": null,
+          "objective": "已供能待启动：架桥泵、供能回声台（机关 0/3）",
+          "moveLabel": "稳行 Space ↗",
+          "cue": null,
+          "strokes": 0,
+          "node": "hub",
+          "selected": "dew",
+          "settled": false,
+          "used": [],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [],
+          "ends": [],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "interrupt": false,
+        "idleSeconds": 6.5,
+        "secondIdleSeconds": 6.2,
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "firstCrossingMs": 1644,
+      "secondSourceCueMs": 930,
+      "landingGuideQuiet": true,
+      "landingAndOnwardGlints": true,
+      "landing": {
+        "cue": {
+          "beat": "landing",
+          "node": "dew",
+          "age": 0.3,
+          "duration": 2.1
+        },
+        "renderedNode": "dew",
+        "currentNode": "dew",
+        "interactLabel": "启动潮汐源",
+        "used": [
+          "landing"
+        ],
+        "time": 2.416499999999994,
+        "labels": [
+          {
+            "text": "维度锚台",
+            "left": 129.77134548302968,
+            "right": 172.76165926819635,
+            "top": 167.45734907858406,
+            "bottom": 177.75127228852728
+          },
+          {
+            "text": "裂隙花匣",
+            "left": 308.65732257270565,
+            "right": 351.20772520299533,
+            "top": 202.65633772498836,
+            "bottom": 212.917267416164
+          },
+          {
+            "text": "归响台",
+            "left": 214.96818408388333,
+            "right": 246.75176465944264,
+            "top": 233.88135856724904,
+            "bottom": 244.18627937391238
+          },
+          {
+            "text": "潮汐源",
+            "left": 95.45425203379614,
+            "right": 127.5897600760427,
+            "top": 248.5183335612051,
+            "bottom": 258.74627046222037
+          },
+          {
+            "text": "W  0.82",
+            "left": 28.44231595653119,
+            "right": 61.688620004195656,
+            "top": 124.94856025155507,
+            "bottom": 132.20799622696453
+          }
+        ],
+        "glints": [
+          {
+            "left": 86.52576559179032,
+            "right": 136.56223399050032,
+            "top": 206.1419513153891,
+            "bottom": 221.6500449848314
+          },
+          {
+            "left": 86.52576559179032,
+            "right": 136.56223399050032,
+            "top": 206.1419513153891,
+            "bottom": 221.6500449848314
+          },
+          {
+            "left": 86.52576559179032,
+            "right": 136.56223399050032,
+            "top": 203.25599817003254,
+            "bottom": 218.5359981414223
+          },
+          {
+            "left": 131.835409690188,
+            "right": 135.83540968269838,
+            "top": 208.42751074233928,
+            "bottom": 212.4275107348497
+          },
+          {
+            "left": 122.61599125578059,
+            "right": 126.615991248291,
+            "top": 205.38182731038688,
+            "bottom": 209.3818273028973
+          },
+          {
+            "left": 109.54399979489013,
+            "right": 113.54399978740054,
+            "top": 204.25599816816015,
+            "bottom": 208.25599816067057
+          },
+          {
+            "left": 96.47200833399967,
+            "right": 100.47200832651008,
+            "top": 205.38182731038688,
+            "bottom": 209.3818273028973
+          },
+          {
+            "left": 87.25258989959227,
+            "right": 91.25258989210268,
+            "top": 208.42751074233928,
+            "bottom": 212.4275107348497
+          }
+        ]
+      },
+      "onwardLayout": {
+        "cue": {
+          "beat": "onward",
+          "node": "hub",
+          "age": 0.31659999999999994,
+          "duration": 2.1
+        },
+        "renderedNode": "hub",
+        "currentNode": "dew",
+        "interactLabel": "潮汐源已启动",
+        "used": [
+          "landing",
+          "onward"
+        ],
+        "time": 3.266499999999991,
+        "labels": [
+          {
+            "text": "维度锚台",
+            "left": 129.77134548302968,
+            "right": 172.76165926819635,
+            "top": 167.45734907858406,
+            "bottom": 177.75127228852728
+          },
+          {
+            "text": "裂隙花匣",
+            "left": 308.65732257270565,
+            "right": 351.20772520299533,
+            "top": 202.65633772498836,
+            "bottom": 212.917267416164
+          },
+          {
+            "text": "归响台",
+            "left": 214.96818408388333,
+            "right": 246.75176465944264,
+            "top": 233.88135856724904,
+            "bottom": 244.18627937391238
+          },
+          {
+            "text": "潮汐源",
+            "left": 95.45425203379614,
+            "right": 127.5897600760427,
+            "top": 248.5183335612051,
+            "bottom": 258.74627046222037
+          },
+          {
+            "text": "辉光源 · 回声层",
+            "left": 234.15276514079665,
+            "right": 306.46229727774335,
+            "top": 63.930816607174165,
+            "bottom": 74.15875205097507
+          },
+          {
+            "text": "启动！1/3",
+            "left": 86.56444592861521,
+            "right": 136.25182689331996,
+            "top": 148.3945683601878,
+            "bottom": 159.89924434496362
+          },
+          {
+            "text": "W  0.82",
+            "left": 28.44231595653119,
+            "right": 61.688620004195656,
+            "top": 124.94856025155507,
+            "bottom": 132.20799622696453
+          }
+        ],
+        "glints": [
+          {
+            "left": 195.0788783834211,
+            "right": 266.37712075254996,
+            "top": 185.45057395310863,
+            "bottom": 201.08542242435948
+          },
+          {
+            "left": 195.0788783834211,
+            "right": 266.37712075254996,
+            "top": 185.45057395310863,
+            "bottom": 201.08542242435948
+          },
+          {
+            "left": 195.0788783834211,
+            "right": 266.37712075254996,
+            "top": 182.62799820865635,
+            "bottom": 197.90799818004612
+          },
+          {
+            "left": 260.491599128759,
+            "right": 264.4915991212694,
+            "top": 187.7995107809631,
+            "bottom": 191.79951077347351
+          },
+          {
+            "left": 247.35461422405018,
+            "right": 251.3546142165606,
+            "top": 184.7538273490107,
+            "bottom": 188.75382734152112
+          },
+          {
+            "left": 228.72799957173032,
+            "right": 232.72799956424075,
+            "top": 183.62799820678396,
+            "bottom": 187.62799819929438
+          },
+          {
+            "left": 210.1013849194105,
+            "right": 214.1013849119209,
+            "top": 184.7538273490107,
+            "bottom": 188.75382734152112
+          },
+          {
+            "left": 196.96440001470165,
+            "right": 200.96440000721208,
+            "top": 187.7995107809631,
+            "bottom": 191.79951077347351
+          }
+        ]
+      },
+      "compactProgress": true,
+      "singleSupplyProgress": true,
+      "remotePower": {
+        "time": 11.549500000000085,
+        "firstEntry": false,
+        "firstAction": null,
+        "objective": "辉光源已启动（2/3）；观察供能槽，切层或沿桥前往下一处机关",
+        "moveLabel": "稳行 Space ↗",
+        "cue": null,
+        "strokes": 0,
+        "node": "bloom",
+        "selected": "hub",
+        "settled": true,
+        "used": [
+          "landing",
+          "onward",
+          "follow"
+        ],
+        "activated": [
+          "dew",
+          "bloom"
+        ],
+        "nodes": [
+          {
+            "id": "hub",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "dew",
+            "required": [],
+            "received": [],
+            "powered": true,
+            "present": false
+          },
+          {
+            "id": "bell",
+            "required": [
+              "dew",
+              "bloom"
+            ],
+            "received": [
+              "dew",
+              "bloom"
+            ],
+            "powered": true,
+            "present": false
+          },
+          {
+            "id": "relay",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "bloom",
+            "required": [],
+            "received": [],
+            "powered": true,
+            "present": true
+          },
+          {
+            "id": "exit",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": false
+          },
+          {
+            "id": "vault",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "rift",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          }
+        ],
+        "beats": [
+          {
+            "beat": "landing",
+            "node": "dew",
+            "time": 2.1331999999999947
+          },
+          {
+            "beat": "onward",
+            "node": "hub",
+            "time": 2.966499999999992
+          },
+          {
+            "beat": "follow",
+            "node": "hub",
+            "time": 9.299600000000135
+          }
+        ],
+        "ends": [
+          {
+            "key": "landing:dew",
+            "time": 2.4831999999999934
+          },
+          {
+            "key": "onward:hub",
+            "time": 5.066400000000037
+          },
+          {
+            "key": "follow:hub",
+            "time": 9.56620000000013
+          }
+        ],
+        "events": [
+          {
+            "type": "activate",
+            "room": 0,
+            "node": "dew",
+            "via": "touch",
+            "layer": 2,
+            "tier": 1,
+            "time": 2.4998999999999936
+          },
+          {
+            "type": "power",
+            "room": 0,
+            "from": "dew",
+            "to": "bell",
+            "node": "bell",
+            "layer": 0,
+            "complete": false,
+            "received": 1,
+            "required": 2,
+            "time": 3.0164999999999917
+          },
+          {
+            "type": "activate",
+            "room": 0,
+            "node": "bloom",
+            "via": "touch",
+            "layer": 1,
+            "tier": 2,
+            "time": 11.049500000000098
+          },
+          {
+            "type": "power",
+            "room": 0,
+            "from": "bloom",
+            "to": "bell",
+            "node": "bell",
+            "layer": 0,
+            "complete": true,
+            "received": 2,
+            "required": 2,
+            "time": 11.549500000000085
+          }
+        ],
+        "conflicts": [],
+        "powerFrames": [
+          {
+            "time": 3.0164999999999917,
+            "node": "dew",
+            "cue": {
+              "beat": "onward",
+              "node": "hub",
+              "age": 0.06659999999999991,
+              "duration": 2.1
+            },
+            "events": [
+              {
+                "type": "power",
+                "room": 0,
+                "from": "dew",
+                "to": "bell",
+                "node": "bell",
+                "layer": 0,
+                "complete": false,
+                "received": 1,
+                "required": 2,
+                "beat": "onward",
+                "slotsVisible": true
+              }
+            ],
+            "notes": [],
+            "text": "潮汐源已启动 · 1/3",
+            "status": "潮汐源已启动 · 1/3",
+            "announcement": "潮汐源已启动 · 1/3",
+            "primary": [
+              "move"
+            ],
+            "effects": [
+              "ring",
+              "ring",
+              "power",
+              "ring"
+            ],
+            "slots": [
+              {
+                "id": "dew",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bloom",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bell",
+                "received": 1,
+                "total": 2
+              }
+            ]
+          },
+          {
+            "time": 11.549500000000085,
+            "node": "bloom",
+            "cue": null,
+            "events": [
+              {
+                "type": "power",
+                "room": 0,
+                "from": "bloom",
+                "to": "bell",
+                "node": "bell",
+                "layer": 0,
+                "complete": true,
+                "received": 2,
+                "required": 2,
+                "beat": null,
+                "slotsVisible": true
+              }
+            ],
+            "notes": [],
+            "text": "双源汇流台供能到齐 · 到台上按 E",
+            "status": "辉光源 · 回声层",
+            "announcement": "双源汇流台供能到齐 · 到台上按 E",
+            "primary": [
+              "move"
+            ],
+            "effects": [
+              "ring",
+              "ring",
+              "power",
+              "ring"
+            ],
+            "slots": [
+              {
+                "id": "dew",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bloom",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bell",
+                "received": 2,
+                "total": 2
+              }
+            ]
+          }
+        ],
+        "powerConflicts": []
+      },
+      "powerAtReceiver": {
+        "time": 5.433200000000058,
+        "firstEntry": false,
+        "firstAction": null,
+        "objective": "启动双源汇流台（按 E）；锁定通向锚台的桥梁；三机关完成后开门",
+        "moveLabel": "稳行 Space ↗",
+        "cue": null,
+        "strokes": 0,
+        "node": "bell",
+        "selected": "hub",
+        "settled": true,
+        "used": [
+          "landing",
+          "onward",
+          "follow"
+        ],
+        "activated": [
+          "bloom",
+          "dew"
+        ],
+        "nodes": [
+          {
+            "id": "hub",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "dew",
+            "required": [],
+            "received": [],
+            "powered": true,
+            "present": false
+          },
+          {
+            "id": "bell",
+            "required": [
+              "dew",
+              "bloom"
+            ],
+            "received": [
+              "bloom",
+              "dew"
+            ],
+            "powered": true,
+            "present": true
+          },
+          {
+            "id": "relay",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "bloom",
+            "required": [],
+            "received": [],
+            "powered": true,
+            "present": false
+          },
+          {
+            "id": "exit",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "vault",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "rift",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          }
+        ],
+        "beats": [
+          {
+            "beat": "onward",
+            "node": "hub",
+            "time": 1.966699999999995
+          }
+        ],
+        "ends": [
+          {
+            "key": "onward:hub",
+            "time": 2.1166999999999945
+          }
+        ],
+        "events": [
+          {
+            "type": "activate",
+            "room": 0,
+            "node": "bloom",
+            "via": "touch",
+            "layer": 1,
+            "tier": 1,
+            "time": 1.4999999999999967
+          },
+          {
+            "type": "power",
+            "room": 0,
+            "from": "bloom",
+            "to": "bell",
+            "node": "bell",
+            "layer": 0,
+            "complete": false,
+            "received": 1,
+            "required": 2,
+            "time": 1.9999999999999947
+          },
+          {
+            "type": "activate",
+            "room": 0,
+            "node": "dew",
+            "via": "touch",
+            "layer": 2,
+            "tier": 2,
+            "time": 4.933200000000033
+          },
+          {
+            "type": "power",
+            "room": 0,
+            "from": "dew",
+            "to": "bell",
+            "node": "bell",
+            "layer": 0,
+            "complete": true,
+            "received": 2,
+            "required": 2,
+            "time": 5.433200000000058
+          }
+        ],
+        "conflicts": [],
+        "powerFrames": [
+          {
+            "time": 1.9999999999999947,
+            "node": "bloom",
+            "cue": {
+              "beat": "onward",
+              "node": "hub",
+              "age": 0.04999999999999976,
+              "duration": 2.1
+            },
+            "events": [
+              {
+                "type": "power",
+                "room": 0,
+                "from": "bloom",
+                "to": "bell",
+                "node": "bell",
+                "layer": 0,
+                "complete": false,
+                "received": 1,
+                "required": 2,
+                "beat": "onward",
+                "slotsVisible": true
+              }
+            ],
+            "notes": [],
+            "text": "辉光源已启动 · 1/3",
+            "status": "辉光源已启动 · 1/3",
+            "announcement": "辉光源已启动 · 1/3",
+            "primary": [
+              "move"
+            ],
+            "effects": [
+              "ring",
+              "ring",
+              "ring",
+              "power",
+              "ring"
+            ],
+            "slots": [
+              {
+                "id": "dew",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bloom",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bell",
+                "received": 1,
+                "total": 2
+              }
+            ]
+          },
+          {
+            "time": 5.433200000000058,
+            "node": "bell",
+            "cue": null,
+            "events": [
+              {
+                "type": "power",
+                "room": 0,
+                "from": "dew",
+                "to": "bell",
+                "node": "bell",
+                "layer": 0,
+                "complete": true,
+                "received": 2,
+                "required": 2,
+                "beat": null,
+                "slotsVisible": true
+              }
+            ],
+            "notes": [],
+            "text": "",
+            "status": "位置没有变，脚下已是另一层的机关。",
+            "announcement": "位置没有变，脚下已是另一层的机关。",
+            "primary": [
+              "interact"
+            ],
+            "effects": [
+              "ring",
+              "ring",
+              "power",
+              "ring"
+            ],
+            "slots": [
+              {
+                "id": "dew",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bloom",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bell",
+                "received": 2,
+                "total": 2
+              }
+            ]
+          }
+        ],
+        "powerConflicts": []
+      },
+      "followAfterExpiry": true,
+      "unfollowedQuietSeconds": 4.2,
+      "glintYieldsToExplicitHelp": true,
+      "explicitHelpAfterLanding": true,
+      "firstEntryBeat": {
+        "invitation": {
+          "time": 1.4998999999999962,
+          "firstEntry": true,
+          "firstAction": {
+            "action": "move",
+            "node": "dew"
+          },
+          "objective": "先到启程泵 · 稳行过去",
+          "moveLabel": "到启程泵 Space ↗",
+          "cue": {
+            "beat": "arrival",
+            "node": "dew",
+            "age": 0.30000000000000004,
+            "duration": 2.1
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "hub",
+          "selected": "dew",
+          "settled": false,
+          "used": [
+            "arrival"
+          ],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2165999999999972
+            }
+          ],
+          "ends": [],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "completed": {
+          "time": 9.776000000047809,
+          "firstEntry": true,
+          "firstAction": null,
+          "objective": "启动启程泵（按 E）；向远端回声台发送能量，同时锁定桥梁",
+          "moveLabel": "稳行 Space ↗",
+          "cue": {
+            "beat": "follow",
+            "node": "dew",
+            "age": 0.21329999999999932,
+            "duration": 0.85
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow"
+          ],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2165999999999972
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.576000000047813
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.3096000000476744
+            }
+          ],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "secondInvitation": {
+          "time": 11.15930000004778,
+          "firstEntry": true,
+          "firstAction": {
+            "action": "interact",
+            "node": "dew"
+          },
+          "objective": "启动脚下的启程泵 · 按 E",
+          "moveLabel": "稳行 Space ↗",
+          "cue": {
+            "beat": "mechanism",
+            "node": "dew",
+            "age": 0.30000000000000004,
+            "duration": 2.1
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism"
+          ],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2165999999999972
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.576000000047813
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.876000000047785
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.3096000000476744
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.426000000047795
+            }
+          ],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "secondCompleted": {
+          "time": 17.68670000014294,
+          "firstEntry": true,
+          "firstAction": null,
+          "objective": "启程泵已启动（1/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "moveLabel": "稳行 Space ↗",
+          "cue": {
+            "beat": "mechanism-follow",
+            "node": "dew",
+            "age": 0.21659999999999854,
+            "duration": 0.85
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism",
+            "mechanism-follow"
+          ],
+          "activated": [
+            "dew"
+          ],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2165999999999972
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.576000000047813
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.876000000047785
+            },
+            {
+              "beat": "mechanism-follow",
+              "node": "dew",
+              "time": 17.486700000142953
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.3096000000476744
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.426000000047795
+            },
+            {
+              "key": "mechanism:dew",
+              "time": 12.970200000143107
+            }
+          ],
+          "events": [
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "dew",
+              "via": "touch",
+              "layer": 2,
+              "tier": 1,
+              "time": 17.470100000142956
+            }
+          ],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "settled": {
+          "time": 23.679800000190287,
+          "firstEntry": true,
+          "firstAction": null,
+          "objective": "启程泵已启动（1/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "moveLabel": "稳行 Space ↗",
+          "cue": null,
+          "strokes": 0,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism",
+            "mechanism-follow"
+          ],
+          "activated": [
+            "dew"
+          ],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [
+                "dew"
+              ],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2165999999999972
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.576000000047813
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.876000000047785
+            },
+            {
+              "beat": "mechanism-follow",
+              "node": "dew",
+              "time": 17.486700000142953
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.3096000000476744
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.426000000047795
+            },
+            {
+              "key": "mechanism:dew",
+              "time": 12.970200000143107
+            },
+            {
+              "key": "mechanism-follow:dew",
+              "time": 18.046700000190608
+            }
+          ],
+          "events": [
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "dew",
+              "via": "touch",
+              "layer": 2,
+              "tier": 1,
+              "time": 17.470100000142956
+            },
+            {
+              "type": "power",
+              "room": 0,
+              "from": "dew",
+              "to": "bell",
+              "node": "bell",
+              "layer": 1,
+              "complete": true,
+              "received": 1,
+              "required": 1,
+              "time": 17.980100000190614
+            }
+          ],
+          "conflicts": [],
+          "powerFrames": [
+            {
+              "time": 17.980100000190614,
+              "node": "dew",
+              "cue": {
+                "beat": "mechanism-follow",
+                "node": "dew",
+                "age": 0.5100000000476866,
+                "duration": 0.85
+              },
+              "events": [
+                {
+                  "type": "power",
+                  "room": 0,
+                  "from": "dew",
+                  "to": "bell",
+                  "node": "bell",
+                  "layer": 1,
+                  "complete": true,
+                  "received": 1,
+                  "required": 1,
+                  "beat": "mechanism-follow",
+                  "slotsVisible": true
+                }
+              ],
+              "notes": [],
+              "text": "启程泵已启动 · 1/3",
+              "status": "启程泵已启动 · 1/3",
+              "announcement": "启程泵已启动 · 1/3",
+              "primary": [
+                "move"
+              ],
+              "effects": [
+                "ring",
+                "ring",
+                "power",
+                "ring"
+              ],
+              "slots": [
+                {
+                  "id": "dew",
+                  "received": 0,
+                  "total": 0
+                },
+                {
+                  "id": "bell",
+                  "received": 1,
+                  "total": 1
+                },
+                {
+                  "id": "bloom",
+                  "received": 0,
+                  "total": 1
+                }
+              ]
+            }
+          ],
+          "powerConflicts": []
+        },
+        "powerChain": {
+          "time": 35.91280000018913,
+          "firstEntry": true,
+          "firstAction": null,
+          "objective": "反照花已启动（3/3）；三座机关全部共鸣，通往庭门的实体桥已开放",
+          "moveLabel": "稳行 Space ↗",
+          "cue": null,
+          "strokes": 0,
+          "node": "bloom",
+          "selected": "relay",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism",
+            "mechanism-follow"
+          ],
+          "activated": [
+            "dew",
+            "bell",
+            "bloom"
+          ],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [
+                "dew"
+              ],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [
+                "bell"
+              ],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2165999999999972
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.576000000047813
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.876000000047785
+            },
+            {
+              "beat": "mechanism-follow",
+              "node": "dew",
+              "time": 17.486700000142953
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.3096000000476744
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.426000000047795
+            },
+            {
+              "key": "mechanism:dew",
+              "time": 12.970200000143107
+            },
+            {
+              "key": "mechanism-follow:dew",
+              "time": 18.046700000190608
+            }
+          ],
+          "events": [
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "dew",
+              "via": "touch",
+              "layer": 2,
+              "tier": 1,
+              "time": 17.470100000142956
+            },
+            {
+              "type": "power",
+              "room": 0,
+              "from": "dew",
+              "to": "bell",
+              "node": "bell",
+              "layer": 1,
+              "complete": true,
+              "received": 1,
+              "required": 1,
+              "time": 17.980100000190614
+            },
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "bell",
+              "via": "touch",
+              "layer": 1,
+              "tier": 2,
+              "time": 28.196400000190035
+            },
+            {
+              "type": "power",
+              "room": 0,
+              "from": "bell",
+              "to": "bloom",
+              "node": "bloom",
+              "layer": 0,
+              "complete": true,
+              "received": 1,
+              "required": 1,
+              "time": 28.713000000190004
+            },
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "bloom",
+              "via": "touch",
+              "layer": 0,
+              "tier": 3,
+              "time": 28.97970000018999
+            }
+          ],
+          "conflicts": [],
+          "powerFrames": [
+            {
+              "time": 17.980100000190614,
+              "node": "dew",
+              "cue": {
+                "beat": "mechanism-follow",
+                "node": "dew",
+                "age": 0.5100000000476866,
+                "duration": 0.85
+              },
+              "events": [
+                {
+                  "type": "power",
+                  "room": 0,
+                  "from": "dew",
+                  "to": "bell",
+                  "node": "bell",
+                  "layer": 1,
+                  "complete": true,
+                  "received": 1,
+                  "required": 1,
+                  "beat": "mechanism-follow",
+                  "slotsVisible": true
+                }
+              ],
+              "notes": [],
+              "text": "启程泵已启动 · 1/3",
+              "status": "启程泵已启动 · 1/3",
+              "announcement": "启程泵已启动 · 1/3",
+              "primary": [
+                "move"
+              ],
+              "effects": [
+                "ring",
+                "ring",
+                "power",
+                "ring"
+              ],
+              "slots": [
+                {
+                  "id": "dew",
+                  "received": 0,
+                  "total": 0
+                },
+                {
+                  "id": "bell",
+                  "received": 1,
+                  "total": 1
+                },
+                {
+                  "id": "bloom",
+                  "received": 0,
+                  "total": 1
+                }
+              ]
+            },
+            {
+              "time": 28.713000000190004,
+              "node": "bell",
+              "cue": null,
+              "events": [
+                {
+                  "type": "power",
+                  "room": 0,
+                  "from": "bell",
+                  "to": "bloom",
+                  "node": "bloom",
+                  "layer": 0,
+                  "complete": true,
+                  "received": 1,
+                  "required": 1,
+                  "beat": null,
+                  "slotsVisible": true
+                }
+              ],
+              "notes": [],
+              "text": "反照花供能到齐 · 到台上按 E",
+              "status": "远端回声台 · 回声层",
+              "announcement": "反照花供能到齐 · 到台上按 E",
+              "primary": [
+                "move"
+              ],
+              "effects": [
+                "ring",
+                "ring",
+                "power",
+                "ring"
+              ],
+              "slots": [
+                {
+                  "id": "dew",
+                  "received": 0,
+                  "total": 0
+                },
+                {
+                  "id": "bell",
+                  "received": 1,
+                  "total": 1
+                },
+                {
+                  "id": "bloom",
+                  "received": 1,
+                  "total": 1
+                }
+              ]
+            }
+          ],
+          "powerConflicts": []
+        },
+        "revisit": {
+          "time": 3.516499999999991,
+          "firstEntry": false,
+          "firstAction": null,
+          "objective": "已供能待启动：启程泵（机关 0/3）",
+          "moveLabel": "稳行 Space ↗",
+          "cue": null,
+          "strokes": 0,
+          "node": "hub",
+          "selected": "dew",
+          "settled": false,
+          "used": [],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [],
+          "ends": [],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "interrupt": "mechanism-follow",
+        "idleSeconds": 6.5,
+        "secondIdleSeconds": 6.2,
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "width": 320,
+      "height": 844,
+      "firstCrossingMs": 1631,
+      "secondSourceCueMs": 918,
+      "landingGuideQuiet": true,
+      "landingAndOnwardGlints": true,
+      "landing": {
+        "cue": {
+          "beat": "landing",
+          "node": "dew",
+          "age": 0.30000000000000004,
+          "duration": 2.1
+        },
+        "renderedNode": "dew",
+        "currentNode": "dew",
+        "interactLabel": "启动潮汐源",
+        "used": [
+          "landing"
+        ],
+        "time": 2.4165999999999936,
+        "labels": [
+          {
+            "text": "维度锚台",
+            "left": 102.0509122007677,
+            "right": 145.04209796326631,
+            "top": 165.98615441044336,
+            "bottom": 176.28028365115603
+          },
+          {
+            "text": "裂隙花匣",
+            "left": 248.17689550133855,
+            "right": 290.7281577318113,
+            "top": 194.74514514663196,
+            "bottom": 205.0062800629334
+          },
+          {
+            "text": "归响台",
+            "left": 172.68787004855687,
+            "right": 204.4720911328077,
+            "top": 220.2301638914426,
+            "bottom": 230.53529163702086
+          },
+          {
+            "text": "潮汐源",
+            "left": 75.0139271763777,
+            "right": 107.15008375372963,
+            "top": 232.20714173865377,
+            "bottom": 242.43528352072957
+          },
+          {
+            "text": "W  0.82",
+            "left": 23.30291958342042,
+            "right": 50.96384644858999,
+            "top": 133.0574933730586,
+            "bottom": 139.0973445189272
+          }
+        ],
+        "glints": [
+          {
+            "left": 71.13600146770477,
+            "right": 111.07200229167938,
+            "top": 198.6960012614727,
+            "bottom": 211.17600151896477
+          },
+          {
+            "left": 71.13600146770477,
+            "right": 111.07200229167938,
+            "top": 198.6960012614727,
+            "bottom": 211.17600151896477
+          },
+          {
+            "left": 71.13600146770477,
+            "right": 111.07200229167938,
+            "top": 195.69600119957556,
+            "bottom": 208.17600145706763
+          },
+          {
+            "left": 106.89562048050404,
+            "right": 110.89562056303353,
+            "top": 200.10310057212973,
+            "bottom": 204.10310065465924
+          },
+          {
+            "left": 99.53725339393817,
+            "right": 103.53725347646768,
+            "top": 197.6155266136104,
+            "bottom": 201.6155266961399
+          },
+          {
+            "left": 89.10400183842732,
+            "right": 93.10400192095683,
+            "top": 196.69600122020796,
+            "bottom": 200.69600130273744
+          },
+          {
+            "left": 78.67075028291649,
+            "right": 82.670750365446,
+            "top": 197.6155266136104,
+            "bottom": 201.6155266961399
+          },
+          {
+            "left": 71.31238319635062,
+            "right": 75.31238327888013,
+            "top": 200.10310057212973,
+            "bottom": 204.10310065465924
+          }
+        ]
+      },
+      "onwardLayout": {
+        "cue": {
+          "beat": "onward",
+          "node": "hub",
+          "age": 0.30000000000000004,
+          "duration": 2.1
+        },
+        "renderedNode": "hub",
+        "currentNode": "dew",
+        "interactLabel": "潮汐源已启动",
+        "used": [
+          "landing",
+          "onward"
+        ],
+        "time": 3.2498999999999905,
+        "labels": [
+          {
+            "text": "维度锚台",
+            "left": 102.0509122007677,
+            "right": 145.04209796326631,
+            "top": 165.98615441044336,
+            "bottom": 176.28028365115603
+          },
+          {
+            "text": "裂隙花匣",
+            "left": 248.17689550133855,
+            "right": 290.7281577318113,
+            "top": 194.74514514663196,
+            "bottom": 205.0062800629334
+          },
+          {
+            "text": "归响台",
+            "left": 172.68787004855687,
+            "right": 204.4720911328077,
+            "top": 220.2301638914426,
+            "bottom": 230.53529163702086
+          },
+          {
+            "text": "潮汐源",
+            "left": 75.0139271763777,
+            "right": 107.15008375372963,
+            "top": 232.20714173865377,
+            "bottom": 242.43528352072957
+          },
+          {
+            "text": "辉光源 · 回声层",
+            "left": 184.64036696874928,
+            "right": 256.85469560714,
+            "top": 80.80063652432364,
+            "bottom": 91.02877830639943
+          },
+          {
+            "text": "启动！1/3",
+            "left": 70.70185271607147,
+            "right": 111.28421713980788,
+            "top": 149.3301203143484,
+            "bottom": 158.72660981180917
+          },
+          {
+            "text": "W  0.82",
+            "left": 23.30291958342042,
+            "right": 50.96384644858999,
+            "top": 133.0574933730586,
+            "bottom": 139.0973445189272
+          }
+        ],
+        "glints": [
+          {
+            "left": 160.05600330233574,
+            "right": 216.84000447392464,
+            "top": 181.8480009138584,
+            "bottom": 194.32800117135048
+          },
+          {
+            "left": 160.05600330233574,
+            "right": 216.84000447392464,
+            "top": 181.8480009138584,
+            "bottom": 194.32800117135048
+          },
+          {
+            "left": 160.05600330233574,
+            "right": 216.84000447392464,
+            "top": 178.84800085196127,
+            "bottom": 191.32800110945334
+          },
+          {
+            "left": 211.74546160356826,
+            "right": 215.74546168609777,
+            "top": 183.25510022451545,
+            "bottom": 187.25510030704496
+          },
+          {
+            "left": 201.2827834023574,
+            "right": 205.28278348488692,
+            "top": 180.7675262659961,
+            "bottom": 184.76752634852562
+          },
+          {
+            "left": 186.44800384686545,
+            "right": 190.44800392939496,
+            "top": 179.84800087259367,
+            "bottom": 183.84800095512315
+          },
+          {
+            "left": 171.61322429137346,
+            "right": 175.61322437390297,
+            "top": 180.7675262659961,
+            "bottom": 184.76752634852562
+          },
+          {
+            "left": 161.1505460901626,
+            "right": 165.15054617269212,
+            "top": 183.25510022451545,
+            "bottom": 187.25510030704496
+          }
+        ]
+      },
+      "compactProgress": true,
+      "singleSupplyProgress": true,
+      "remotePower": {
+        "time": 11.566200000000087,
+        "firstEntry": false,
+        "firstAction": null,
+        "objective": "辉光源已启动（2/3）；观察供能槽，切层或沿桥前往下一处机关",
+        "moveLabel": "稳行 Space ↗",
+        "cue": null,
+        "strokes": 0,
+        "node": "bloom",
+        "selected": "hub",
+        "settled": true,
+        "used": [
+          "landing",
+          "onward",
+          "follow"
+        ],
+        "activated": [
+          "dew",
+          "bloom"
+        ],
+        "nodes": [
+          {
+            "id": "hub",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "dew",
+            "required": [],
+            "received": [],
+            "powered": true,
+            "present": false
+          },
+          {
+            "id": "bell",
+            "required": [
+              "dew",
+              "bloom"
+            ],
+            "received": [
+              "dew",
+              "bloom"
+            ],
+            "powered": true,
+            "present": false
+          },
+          {
+            "id": "relay",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "bloom",
+            "required": [],
+            "received": [],
+            "powered": true,
+            "present": true
+          },
+          {
+            "id": "exit",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": false
+          },
+          {
+            "id": "vault",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "rift",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          }
+        ],
+        "beats": [
+          {
+            "beat": "landing",
+            "node": "dew",
+            "time": 2.1332999999999944
+          },
+          {
+            "beat": "onward",
+            "node": "hub",
+            "time": 2.9665999999999917
+          },
+          {
+            "beat": "follow",
+            "node": "hub",
+            "time": 9.299700000000136
+          }
+        ],
+        "ends": [
+          {
+            "key": "landing:dew",
+            "time": 2.483299999999993
+          },
+          {
+            "key": "onward:hub",
+            "time": 5.066500000000032
+          },
+          {
+            "key": "follow:hub",
+            "time": 9.566300000000131
+          }
+        ],
+        "events": [
+          {
+            "type": "activate",
+            "room": 0,
+            "node": "dew",
+            "via": "touch",
+            "layer": 2,
+            "tier": 1,
+            "time": 2.499899999999993
+          },
+          {
+            "type": "power",
+            "room": 0,
+            "from": "dew",
+            "to": "bell",
+            "node": "bell",
+            "layer": 0,
+            "complete": false,
+            "received": 1,
+            "required": 2,
+            "time": 2.9998999999999914
+          },
+          {
+            "type": "activate",
+            "room": 0,
+            "node": "bloom",
+            "via": "touch",
+            "layer": 1,
+            "tier": 2,
+            "time": 11.049600000000098
+          },
+          {
+            "type": "power",
+            "room": 0,
+            "from": "bloom",
+            "to": "bell",
+            "node": "bell",
+            "layer": 0,
+            "complete": true,
+            "received": 2,
+            "required": 2,
+            "time": 11.566200000000087
+          }
+        ],
+        "conflicts": [],
+        "powerFrames": [
+          {
+            "time": 2.9998999999999914,
+            "node": "dew",
+            "cue": {
+              "beat": "onward",
+              "node": "hub",
+              "age": 0.05,
+              "duration": 2.1
+            },
+            "events": [
+              {
+                "type": "power",
+                "room": 0,
+                "from": "dew",
+                "to": "bell",
+                "node": "bell",
+                "layer": 0,
+                "complete": false,
+                "received": 1,
+                "required": 2,
+                "beat": "onward",
+                "slotsVisible": true
+              }
+            ],
+            "notes": [],
+            "text": "潮汐源已启动 · 1/3",
+            "status": "潮汐源已启动 · 1/3",
+            "announcement": "潮汐源已启动 · 1/3",
+            "primary": [
+              "move"
+            ],
+            "effects": [
+              "ring",
+              "ring",
+              "power",
+              "ring"
+            ],
+            "slots": [
+              {
+                "id": "dew",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bloom",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bell",
+                "received": 1,
+                "total": 2
+              }
+            ]
+          },
+          {
+            "time": 11.566200000000087,
+            "node": "bloom",
+            "cue": null,
+            "events": [
+              {
+                "type": "power",
+                "room": 0,
+                "from": "bloom",
+                "to": "bell",
+                "node": "bell",
+                "layer": 0,
+                "complete": true,
+                "received": 2,
+                "required": 2,
+                "beat": null,
+                "slotsVisible": true
+              }
+            ],
+            "notes": [],
+            "text": "双源汇流台供能到齐 · 到台上按 E",
+            "status": "辉光源 · 回声层",
+            "announcement": "双源汇流台供能到齐 · 到台上按 E",
+            "primary": [
+              "move"
+            ],
+            "effects": [
+              "ring",
+              "ring",
+              "power",
+              "ring"
+            ],
+            "slots": [
+              {
+                "id": "dew",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bloom",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bell",
+                "received": 2,
+                "total": 2
+              }
+            ]
+          }
+        ],
+        "powerConflicts": []
+      },
+      "powerAtReceiver": {
+        "time": 5.466500000000054,
+        "firstEntry": false,
+        "firstAction": null,
+        "objective": "启动双源汇流台（按 E）；锁定通向锚台的桥梁；三机关完成后开门",
+        "moveLabel": "稳行 Space ↗",
+        "cue": null,
+        "strokes": 0,
+        "node": "bell",
+        "selected": "hub",
+        "settled": true,
+        "used": [
+          "landing",
+          "onward",
+          "follow"
+        ],
+        "activated": [
+          "bloom",
+          "dew"
+        ],
+        "nodes": [
+          {
+            "id": "hub",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "dew",
+            "required": [],
+            "received": [],
+            "powered": true,
+            "present": false
+          },
+          {
+            "id": "bell",
+            "required": [
+              "dew",
+              "bloom"
+            ],
+            "received": [
+              "bloom",
+              "dew"
+            ],
+            "powered": true,
+            "present": true
+          },
+          {
+            "id": "relay",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "bloom",
+            "required": [],
+            "received": [],
+            "powered": true,
+            "present": false
+          },
+          {
+            "id": "exit",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "vault",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          },
+          {
+            "id": "rift",
+            "required": [],
+            "received": [],
+            "powered": false,
+            "present": true
+          }
+        ],
+        "beats": [
+          {
+            "beat": "onward",
+            "node": "hub",
+            "time": 1.9998999999999956
+          }
+        ],
+        "ends": [
+          {
+            "key": "onward:hub",
+            "time": 2.1498999999999953
+          }
+        ],
+        "events": [
+          {
+            "type": "activate",
+            "room": 0,
+            "node": "bloom",
+            "via": "touch",
+            "layer": 1,
+            "tier": 1,
+            "time": 1.5332999999999968
+          },
+          {
+            "type": "power",
+            "room": 0,
+            "from": "bloom",
+            "to": "bell",
+            "node": "bell",
+            "layer": 0,
+            "complete": false,
+            "received": 1,
+            "required": 2,
+            "time": 2.0332999999999957
+          },
+          {
+            "type": "activate",
+            "room": 0,
+            "node": "dew",
+            "via": "touch",
+            "layer": 2,
+            "tier": 2,
+            "time": 4.966500000000031
+          },
+          {
+            "type": "power",
+            "room": 0,
+            "from": "dew",
+            "to": "bell",
+            "node": "bell",
+            "layer": 0,
+            "complete": true,
+            "received": 2,
+            "required": 2,
+            "time": 5.466500000000054
+          }
+        ],
+        "conflicts": [],
+        "powerFrames": [
+          {
+            "time": 2.0332999999999957,
+            "node": "bloom",
+            "cue": {
+              "beat": "onward",
+              "node": "hub",
+              "age": 0.05000000000000017,
+              "duration": 2.1
+            },
+            "events": [
+              {
+                "type": "power",
+                "room": 0,
+                "from": "bloom",
+                "to": "bell",
+                "node": "bell",
+                "layer": 0,
+                "complete": false,
+                "received": 1,
+                "required": 2,
+                "beat": "onward",
+                "slotsVisible": true
+              }
+            ],
+            "notes": [],
+            "text": "辉光源已启动 · 1/3",
+            "status": "辉光源已启动 · 1/3",
+            "announcement": "辉光源已启动 · 1/3",
+            "primary": [
+              "move"
+            ],
+            "effects": [
+              "ring",
+              "ring",
+              "power",
+              "ring"
+            ],
+            "slots": [
+              {
+                "id": "dew",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bloom",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bell",
+                "received": 1,
+                "total": 2
+              }
+            ]
+          },
+          {
+            "time": 5.466500000000054,
+            "node": "bell",
+            "cue": null,
+            "events": [
+              {
+                "type": "power",
+                "room": 0,
+                "from": "dew",
+                "to": "bell",
+                "node": "bell",
+                "layer": 0,
+                "complete": true,
+                "received": 2,
+                "required": 2,
+                "beat": null,
+                "slotsVisible": true
+              }
+            ],
+            "notes": [],
+            "text": "",
+            "status": "位置没有变，脚下已是另一层的机关。",
+            "announcement": "位置没有变，脚下已是另一层的机关。",
+            "primary": [
+              "interact"
+            ],
+            "effects": [
+              "ring",
+              "ring",
+              "ring",
+              "power",
+              "ring"
+            ],
+            "slots": [
+              {
+                "id": "dew",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bloom",
+                "received": 0,
+                "total": 0
+              },
+              {
+                "id": "bell",
+                "received": 2,
+                "total": 2
+              }
+            ]
+          }
+        ],
+        "powerConflicts": []
+      },
+      "followAfterExpiry": true,
+      "unfollowedQuietSeconds": 4.2,
+      "glintYieldsToExplicitHelp": true,
+      "explicitHelpAfterLanding": true,
+      "firstEntryBeat": {
+        "invitation": {
+          "time": 1.4998999999999967,
+          "firstEntry": true,
+          "firstAction": {
+            "action": "move",
+            "node": "dew"
+          },
+          "objective": "先到引潮泵 · 稳行过去",
+          "moveLabel": "到引潮泵 Space ↗",
+          "cue": {
+            "beat": "arrival",
+            "node": "dew",
+            "age": 0.30000000000000004,
+            "duration": 2.1
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "hub",
+          "selected": "dew",
+          "settled": false,
+          "used": [
+            "arrival"
+          ],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2164999999999975
+            }
+          ],
+          "ends": [],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "completed": {
+          "time": 9.776299999952444,
+          "firstEntry": true,
+          "firstAction": null,
+          "objective": "启动引潮泵（按 E）；向同位回声台发送能量",
+          "moveLabel": "稳行 Space ↗",
+          "cue": {
+            "beat": "follow",
+            "node": "dew",
+            "age": 0.21340000000000142,
+            "duration": 0.85
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow"
+          ],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2164999999999975
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.576299999952449
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.309899999952307
+            }
+          ],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "secondInvitation": {
+          "time": 11.159599999952412,
+          "firstEntry": true,
+          "firstAction": {
+            "action": "interact",
+            "node": "dew"
+          },
+          "objective": "启动脚下的引潮泵 · 按 E",
+          "moveLabel": "稳行 Space ↗",
+          "cue": {
+            "beat": "mechanism",
+            "node": "dew",
+            "age": 0.3,
+            "duration": 2.1
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism"
+          ],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2164999999999975
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.576299999952449
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.87629999995242
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.309899999952307
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.42619999995243
+            }
+          ],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "secondCompleted": {
+          "time": 17.65319999990454,
+          "firstEntry": true,
+          "firstAction": null,
+          "objective": "引潮泵已启动（1/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "moveLabel": "稳行 Space ↗",
+          "cue": {
+            "beat": "mechanism-follow",
+            "node": "dew",
+            "age": 0.2,
+            "duration": 0.85
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism",
+            "mechanism-follow"
+          ],
+          "activated": [
+            "dew"
+          ],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2164999999999975
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.576299999952449
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.87629999995242
+            },
+            {
+              "beat": "mechanism-follow",
+              "node": "dew",
+              "time": 17.469899999904552
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.309899999952307
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.42619999995243
+            },
+            {
+              "key": "mechanism:dew",
+              "time": 12.97009999990469
+            }
+          ],
+          "events": [
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "dew",
+              "via": "touch",
+              "layer": 2,
+              "tier": 1,
+              "time": 17.45319999990455
+            }
+          ],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "settled": {
+          "time": 23.664699999856516,
+          "firstEntry": true,
+          "firstAction": null,
+          "objective": "引潮泵已启动（1/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "moveLabel": "稳行 Space ↗",
+          "cue": null,
+          "strokes": 0,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism",
+            "mechanism-follow"
+          ],
+          "activated": [
+            "dew"
+          ],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [
+                "dew"
+              ],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2164999999999975
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.576299999952449
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.87629999995242
+            },
+            {
+              "beat": "mechanism-follow",
+              "node": "dew",
+              "time": 17.469899999904552
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.309899999952307
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.42619999995243
+            },
+            {
+              "key": "mechanism:dew",
+              "time": 12.97009999990469
+            },
+            {
+              "key": "mechanism-follow:dew",
+              "time": 18.314899999856824
+            }
+          ],
+          "events": [
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "dew",
+              "via": "touch",
+              "layer": 2,
+              "tier": 1,
+              "time": 17.45319999990455
+            },
+            {
+              "type": "power",
+              "room": 0,
+              "from": "dew",
+              "to": "bell",
+              "node": "bell",
+              "layer": 0,
+              "complete": true,
+              "received": 1,
+              "required": 1,
+              "time": 17.96489999985684
+            }
+          ],
+          "conflicts": [],
+          "powerFrames": [
+            {
+              "time": 17.96489999985684,
+              "node": "dew",
+              "cue": {
+                "beat": "mechanism-follow",
+                "node": "dew",
+                "age": 0.5116999999523177,
+                "duration": 0.85
+              },
+              "events": [
+                {
+                  "type": "power",
+                  "room": 0,
+                  "from": "dew",
+                  "to": "bell",
+                  "node": "bell",
+                  "layer": 0,
+                  "complete": true,
+                  "received": 1,
+                  "required": 1,
+                  "beat": "mechanism-follow",
+                  "slotsVisible": true
+                }
+              ],
+              "notes": [],
+              "text": "引潮泵已启动 · 1/3",
+              "status": "引潮泵已启动 · 1/3",
+              "announcement": "引潮泵已启动 · 1/3",
+              "primary": [
+                "move"
+              ],
+              "effects": [
+                "ring",
+                "ring",
+                "power",
+                "ring"
+              ],
+              "slots": [
+                {
+                  "id": "dew",
+                  "received": 0,
+                  "total": 0
+                },
+                {
+                  "id": "bell",
+                  "received": 1,
+                  "total": 1
+                },
+                {
+                  "id": "bloom",
+                  "received": 0,
+                  "total": 1
+                }
+              ]
+            }
+          ],
+          "powerConflicts": []
+        },
+        "powerChain": {
+          "time": 35.8807999998554,
+          "firstEntry": true,
+          "firstAction": null,
+          "objective": "折光花已启动（3/3）；三座机关全部共鸣，通往庭门的实体桥已开放",
+          "moveLabel": "稳行 Space ↗",
+          "cue": null,
+          "strokes": 0,
+          "node": "bloom",
+          "selected": "relay",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism",
+            "mechanism-follow"
+          ],
+          "activated": [
+            "dew",
+            "bell",
+            "bloom"
+          ],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [
+                "dew"
+              ],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [
+                "bell"
+              ],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2164999999999975
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.576299999952449
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.87629999995242
+            },
+            {
+              "beat": "mechanism-follow",
+              "node": "dew",
+              "time": 17.469899999904552
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.309899999952307
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.42619999995243
+            },
+            {
+              "key": "mechanism:dew",
+              "time": 12.97009999990469
+            },
+            {
+              "key": "mechanism-follow:dew",
+              "time": 18.314899999856824
+            }
+          ],
+          "events": [
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "dew",
+              "via": "touch",
+              "layer": 2,
+              "tier": 1,
+              "time": 17.45319999990455
+            },
+            {
+              "type": "power",
+              "room": 0,
+              "from": "dew",
+              "to": "bell",
+              "node": "bell",
+              "layer": 0,
+              "complete": true,
+              "received": 1,
+              "required": 1,
+              "time": 17.96489999985684
+            },
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "bell",
+              "via": "touch",
+              "layer": 0,
+              "tier": 2,
+              "time": 23.83129999985651
+            },
+            {
+              "type": "power",
+              "room": 0,
+              "from": "bell",
+              "to": "bloom",
+              "node": "bloom",
+              "layer": 1,
+              "complete": true,
+              "received": 1,
+              "required": 1,
+              "time": 24.331299999856487
+            },
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "bloom",
+              "via": "touch",
+              "layer": 1,
+              "tier": 3,
+              "time": 28.94769999985623
+            }
+          ],
+          "conflicts": [],
+          "powerFrames": [
+            {
+              "time": 17.96489999985684,
+              "node": "dew",
+              "cue": {
+                "beat": "mechanism-follow",
+                "node": "dew",
+                "age": 0.5116999999523177,
+                "duration": 0.85
+              },
+              "events": [
+                {
+                  "type": "power",
+                  "room": 0,
+                  "from": "dew",
+                  "to": "bell",
+                  "node": "bell",
+                  "layer": 0,
+                  "complete": true,
+                  "received": 1,
+                  "required": 1,
+                  "beat": "mechanism-follow",
+                  "slotsVisible": true
+                }
+              ],
+              "notes": [],
+              "text": "引潮泵已启动 · 1/3",
+              "status": "引潮泵已启动 · 1/3",
+              "announcement": "引潮泵已启动 · 1/3",
+              "primary": [
+                "move"
+              ],
+              "effects": [
+                "ring",
+                "ring",
+                "power",
+                "ring"
+              ],
+              "slots": [
+                {
+                  "id": "dew",
+                  "received": 0,
+                  "total": 0
+                },
+                {
+                  "id": "bell",
+                  "received": 1,
+                  "total": 1
+                },
+                {
+                  "id": "bloom",
+                  "received": 0,
+                  "total": 1
+                }
+              ]
+            },
+            {
+              "time": 24.331299999856487,
+              "node": "bell",
+              "cue": null,
+              "events": [
+                {
+                  "type": "power",
+                  "room": 0,
+                  "from": "bell",
+                  "to": "bloom",
+                  "node": "bloom",
+                  "layer": 1,
+                  "complete": true,
+                  "received": 1,
+                  "required": 1,
+                  "beat": null,
+                  "slotsVisible": true
+                }
+              ],
+              "notes": [],
+              "text": "折光花供能到齐 · 到台上按 E",
+              "status": "同位回声台 · 潮汐层",
+              "announcement": "折光花供能到齐 · 到台上按 E",
+              "primary": [
+                "move"
+              ],
+              "effects": [
+                "ring",
+                "ring",
+                "power",
+                "ring"
+              ],
+              "slots": [
+                {
+                  "id": "dew",
+                  "received": 0,
+                  "total": 0
+                },
+                {
+                  "id": "bell",
+                  "received": 1,
+                  "total": 1
+                },
+                {
+                  "id": "bloom",
+                  "received": 1,
+                  "total": 1
+                }
+              ]
+            }
+          ],
+          "powerConflicts": []
+        },
+        "revisit": {
+          "time": 3.5164999999999904,
+          "firstEntry": false,
+          "firstAction": null,
+          "objective": "已供能待启动：引潮泵（机关 0/3）",
+          "moveLabel": "稳行 Space ↗",
+          "cue": null,
+          "strokes": 0,
+          "node": "hub",
+          "selected": "dew",
+          "settled": false,
+          "used": [],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [],
+          "ends": [],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "interrupt": false,
+        "idleSeconds": 6.5,
+        "secondIdleSeconds": 6.2,
+        "passed": true
+      },
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "browserVersion": "130.0.6723.31"
+}

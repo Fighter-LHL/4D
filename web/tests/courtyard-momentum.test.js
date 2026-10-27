@@ -128,6 +128,54 @@ test('first entry cannot reward failed, risky, diverted, off-slice, unseen or he
   }
 });
 
+test('first action names only the seen invitation, survives its fade, and settles on actual action', () => {
+  const { model: m, guide, momentum, tick, view } = setup({ arrival: true });
+  const action = () => momentum.firstAction(m.snapshot(), guide);
+  assert.equal(action(), null, 'no instruction before the invitation');
+  tick(1.5);
+  const target = view().node, before = m.snapshot();
+  assert.deepEqual(action(), { action: 'move', node: target });
+  tick(8); assert.equal(view(), null);
+  assert.deepEqual(action(), { action: 'move', node: target }, 'the button still names the faded invitation');
+  assert.deepEqual(m.snapshot(), before, 'naming the action has no model authority');
+  travel(m, target); tick(.2);
+  assert.equal(action(), null, 'landing completion gets its own quiet space');
+  while (momentum.cue?.beat === 'follow') tick(.01);
+  tick(.3); assert.equal(action(), null, 'do not bring the next invitation forward');
+  tick(.2); assert.deepEqual(action(), { action: 'interact', node: target });
+  tick(8); assert.deepEqual(action(), { action: 'interact', node: target });
+  assert.equal(m.interact(), true);
+  assert.equal(action(), null, 'a successful E settles the instruction immediately');
+  advance(m, .6); tick(8); assert.equal(action(), null);
+});
+
+test('first action withdraws immediately for help, invalid targets and interrupted journeys', () => {
+  for (const stage of ['move', 'interact']) for (const reason of ['help', 'risk', 'slice', 'travel', 'wave', 'failure', 'room', 'restart', 'divert']) {
+    const { model: m, guide, momentum, tick, view } = setup({ arrival: true });
+    tick(1.5);
+    if (stage === 'interact') { travel(m, view().node); tick(2); }
+    const s = m.snapshot();
+    assert.equal(momentum.firstAction(s, guide)?.action, stage);
+    if (reason === 'help') guide.request(s);
+    const invalid = reason === 'risk' ? { ...s, riskMode: true }
+      : reason === 'slice' ? { ...s, nodes: s.nodes.map(n => ({ ...n, present: false })) }
+      : reason === 'travel' ? { ...s, travel: {} }
+      : reason === 'wave' ? { ...s, wave: {} }
+      : reason === 'failure' ? { ...s, stats: { ...s.stats, failures: 1 } }
+      : reason === 'room' ? { ...s, room: s.room + 1 }
+      : reason === 'restart' ? { ...s, phase: 'choose' }
+      : reason === 'divert' ? { ...s, ...(stage === 'move' ? { selected: 'hub' } : { node: 'hub' }) } : s;
+    assert.equal(momentum.firstAction(invalid, guide), null, `${stage}/${reason} before the next frame`);
+    // Failures are cumulative in a real run; only restart can clear them.
+    if (reason === 'failure') continue;
+    momentum.update(.01, invalid, guide);
+    guide.activity(); tick(8);
+    assert.equal(momentum.firstAction(s, guide), null, `${stage}/${reason} cannot reappear`);
+  }
+  const ordinary = setup(); ordinary.tick(2);
+  assert.equal(ordinary.momentum.firstAction(ordinary.model.snapshot(), ordinary.guide), null);
+});
+
 test('visible onward invitation acknowledges a real landing once, even after quiet expiry', () => {
   for (const wait of [0, 5]) {
     const { model: m, momentum, guide, tick, view } = setup();

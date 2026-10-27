@@ -1,0 +1,17 @@
+{
+  "exploratoryRun": {
+    "folder": "baseline-penpal",
+    "status": "interrupted-unsealed",
+    "note": "Reconnaissance began on c3517aa and was stopped after implementation started. Partial screenshots are not a baseline validation PASS; use committed #39 receipts for baseline evidence."
+  },
+  "focusedUnitCheck": {
+    "firstRun": "17/18; new test unrealistically reset cumulative failure count within the same run",
+    "correction": "Keep immediate failure suppression assertion; do not assert a failure can be cleared without restart. Existing real failed-crossing/restart regressions retained.",
+    "final": "18/18"
+  },
+  "finalBrowserRuns": {
+    "penpal": "browser-penpal-attempt1/receipt.json: passed",
+    "top5": "browser-top5-attempt1/receipt.json: passed"
+  },
+  "browserAssertionsWeakened": false
+}
