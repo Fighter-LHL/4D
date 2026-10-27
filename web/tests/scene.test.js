@@ -130,15 +130,35 @@ test('visible momentum owns reachable rims and expiry restores them while missin
   renderer.destroy();
 });
 
-test('existing supply slots suppress only the duplicate progress note and keep power VFX', () => {
+test('existing supply slots suppress progress notes and completion never adds a second note', () => {
   const { renderer } = scene(); renderer.setState(state()); renderer.hasSupplySlots = id => id === 'bell';
   const event = { type: 'power', from: 'dew', to: 'bell', complete: false, received: 1, required: 2 };
   renderer.pushEvents([event]);
   assert.equal(renderer.effects.some(e => e.kind === 'note'), false);
   assert.ok(renderer.effects.some(e => e.kind === 'power')); assert.ok(renderer.particles.length);
   renderer.pushEvents([{ ...event, complete: true, received: 2 }]);
-  assert.ok(renderer.effects.some(e => e.text === '供能到齐 · 等你启动'));
+  assert.equal(renderer.effects.some(e => e.kind === 'note'), false);
+  assert.equal(renderer.effects.filter(e => e.kind === 'power').length, 2);
+  assert.equal(renderer.effects.filter(e => e.kind === 'ring').length, 2);
   renderer.destroy();
+});
+
+test('second beats keep power VFX and rings without power notes, including reduced motion', () => {
+  for (const reduced of [false, true]) for (const beat of ['mechanism', 'mechanism-follow']) {
+    const { renderer } = scene(reduced);
+    renderer.setState({ ...state(), courtyardMomentum: { beat, node: 'dew', age: .1, duration: .85 } });
+    for (const complete of [false, true]) {
+      renderer.pushEvents([{ type: 'power', from: 'dew', to: 'bell', complete, received: complete ? 2 : 1, required: 2 }]);
+    }
+    assert.equal(renderer.effects.some(e => e.kind === 'note'), false);
+    assert.equal(renderer.effects.filter(e => e.kind === 'power').length, 2);
+    assert.equal(renderer.effects.filter(e => e.kind === 'ring').length, 2);
+    assert.ok(renderer.particles.length);
+    renderer.setState(state());
+    for (let i = 0; i < 30; i++) renderer.render(.1);
+    assert.equal(renderer.effects.length, 0, 'no postponed note after the beat expires');
+    renderer.destroy();
+  }
 });
 
 test('collected companions and the real next-layer guide render at desktop and mobile scales', () => {

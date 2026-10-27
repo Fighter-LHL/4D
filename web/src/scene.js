@@ -1,5 +1,5 @@
 import { drawCourtyardFriends } from './courtyard-friends.js';
-import { missingSupplySources, reachablePlatforms } from './play-feedback.js';
+import { missingSupplySources, reachablePlatforms, mechanismFeedback } from './play-feedback.js';
 const WORLD_W = 1000;
 const WORLD_H = 650;
 const TAU = Math.PI * 2;
@@ -230,8 +230,9 @@ export class SceneRenderer {
         if (event.type === 'phase_transfer') this.burst(at, this.palette(layer).glow, 16, .5);
       } else if (event.type === 'power') {
         const from = this.node(event.from) || target, to = this.node(event.to) || target;
-        if (event.complete || !this.hasSupplySlots(event.to))
-          this.addEffect('note', to, { duration: this.width <= 480 ? 1.25 : 2.2, supply: true, text: event.complete ? '供能到齐 · 等你启动' : `供能 ${event.received}/${event.required}`, color: COLORS.teal });
+        // Completion belongs to the action feedback / activation CTA, never a second note.
+        if (!event.complete && mechanismFeedback(event, this.state, { hasSupplySlots: this.hasSupplySlots(event.to) }))
+          this.addEffect('note', to, { duration: this.width <= 480 ? 1.25 : 2.2, supply: true, text: `供能 ${event.received}/${event.required}`, color: COLORS.teal });
         this.addEffect('power', from, { to: { x: to.x, y: to.y }, duration: 1.4,
           fromLayer: from.layer ?? this.state.layer, toLayer: to.layer ?? event.layer,
           color: this.palette(to.layer ?? event.layer).color, sourceColor: this.palette(from.layer).color });

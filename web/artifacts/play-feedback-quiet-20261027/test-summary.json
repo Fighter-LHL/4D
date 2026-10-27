@@ -1,0 +1,8 @@
+{
+  "command": "npm test",
+  "tests": 313,
+  "passed": 313,
+  "failed": 0,
+  "skipped": 0,
+  "rawOutput": "npm-test.txt"
+}

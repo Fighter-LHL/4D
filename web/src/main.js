@@ -45,6 +45,7 @@ let lastStatus = '';
 let lastFrame = performance.now();
 let transient = null;
 let transientTime = 0;
+let transientType = '';
 let actionFeedback = '';
 const dialogs = ['choice-dialog','help-dialog','pause-dialog','result-dialog','restart-dialog'];
 const isModal = () => dialogs.some(id => $(id).open);
@@ -76,12 +77,14 @@ function action(fn) { guide.activity(); unlockAudio(); syncAudio(); fn(); consum
 function consumeEvents() {
   const events = model.drainEvents();
   if (!events.length) return;
-  scene.setState(guide.present(model.snapshot()));
+  const snapshot = model.snapshot();
+  const state = guide.present(snapshot);
+  state.courtyardMomentum = momentum.view(snapshot, guide);
+  scene.setState(state);
   scene.pushEvents(events);
   audio.handle(events);
   for (const event of events) {
-    let message = event.type === 'power' && !event.complete && hasSupplySlots(event.to)
-      ? '' : mechanismFeedback(event, model.snapshot());
+    let message = mechanismFeedback(event, state, { hasSupplySlots: hasSupplySlots(event.to) });
     if (event.type === 'activate' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       $('mechanism-count').animate([{ transform: 'scale(1.3)', color: '#a06c24' }, { transform: 'scale(1)' }], { duration: 550 });
     }
@@ -108,7 +111,7 @@ function consumeEvents() {
     if (event.type === 'evade') message = '跨层避开回流，花匣中的回响归你。';
     if (event.type === 'dodge') message = model.snapshot().wave?.variant==='rift' ? '一枚星环点亮，切入下一枚符印对应的安全层。' : '躲过一波；下一波会追到这里，再换一次层。';
     if (message) {
-      transient = message; transientTime = 2.8; $('announcement').textContent = message;
+      transient = message; transientTime = 2.8; transientType = event.type; $('announcement').textContent = message;
       actionFeedback = ['interact_blocked', 'activate', 'power'].includes(event.type) ? message : '';
     }
     if (['restart','room'].includes(event.type)) { transient = null; transientTime = 0; $('announcement').textContent = ''; }
@@ -400,7 +403,8 @@ function updateUI() {
   updateSecrets(state);
   $('pause').disabled = state.phase !== 'playing';
   setText('context-hint',state.objective || '切换空间，观察能量会传到哪一层。');
-  const status = transient || (state.travel ? (state.travel.risky?'冒险中 · 留意移动光带':'沿当前切片前进') : `${currentNode?.name || '归响台'} · ${currentLayer?.name || '层间隙'}`);
+  // Power already has the action popup and its live announcement; keep this line local.
+  const status = (transientType === 'power' ? null : transient) || (state.travel ? (state.travel.risky?'冒险中 · 留意移动光带':'沿当前切片前进') : `${currentNode?.name || '归响台'} · ${currentLayer?.name || '层间隙'}`);
   $('action-feedback').hidden = !transient || !actionFeedback;
   setText('action-feedback', transient ? actionFeedback : '');
   if (status !== lastStatus) { $('scene-state').textContent = status; lastStatus = status; }

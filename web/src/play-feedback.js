@@ -84,7 +84,7 @@ export function reachablePlatforms(state) {
       ((edge.from === state.node && edge.to === id) || (edge.to === state.node && edge.from === id))));
 }
 
-export function mechanismFeedback(event, state) {
+export function mechanismFeedback(event, state, { hasSupplySlots = false } = {}) {
   const name = state.nodes.find(n => n.id === (event.to || event.node))?.name || '机关';
   if (event.type === 'interact_blocked') {
     const next = missingSupplySources(state)[0];
@@ -94,9 +94,14 @@ export function mechanismFeedback(event, state) {
     return event.text;
   }
   if (event.type === 'activate') return `${name}已启动 · ${event.tier}/3`;
-  if (event.type === 'power') return event.complete
-    ? `${name}供能到齐 · 到台上按 E`
-    : `${name}供能 ${event.received}/${event.required} · 还差一路`;
+  if (event.type === 'power') {
+    // The second beat and the visible supply list already carry this feedback.
+    if (['mechanism', 'mechanism-follow'].includes(state.courtyardMomentum?.beat)) return '';
+    if (!event.complete) return hasSupplySlots ? '' : `${name}供能 ${event.received}/${event.required} · 还差一路`;
+    // At the receiver, its activation CTA is enough; keep the remote arrival cue.
+    if (state.node === event.to && courtyardActions(state).primary === 'interact') return '';
+    return `${name}供能到齐 · 到台上按 E`;
+  }
   return '';
 }
 

@@ -1,0 +1,13 @@
+# Task inputs, local dependency cache, and post-commit publication receipts.
+/CODEX_TASK.md
+/CRITIQUITO_FIXES.md
+/DONE
+/PUBLICATION.json
+/MIRROR.json
+/PR_BODY.md
+/*.pid
+/*.log
+/*.txt
+/npm-cache/
+# Keep the attempt receipts; the final runs carry the review screenshots.
+/browser-*-attempt*/*.png

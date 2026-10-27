@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
+import { pathTo } from '../tests/model-helpers.js';
 
 // Appended only by the browser checks: observes real input/rendering, never
 // changes the model, timing, collection, or persisted first-entry budget.
 export const courtyardBeatObserver = `
 window.__courtyardBeats = []; window.__courtyardBeatEnds = []; window.__courtyardBeatEvents = []; window.__courtyardBeatConflicts = [];
+window.__courtyardPowerFrames = []; window.__courtyardPowerConflicts = [];
+let pendingPower = [];
 const beatPush = scene.pushEvents.bind(scene);
-scene.pushEvents = events => { window.__courtyardBeatEvents.push(...events.filter(e => ['activate', 'power', 'fail'].includes(e.type)).map(e => ({ ...e, time: model.time }))); beatPush(events); };
+scene.pushEvents = events => {
+  window.__courtyardBeatEvents.push(...events.filter(e => ['activate', 'power', 'fail'].includes(e.type)).map(e => ({ ...e, time: model.time })));
+  pendingPower.push(...events.filter(e => e.type === 'power').map(e => ({ ...e, beat: scene.state?.courtyardMomentum?.beat || null, slotsVisible: hasSupplySlots(e.to) })));
+  beatPush(events);
+};
 let observedBeat = null, beatDrawing = false, beatStrokes = 0;
 const beatRender = scene.render.bind(scene), beatDraw = scene.drawMomentum.bind(scene), beatStroke = scene.ctx.stroke.bind(scene.ctx);
 scene.ctx.stroke = (...args) => { if (beatDrawing && scene.ctx.globalAlpha > .05) beatStrokes++; return beatStroke(...args); };
@@ -19,16 +26,84 @@ scene.render = dt => {
   const primary = [...document.querySelectorAll('.action-row .primary-button, .action-row .attention-action')];
   if (primary.length > 1 || primary.some(el => el.disabled) || (cue && scene.state.companionGuide))
     window.__courtyardBeatConflicts.push({ time: model.time, primary: primary.map(el => el.id), cue });
+  const notes = scene.effects.filter(e => e.kind === 'note' && e.supply).map(e => e.text);
+  const text = $('action-feedback').hidden ? '' : $('action-feedback').textContent;
+  const status = $('scene-state').textContent;
+  const powerText = /供能到齐|供能 [0-9]|还差一路/.test(text);
+  if ((['mechanism', 'mechanism-follow'].includes(cue?.beat) && (notes.length || powerText)) ||
+      notes.filter(t => t.includes('供能到齐')).length + Number(text.includes('供能到齐')) + Number(status.includes('供能到齐')) > 1)
+    window.__courtyardPowerConflicts.push({ time: model.time, cue, notes, text, status });
+  if (pendingPower.length) {
+    window.__courtyardPowerFrames.push({ time: model.time, node: model.node, cue, events: pendingPower, notes, text, status,
+      announcement: $('announcement').textContent, primary: primary.map(el => el.id),
+      effects: scene.effects.filter(e => ['power', 'ring'].includes(e.kind)).map(e => e.kind),
+      slots: [...document.querySelectorAll('[data-mechanism]')].map(row => ({ id: row.dataset.mechanism,
+        received: row.querySelectorAll('[data-source].received').length, total: row.querySelectorAll('[data-source]').length })) });
+    pendingPower = [];
+  }
 };
+window.__courtyardSupplyState = () => model.snapshot();
 window.__courtyardBeat = () => structuredClone({ time: model.time, firstEntry: momentum.firstEntry,
   cue: scene.state?.courtyardMomentum, renderedNode: scene.momentumNode()?.id, strokes: beatStrokes,
   node: model.node, selected: model.selected, settled: guide.settled, used: [...momentum.used],
   activated: [...model.activated], nodes: model.snapshot().nodes.map(n => ({ id: n.id, required: n.required, received: n.received, powered: n.powered, present: n.present })),
-  beats: window.__courtyardBeats, ends: window.__courtyardBeatEnds, events: window.__courtyardBeatEvents, conflicts: window.__courtyardBeatConflicts });
+  beats: window.__courtyardBeats, ends: window.__courtyardBeatEnds, events: window.__courtyardBeatEvents, conflicts: window.__courtyardBeatConflicts,
+  powerFrames: window.__courtyardPowerFrames, powerConflicts: window.__courtyardPowerConflicts });
 `;
 
+async function reachThroughUI(page, target) {
+  const state = await page.evaluate(() => window.__courtyardSupplyState());
+  const path = pathTo(state, target);
+  assert.ok(path, `visible route to ${target}`);
+  for (const step of path) {
+    if (step.kind === 'shift') await page.locator(`[data-layer="${step.layer}"]`).click();
+    else {
+      await page.getByRole('button', { name: `前往${state.nodes.find(n => n.id === step.id).name}`, exact: true }).click();
+      await page.locator('#align').click(); await page.locator('#move').click();
+    }
+    await page.waitForFunction(id => { const s = window.__courtyardSupplyState(); return s.node === id && !s.travel; }, step.id);
+  }
+}
+
+function assertQuietPower(frames) {
+  // A split-bridge first mechanism opens a bridge and sends no power.
+  for (const frame of frames) {
+    assert.deepEqual(frame.notes, [], 'visible slots / completion leave no scene power note');
+    assert.doesNotMatch(frame.status, /供能到齐|供能 [0-9]|还差一路/, 'status does not repeat the action popup');
+    assert.ok(frame.effects.includes('power') && frame.effects.includes('ring'), 'power and ring remain');
+    for (const event of frame.events) {
+      const slot = frame.slots.find(s => s.id === event.to);
+      assert.equal(slot.received, event.received, 'the rendered slots reflect delivery');
+      if (!event.complete || ['mechanism', 'mechanism-follow'].includes(event.beat)) {
+        assert.doesNotMatch(frame.text, /供能到齐|供能 [0-9]|还差一路/);
+        assert.doesNotMatch(frame.announcement, /供能到齐|供能 [0-9]|还差一路/);
+      }
+    }
+  }
+}
+
+export async function verifyPowerAtReceiver(page, out, width) {
+  await page.goto(new URL('/?seed=2', page.url()).href);
+  await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
+  await reachThroughUI(page, 'bloom'); await page.locator('#interact').click();
+  await page.waitForFunction(() => window.__courtyardBeat().powerFrames.length === 1);
+  await reachThroughUI(page, 'dew'); await page.locator('#interact').click();
+  await page.keyboard.press('z'); // Same XYZ receiver, before the committed .5s delivery.
+  await page.waitForFunction(() => window.__courtyardBeat().powerFrames.length === 2);
+  const receipt = await page.evaluate(() => window.__courtyardBeat());
+  assertQuietPower(receipt.powerFrames);
+  const complete = receipt.powerFrames[1];
+  assert.equal(complete.node, 'bell'); assert.equal(complete.events[0].complete, true);
+  assert.deepEqual(complete.primary, ['interact']);
+  assert.doesNotMatch(complete.text, /供能到齐|到台上/);
+  assert.doesNotMatch(complete.announcement, /供能到齐|到台上/);
+  assert.deepEqual(receipt.powerConflicts, []);
+  await page.screenshot({ path: `${out}/courtyard-power-at-receiver-${width}.png`, fullPage: true });
+  return receipt;
+}
+
 // Called after the real "go to courtyard" link with a genuinely earned friend.
-export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = false } = {}) {
+export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = false, fullPowerChain = false } = {}) {
   const read = () => page.evaluate(() => window.__courtyardBeat());
   const shot = name => page.screenshot({ path: `${out}/courtyard-first-beat-${name}-${width}.png`, fullPage: true });
   assert.equal(new URL(page.url()).searchParams.get('from'), 'discovery');
@@ -136,6 +211,10 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
     await page.waitForTimeout(250); assert.deepEqual((await read()).cue, completionFrozen);
     await page.locator('#resume').click();
     if (helpAt === 'mechanism-follow') {
+      // The .5s delivery may change the next-step photograph. Request H once it
+      // has settled, while the .85s follow is still visible, so the test does not
+      // race legitimate guide invalidation against its visibility assertion.
+      await page.waitForFunction(() => window.__courtyardBeat().cue?.beat === 'mechanism-follow' && window.__courtyardBeat().cue.age >= .55);
       await page.keyboard.press('h');
       assert.equal((await read()).cue, null);
       assert.equal(await page.locator('#friend-guide').isVisible(), true);
@@ -155,8 +234,33 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
   }
   assert.equal(await page.locator('#friend-guide').isVisible(), false);
   assert.deepEqual(settled.conflicts, []);
+  assertQuietPower(settled.powerFrames);
+  assert.deepEqual(settled.powerConflicts, []);
   await shot('settled');
   if (secondInvitation) await page.screenshot({ path: `${out}/courtyard-second-beat-settled-${width}.png`, fullPage: true });
+  let powerChain = null;
+  if (fullPowerChain) {
+    for (let i = 0; i < 2; i++) {
+      const state = await page.evaluate(() => window.__courtyardSupplyState());
+      const target = state.nodes.find(n => n.kind === 'mechanism' && n.powered && !state.activated.includes(n.id) && pathTo(state, n.id));
+      assert.ok(target, 'a real supplied mechanism remains reachable');
+      await reachThroughUI(page, target.id); await page.locator('#interact').click();
+      const time = (await read()).time;
+      await page.waitForFunction(t => window.__courtyardBeat().time >= t + .7, time);
+    }
+    const time = (await read()).time;
+    await page.waitForFunction(t => window.__courtyardBeat().time >= t + 6.2, time);
+    powerChain = await read();
+    assert.equal(powerChain.activated.length, 3);
+    assert.ok(powerChain.powerFrames.some(f => f.events.some(e => e.complete)));
+    assertQuietPower(powerChain.powerFrames);
+    assert.deepEqual(powerChain.powerConflicts, []);
+    assert.deepEqual(powerChain.used, expected, 'the full chain adds no third beat');
+    assert.equal(powerChain.cue, null);
+    assert.equal(await page.locator('#friend-guide').isVisible(), false);
+    assert.equal(await page.locator('#action-feedback').isVisible(), false);
+    await shot('full-power-chain-quiet');
+  }
   await page.reload();
   await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
   await page.locator('#align').click();
@@ -165,5 +269,5 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
   assert.equal(revisit.firstEntry, false); assert.equal(revisit.cue, null);
   assert.deepEqual(revisit.beats, []); assert.deepEqual(revisit.used, []);
   assert.deepEqual(revisit.conflicts, []);
-  return { invitation, completed, secondInvitation, secondCompleted, settled, revisit, interrupt: helpAt, idleSeconds: helpAt === 'arrival' ? null : 6.5, secondIdleSeconds: secondCompleted ? 6.2 : null, passed: true };
+  return { invitation, completed, secondInvitation, secondCompleted, settled, powerChain, revisit, interrupt: helpAt, idleSeconds: helpAt === 'arrival' ? null : 6.5, secondIdleSeconds: secondCompleted ? 6.2 : null, passed: true };
 }

@@ -1,0 +1,12 @@
+{
+  "baseline": "1496b79a91663bb8cca06ae6202472a3ba6392d5",
+  "files": {
+    "scripts/courtyard-first-beat.mjs": "c70803b3cb12705b77aea3a135f1af85d9a4e9e7ab7f2f253ae2e04f1d3cda37",
+    "scripts/verify-penpal.mjs": "34a9b1ba8fc5dc58a672999411815032d9a0f6ae3c5e4c191ece7baef9dbdd78",
+    "src/main.js": "c554a4d16e53139bc3b0dbb13f12acf1838cb37797e9713dfd416a6c7d81dd39",
+    "src/play-feedback.js": "b97c540bff795dfee4485087b1c395bee60372fa0f15e0200dbcd34707084929",
+    "src/scene.js": "771e033476316d84de180429d7876986f8a6258634acd13ee94cd0c79dd5130b",
+    "tests/play-feedback.test.js": "14fa892bc849bcbf984370e9588852fa0ae5f942e031e289d50c2df1a55056bd",
+    "tests/scene.test.js": "2b92d639c1c77e02a1b8222d1287afff8f5741ba2ca1417e3f6e666ab6d36dc4"
+  }
+}

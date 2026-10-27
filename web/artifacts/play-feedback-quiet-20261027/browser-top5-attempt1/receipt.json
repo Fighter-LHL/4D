@@ -1,0 +1,764 @@
+{
+  "status": "failed",
+  "baseURL": "http://127.0.0.1:4199",
+  "checks": [
+    {
+      "width": 1280,
+      "reducedMotion": false,
+      "muted": false,
+      "friendFound": true,
+      "seedFound": true,
+      "savedAfterReloadAndRetry": true,
+      "levelHighlightSynced": true,
+      "noOverflow": true,
+      "visitorAndDiscoveryCoexist": true,
+      "discoveryDeliveredOnce": true,
+      "earnedCollectionToCourtyardCTA": true,
+      "arrivalAndNearExclusive": true,
+      "idleAfterArrivalQuiet": true,
+      "nearOnce": [
+        {
+          "key": "escape:friend:sprout",
+          "time": 4.00969999999999,
+          "duringArrival": false
+        }
+      ],
+      "approachDuration": 2.2,
+      "approachClearedAfter": 2.194100000047775,
+      "discoveryDuration": 1.8,
+      "seedLayout": [
+        {
+          "text": "S 3.6 · 1.2s",
+          "baseline": 371.1625071057951,
+          "top": 363.5011468814617,
+          "bottom": 371.33886917998547
+        },
+        {
+          "text": "收下花种 · 1/3",
+          "baseline": 394.8618159164617,
+          "top": 383.60729439421306,
+          "bottom": 397.2960537394562
+        }
+      ],
+      "budLayout": [
+        {
+          "text": "S 3.6 · 2.1s",
+          "baseline": 371.1625071057951,
+          "top": 363.5011468814617,
+          "bottom": 371.33886917998547
+        },
+        {
+          "text": "走到光环边",
+          "baseline": 226.7079948425293,
+          "top": 217.1106929241537,
+          "bottom": 227.9311816559547
+        },
+        {
+          "text": "花苞醒了",
+          "baseline": 376.93628551860957,
+          "top": 363.1807594649057,
+          "bottom": 378.7225021707213
+        }
+      ],
+      "courtyardEntry": {
+        "invitation": {
+          "time": 1.4999999999999964,
+          "firstEntry": true,
+          "cue": {
+            "beat": "arrival",
+            "node": "dew",
+            "age": 0.30000000000000004,
+            "duration": 2.1
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "hub",
+          "selected": "dew",
+          "settled": false,
+          "used": [
+            "arrival"
+          ],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2166999999999972
+            }
+          ],
+          "ends": [],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "completed": {
+          "time": 9.792100000000133,
+          "firstEntry": true,
+          "cue": {
+            "beat": "follow",
+            "node": "dew",
+            "age": 0.21329999999999932,
+            "duration": 0.85
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow"
+          ],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2166999999999972
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.592100000000137
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.308999999999991
+            }
+          ],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "secondInvitation": {
+          "time": 11.1920000000001,
+          "firstEntry": true,
+          "cue": {
+            "beat": "mechanism",
+            "node": "dew",
+            "age": 0.30000000000000004,
+            "duration": 2.1
+          },
+          "renderedNode": "dew",
+          "strokes": 2,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism"
+          ],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2166999999999972
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.592100000000137
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.908700000000106
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.308999999999991
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.442100000000115
+            }
+          ],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "secondCompleted": null,
+        "settled": {
+          "time": 17.63459999990453,
+          "firstEntry": true,
+          "cue": null,
+          "strokes": 0,
+          "node": "dew",
+          "selected": "hub",
+          "settled": true,
+          "used": [
+            "arrival",
+            "follow",
+            "mechanism"
+          ],
+          "activated": [
+            "dew"
+          ],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [
+                "dew"
+              ],
+              "powered": true,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [
+            {
+              "beat": "arrival",
+              "node": "dew",
+              "time": 1.2166999999999972
+            },
+            {
+              "beat": "follow",
+              "node": "dew",
+              "time": 9.592100000000137
+            },
+            {
+              "beat": "mechanism",
+              "node": "dew",
+              "time": 10.908700000000106
+            }
+          ],
+          "ends": [
+            {
+              "key": "arrival:dew",
+              "time": 3.308999999999991
+            },
+            {
+              "key": "follow:dew",
+              "time": 10.442100000000115
+            },
+            {
+              "key": "mechanism:dew",
+              "time": 11.30149999990473
+            }
+          ],
+          "events": [
+            {
+              "type": "activate",
+              "room": 0,
+              "node": "dew",
+              "via": "touch",
+              "layer": 1,
+              "tier": 1,
+              "time": 11.418199999904727
+            },
+            {
+              "type": "power",
+              "room": 0,
+              "from": "dew",
+              "to": "bell",
+              "node": "bell",
+              "layer": 2,
+              "complete": true,
+              "received": 1,
+              "required": 1,
+              "time": 11.918199999904715
+            }
+          ],
+          "conflicts": [],
+          "powerFrames": [
+            {
+              "time": 11.918199999904715,
+              "node": "dew",
+              "cue": null,
+              "events": [
+                {
+                  "type": "power",
+                  "room": 0,
+                  "from": "dew",
+                  "to": "bell",
+                  "node": "bell",
+                  "layer": 2,
+                  "complete": true,
+                  "received": 1,
+                  "required": 1,
+                  "beat": null,
+                  "slotsVisible": true
+                }
+              ],
+              "notes": [],
+              "text": "同位回声台供能到齐 · 到台上按 E",
+              "announcement": "同位回声台供能到齐 · 到台上按 E",
+              "primary": [
+                "move"
+              ],
+              "effects": [
+                "ring",
+                "ring",
+                "power",
+                "ring"
+              ],
+              "slots": [
+                {
+                  "id": "dew",
+                  "received": 0,
+                  "total": 0
+                },
+                {
+                  "id": "bell",
+                  "received": 1,
+                  "total": 1
+                },
+                {
+                  "id": "bloom",
+                  "received": 0,
+                  "total": 1
+                }
+              ]
+            }
+          ],
+          "powerConflicts": []
+        },
+        "powerChain": null,
+        "revisit": {
+          "time": 3.51649999999999,
+          "firstEntry": false,
+          "cue": null,
+          "strokes": 0,
+          "node": "hub",
+          "selected": "dew",
+          "settled": false,
+          "used": [],
+          "activated": [],
+          "nodes": [
+            {
+              "id": "hub",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "dew",
+              "required": [],
+              "received": [],
+              "powered": true,
+              "present": true
+            },
+            {
+              "id": "bell",
+              "required": [
+                "dew"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "relay",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "bloom",
+              "required": [
+                "bell"
+              ],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "exit",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": false
+            },
+            {
+              "id": "vault",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            },
+            {
+              "id": "rift",
+              "required": [],
+              "received": [],
+              "powered": false,
+              "present": true
+            }
+          ],
+          "beats": [],
+          "ends": [],
+          "events": [],
+          "conflicts": [],
+          "powerFrames": [],
+          "powerConflicts": []
+        },
+        "interrupt": "mechanism",
+        "idleSeconds": 6.5,
+        "secondIdleSeconds": null,
+        "passed": true
+      },
+      "firstEntryOnceAndRevisitQuiet": true,
+      "echoDuration": 3,
+      "friendAt1500": {
+        "age": 1.5086000000000002,
+        "paint": [
+          {
+            "method": "fill",
+            "alpha": 0.32,
+            "color": "[object CanvasGradient]",
+            "strokePx": 2.999999998401165
+          },
+          {
+            "method": "stroke",
+            "alpha": 0.85,
+            "color": "#d4a04a",
+            "strokePx": 2.999999998401165
+          },
+          {
+            "method": "fill",
+            "alpha": 0.85,
+            "color": "#f0c56a",
+            "strokePx": 2.999999998401165
+          },
+          {
+            "method": "fill",
+            "alpha": 0.85,
+            "color": "#f0c56a",
+            "strokePx": 2.999999998401165
+          },
+          {
+            "method": "fill",
+            "alpha": 0.85,
+            "color": "#f0c56a",
+            "strokePx": 2.999999998401165
+          },
+          {
+            "method": "fill",
+            "alpha": 0.85,
+            "color": "#f0c56a",
+            "strokePx": 2.999999998401165
+          }
+        ]
+      },
+      "seedAt1500": {
+        "age": 1.5166000000000002,
+        "paint": [
+          {
+            "method": "fill",
+            "alpha": 0.32,
+            "color": "[object CanvasGradient]",
+            "strokePx": 2.999999998401165
+          },
+          {
+            "method": "stroke",
+            "alpha": 0.85,
+            "color": "#d4a04a",
+            "strokePx": 2.999999998401165
+          },
+          {
+            "method": "fill",
+            "alpha": 0.85,
+            "color": "#f0c56a",
+            "strokePx": 2.999999998401165
+          },
+          {
+            "method": "fill",
+            "alpha": 0.85,
+            "color": "#f0c56a",
+            "strokePx": 2.999999998401165
+          },
+          {
+            "method": "fill",
+            "alpha": 0.85,
+            "color": "#f0c56a",
+            "strokePx": 2.999999998401165
+          },
+          {
+            "method": "fill",
+            "alpha": 0.85,
+            "color": "#f0c56a",
+            "strokePx": 2.999999998401165
+          }
+        ]
+      },
+      "seedEchoBounds": [
+        {
+          "bottom": 448.67198686172907
+        },
+        {
+          "bottom": 437.7719872562697
+        },
+        {
+          "bottom": 437.7719872562697
+        },
+        {
+          "bottom": 437.7719872562697
+        },
+        {
+          "bottom": 437.7719872562697
+        }
+      ],
+      "echoesPauseExpireAndDoNotReplay": true,
+      "glintUsed": [
+        "landing",
+        "onward"
+      ],
+      "courtyardGuideRetiredAfterLanding": true,
+      "companionIdleQuietSeconds": 6.2,
+      "explicitHelpStillExpires": true
+    }
+  ],
+  "errors": [],
+  "instrumentation": "read-only snapshot/event observer; Web Audio start observer; real range/pointer/key inputs",
+  "browserVersion": "151.0.7922.34",
+  "failure": "page.waitForFunction: Target page, context or browser has been closed\n    at /private/tmp/4d-play-feedback-quiet-20261027/web/scripts/verify-top5.mjs:312:16"
+}

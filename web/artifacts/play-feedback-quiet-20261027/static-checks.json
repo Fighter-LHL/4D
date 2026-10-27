@@ -1,0 +1,40 @@
+{
+  "syntax": [
+    {
+      "file": "scripts/courtyard-first-beat.mjs",
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "file": "scripts/verify-penpal.mjs",
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "file": "src/main.js",
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "file": "src/play-feedback.js",
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "file": "src/scene.js",
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "file": "tests/play-feedback.test.js",
+      "exitCode": 0,
+      "stderr": ""
+    },
+    {
+      "file": "tests/scene.test.js",
+      "exitCode": 0,
+      "stderr": ""
+    }
+  ],
+  "gitDiffCheck": "passed"
+}

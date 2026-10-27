@@ -1,0 +1,8 @@
+{
+  "status": "blocked-or-failed-before-first-check",
+  "baseURL": "http://127.0.0.1:4199",
+  "checks": [],
+  "errors": [],
+  "browserVersion": "151.0.7922.34",
+  "failure": "observe actual power delivery"
+}
