@@ -4,14 +4,45 @@ const DELAY = .45, DURATION = 2.1;
 const roomKey = s => `${s.seed}:${s.room}:${s.roomSignature}`;
 const quiet = (s, guide) => s.phase === 'playing' && !s.travel && !s.wave && s.phaseStability === 1 && !guide.view(s);
 
-// The first discovery entry gets one invitation and its observed arrival.
+// The first discovery entry gets an arrival, then one local mechanism action.
 // Other runs keep their finite landing/onward beats. Neither advances a route.
 export class CourtyardMomentum {
   constructor({ arrival = false } = {}) {
     this.room = null; this.used = new Set(); this.cue = null;
     this.arrival = arrival; this.firstEntry = arrival; this.entryAge = 0; this.follow = null;
+    this.mechanism = null;
   }
-  cancel() { this.cue = null; this.follow = null; this.arrival = false; }
+  cancel() { this.cue = null; this.follow = null; this.arrival = false; this.mechanism = null; }
+  mechanismReady(state, guide, node) {
+    const target = state.nodes.find(n => n.id === node);
+    return quiet(state, guide) && !state.riskMode && !state.stats.failures && state.node === node &&
+      target?.kind === 'mechanism' && target.present && !target.locked && state.interactAvailable &&
+      !state.activated.includes(node);
+  }
+  updateMechanism(step, state, guide) {
+    const pending = this.mechanism;
+    if (!pending) return;
+    const target = state.nodes.find(n => n.id === pending.node);
+    if (!quiet(state, guide) || state.riskMode || state.stats.failures || state.node !== pending.node || !target?.present) {
+      this.mechanism = null; this.cue = null; return;
+    }
+    if (state.activated.includes(pending.node)) {
+      this.mechanism = null; this.cue = null;
+      // An early action needs no invitation or retrospective celebration.
+      if (pending.invited) {
+        this.cue = { beat: 'mechanism-follow', node: pending.node, age: 0, duration: .85 };
+        this.used.add('mechanism-follow');
+      }
+      return;
+    }
+    if (!this.mechanismReady(state, guide, pending.node)) { this.mechanism = null; this.cue = null; return; }
+    pending.age += step;
+    if (!pending.invited && pending.age >= DELAY) {
+      pending.invited = true;
+      this.cue = { beat: 'mechanism', node: pending.node, age: 0, duration: DURATION };
+      this.used.add('mechanism');
+    }
+  }
   candidate(state, guide) {
     if (this.firstEntry) return null;
     if (!guide.settled || guide.view(state) || state.phase !== 'playing' || state.travel || state.wave || state.phaseStability !== 1) return null;
@@ -26,17 +57,18 @@ export class CourtyardMomentum {
     const room = roomKey(state);
     if (room !== this.room) {
       if (this.room !== null) { this.arrival = false; this.firstEntry = false; }
-      this.room = room; this.used.clear(); this.cue = null; this.follow = null;
+      this.room = room; this.used.clear(); this.cue = null; this.follow = null; this.mechanism = null;
     }
     if (!active) return;
     const step = Math.max(0, Math.min(.1, dt));
+    this.updateMechanism(step, state, guide);
     // One reachable next step, never a welcome on the platform already occupied.
     if (this.arrival && state.phase === 'playing') {
       this.entryAge += step;
       if (state.travel || state.wave || guide.view(state) || guide.settled || this.entryAge >= 1.2) {
         this.arrival = false;
         const target = state.companionGuide;
-        if (quiet(state, guide) && !guide.settled && target?.kind === 'move' && target.aligned &&
+        if (quiet(state, guide) && !state.stats.failures && !guide.settled && target?.kind === 'move' && target.aligned &&
             state.selected === target.node && !state.riskMode && reachablePlatforms(state).includes(target.node)) {
           this.cue = { beat: 'arrival', node: target.node, age: 0, duration: DURATION };
           this.used.add('arrival');
@@ -71,7 +103,14 @@ export class CourtyardMomentum {
       if (['arrival', 'onward'].includes(this.cue.beat) && this.cue.age >= 0 && !this.follow) {
         this.follow = { node: this.cue.node, from: state.node, crossing: false };
       }
-      if (this.cue.age >= this.cue.duration) this.cue = null;
+      if (this.cue.age >= this.cue.duration) {
+        // Only a fully played first follow earns this opportunity. It stays on
+        // that first source/gate: no route search and no later tutorial step.
+        if (this.firstEntry && this.cue.beat === 'follow' && this.mechanismReady(state, guide, this.cue.node)) {
+          this.mechanism = { node: this.cue.node, age: 0, invited: false };
+        }
+        this.cue = null;
+      }
     }
   }
   valid(state, guide) {
@@ -81,6 +120,11 @@ export class CourtyardMomentum {
       return quiet(state, guide) && !guide.settled && !state.riskMode && state.selected === cue.node &&
         state.companionGuide?.kind === 'move' && state.companionGuide.node === cue.node &&
         state.companionGuide.aligned && reachablePlatforms(state).includes(cue.node);
+    }
+    if (cue.beat === 'mechanism') return this.mechanismReady(state, guide, cue.node);
+    if (cue.beat === 'mechanism-follow') {
+      return quiet(state, guide) && !state.stats.failures && state.node === cue.node &&
+        state.activated.includes(cue.node) && state.nodes.find(n => n.id === cue.node)?.present;
     }
     if (cue.beat === 'follow') {
       return quiet(state, guide) && state.node === cue.node && state.nodes.find(n => n.id === cue.node)?.present;

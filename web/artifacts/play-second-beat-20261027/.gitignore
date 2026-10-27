@@ -1,0 +1,8 @@
+# Local task, runner transcripts, and receipts produced after the cited commit.
+/CODEX_TASK.md
+/DONE
+/PUBLICATION.json
+/*.pid
+/*.log
+/*.txt
+/PR_BODY.md
