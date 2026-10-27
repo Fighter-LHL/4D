@@ -325,16 +325,18 @@ function updateUI() {
   state.courtyardMomentum = momentum.view(snapshot, guide);
   const firstAction = momentum.firstAction(snapshot, guide);
   const firstTarget = state.nodes.find(node => node.id === firstAction?.node);
-  // One local handoff after the first activation, using the existing route.
-  // It owns no timer/beat and retires on departure or deliberate route choice.
+  // Keep the first activation and return to the hub actionable on the existing
+  // route. No timer/beat; other platforms and deliberate choices keep normal UI.
   const onward = momentum.firstEntry && canAct() && !state.travel && !state.wave &&
     state.phaseStability === 1 && !state.riskMode && !state.stats.failures &&
-    state.activated.length === 1 && state.activated.includes(state.node) &&
+    ((state.activated.length === 1 && state.activated.includes(state.node)) ||
+      (state.node === 'hub' && state.activated.length > 0 && state.activated.length < 3)) &&
     !state.courtyardMomentum && !state.companionGuide && !model.selectionExplicit
       ? snapshot.companionGuide : null;
   const onwardTarget = state.nodes.find(node => node.id === onward?.node);
-  const onwardShift = onward?.kind === 'shift' && !onward.aligned;
-  const onwardMove = onward?.kind === 'move' && state.selected === onward.node && state.canMove;
+  const onwardBridge = onward?.kind === 'move' && state.selected === onward.node;
+  const onwardShift = (onward?.kind === 'shift' || (state.node === 'hub' && onwardBridge)) && !onward.aligned;
+  const onwardMove = onwardBridge && state.canMove;
   updateRoom(state);
   scene.setState(state);
   const friendHint = friendGuideText(state, scene.friends);
@@ -374,7 +376,9 @@ function updateUI() {
   $('footing').classList.toggle('unsafe',state.phaseStability<.99);
   setText('objective',firstTarget
     ? firstAction.action === 'move' ? `先到${firstTarget.name} · 稳行过去` : `启动脚下的${firstTarget.name} · 按 E`
-    : onwardShift ? `原地换到${layerSymbols[onward.layer]} ${state.layers[onward.layer].name} · 显现${onwardTarget.name}`
+    : onwardShift ? (onward.kind === 'shift'
+      ? `原地换到${layerSymbols[onward.layer]} ${state.layers[onward.layer].name} · 显现${onwardTarget.name}`
+      : `换到${layerSymbols[onward.layer]} ${state.layers[onward.layer].name} · 显现通往${onwardTarget.name}的桥`)
       : onwardMove ? `到${onwardTarget.name} · 沿桥稳行`
         : state.objective || '观察供能关系，切换 W 寻找这一庭的起点');
   for (const node of state.nodes.filter(n => n.kind === 'mechanism')) {
@@ -423,7 +427,7 @@ function updateUI() {
   const mustActivate = actions.primary === 'interact' && currentNode?.kind === 'mechanism';
   $('move').disabled = !state.canMove || paused;
   $('move').className = actions.primary === 'move' && canAct() ? 'primary-button attention-action' : 'secondary-button';
-  setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${firstAction?.action === 'move' ? `到${firstTarget.name}` : onwardMove ? `稳行到${onwardTarget.name}` : state.riskMode?'冒险穿越':'稳行'} <span>${onwardMove && compactProgress.matches ? '↗' : 'Space ↗'}</span>`);
+  setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${firstAction?.action === 'move' ? `到${firstTarget.name}` : onwardMove ? `${state.node === 'hub' ? '到' : '稳行到'}${onwardTarget.name}` : state.riskMode?'冒险穿越':'稳行'} <span>${onwardMove && compactProgress.matches ? '↗' : 'Space ↗'}</span>`);
   $('interact').disabled = !canAct() || actions.interactDisabled;
   $('interact').title = state.interactReason || state.interactLabel;
   $('interact').className = actions.primary === 'interact' && canAct() ? 'primary-button attention-action' : `secondary-button${actions.interactDone ? ' completed-action' : ''}`;

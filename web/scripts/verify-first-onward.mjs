@@ -138,8 +138,22 @@ try {
         assert.deepEqual((await beat()).used, keys, 'following the handoff adds no third beat');
         before.followed = { node: followed.node, w: followed.w, activated: (await read()).activated };
       }
-      assert.equal(await page.locator('.layer-controls .attention-action').count(), 0);
-      assert.doesNotMatch(await page.locator('#objective').innerText(), /原地换到|沿桥稳行/);
+      const after = await read();
+      if (after.node === 'hub') {
+        // Round 4 continues the existing control handoff on the return platform.
+        // Assert the exact next action instead of requiring the former dead end.
+        const route = after.companionGuide, target = after.nodes.find(n => n.id === route.node);
+        assert.equal(route.kind, 'move');
+        assert.equal(after.selected, target.id);
+        assert.equal(await primary.isDisabled(), false);
+        assert.deepEqual(await primary.evaluateAll(els => els.map(el => el.id)), [route.aligned ? 'move' : `layer-${route.layer}`]);
+        assert.equal(await page.locator('#objective').innerText(), route.aligned
+          ? `到${target.name} · 沿桥稳行`
+          : `换到${['Ⅰ', 'Ⅱ', 'Ⅲ'][route.layer]} ${after.layers[route.layer].name} · 显现通往${target.name}的桥`);
+      } else {
+        assert.equal(await page.locator('.layer-controls .attention-action').count(), 0);
+        assert.doesNotMatch(await page.locator('#objective').innerText(), /原地换到|沿桥稳行/);
+      }
       await shot('followed');
       await page.reload();
       await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();

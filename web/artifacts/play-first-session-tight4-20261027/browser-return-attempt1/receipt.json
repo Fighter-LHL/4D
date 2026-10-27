@@ -1,0 +1,13 @@
+{
+  "baseline": false,
+  "widths": [
+    320
+  ],
+  "status": "failed",
+  "checks": [],
+  "errors": [],
+  "browserVersion": "130.0.6723.31",
+  "failure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n2 !== 1\n\n    at file:///private/tmp/4d-play-first-session-tight4-20261027-wt/web/scripts/verify-first-return.mjs:157:14",
+  "actual": 2,
+  "expected": 1
+}
