@@ -1,0 +1,9 @@
+{
+  "status": "failed",
+  "baseURL": "http://127.0.0.1:4195",
+  "checks": [],
+  "errors": [],
+  "instrumentation": "read-only snapshot/event observer; Web Audio start observer; real range/pointer/key inputs",
+  "browserVersion": "130.0.6723.31",
+  "failure": "page.waitForFunction: Timeout 8000ms exceeded.\n    at go (/private/tmp/4d-play-first-session-20261027/web/scripts/verify-top5.mjs:131:24)\n    at /private/tmp/4d-play-first-session-20261027/web/async file:/private/tmp/4d-play-first-session-20261027/web/scripts/verify-top5.mjs:153:5"
+}

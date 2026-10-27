@@ -142,8 +142,18 @@ window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, frie
       'standing on the starting slice stays quiet even after narration ends');
     assert.deepEqual((await read()).echoes, [], 'standing still cannot trigger a discovery echo');
     await screenshot('idle-after-arrival');
-    // Replay through real controls, deliberately revealing a nearby friend during narration.
+    await slice(4.7);
+    await page.waitForFunction(() => window.__top5Read().state.time >= 5);
+    assert.equal((await read()).state.encounter.visible, true);
+    assert.equal((await page.evaluate(() => window.__top5Events)).some(e => e.type === 'discovery_near'), false,
+      'even a visible friend needs a step closer from the spawn point');
+    await screenshot('visible-idle-after-arrival');
+    // Replay through real controls, deliberately approaching a visible friend during narration.
     await page.keyboard.press('r'); await slice(4.7);
+    await go(9.7, 5);
+    const approached = (await read()).state;
+    assert.ok(Math.hypot(approached.player.x - approached.encounter.x, approached.player.y - approached.encounter.y) < 1.35);
+    assert.equal(approached.encounter.step, 0, 'approach cue does not need to advance the chase');
     await page.waitForFunction(() => window.__top5Read().state.time >= 1);
     assert.equal((await read()).state.encounter.visible, true);
     assert.match(await page.locator('#visitor-goal').innerText(), /墙那边有动静/);
@@ -163,7 +173,7 @@ window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, frie
     assert.equal(nearEvents[0].duringArrival, false); assert.ok(nearEvents[0].time >= 4);
     assert.equal(await page.locator('#visitor-goal').isVisible(), false);
     const narrowCanvas = approach.view.width <= 480;
-    assert.equal(approachPopup.duration, narrowCanvas ? 1.3 : 2.2);
+    assert.equal(approachPopup.duration, narrowCanvas ? 1.1 : 2.2);
     await screenshot('approach');
     await page.locator('#pause').click();
     const pausedCue = (await read()).popups;
@@ -189,7 +199,7 @@ window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, frie
     await page.waitForFunction(() => window.__top5Read().popups.some(p => p.text === '跳跳跟上来了'));
     const found = await read(); assert.deepEqual(found.state.collection.found, ['sprout']);
     const discoveryDuration = found.popups.find(p => p.discovery).duration;
-    assert.equal(discoveryDuration, narrowCanvas ? 1.35 : 1.8);
+    assert.equal(discoveryDuration, narrowCanvas ? 1.2 : 1.8);
     assert.equal(found.echoes.length, 1);
     const echoDuration = found.echoes[0].duration;
     assert.equal(echoDuration, narrowCanvas ? 2.6 : 3);

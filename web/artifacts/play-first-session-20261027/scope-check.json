@@ -1,0 +1,79 @@
+{
+  "baseline": "9ada95d0e4800dc650f424377dac49b7b5bad7f3",
+  "changedFiles": [
+    "web/scripts/verify-top5.mjs",
+    "web/src/flatland/audio.js",
+    "web/src/flatland/scene.js",
+    "web/src/play-feedback.js",
+    "web/tests/flatland-audio.test.js",
+    "web/tests/play-feedback.test.js"
+  ],
+  "webOnly": true,
+  "protectedFiles": [
+    {
+      "file": "src/model.js",
+      "identicalToBaseline": true,
+      "sha256": "503e8c5bb264cfcd9ef645f5be8886958030ee1d5e7fd2b78496edf37432c940"
+    },
+    {
+      "file": "src/rooms.js",
+      "identicalToBaseline": true,
+      "sha256": "53d202c4cacfbb0ebc6005980e0da74a0ef5888aa04356a4f175ec144eaacff4"
+    },
+    {
+      "file": "src/flatland/model.js",
+      "identicalToBaseline": true,
+      "sha256": "b8e1fef4126d3e57072a120fc29349be510052881d72372d5361b7d5d1523763"
+    },
+    {
+      "file": "src/flatland/levels.js",
+      "identicalToBaseline": true,
+      "sha256": "095e4ff15ca20dbd0d3386bbeb2490d5650d69652a43c6f657ab3594b0a4d0b4"
+    },
+    {
+      "file": "src/flatland/discoveries.js",
+      "identicalToBaseline": true,
+      "sha256": "f7efd0296a69454fe548c65bc5329a7df39e217b138800fa3a437d1c4974e1dd"
+    },
+    {
+      "file": "src/flatland/companions.js",
+      "identicalToBaseline": true,
+      "sha256": "87e5416c556964c64c884ac21777b7606257e8af944fd2ba636283cdf271bcec"
+    },
+    {
+      "file": "src/friend-guide.js",
+      "identicalToBaseline": true,
+      "sha256": "e59559a6d7dadc2352c085b378907a1224d6b88d9a434c16d75cce6eacfdeceb"
+    },
+    {
+      "file": "src/courtyard-friends.js",
+      "identicalToBaseline": true,
+      "sha256": "fb7fd8d1fc6095edf6481a29a8027172360ec67476751537c94b07e282a1baac"
+    },
+    {
+      "file": "src/courtyard-momentum.js",
+      "identicalToBaseline": true,
+      "sha256": "f64919860937c79cfe8e12a788a696b1ee8e7ab8d743232afc46e60982665f56"
+    },
+    {
+      "file": "src/flatland/visitor-cue.js",
+      "identicalToBaseline": true,
+      "sha256": "6f28f841a2c1b2b38ec9a8a8411309c4957e7be7cbdee57ecc0a5cb9455e8aca"
+    },
+    {
+      "file": "src/flatland/main.js",
+      "identicalToBaseline": true,
+      "sha256": "a5ff05fbc5b1ea7374dad326b2a56d03e001d4f2a3b075adcb75afcb44aba2c0"
+    },
+    {
+      "file": "src/main.js",
+      "identicalToBaseline": true,
+      "sha256": "7a581220e3e65f45844bf494751966ca41248ee12e9533efa0479e2095b90016"
+    },
+    {
+      "file": "scripts/verify-penpal.mjs",
+      "identicalToBaseline": true,
+      "sha256": "a7843604bb665fce3be7c60d1c332f3a3edf9b1c9efc95cd2b7cd9f043fa68f0"
+    }
+  ]
+}

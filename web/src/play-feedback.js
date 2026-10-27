@@ -15,7 +15,7 @@ export function nearbyDiscovery(state) {
   if (!state.exploration || state.phase !== 'playing' || state.paused || state.dying || state.returning) return null;
   const e = state.encounter;
   if (e && e.kind !== 'home' && !state.collection.found.includes(e.id) && e.nearby &&
-      Math.hypot(state.player.x - e.x, state.player.y - e.y) < 1.7 && (e.visible || e.peeking)) {
+      Math.hypot(state.player.x - e.x, state.player.y - e.y) < 1.35 && (e.visible || e.peeking)) {
     const text = e.kind === 'chase' ? '咦，耳朵动了一下' : e.kind === 'peek' ? '这里有轻轻的呼噜声' : '这个倒影有点不一样';
     return { key: `${state.levelId}:friend:${e.id}`, x: e.x, y: e.y, text, color: '#386f53' };
   }
