@@ -319,3 +319,44 @@ test('ascend renders both dimensions and a reversible pointer projection', () =>
     assert.ok(texts(calls).includes('✓'));
   }
 });
+
+
+test('phone bud feedback sits below its probe and a fresh discovery retires the old label', () => {
+  for (const width of [380, 280]) for (const reduced of [false, true]) {
+    const { scene, calls } = renderer(width, 400); scene.reducedMotion = reduced;
+    const m = new FlatlandModel(0, { seed: 42, playStyle: 'explore', collection: { found: ['sprout'], companion: 'sprout' } }); m.start();
+    m.setSlice(2.1); goto(m, 6.5, 9);
+    const state = m.snapshot(); state.companions.probe = { x: 7, y: 8, z: 3.1, remaining: 2 };
+    scene.setState(state);
+    scene.popup(7, 8, '靠近', '#386f53', false, { near: { key: 'visitor:pads' } });
+    scene.pushEvents([{ type: 'friend_garden', kind: 'probe', x: 7, y: 8 }]);
+    assert.equal(scene.popups.some(p => p.near), false); scene.render(.1);
+    const bud = calls.findLast(c => c.method === 'fillText' && c.args[0] === '花苞醒了');
+    const probe = calls.findLast(c => c.method === 'fillText' && /^S .*s$/.test(c.args[0]));
+    assert.ok(bud && probe);
+    assert.ok(calls.indexOf(probe) > calls.findIndex(c => c.method === 'fill' && c.fill === '#cfe6ee'), 'probe label is above the visitor section');
+    assert.ok((bud.args[2] - probe.args[2]) * scene.view.main.scale >= 43.9);
+    assert.equal(texts(calls).includes('懂倒影的朋友'), false, 'pad instruction yields while the probe is active');
+    assert.equal(scene.popups.find(p => p.garden).duration, .8);
+    scene.pushEvents([{ type: 'garden_seed', fresh: true, petals: 1, x: 7, y: 8 }]);
+    assert.equal(scene.popups.some(p => p.garden), false); assert.equal(scene.discoveryEchoes.length, 1);
+    scene.render(2.1); assert.equal(scene.popups.length, 0); assert.equal(scene.discoveryEchoes.length, 0);
+    state.companions.probe = null; calls.length = 0; scene.render(.1);
+    assert.ok(texts(calls).includes('懂倒影的朋友'), 'nearby pad instruction returns after the probe');
+  }
+});
+
+
+test('a temporarily collapsed canvas preserves a discovery tail and resumes with positive geometry', () => {
+  const { scene, canvas, calls } = renderer(1000, 560);
+  const m = new FlatlandModel(0, { seed: 42, playStyle: 'explore' }); m.start(); scene.setState(m.snapshot());
+  scene.pushEvents([{ type: 'garden_seed', fresh: true, petals: 1, x: 7, y: 8 }]); scene.render(.1);
+  const before = structuredClone(scene.discoveryEchoes), rect = canvas.getBoundingClientRect;
+  for (const [width, height] of [[0, 0], [1, 560], [1000, 1]]) {
+    canvas.getBoundingClientRect = () => ({ width, height }); calls.length = 0; scene.render(.1);
+    assert.deepEqual(scene.discoveryEchoes, before); assert.equal(calls.length, 0);
+  }
+  canvas.getBoundingClientRect = rect; scene.render(.1);
+  assert.ok(scene.view.main.scale > 0); assert.ok(scene.discoveryEchoes[0].age > before[0].age);
+  assert.ok(calls.filter(c => c.method === 'ellipse').every(c => c.args[2] >= 0 && c.args[3] >= 0));
+});

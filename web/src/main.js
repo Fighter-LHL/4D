@@ -44,8 +44,12 @@ const dialogs = ['choice-dialog','help-dialog','pause-dialog','result-dialog','r
 const isModal = () => dialogs.some(id => $(id).open);
 const canAct = () => !paused && !isModal() && model.snapshot().phase === 'playing';
 const guide = new FriendGuide();
-const momentum = new CourtyardMomentum();
-function askFriend() { if (canAct()) { guide.request(model.snapshot()); updateUI(); } }
+const firstDiscoveryArrival = new URLSearchParams(location.search).get('from') === 'discovery' &&
+  courtyardFriends(readJSON('wslice-flatland-friends')).length > 0 && readPreference('wslice-courtyard-welcome', '') !== 'seen';
+const momentum = new CourtyardMomentum({ arrival: firstDiscoveryArrival });
+// Spend the entry attempt now, including an entry already occupied by guidance.
+if (firstDiscoveryArrival) savePreference('wslice-courtyard-welcome', 'seen');
+function askFriend() { if (canAct()) { momentum.cancel(); guide.request(model.snapshot()); updateUI(); } }
 const scene = new SceneRenderer($('scene'), { onSelect: id => { if (canAct()) action(() => model.selectOrMove(id)); }, onFriend: askFriend });
 function refreshFriends() { scene.friends = courtyardFriends(readJSON('wslice-flatland-friends'), readJSON('wslice-flatland-gardens')); }
 refreshFriends();

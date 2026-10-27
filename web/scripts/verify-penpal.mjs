@@ -21,7 +21,25 @@ try {
     await context.route('**/src/main.js', async route => {
       const response = await route.fetch();
       await route.fulfill({ response, body: await response.text() + `
-window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMomentum, used: [...momentum.used] });
+window.__penpalLabels = []; window.__penpalGlints = [];
+const penpalRender = scene.render.bind(scene), penpalText = scene.ctx.fillText.bind(scene.ctx), penpalEllipse = scene.ctx.ellipse.bind(scene.ctx);
+const penpalMomentum = scene.drawMomentum.bind(scene);
+scene.drawMomentum = () => { window.__penpalDrawingGlint = true; try { penpalMomentum(); } finally { window.__penpalDrawingGlint = false; } };
+scene.render = dt => { window.__penpalLabels = []; window.__penpalGlints = []; penpalRender(dt); };
+scene.ctx.fillText = (text, x, y, ...rest) => {
+  const t = scene.ctx.getTransform(), m = scene.ctx.measureText(text), d = devicePixelRatio || 1;
+  const cx = (t.a * x + t.c * y + t.e) / d, cy = (t.b * x + t.d * y + t.f) / d;
+  window.__penpalLabels.push({ text, left: cx - t.a * m.actualBoundingBoxLeft / d, right: cx + t.a * m.actualBoundingBoxRight / d,
+    top: cy - t.d * m.actualBoundingBoxAscent / d, bottom: cy + t.d * m.actualBoundingBoxDescent / d });
+  penpalText(text, x, y, ...rest);
+};
+scene.ctx.ellipse = (x, y, rx, ry, ...rest) => {
+  if (window.__penpalDrawingGlint) { const t = scene.ctx.getTransform(), d = devicePixelRatio || 1;
+    window.__penpalGlints.push({ left: (t.a * (x - rx) + t.e) / d, right: (t.a * (x + rx) + t.e) / d,
+      top: (t.d * (y - ry) + t.f) / d, bottom: (t.d * (y + ry) + t.f) / d }); }
+  penpalEllipse(x, y, rx, ry, ...rest);
+};
+window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMomentum, used: [...momentum.used], time: model.time, labels: window.__penpalLabels, glints: window.__penpalGlints });
 ` });
     });
     // Observe every frame; no game state or saved profile is injected.
@@ -85,6 +103,21 @@ window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMom
     await page.waitForFunction(() => document.querySelector('#action-feedback').textContent.includes('供能 1/2'));
     await page.waitForFunction(() => window.__penpalMomentum().cue?.beat === 'onward' && window.__penpalMomentum().cue.age >= .3);
     assert.equal((await page.evaluate(() => window.__penpalMomentum())).cue.node, 'hub');
+    const onwardLayout = await page.evaluate(() => window.__penpalMomentum());
+    if (width < 700) {
+      const relevant = onwardLayout.labels.filter(l => /供能|归响台/.test(l.text));
+      assert.ok(relevant.some(l => /供能/.test(l.text)) && relevant.some(l => l.text === '归响台'));
+      const power = relevant.find(l => /供能/.test(l.text)), activation = onwardLayout.labels.find(l => /^启动/.test(l.text));
+      assert.ok(activation.top - power.bottom >= 4, 'power note stays above the activation note: ' + JSON.stringify({ power, activation }));
+      for (const note of [power, activation]) for (const label of onwardLayout.labels.filter(l => /^(维度锚台|归响台|潮汐源|裂隙花匣)$/.test(l.text))) {
+        assert.ok(note.right + 3 < label.left || note.left - 3 > label.right || note.bottom + 3 < label.top || note.top - 3 > label.bottom,
+          'phone notes avoid platform names as well as each other');
+      }
+      for (const label of relevant) for (const rim of onwardLayout.glints) {
+        assert.ok(label.right + 3 < rim.left || label.left - 3 > rim.right || label.bottom + 3 < rim.top || label.top - 3 > rim.bottom,
+          'phone power and platform labels leave a gap around the glint');
+      }
+    }
     await page.screenshot({ path: `${out}/courtyard-onward-glint-${width}.png` });
     await page.locator('#scene').scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${out}/courtyard-power-${width}.png` });
@@ -98,10 +131,17 @@ window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMom
     await page.locator('.action-row').screenshot({ path: `${out}/completed-actions-${width}.png` });
     assert.equal(await page.locator('#interact').evaluate(el => getComputedStyle(el).outlineColor === 'rgb(198, 154, 75)'), false,
       'completed E must not keep the primary gold focus ring');
-    // Follow the visible route back to the hub, then select the other source.
+    const quietSince = await page.evaluate(() => window.__penpalMomentum().time);
+    await page.waitForFunction(t => window.__penpalMomentum().time >= t + 4.2, quietSince);
+    assert.equal(await page.evaluate(() => window.__penpalMomentum().cue), null, 'unfollowed invitation stays quiet');
+    // Follow the visible route back to the hub after the light has expired.
     await page.getByRole('button', { name: '前往归响台', exact: true }).click();
     await page.locator('#align').click(); await page.locator('#move').click();
-    await page.waitForFunction(() => !document.querySelector('#interact').disabled);
+    await page.waitForFunction(() => window.__penpalMomentum().cue?.beat === 'follow' && window.__penpalMomentum().cue.age >= .2);
+    await page.screenshot({ path: `${out}/courtyard-follow-through-${width}.png` });
+    await page.keyboard.press('h');
+    assert.equal(await page.evaluate(() => window.__penpalMomentum().cue), null, 'H yields immediately even during earned feedback');
+    assert.equal(await page.locator('#friend-guide').isVisible(), true);
     await page.getByRole('button', { name: '前往辉光源', exact: true }).click();
     await page.locator('#align').click(); await page.locator('#move').click();
     await page.waitForFunction(() => document.querySelector('#interact').classList.contains('attention-action'));
@@ -145,7 +185,7 @@ window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMom
     await page.waitForFunction(() => document.querySelector('#visitor-goal').hidden);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no horizontal overflow');
     receipt.checks.push({ width, height: width > 700 ? 900 : 844, firstCrossingMs, secondSourceCueMs, landingGuideQuiet: true,
-      landingAndOnwardGlints: true, glintYieldsToExplicitHelp: true, explicitHelpAfterLanding: true, passed: true });
+      landingAndOnwardGlints: true, onwardLayout, followAfterExpiry: true, unfollowedQuietSeconds: 4.2, glintYieldsToExplicitHelp: true, explicitHelpAfterLanding: true, passed: true });
     await context.close();
   }
   assert.deepEqual(receipt.errors, []);

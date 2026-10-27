@@ -123,6 +123,7 @@ export function gardenPadHint(s) {
 export function drawGardenPadHint(renderer, k) {
   const s = renderer.state, g = s.companions?.garden;
   if (renderer.popups.some(p => p.near?.key === `${s.levelId}:pads`)) return;
+  if (renderer.view?.width <= 480 && (s.companions?.probe || renderer.popups.some(p => p.garden))) return;
   if (!g || Math.abs(s.s - g.left.z) > .35) return;
   const pad = [g.left, g.right].find(p => Math.hypot(s.player.x - p.x, s.player.y - p.y) < 2);
   if (!pad) return;
@@ -194,8 +195,8 @@ export function drawCompanionToys(renderer, k) {
     ctx.save(); ctx.strokeStyle = '#4d9270'; ctx.lineWidth = 1.5 / k; ctx.setLineDash([.1, .18]);
     ctx.beginPath(); ctx.moveTo(s.player.x, s.player.y); ctx.lineTo(p.x, p.y); ctx.stroke();
     drawCreature(ctx, 'sprout', p.x, p.y, time, { scale: .8, ghost, happy: true, crowned: s.gardenCollection?.complete });
-    ctx.font = `${11 / k}px system-ui`; ctx.textAlign = 'center'; ctx.fillStyle = '#386f53';
-    ctx.fillText(`S ${p.z.toFixed(1)} · ${p.remaining.toFixed(1)}s`, p.x, p.y - .85); ctx.restore();
+    ctx.restore();
+    if (!(renderer.view?.width <= 480)) drawProbeLabel(renderer, k);
   }
   if (c.mirror && !c.mirror.outside) {
     const p = c.mirror;
@@ -203,4 +204,15 @@ export function drawCompanionToys(renderer, k) {
     ctx.save(); ctx.font = `${11 / k}px system-ui`; ctx.textAlign = 'center'; ctx.fillStyle = '#8c6cad';
     ctx.fillText(p.blocked ? '这一侧有墙' : '同步中', p.x, p.y - .8); ctx.restore();
   }
+}
+
+
+// Phone labels belong above large visitor sections, like the garden-pad hint.
+export function drawProbeLabel(renderer, k) {
+  const p = renderer.state.companions?.probe;
+  if (!p) return;
+  const ctx = renderer.ctx;
+  ctx.save(); ctx.font = `${11 / k}px system-ui`; ctx.textAlign = 'center'; ctx.fillStyle = '#386f53';
+  ctx.fillText(`S ${p.z.toFixed(1)} · ${p.remaining.toFixed(1)}s`, p.x, p.y - (renderer.view?.width <= 480 ? 20 / k : .85));
+  ctx.restore();
 }

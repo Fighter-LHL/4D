@@ -229,7 +229,7 @@ export class SceneRenderer {
         if (event.type === 'phase_transfer') this.burst(at, this.palette(layer).glow, 16, .5);
       } else if (event.type === 'power') {
         const from = this.node(event.from) || target, to = this.node(event.to) || target;
-        this.addEffect('note', to, { duration: 2.2, text: event.complete ? '供能到齐 · 等你启动' : `供能 ${event.received}/${event.required}`, color: COLORS.teal });
+        this.addEffect('note', to, { duration: this.width <= 480 ? 1.25 : 2.2, supply: true, text: event.complete ? '供能到齐 · 等你启动' : `供能 ${event.received}/${event.required}`, color: COLORS.teal });
         this.addEffect('power', from, { to: { x: to.x, y: to.y }, duration: 1.4,
           fromLayer: from.layer ?? this.state.layer, toLayer: to.layer ?? event.layer,
           color: this.palette(to.layer ?? event.layer).color, sourceColor: this.palette(from.layer).color });
@@ -378,6 +378,7 @@ export class SceneRenderer {
       this.drawDormantGrowth();
       this.drawHiddenRoutes();
       this.drawConnections();
+      this.labelZones = [];
       const nodes = [...this.state.nodes].sort((a, b) => a.y - b.y);
       for (const node of nodes) this.drawIsland(node);
       this.drawMomentum();
@@ -910,16 +911,18 @@ export class SceneRenderer {
     if (!node?.present || this.state.companionGuide || this.state.travel || this.state.wave || this.state.phase !== 'playing') return;
     const ctx = this.ctx, p = clamp(cue.age / cue.duration);
     const opacity = Math.min(1, cue.age / .25) * (1 - ease((p - .55) / .45));
-    const swell = this.reducedMotion ? 0 : Math.sin(Math.PI * p) * 5;
+    const narrow = this.width <= 480, follow = cue.beat === 'follow';
+    const swell = this.reducedMotion ? 0 : Math.sin(Math.PI * p) * (narrow ? 2 : 5);
     const width = node.id === 'hub' ? 91 : 64;
     ctx.save(); ctx.translate(node.x, node.y);
     ctx.scale(node.anchor ? 1 : node.scale, node.anchor ? 1 : node.scale);
-    ctx.globalAlpha = .13 * opacity;
-    ellipse(ctx, 0, 5, width + swell, 24 + swell * .2, this.palette(node.layer ?? this.state.layer).color);
-    ctx.globalAlpha = .55 * opacity;
-    // A low rim glint stays on the platform, away from labels above it.
+    ctx.globalAlpha = (follow ? .23 : .13) * opacity;
+    const rimY = narrow ? -1 : 5, rimHeight = narrow ? 16 : 24;
+    ellipse(ctx, 0, rimY, width + swell, rimHeight + swell * .2, this.palette(node.layer ?? this.state.layer).color);
+    ctx.globalAlpha = (follow ? .85 : .55) * opacity;
+    // A shallow rim glint stays on the platform, clear of the name below it.
     ctx.strokeStyle = COLORS.gold; ctx.lineWidth = 1.5 / this.scale;
-    ctx.beginPath(); ctx.ellipse(0, 5, width + swell, 24 + swell * .2, 0, .15 * Math.PI, .85 * Math.PI); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, rimY, width + swell, rimHeight + swell * .2, 0, .15 * Math.PI, .85 * Math.PI); ctx.stroke();
     ctx.restore();
   }
 
@@ -1052,6 +1055,7 @@ export class SceneRenderer {
     const textWidth = ctx.measureText(name).width;
     ctx.fillStyle = '#edf2e9dd';
     const labelHeight = labelSize + 8;
+    this.labelZones?.push({ left: node.x - textWidth / 2 - 8, right: node.x + textWidth / 2 + 8, top: node.y + labelY - labelHeight / 2, bottom: node.y + labelY + labelHeight / 2 });
     ctx.beginPath(); ctx.roundRect?.(-textWidth / 2 - 8, labelY - labelHeight / 2, textWidth + 16, labelHeight, 8);
     if (!ctx.roundRect) ctx.rect(-textWidth / 2 - 8, labelY - labelHeight / 2, textWidth + 16, labelHeight);
     ctx.fill(); ctx.fillStyle = selected ? '#936125' : COLORS.ink; ctx.fillText(name, 0, labelY);
@@ -1383,7 +1387,7 @@ export class SceneRenderer {
   }
 
   drawEffects(foreground) {
-    const ctx = this.ctx;
+    const ctx = this.ctx, noteZones = [...(this.labelZones || [])];
     for (const effect of this.effects) {
       if (effect.age < (effect.delay || 0)) continue;
       const p = clamp((effect.age - (effect.delay || 0)) / effect.duration);
@@ -1395,7 +1399,17 @@ export class SceneRenderer {
         ctx.font = `600 ${clamp(12 / this.scale, 16, 30)}px system-ui, sans-serif`;
         const half = ctx.measureText(effect.text).width / 2 + 8;
         const x = Math.max(half, Math.min(WORLD_W - half, effect.x));
-        const y = Math.max(28, effect.y - 105 - (this.reducedMotion ? 0 : e * 12));
+        let y = Math.max(28, effect.y - 105 - (this.width <= 480 && effect.supply ? 18 / this.scale : 0) - (this.reducedMotion || this.width <= 480 ? 0 : e * 12));
+        if (this.width <= 480) {
+          const height = clamp(12 / this.scale, 16, 30), gap = 6 / this.scale;
+          // Move only a colliding phone note, keeping the authored platform names.
+          for (let i = 0; i <= noteZones.length; i++) {
+            const hit = noteZones.find(z => x + half > z.left && x - half < z.right && y + height / 2 + gap > z.top && y - height / 2 - gap < z.bottom);
+            if (!hit) break;
+            y = Math.max(height / 2 + gap, hit.top - gap - height / 2);
+          }
+          noteZones.push({ left: x - half, right: x + half, top: y - height / 2, bottom: y + height / 2 });
+        }
         ctx.lineWidth = 5; ctx.strokeStyle = '#f3f5ec'; ctx.fillStyle = effect.color;
         ctx.strokeText(effect.text, x, y); ctx.fillText(effect.text, x, y);
       } else if (effect.kind === 'seal_turn') {

@@ -505,3 +505,21 @@ test('hidden-route and three-wave success cues are finite, bounded, paused and r
     renderer.destroy();
   }
 });
+
+
+test('phone momentum leaves platform names room and power notes have a shorter fixed beat', () => {
+  for (const width of [280, 350]) for (const reduced of [false, true]) {
+    const { renderer, calls } = scene(reduced), m = start('shell', 2);
+    renderer.width = width; renderer.scale = width / 1000;
+    const state = { ...m.snapshot(), companionGuide: null, courtyardMomentum: { beat: 'follow', node: 'hub', age: .3, duration: .85 } };
+    renderer.setState(state); renderer.drawMomentum();
+    const rim = calls.find(c => c.method === 'ellipse').args;
+    assert.ok(rim[1] + rim[3] < 16, 'lower rim stops well above the platform label');
+    assert.equal(calls.some(c => c.method === 'fillText'), false);
+    renderer.pushEvents([{ type: 'power', from: 'dew', to: 'bell', received: 1, required: 2 }]);
+    assert.equal(renderer.effects.find(e => e.kind === 'note').duration, 1.25);
+    const draw = () => { calls.length = 0; renderer.drawEffects(true); return calls.find(c => c.method === 'fillText').args[2]; };
+    const y = draw(); renderer.effects.forEach(e => { e.age = .6; }); assert.equal(draw(), y, 'phone supply note does not drift');
+    renderer.destroy();
+  }
+});

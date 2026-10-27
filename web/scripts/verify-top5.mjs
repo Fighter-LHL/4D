@@ -27,7 +27,7 @@ try {
       };
       const fillText = CanvasRenderingContext2D.prototype.fillText;
       CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
-        if (/^(收下花种|跳跳跟上来了|S .*s$)/.test(text)) {
+        if (/^(收下花种|跳跳跟上来了|花苞醒了|S .*s$)/.test(text)) {
           const t = this.getTransform(), m = this.measureText(text), dpr = devicePixelRatio || 1;
           const baseline = (t.b * x + t.d * y + t.f) / dpr;
           window.__top5Labels.push({ text, baseline, top: baseline - t.d * m.actualBoundingBoxAscent / dpr,
@@ -64,7 +64,7 @@ const top5Render = scene.render.bind(scene);
 const top5Echo = scene.drawDiscoveryEchoes.bind(scene);
 scene.drawDiscoveryEchoes = k => {
   window.__top5DrawingEcho = true;
-  try { top5Echo(k); } finally { window.__top5DrawingEcho = false; }
+  try { top5Echo(k); } catch (error) { throw new Error(error.message + JSON.stringify({ k, view: scene.view, echoes: scene.discoveryEchoes })); } finally { window.__top5DrawingEcho = false; }
 };
 scene.render = dt => {
   window.__top5Labels = [];
@@ -80,11 +80,17 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
     await context.route('**/src/main.js', async route => {
       const response = await route.fetch();
       await route.fulfill({ response, body: await response.text() + `
+window.__top5EntryConflicts = [];
+const top5CourtyardRender = scene.render.bind(scene);
+scene.render = dt => {
+  if (scene.state?.courtyardMomentum && scene.state?.companionGuide) window.__top5EntryConflicts.push(model.time);
+  top5CourtyardRender(dt);
+};
 window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, friends: scene.friends.length, cue: scene.state?.courtyardMomentum, used: [...momentum.used] });
 ` });
     });
     const page = await context.newPage();
-    page.on('pageerror', error => receipt.errors.push({ width, message: error.message }));
+    page.on('pageerror', error => receipt.errors.push({ width, message: error.message, stack: error.stack }));
     page.on('console', message => { if (['error', 'warning'].includes(message.type())) receipt.errors.push({ width, message: message.text() }); });
     const read = () => page.evaluate(() => window.__top5Read());
     const ready = () => page.waitForFunction(() => window.__top5Read?.().view);
@@ -195,6 +201,14 @@ window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, frie
     await page.keyboard.down('d'); await page.waitForTimeout(30); await page.keyboard.up('d');
     await page.locator('#pet').click();
     await page.waitForFunction(() => window.__top5Events.some(e => e.type === 'friend_garden' && e.kind === 'probe'));
+    const budFeedback = await read(), budLabel = budFeedback.labels.find(l => l.text === '花苞醒了');
+    if (narrowCanvas) {
+      const probeLabel = budFeedback.labels.find(l => /^S .*s$/.test(l.text));
+      assert.ok(budLabel && probeLabel, 'observe simultaneous bud and probe labels');
+      assert.equal(budFeedback.popups.some(p => p.near), false, 'acting on the bud retires the near label');
+      assert.ok(budLabel.top - probeLabel.bottom >= 4);
+    }
+    await screenshot('bud-probe');
     await go(10, 9.8);
     await page.waitForFunction(() => window.__top5Read().popups.some(p => p.text === '收下花种 · 1/3'));
     assert.equal(await page.locator('#garden-petals').innerText(), '1/3');
@@ -235,7 +249,27 @@ window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, frie
     await screenshot('saved-progress');
     await page.locator('#style-toggle').click();
     assert.equal(await page.locator('#garden-progress').isVisible(), false, 'challenge keeps its own HUD');
-    // Integration smoke: the same newly earned collection enters the courtyard CTA flow.
+    await page.locator('#start').click();
+    // Real handoff link, using the freshly earned collection and untouched storage.
+    await page.getByRole('link', { name: '去庭院 ↗', exact: true }).first().click();
+    assert.equal(new URL(page.url()).searchParams.get('from'), 'discovery');
+    await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
+    await page.locator('#align').click(); // the player dismisses the existing first-step hint
+    await page.waitForFunction(() => window.__top5Courtyard().cue?.beat === 'arrival' && window.__top5Courtyard().cue.age >= .25);
+    const courtyardEntry = await page.evaluate(() => window.__top5Courtyard());
+    assert.equal(await page.locator('#friend-guide').isVisible(), false);
+    await screenshot('courtyard-entry');
+    await page.waitForFunction(() => !window.__top5Courtyard().cue);
+    await page.waitForFunction(t => window.__top5Courtyard().time >= t + 4.2, courtyardEntry.time);
+    assert.equal(await page.evaluate(() => window.__top5Courtyard().cue), null);
+    assert.deepEqual(await page.evaluate(() => window.__top5EntryConflicts), []);
+    await page.reload();
+    await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
+    await page.locator('#align').click();
+    await page.waitForFunction(() => window.__top5Courtyard().time >= 2.8);
+    assert.equal(await page.evaluate(() => window.__top5Courtyard().cue), null, 'return entry does not replay');
+    assert.deepEqual(await page.evaluate(() => window.__top5Courtyard().used), []);
+    // Continue deterministic courtyard coverage with the same earned collection.
     await page.goto(`${baseURL}/?seed=2`);
     await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
     await page.locator('#align').click();
@@ -280,7 +314,7 @@ window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, frie
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     receipt.checks.push({ width, reducedMotion: width === 320, muted: width === 320, friendFound: true, seedFound: true, savedAfterReloadAndRetry: true, levelHighlightSynced: true, noOverflow: true, visitorAndDiscoveryCoexist: true, discoveryDeliveredOnce: true, earnedCollectionToCourtyardCTA: true,
       arrivalAndNearExclusive: true, idleAfterArrivalQuiet: true, nearOnce: nearEvents, approachDuration: approachPopup.duration, approachClearedAfter: approachClearedAt - nearEvents[0].time, discoveryDuration,
-      seedLayout, echoDuration, seedEchoBounds: seedFeedback.echoBounds, echoesPauseExpireAndDoNotReplay: true, glintUsed,
+      seedLayout, budLayout: budFeedback.labels, courtyardEntry, firstEntryOnceAndRevisitQuiet: true, echoDuration, seedEchoBounds: seedFeedback.echoBounds, echoesPauseExpireAndDoNotReplay: true, glintUsed,
       courtyardGuideRetiredAfterLanding: true, companionIdleQuietSeconds: 6.2, explicitHelpStillExpires: true });
     console.log(`passed ${width}px: discovery, seed, pause, saved progress, HUD, visitor beat and courtyard CTA`);
     await context.close();

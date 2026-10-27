@@ -4,7 +4,7 @@ import { keyPoints, keyShape, flipVertices } from './mirror.js';
 import { drawAscendScene, ascendScreenToWorld } from './ascend-scene.js';
 import { FRIENDS } from './discoveries.js';
 import { discoveryFeedback, nearbyDiscovery } from '../play-feedback.js';
-import { drawEncounter, drawCompanions, drawCompanionToys, drawGardenPadHint } from './friends-scene.js';
+import { drawEncounter, drawCompanions, drawCompanionToys, drawGardenPadHint, drawProbeLabel } from './friends-scene.js';
 // Draws the flat world (only sections at the current S) beside a side view of
 // the whole 3D scene. Effects (particles, popups, shake) follow model events.
 const TAU = Math.PI * 2;
@@ -102,7 +102,7 @@ export class FlatlandRenderer {
       }
       const discovery = discoveryFeedback(event);
       if (discovery) {
-        this.popups = this.popups.filter(p => !p.near && !p.discovery);
+        this.popups = this.popups.filter(p => !p.near && !p.discovery && !(narrow && p.garden));
         this.popup(event.x, event.y - .9, discovery.text, discovery.color, false, { duration: narrow ? 1.35 : 1.8, discovery: true });
         this.discoveryEchoes = [{ x: event.x, y: event.y, slice: st?.s, color: discovery.color, age: 0, duration: narrow ? 2 : 2.4 }];
       }
@@ -115,7 +115,9 @@ export class FlatlandRenderer {
         const friends = event.id === 'all' ? FRIENDS : FRIENDS.filter(f => f.id === event.id);
         friends.forEach((friend, i) => this.burst(event.x + (i - 1) * .6, event.y, friend.color, 12, 2.5));
       }
-      if (event.type === 'friend_garden') { this.popup(event.x, event.y - .8, event.kind === 'probe' ? '花苞醒了' : '花匣开了', '#4d9270'); this.burst(event.x, event.y, '#d8ae4d', 24, 3); }
+      if (event.type === 'friend_garden') {
+        if (narrow) this.popups = this.popups.filter(p => !p.near);
+        this.popup(event.x, event.y - .8, event.kind === 'probe' ? '花苞醒了' : '花匣开了', '#4d9270', false, { garden: true, duration: narrow ? .8 : 1.1 }); this.burst(event.x, event.y, '#d8ae4d', 24, 3); }
       if (event.type === 'garden_bloom' && event.fresh) { this.popup(event.x, event.y + 1.2, '花园点亮了 ✿', '#4d9270', true); this.burst(event.x, event.y, '#79ad63', 32, 3); }
       if (event.type === 'gardens_complete' && st) { this.popup(st.bounds.w / 2, 1.6, '六座花园全部盛开 ✿', '#4d9270', true); this.burst(event.x, event.y, '#d6a63b', 30, 3); }
       if (event.type === 'friend_blocked' && st) this.popup(st.player.x, st.player.y - .8, event.reason === 'height' ? '到边缘了，换个方向' : '邻层有墙，挪一挪', '#4d9270');
@@ -165,6 +167,10 @@ export class FlatlandRenderer {
 
   render(dt = 0) {
     if (!this.state) return;
+    // A hidden/collapsing canvas has no drawable world scale. Keep the current
+    // effects until layout returns rather than passing a negative radius to Canvas.
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width <= 44 || rect.height <= 44) return;
     if (this.state.paused) dt = 0;
     const s = this.state;
     this.time += dt;
@@ -280,6 +286,7 @@ export class FlatlandRenderer {
     drawCompanions(this);
     this.drawPlayer(k);
     drawGardenPadHint(this, k);
+    if (this.view.width <= 480) drawProbeLabel(this, k);
     if (s.carrying && s.mirror) this.drawMirrorKey(k);
     else if (s.carrying) {
       ctx.strokeStyle = COLORS.amber; ctx.lineWidth = 2 / k;
@@ -299,8 +306,8 @@ export class FlatlandRenderer {
       const x = clamp(pop.x, halfWidth + 4 / k, b.w - halfWidth - 4 / k);
       // On phones, keep discovery text below the object and its upper labels.
       // Hold that small offset still so it never floats back into those labels.
-      const below = pop.discovery && this.view.width <= 480;
-      const y = clamp(below ? pop.y + .9 + 24 / k : pop.y - (this.reducedMotion ? 0 : ease(p) * .9), 22 / k, b.h - 6 / k);
+      const below = (pop.discovery || pop.garden) && this.view.width <= 480;
+      const y = clamp(below ? pop.y + (pop.garden ? .8 : .9) + 24 / k : pop.y - (this.reducedMotion ? 0 : ease(p) * .9), 22 / k, b.h - 6 / k);
       ctx.strokeStyle = COLORS.card; ctx.lineWidth = 4 / k; ctx.lineJoin = 'round';
       ctx.strokeText(pop.text, x, y, maxWidth);
       ctx.fillText(pop.text, x, y, maxWidth);
