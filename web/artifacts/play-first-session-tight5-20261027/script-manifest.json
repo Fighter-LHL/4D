@@ -1,0 +1,8 @@
+{
+  "web/scripts/verify-penpal.mjs": "fe7b89528be61472f510005637ed0a23f32c48eb0109aa238623f764911840a1",
+  "web/scripts/verify-top5.mjs": "705f9916761e8431b0ab0ea4aa7e960b6b2f7d452589a8eac36f122d88f14662",
+  "web/scripts/courtyard-first-beat.mjs": "9d5bc901a9578d3ccbc977a315017e0b32befb8b8db9d06240570780784ae932",
+  "web/scripts/verify-first-anchor.mjs": "9176c80f93abe742eb05b6fbd481caaf31c92844e41d4ce4b138444d67f58a37",
+  "web/scripts/verify-first-onward.mjs": "5921dec57dc4a846ebea4799f640ab2ca2fe4693749e968c346349518d21ada1",
+  "web/scripts/verify-first-return.mjs": "6848f1576c23f435939a4e65b327ecc4f853e717ce784ece034cf672644245a6"
+}

@@ -169,8 +169,20 @@ try {
       }
       await page.locator('#move').click();
       await page.waitForFunction(id => { const s = window.__courtyardSupplyState(); return s.node === id && !s.travel; }, target.id);
-      assert.equal(await page.locator('.layer-controls .attention-action').count(), 0);
-      assert.equal(await page.locator('#objective').innerText(), (await read()).objective, 'the hub instruction retires on departure');
+      const arrived = await read();
+      if (arrived.node === 'relay') {
+        // Round 5 hands the same bridge-layer instruction to the safe anchor.
+        const next = arrived.companionGuide, nextTarget = arrived.nodes.find(n => n.id === next.node);
+        assert.equal(next.kind, 'move'); assert.equal(arrived.selected, next.node);
+        assert.deepEqual(await primary.evaluateAll(els => els.map(el => el.id)), [next.aligned ? 'move' : `layer-${next.layer}`]);
+        assert.equal(await primary.isDisabled(), false);
+        assert.equal(await page.locator('#objective').innerText(), next.aligned
+          ? `到${nextTarget.name} · 沿桥稳行`
+          : `换到${['Ⅰ', 'Ⅱ', 'Ⅲ'][next.layer]} ${arrived.layers[next.layer].name} · 显现通往${nextTarget.name}的桥`);
+      } else {
+        assert.equal(await page.locator('.layer-controls .attention-action').count(), 0);
+        assert.equal(await page.locator('#objective').innerText(), arrived.objective, 'the hub instruction retires on departure');
+      }
       assert.deepEqual((await beat()).used, b.used);
       if (target.kind === 'mechanism') {
         assert.equal(await page.locator('#interact.primary-button').count(), 1);

@@ -325,17 +325,17 @@ function updateUI() {
   state.courtyardMomentum = momentum.view(snapshot, guide);
   const firstAction = momentum.firstAction(snapshot, guide);
   const firstTarget = state.nodes.find(node => node.id === firstAction?.node);
-  // Keep the first activation and return to the hub actionable on the existing
-  // route. No timer/beat; other platforms and deliberate choices keep normal UI.
+  // Keep the first activation and its hub/anchor crossings actionable on the
+  // existing route. No timer/beat; deliberate choices keep normal UI.
   const onward = momentum.firstEntry && canAct() && !state.travel && !state.wave &&
     state.phaseStability === 1 && !state.riskMode && !state.stats.failures &&
     ((state.activated.length === 1 && state.activated.includes(state.node)) ||
-      (state.node === 'hub' && state.activated.length > 0 && state.activated.length < 3)) &&
+      (['hub', 'relay'].includes(state.node) && state.activated.length > 0 && state.activated.length < 3)) &&
     !state.courtyardMomentum && !state.companionGuide && !model.selectionExplicit
       ? snapshot.companionGuide : null;
   const onwardTarget = state.nodes.find(node => node.id === onward?.node);
   const onwardBridge = onward?.kind === 'move' && state.selected === onward.node;
-  const onwardShift = (onward?.kind === 'shift' || (state.node === 'hub' && onwardBridge)) && !onward.aligned;
+  const onwardShift = (onward?.kind === 'shift' || (['hub', 'relay'].includes(state.node) && onwardBridge)) && !onward.aligned;
   const onwardMove = onwardBridge && state.canMove;
   updateRoom(state);
   scene.setState(state);
@@ -427,7 +427,7 @@ function updateUI() {
   const mustActivate = actions.primary === 'interact' && currentNode?.kind === 'mechanism';
   $('move').disabled = !state.canMove || paused;
   $('move').className = actions.primary === 'move' && canAct() ? 'primary-button attention-action' : 'secondary-button';
-  setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${firstAction?.action === 'move' ? `到${firstTarget.name}` : onwardMove ? `${state.node === 'hub' ? '到' : '稳行到'}${onwardTarget.name}` : state.riskMode?'冒险穿越':'稳行'} <span>${onwardMove && compactProgress.matches ? '↗' : 'Space ↗'}</span>`);
+  setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${firstAction?.action === 'move' ? `到${firstTarget.name}` : onwardMove ? `${['hub', 'relay'].includes(state.node) ? '到' : '稳行到'}${onwardTarget.name}` : state.riskMode?'冒险穿越':'稳行'} <span>${onwardMove && compactProgress.matches ? '↗' : 'Space ↗'}</span>`);
   $('interact').disabled = !canAct() || actions.interactDisabled;
   $('interact').title = state.interactReason || state.interactLabel;
   $('interact').className = actions.primary === 'interact' && canAct() ? 'primary-button attention-action' : `secondary-button${actions.interactDone ? ' completed-action' : ''}`;

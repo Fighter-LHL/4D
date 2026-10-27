@@ -1,0 +1,4720 @@
+{
+  "baseline": false,
+  "widths": [
+    1280,
+    390,
+    320
+  ],
+  "status": "passed",
+  "checks": [
+    {
+      "width": 1280,
+      "seed": 10,
+      "room": "cascade",
+      "kind": "shift",
+      "shift": false,
+      "target": "relay",
+      "reachedHubMs": 17018,
+      "steps": [
+        {
+          "label": "first-activation",
+          "time": 4.916500000000023,
+          "node": "dew",
+          "selected": "hub",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "shift",
+            "node": "bell",
+            "layer": 0,
+            "w": 0.18,
+            "x": 708,
+            "y": 458,
+            "aligned": false
+          },
+          "objective": "原地换到Ⅰ 潮汐层 · 显现同位回声台",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "second-activation",
+          "time": 8.216300000000164,
+          "node": "bell",
+          "selected": "hub",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "hub",
+            "layer": 0,
+            "w": 0.18,
+            "x": 396,
+            "y": 404,
+            "aligned": true
+          },
+          "objective": "同位回声台已启动（2/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "back-at-hub",
+          "time": 12.79940000000006,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "quiet",
+          "time": 19.108700000047513,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "bridge-ready",
+          "time": 23.308500000047278,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "followed",
+          "time": 24.808500000047193,
+          "node": "relay",
+          "selected": "bloom",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 292,
+            "y": 192,
+            "aligned": false
+          },
+          "objective": "换到Ⅱ 回声层 · 显现通往折光花的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "锚台跨层支撑 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "seed": 0,
+      "room": "split",
+      "kind": "shift",
+      "shift": true,
+      "target": "relay",
+      "reachedHubMs": 16847,
+      "steps": [
+        {
+          "label": "first-activation",
+          "time": 4.91650000000003,
+          "node": "dew",
+          "selected": "hub",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "shift",
+            "node": "bell",
+            "layer": 2,
+            "w": 0.82,
+            "x": 708,
+            "y": 458,
+            "aligned": false
+          },
+          "objective": "原地换到Ⅲ 绽放层 · 显现供能回声台",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "second-activation",
+          "time": 8.183000000000163,
+          "node": "bell",
+          "selected": "hub",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "hub",
+            "layer": 2,
+            "w": 0.82,
+            "x": 396,
+            "y": 404,
+            "aligned": true
+          },
+          "objective": "供能回声台已启动（2/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "back-at-hub",
+          "time": 12.766200000000062,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": false
+          },
+          "objective": "换到Ⅰ 潮汐层 · 显现通往维度锚台的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "quiet",
+          "time": 19.059899999856768,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": false
+          },
+          "objective": "换到Ⅰ 潮汐层 · 显现通往维度锚台的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "bridge-ready",
+          "time": 23.309699999856523,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "followed",
+          "time": 24.79299999985644,
+          "node": "relay",
+          "selected": "bloom",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 292,
+            "y": 192,
+            "aligned": false
+          },
+          "objective": "换到Ⅱ 回声层 · 显现通往承光花的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "锚台跨层支撑 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "seed": 2,
+      "room": "confluence",
+      "kind": "move",
+      "shift": true,
+      "target": "bloom",
+      "reachedHubMs": 13588,
+      "steps": [
+        {
+          "label": "first-activation",
+          "time": 4.899800000000027,
+          "node": "dew",
+          "selected": "hub",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "hub",
+            "layer": 2,
+            "w": 0.82,
+            "x": 604,
+            "y": 404,
+            "aligned": true
+          },
+          "objective": "到归响台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行到归响台 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "back-at-hub",
+          "time": 9.499600000000124,
+          "node": "hub",
+          "selected": "bloom",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 708,
+            "y": 192,
+            "aligned": false
+          },
+          "objective": "换到Ⅱ 回声层 · 显现通往辉光源的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "quiet",
+          "time": 15.808000000047672,
+          "node": "hub",
+          "selected": "bloom",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 708,
+            "y": 192,
+            "aligned": false
+          },
+          "objective": "换到Ⅱ 回声层 · 显现通往辉光源的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "bridge-ready",
+          "time": 20.07450000004744,
+          "node": "hub",
+          "selected": "bloom",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 708,
+            "y": 192,
+            "aligned": true
+          },
+          "objective": "到辉光源 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到辉光源 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "followed",
+          "time": 21.60780000004735,
+          "node": "bloom",
+          "selected": "hub",
+          "activated": [
+            "dew",
+            "bloom"
+          ],
+          "guide": null,
+          "objective": "辉光源已启动（2/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "seed": 7,
+      "room": "return",
+      "kind": "move",
+      "shift": false,
+      "target": "relay",
+      "reachedHubMs": 13590,
+      "steps": [
+        {
+          "label": "first-activation",
+          "time": 4.916600000000032,
+          "node": "dew",
+          "selected": "hub",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "hub",
+            "layer": 2,
+            "w": 0.82,
+            "x": 604,
+            "y": 404,
+            "aligned": true
+          },
+          "objective": "到归响台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行到归响台 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "back-at-hub",
+          "time": 9.533000000000138,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 2,
+            "w": 0.82,
+            "x": 396,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "quiet",
+          "time": 15.825900000047685,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 2,
+            "w": 0.82,
+            "x": 396,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "bridge-ready",
+          "time": 20.025800000047468,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 2,
+            "w": 0.82,
+            "x": 396,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "followed",
+          "time": 21.509100000047383,
+          "node": "relay",
+          "selected": "bell",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bell",
+            "layer": 0,
+            "w": 0.18,
+            "x": 292,
+            "y": 408,
+            "aligned": false
+          },
+          "objective": "换到Ⅰ 潮汐层 · 显现通往远端回声台的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "锚台跨层支撑 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 390,
+      "seed": 10,
+      "room": "cascade",
+      "kind": "shift",
+      "shift": false,
+      "target": "relay",
+      "reachedHubMs": 16740,
+      "steps": [
+        {
+          "label": "first-activation",
+          "time": 4.933100000000027,
+          "node": "dew",
+          "selected": "hub",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "shift",
+            "node": "bell",
+            "layer": 0,
+            "w": 0.18,
+            "x": 708,
+            "y": 458,
+            "aligned": false
+          },
+          "objective": "原地换到Ⅰ 潮汐层 · 显现同位回声台",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "second-activation",
+          "time": 8.149600000000156,
+          "node": "bell",
+          "selected": "hub",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "hub",
+            "layer": 0,
+            "w": 0.18,
+            "x": 396,
+            "y": 404,
+            "aligned": true
+          },
+          "objective": "同位回声台已启动（2/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "back-at-hub",
+          "time": 12.699500000000056,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "quiet",
+          "time": 18.959300000142882,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "bridge-ready",
+          "time": 23.142500000142647,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "followed",
+          "time": 24.59240000014256,
+          "node": "relay",
+          "selected": "bloom",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 292,
+            "y": 192,
+            "aligned": false
+          },
+          "objective": "换到Ⅱ 回声层 · 显现通往折光花的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "锚台跨层支撑 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 390,
+      "seed": 0,
+      "room": "split",
+      "kind": "shift",
+      "shift": true,
+      "target": "relay",
+      "reachedHubMs": 16760,
+      "steps": [
+        {
+          "label": "first-activation",
+          "time": 4.933100000000029,
+          "node": "dew",
+          "selected": "hub",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "shift",
+            "node": "bell",
+            "layer": 2,
+            "w": 0.82,
+            "x": 708,
+            "y": 458,
+            "aligned": false
+          },
+          "objective": "原地换到Ⅲ 绽放层 · 显现供能回声台",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "second-activation",
+          "time": 8.166300000000152,
+          "node": "bell",
+          "selected": "hub",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "hub",
+            "layer": 2,
+            "w": 0.82,
+            "x": 396,
+            "y": 404,
+            "aligned": true
+          },
+          "objective": "供能回声台已启动（2/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "back-at-hub",
+          "time": 12.716100000000052,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": false
+          },
+          "objective": "换到Ⅰ 潮汐层 · 显现通往维度锚台的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "quiet",
+          "time": 18.99249999999982,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": false
+          },
+          "objective": "换到Ⅰ 潮汐层 · 显现通往维度锚台的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "bridge-ready",
+          "time": 23.175699999999583,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "followed",
+          "time": 24.6254999999995,
+          "node": "relay",
+          "selected": "bloom",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 292,
+            "y": 192,
+            "aligned": false
+          },
+          "objective": "换到Ⅱ 回声层 · 显现通往承光花的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "锚台跨层支撑 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 390,
+      "seed": 2,
+      "room": "confluence",
+      "kind": "move",
+      "shift": true,
+      "target": "bloom",
+      "reachedHubMs": 13539,
+      "steps": [
+        {
+          "label": "first-activation",
+          "time": 4.9332000000000304,
+          "node": "dew",
+          "selected": "hub",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "hub",
+            "layer": 2,
+            "w": 0.82,
+            "x": 604,
+            "y": 404,
+            "aligned": true
+          },
+          "objective": "到归响台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行到归响台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "back-at-hub",
+          "time": 9.499700000000134,
+          "node": "hub",
+          "selected": "bloom",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 708,
+            "y": 192,
+            "aligned": false
+          },
+          "objective": "换到Ⅱ 回声层 · 显现通往辉光源的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "quiet",
+          "time": 15.759499999999994,
+          "node": "hub",
+          "selected": "bloom",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 708,
+            "y": 192,
+            "aligned": false
+          },
+          "objective": "换到Ⅱ 回声层 · 显现通往辉光源的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "bridge-ready",
+          "time": 19.95929999999976,
+          "node": "hub",
+          "selected": "bloom",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 708,
+            "y": 192,
+            "aligned": true
+          },
+          "objective": "到辉光源 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到辉光源 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "followed",
+          "time": 21.442699999999682,
+          "node": "bloom",
+          "selected": "hub",
+          "activated": [
+            "dew",
+            "bloom"
+          ],
+          "guide": null,
+          "objective": "辉光源已启动（2/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 390,
+      "seed": 7,
+      "room": "return",
+      "kind": "move",
+      "shift": false,
+      "target": "relay",
+      "reachedHubMs": 13507,
+      "steps": [
+        {
+          "label": "first-activation",
+          "time": 4.916500000000036,
+          "node": "dew",
+          "selected": "hub",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "hub",
+            "layer": 2,
+            "w": 0.82,
+            "x": 604,
+            "y": 404,
+            "aligned": true
+          },
+          "objective": "到归响台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行到归响台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "back-at-hub",
+          "time": 9.46630000000014,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 2,
+            "w": 0.82,
+            "x": 396,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "quiet",
+          "time": 15.726900000000006,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 2,
+            "w": 0.82,
+            "x": 396,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "bridge-ready",
+          "time": 19.90999999999979,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 2,
+            "w": 0.82,
+            "x": 396,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "followed",
+          "time": 21.376699999999712,
+          "node": "relay",
+          "selected": "bell",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bell",
+            "layer": 0,
+            "w": 0.18,
+            "x": 292,
+            "y": 408,
+            "aligned": false
+          },
+          "objective": "换到Ⅰ 潮汐层 · 显现通往远端回声台的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "锚台跨层支撑 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 10,
+      "room": "cascade",
+      "kind": "shift",
+      "shift": false,
+      "target": "relay",
+      "reachedHubMs": 16787,
+      "steps": [
+        {
+          "label": "first-activation",
+          "time": 4.933100000000034,
+          "node": "dew",
+          "selected": "hub",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "shift",
+            "node": "bell",
+            "layer": 0,
+            "w": 0.18,
+            "x": 708,
+            "y": 458,
+            "aligned": false
+          },
+          "objective": "原地换到Ⅰ 潮汐层 · 显现同位回声台",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "second-activation",
+          "time": 8.166300000000165,
+          "node": "bell",
+          "selected": "hub",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "hub",
+            "layer": 0,
+            "w": 0.18,
+            "x": 396,
+            "y": 404,
+            "aligned": true
+          },
+          "objective": "同位回声台已启动（2/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "back-at-hub",
+          "time": 12.732800000000063,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "quiet",
+          "time": 19.011199999952147,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "bridge-ready",
+          "time": 23.17779999995191,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "followed",
+          "time": 24.711099999951823,
+          "node": "relay",
+          "selected": "bloom",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 292,
+            "y": 192,
+            "aligned": false
+          },
+          "objective": "换到Ⅱ 回声层 · 显现通往折光花的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "锚台跨层支撑 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 0,
+      "room": "split",
+      "kind": "shift",
+      "shift": true,
+      "target": "relay",
+      "reachedHubMs": 16711,
+      "steps": [
+        {
+          "label": "first-activation",
+          "time": 4.93320000000003,
+          "node": "dew",
+          "selected": "hub",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "shift",
+            "node": "bell",
+            "layer": 2,
+            "w": 0.82,
+            "x": 708,
+            "y": 458,
+            "aligned": false
+          },
+          "objective": "原地换到Ⅲ 绽放层 · 显现供能回声台",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "second-activation",
+          "time": 8.149800000000164,
+          "node": "bell",
+          "selected": "hub",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "hub",
+            "layer": 2,
+            "w": 0.82,
+            "x": 396,
+            "y": 404,
+            "aligned": true
+          },
+          "objective": "供能回声台已启动（2/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "back-at-hub",
+          "time": 12.69950000000006,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": false
+          },
+          "objective": "换到Ⅰ 潮汐层 · 显现通往维度锚台的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "quiet",
+          "time": 18.96079999995214,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": false
+          },
+          "objective": "换到Ⅰ 潮汐层 · 显现通往维度锚台的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "bridge-ready",
+          "time": 23.193899999951906,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 0,
+            "w": 0.18,
+            "x": 604,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "followed",
+          "time": 24.71049999995183,
+          "node": "relay",
+          "selected": "bloom",
+          "activated": [
+            "dew",
+            "bell"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 292,
+            "y": 192,
+            "aligned": false
+          },
+          "objective": "换到Ⅱ 回声层 · 显现通往承光花的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "锚台跨层支撑 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 2,
+      "room": "confluence",
+      "kind": "move",
+      "shift": true,
+      "target": "bloom",
+      "reachedHubMs": 13530,
+      "steps": [
+        {
+          "label": "first-activation",
+          "time": 4.916500000000026,
+          "node": "dew",
+          "selected": "hub",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "hub",
+            "layer": 2,
+            "w": 0.82,
+            "x": 604,
+            "y": 404,
+            "aligned": true
+          },
+          "objective": "到归响台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行到归响台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "back-at-hub",
+          "time": 9.466300000000132,
+          "node": "hub",
+          "selected": "bloom",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 708,
+            "y": 192,
+            "aligned": false
+          },
+          "objective": "换到Ⅱ 回声层 · 显现通往辉光源的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "quiet",
+          "time": 15.743600000095357,
+          "node": "hub",
+          "selected": "bloom",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 708,
+            "y": 192,
+            "aligned": false
+          },
+          "objective": "换到Ⅱ 回声层 · 显现通往辉光源的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "bridge-ready",
+          "time": 19.96010000009513,
+          "node": "hub",
+          "selected": "bloom",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bloom",
+            "layer": 1,
+            "w": 0.5,
+            "x": 708,
+            "y": 192,
+            "aligned": true
+          },
+          "objective": "到辉光源 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到辉光源 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "followed",
+          "time": 21.510100000095047,
+          "node": "bloom",
+          "selected": "hub",
+          "activated": [
+            "dew",
+            "bloom"
+          ],
+          "guide": null,
+          "objective": "辉光源已启动（2/3）；观察供能槽，切层或沿桥前往下一处机关",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 7,
+      "room": "return",
+      "kind": "move",
+      "shift": false,
+      "target": "relay",
+      "reachedHubMs": 13514,
+      "steps": [
+        {
+          "label": "first-activation",
+          "time": 4.9166000000000265,
+          "node": "dew",
+          "selected": "hub",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "hub",
+            "layer": 2,
+            "w": 0.82,
+            "x": 604,
+            "y": 404,
+            "aligned": true
+          },
+          "objective": "到归响台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行到归响台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "已启动 E",
+              "disabled": false,
+              "className": "secondary-button completed-action"
+            }
+          ]
+        },
+        {
+          "label": "back-at-hub",
+          "time": 9.483000000000118,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 2,
+            "w": 0.82,
+            "x": 396,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "quiet",
+          "time": 15.759800000095348,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 2,
+            "w": 0.82,
+            "x": 396,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "bridge-ready",
+          "time": 19.943000000095125,
+          "node": "hub",
+          "selected": "relay",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "relay",
+            "layer": 2,
+            "w": 0.82,
+            "x": 396,
+            "y": 246,
+            "aligned": true
+          },
+          "objective": "到维度锚台 · 沿桥稳行",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false,
+              "className": "primary-button attention-action"
+            },
+            {
+              "id": "interact",
+              "text": "存入随身回响 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        },
+        {
+          "label": "followed",
+          "time": 21.47620000009504,
+          "node": "relay",
+          "selected": "bell",
+          "activated": [
+            "dew"
+          ],
+          "guide": {
+            "kind": "move",
+            "node": "bell",
+            "layer": 0,
+            "w": 0.18,
+            "x": 292,
+            "y": 408,
+            "aligned": false
+          },
+          "objective": "换到Ⅰ 潮汐层 · 显现通往远端回声台的桥",
+          "controls": [
+            {
+              "id": "layer-0",
+              "text": "Ⅰ潮汐层 Z",
+              "disabled": false,
+              "className": "attention-action"
+            },
+            {
+              "id": "layer-1",
+              "text": "Ⅱ回声层 X",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "align",
+              "text": "对齐切片 ↗",
+              "disabled": false,
+              "className": "text-button"
+            },
+            {
+              "id": "safe-mode",
+              "text": "稳行 首次 +1",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "risk-mode",
+              "text": "冒险 首次 +3",
+              "disabled": false,
+              "className": ""
+            },
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": true,
+              "className": "secondary-button"
+            },
+            {
+              "id": "interact",
+              "text": "锚台跨层支撑 E",
+              "disabled": false,
+              "className": "secondary-button"
+            }
+          ]
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "browserVersion": "130.0.6723.31"
+}
