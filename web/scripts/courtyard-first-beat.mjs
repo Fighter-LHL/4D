@@ -23,7 +23,7 @@ scene.render = dt => {
   if (key && key !== observedBeat) window.__courtyardBeats.push({ beat: cue.beat, node: cue.node, time: model.time });
   if (observedBeat && key !== observedBeat) window.__courtyardBeatEnds.push({ key: observedBeat, time: model.time });
   observedBeat = key;
-  const primary = [...document.querySelectorAll('.action-row .primary-button, .action-row .attention-action')];
+  const primary = [...document.querySelectorAll('.action-row .primary-button, .action-row .attention-action, .layer-controls .attention-action')];
   if (primary.length > 1 || primary.some(el => el.disabled) || (cue && scene.state.companionGuide))
     window.__courtyardBeatConflicts.push({ time: model.time, primary: primary.map(el => el.id), cue });
   const notes = scene.effects.filter(e => e.kind === 'note' && e.supply).map(e => e.text);

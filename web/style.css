@@ -63,6 +63,7 @@ a.icon-button{text-decoration:none;color:var(--green)}
 .layer-controls button.friend-layer{outline:2px solid #79a77a;outline-offset:2px}
 .destination-row.deemphasized{opacity:.72}
 .attention-action{box-shadow:0 0 0 2px #c69a4b}
+.layer-controls button.attention-action{background:var(--green);color:var(--paper);border-color:var(--green)}
 .action-row .attention-action{animation:action-attention 1.8s ease-in-out infinite}
 .action-row .completed-action{color:var(--muted);border-color:transparent;background:transparent}
 .action-row button:focus-visible{outline:2px dashed var(--ink);outline-offset:3px}

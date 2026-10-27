@@ -1,0 +1,10 @@
+{
+  "base": "33e833697989c06fd9f7ecac46c08025f3b214d0",
+  "sha256": {
+    "web/src/main.js": "1c8ccd0cb0dccf6b14ca7e5a40177d541124d6e01ad62cb15b8751953c983e66",
+    "web/style.css": "57adebcc0cb677147b68407b65ecb1e6ca18e3b322556a6b2392bed5f2c2a10f",
+    "web/scripts/courtyard-first-beat.mjs": "9d5bc901a9578d3ccbc977a315017e0b32befb8b8db9d06240570780784ae932",
+    "web/scripts/verify-penpal.mjs": "fe7b89528be61472f510005637ed0a23f32c48eb0109aa238623f764911840a1",
+    "web/scripts/verify-first-onward.mjs": "c555bb82c1e4d41c678985645375c1408c5f2c1aef8c50a4cb3ac8af867ef6ce"
+  }
+}

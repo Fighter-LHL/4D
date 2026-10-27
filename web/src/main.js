@@ -320,10 +320,21 @@ function updateRoom(state) {
 }
 
 function updateUI() {
-  const state = guide.present(model.snapshot());
-  state.courtyardMomentum = momentum.view(model.snapshot(), guide);
-  const firstAction = momentum.firstAction(model.snapshot(), guide);
+  const snapshot = model.snapshot();
+  const state = guide.present(snapshot);
+  state.courtyardMomentum = momentum.view(snapshot, guide);
+  const firstAction = momentum.firstAction(snapshot, guide);
   const firstTarget = state.nodes.find(node => node.id === firstAction?.node);
+  // One local handoff after the first activation, using the existing route.
+  // It owns no timer/beat and retires on departure or deliberate route choice.
+  const onward = momentum.firstEntry && canAct() && !state.travel && !state.wave &&
+    state.phaseStability === 1 && !state.riskMode && !state.stats.failures &&
+    state.activated.length === 1 && state.activated.includes(state.node) &&
+    !state.courtyardMomentum && !state.companionGuide && !model.selectionExplicit
+      ? snapshot.companionGuide : null;
+  const onwardTarget = state.nodes.find(node => node.id === onward?.node);
+  const onwardShift = onward?.kind === 'shift' && !onward.aligned;
+  const onwardMove = onward?.kind === 'move' && state.selected === onward.node && state.canMove;
   updateRoom(state);
   scene.setState(state);
   const friendHint = friendGuideText(state, scene.friends);
@@ -356,13 +367,16 @@ function updateUI() {
     button.disabled=state.phase!=='playing'||paused;
     button.classList.toggle('danger-layer',!!state.wave?.dangerLayers?.includes(i));
     button.classList.toggle('safe-layer',!!state.wave?.safeLayers?.includes(i));
+    button.classList.toggle('attention-action', !!onwardShift && onward.layer === i);
     button.title=state.wave?`${state.layers[i].name} · ${state.wave.safeLayers.includes(i)?'安全切片':'回流危险'}`:state.layers[i].name;
   }
   setText('footing',`${currentNode?.name || ''} · ${currentNode?.anchor?'跨层支撑':currentNode?.present?'本层平台':'离层失稳 · 换回有支撑的层'}`);
   $('footing').classList.toggle('unsafe',state.phaseStability<.99);
   setText('objective',firstTarget
     ? firstAction.action === 'move' ? `先到${firstTarget.name} · 稳行过去` : `启动脚下的${firstTarget.name} · 按 E`
-    : state.objective || '观察供能关系，切换 W 寻找这一庭的起点');
+    : onwardShift ? `原地换到${layerSymbols[onward.layer]} ${state.layers[onward.layer].name} · 显现${onwardTarget.name}`
+      : onwardMove ? `到${onwardTarget.name} · 沿桥稳行`
+        : state.objective || '观察供能关系，切换 W 寻找这一庭的起点');
   for (const node of state.nodes.filter(n => n.kind === 'mechanism')) {
     const row = document.querySelector(`[data-mechanism="${node.id}"]`);
     const active = state.activated.includes(node.id);
@@ -405,10 +419,11 @@ function updateUI() {
   const actions = courtyardActions(state);
   // The finite landing glint and E refer to the same current platform.
   if (state.courtyardMomentum?.beat === 'landing') actions.primary = 'interact';
+  if (onwardShift) actions.primary = null;
   const mustActivate = actions.primary === 'interact' && currentNode?.kind === 'mechanism';
   $('move').disabled = !state.canMove || paused;
   $('move').className = actions.primary === 'move' && canAct() ? 'primary-button attention-action' : 'secondary-button';
-  setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${firstAction?.action === 'move' ? `到${firstTarget.name}` : state.riskMode?'冒险穿越':'稳行'} <span>Space ↗</span>`);
+  setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${firstAction?.action === 'move' ? `到${firstTarget.name}` : onwardMove ? `稳行到${onwardTarget.name}` : state.riskMode?'冒险穿越':'稳行'} <span>${onwardMove && compactProgress.matches ? '↗' : 'Space ↗'}</span>`);
   $('interact').disabled = !canAct() || actions.interactDisabled;
   $('interact').title = state.interactReason || state.interactLabel;
   $('interact').className = actions.primary === 'interact' && canAct() ? 'primary-button attention-action' : `secondary-button${actions.interactDone ? ' completed-action' : ''}`;

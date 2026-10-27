@@ -1,0 +1,125 @@
+{
+  "status": "passed",
+  "finalSourceFingerprintsStable": true,
+  "penpal": [
+    {
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "passed": true
+    },
+    {
+      "width": 320,
+      "passed": true
+    }
+  ],
+  "top5": [
+    {
+      "width": 1280,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "passed": true
+    },
+    {
+      "width": 320,
+      "passed": true
+    }
+  ],
+  "onward": [
+    {
+      "width": 1280,
+      "seed": 10,
+      "room": "cascade",
+      "kind": "shift",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "seed": 0,
+      "room": "split",
+      "kind": "shift",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "seed": 2,
+      "room": "confluence",
+      "kind": "move",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "seed": 7,
+      "room": "return",
+      "kind": "move",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "seed": 10,
+      "room": "cascade",
+      "kind": "shift",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "seed": 0,
+      "room": "split",
+      "kind": "shift",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "seed": 2,
+      "room": "confluence",
+      "kind": "move",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "seed": 7,
+      "room": "return",
+      "kind": "move",
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 10,
+      "room": "cascade",
+      "kind": "shift",
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 0,
+      "room": "split",
+      "kind": "shift",
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 2,
+      "room": "confluence",
+      "kind": "move",
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 7,
+      "room": "return",
+      "kind": "move",
+      "passed": true
+    }
+  ],
+  "consoleWarningsErrors": [],
+  "pageErrors": [],
+  "receipts": [
+    "browser-penpal-final/receipt.json",
+    "browser-top5-final/receipt.json",
+    "browser-onward-final/receipt.json"
+  ]
+}

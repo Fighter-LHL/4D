@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "command": "npm test --prefix web",
+  "tests": 315,
+  "passed": 315,
+  "failed": 0,
+  "skipped": 0,
+  "log": "tests-final.log"
+}
