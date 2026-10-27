@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FlatlandModel } from '../src/flatland/model.js';
 import { FLATLAND_LEVELS } from '../src/flatland/levels.js';
-import { PROBE_FLIGHT, PROBE_STAY, normalizeGardenMemories } from '../src/flatland/companions.js';
+import { PROBE_FLIGHT, PROBE_STAY, GARDEN_SEEDS, normalizeGardenMemories } from '../src/flatland/companions.js';
 import { levelIndex, goto, slide, wait, walk } from './flatland-helpers.js';
 
 const collection = companion => ({ found: ['sprout', 'lantern', 'ribbon'], companion });
@@ -150,9 +150,13 @@ test('mirror is exact reflection, and an occupied counterpart cannot press a pad
   assert.equal(snap.companions.mirror.blocked, true); assert.equal(m.companions.garden.mirrorOpen, false);
 });
 
-test('every authored bud can be hit by sprout; three collected seeds bloom and persist a garden', () => {
+test('every authored bud requires sprout, and three collected seeds bloom and persist a garden at 3/3', () => {
   for (const id of ['visitor', 'guess', 'escape', 'vault', 'mirror', 'ascend']) {
     const m = roam(id, 'sprout'), g = m.level.garden;
+    if (!m.level.slice.fixed) {
+      reachGarden(m, g.bud); wait(m, .4);
+      assert.equal(m.companions.garden.probeOpen, false, `${id}: player body alone cannot open bud`);
+    }
     const from = [g.left, g.right].sort((a,b) => Math.hypot(a.x-g.bud.x,a.y-g.bud.y)-Math.hypot(b.x-g.bud.x,b.y-g.bud.y))[0];
     reachGarden(m, from);
     const dx = g.bud.x - from.x, dy = g.bud.y - from.y, d = Math.hypot(dx, dy);
@@ -160,21 +164,64 @@ test('every authored bud can be hit by sprout; three collected seeds bloom and p
     assert.equal(m.petCompanion(), true); wait(m, .4);
     assert.equal(m.companions.garden.probeOpen, true, id);
     reachGarden(m, { ...g.drops.probe[0], z: g.left.z }); wait(m, .05);
-    assert.equal(m.shards.filter(s => s.bonus && s.taken).length, 1);
+    assert.equal(m.snapshot().companions.garden.petals, 1);
+    assert.deepEqual(m.gardenMemories[id], ['friend-probe-0']);
     m.setCompanion('ribbon'); reachGarden(m, g.left); wait(m, 2.6); m.petCompanion(); wait(m, .7);
     for (const drop of g.drops.mirror) { reachGarden(m, { ...drop, z: g.left.z }); wait(m, .05); }
     assert.equal(m.snapshot().companions.garden.petals, 3, id);
-    assert.equal(m.gardenMemories[id], true); assert.equal(m.snapshot().companions.garden.bloomed, true);
+    assert.deepEqual(m.gardenMemories[id], [...GARDEN_SEEDS]);
+    assert.equal(m.snapshot().companions.garden.bloomed, true);
     assert.equal(m.drainEvents().filter(e=>e.type==='garden_bloom').length, 1);
     const restored = new FlatlandModel(levelIndex(id), { seed:42, playStyle:'explore', gardenMemories:JSON.parse(JSON.stringify(m.gardenMemories)) });
     assert.equal(restored.snapshot().companions.garden.bloomed, true);
-    m.restart(); assert.equal(m.companions.garden.probeOpen, false); assert.equal(m.gardenMemories[id], true);
+    assert.equal(restored.snapshot().companions.garden.petals, 3);
+    m.restart();
+    assert.equal(m.companions.garden.probeOpen, true);
+    assert.equal(m.snapshot().companions.garden.petals, 3);
+    assert.deepEqual(m.gardenMemories[id], [...GARDEN_SEEDS]);
   }
 });
 
-test('garden memories retain only completed authored scenes and cannot enable challenge toys', () => {
+test('partial seed progress persists across level switches and reloads without double counting', () => {
+  const m = roam('guess', 'sprout'), g = m.level.garden;
+  reachGarden(m, g.left);
+  const dx = g.bud.x - g.left.x, dy = g.bud.y - g.left.y, d = Math.hypot(dx, dy);
+  walk(m, dx / d, dy / d, .008); m.setProbeDirection(Math.sign(g.bud.z - g.left.z));
+  assert.equal(m.petCompanion(), true); wait(m, .4);
+  reachGarden(m, { ...g.drops.probe[0], z: g.left.z }); wait(m, .05);
+  assert.equal(m.snapshot().companions.garden.petals, 1);
+  assert.deepEqual(m.gardenMemories.guess, ['friend-probe-0']);
+  // Switch to another level and return: 1/3 remains intact.
+  m.load(levelIndex('escape')); m.start();
+  assert.equal(m.snapshot().companions.garden.petals, 0);
+  m.load(levelIndex('guess')); m.start();
+  assert.equal(m.snapshot().companions.garden.petals, 1);
+  assert.equal(m.companions.garden.probeOpen, true);
+  assert.equal(m.companions.garden.mirrorOpen, false);
+  // Reload from saved JSON: still 1/3, and remaining 2 seeds complete 3/3.
+  const reloaded = new FlatlandModel(levelIndex('guess'), {
+    seed: 42, playStyle: 'explore', collection: collection('ribbon'),
+    gardenMemories: JSON.parse(JSON.stringify(m.gardenMemories)),
+  });
+  reloaded.start();
+  assert.equal(reloaded.snapshot().companions.garden.petals, 1);
+  reachGarden(reloaded, g.left); reloaded.petCompanion(); wait(reloaded, .7);
+  for (const drop of g.drops.mirror) { reachGarden(reloaded, { ...drop, z: g.left.z }); wait(reloaded, .05); }
+  assert.equal(reloaded.snapshot().companions.garden.petals, 3);
+  assert.equal(reloaded.snapshot().companions.garden.bloomed, true);
+  assert.deepEqual(reloaded.gardenMemories.guess, [...GARDEN_SEEDS]);
+});
+
+test('garden memories migrate legacy booleans, retain valid seed IDs, and cannot enable challenge toys', () => {
   for (const bad of [null, [], 'visitor', 12]) assert.deepEqual(normalizeGardenMemories(bad, FLATLAND_LEVELS), {});
-  assert.deepEqual(normalizeGardenMemories({ visitor: true, guess: 1, escape: false, storm: true, fake: true }, FLATLAND_LEVELS), { visitor: true });
+  assert.deepEqual(
+    normalizeGardenMemories({ visitor: true, guess: ['friend-probe-0', 'unknown'], escape: [], vault: false, storm: true, fake: true }, FLATLAND_LEVELS),
+    { visitor: [...GARDEN_SEEDS], guess: ['friend-probe-0'] },
+  );
+  const legacy = new FlatlandModel(0, { playStyle: 'explore', gardenMemories: { visitor: true }, collection: collection('all') });
+  legacy.start();
+  assert.equal(legacy.snapshot().companions.garden.bloomed, true);
+  assert.equal(legacy.snapshot().companions.garden.petals, 3);
   const m = new FlatlandModel(0, { playStyle: 'challenge', gardenMemories: { visitor: true }, collection: collection('all') });
   m.start(); assert.equal(m.snapshot().companions.garden, null); assert.equal(m.petCompanion(), false);
 });

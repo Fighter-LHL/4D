@@ -33,13 +33,17 @@
         <div id="wave-warning" class="wave-warning" hidden><span class="wave-icon">◎</span><div><strong id="wave-label">回流正在接近</strong><span id="wave-instruction">切入安全层</span></div><output id="wave-time">2.4</output></div>
       </div>
       <section class="controls" aria-label="移动与切片控制">
-        <div id="objective" class="objective">观察供能关系，切换 W 寻找这一庭的起点</div>
-        <p id="friend-guide" class="friend-guide" hidden aria-live="polite"></p>
-        <button id="ask-friend" class="icon-button" hidden>问问伙伴 <kbd>H</kbd></button>
+        <div class="guide-bar">
+          <div class="guide-slot">
+            <div id="objective" class="objective">观察供能关系，切换 W 寻找这一庭的起点</div>
+            <p id="friend-guide" class="friend-guide" hidden aria-live="polite"></p>
+          </div>
+          <button id="ask-friend" class="icon-button">请求提示 <kbd>H</kbd></button>
+        </div>
         <div id="seal-prompt" class="seal-prompt" hidden aria-live="polite"></div>
         <div class="layer-controls" role="group" aria-label="切换四维切片"><button data-layer="0" id="layer-0"><span>Ⅰ</span>潮汐层 <kbd>Z</kbd></button><button data-layer="1" id="layer-1"><span>Ⅱ</span>回声层 <kbd>X</kbd></button><button data-layer="2" id="layer-2"><span>Ⅲ</span>绽放层 <kbd>C</kbd></button></div>
         <div class="footing-row"><span id="footing">归响台 · 跨层支撑</span><span>拖动 W 可观察连续截面</span></div>
-        <div class="destination-row"><span class="control-label">下一步</span><div id="destinations" class="destinations"></div></div>
+        <div class="destination-row"><span class="control-label">可前往</span><div id="destinations" class="destinations"></div></div>
         <div class="slice-heading"><label for="w-slider"><span class="w-symbol">W</span> 调节空间切片</label><output id="w-value" for="w-slider">0.280</output><button id="align" class="text-button">对齐切片 ↗</button></div>
         <div class="slider-wrap" id="slider-wrap"><div class="slice-rail"><span id="slice-window"></span><span id="slice-marker"></span></div><input id="w-slider" aria-describedby="slice-hint" type="range" min="0" max="1" step="0.005" value="0.28"><div class="slice-ticks"><span>0.0</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1.0</span></div></div>
         <div class="slice-meta"><span id="slice-hint">把白色光点放进亮起的区间</span><span class="keyboard-hint">← → / A D 微调</span></div>

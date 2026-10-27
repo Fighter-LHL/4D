@@ -8,6 +8,10 @@ test('courtyard imports only known collected friends, independently of the selec
   for (const saved of [null, {}, [], 'sprout', { found: 'sprout' }]) assert.deepEqual(courtyardFriends(saved), []);
   assert.deepEqual(courtyardFriends({ found: ['sprout', 'sprout', 'ribbon', 'unknown'], companion: 'sprout' }).map(f => f.id), ['sprout', 'ribbon']);
   assert.equal(friendGuideText(new GameModel(1).snapshot(), []), '');
+  const active = start('shell', 42).snapshot();
+  assert.ok(active.objective.includes('已供能待启动'));
+  assert.ok(!active.objective.includes('前往'));
+  assert.ok(friendGuideText(active, []).startsWith('提示：'), 'new saves without friends still receive on-demand text hints');
 });
 
 test('friend guidance follows actual supported routes and completes all three rooms across 40 seeds', () => {

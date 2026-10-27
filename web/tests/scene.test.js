@@ -62,6 +62,14 @@ test('courtyard friends follow without revealing the route; clicking their curre
   renderer.setState(guide.present(snapshot)); renderer.render(.016);
   assert.ok(calls.some(call => call.method === 'fillText' && /这边|换到这一层/.test(call.args[0])));
   renderer.setState({ ...snapshot, wave: {} }); assert.equal(renderer.hitFriend(click(renderer.friendTargets[0])), false);
+  // New saves without companions still render the target ring when a hint is requested.
+  renderer.friends = []; calls.length = 0;
+  const freshGuide = new FriendGuide();
+  renderer.setState(freshGuide.present(snapshot)); renderer.render(.016);
+  assert.equal(calls.some(call => call.method === 'fillText' && /这边|换到这一层/.test(call.args[0])), false);
+  freshGuide.request(snapshot); calls.length = 0;
+  renderer.setState(freshGuide.present(snapshot)); renderer.render(.016);
+  assert.ok(calls.some(call => call.method === 'fillText' && /这边|换到这一层/.test(call.args[0])));
   renderer.destroy();
 });
 

@@ -41,7 +41,7 @@ const dialogs = ['choice-dialog','help-dialog','pause-dialog','result-dialog','r
 const isModal = () => dialogs.some(id => $(id).open);
 const canAct = () => !paused && !isModal() && model.snapshot().phase === 'playing';
 const guide = new FriendGuide();
-function askFriend() { if (canAct() && scene.friends.length) { guide.request(model.snapshot()); updateUI(); } }
+function askFriend() { if (canAct()) { guide.request(model.snapshot()); updateUI(); } }
 const scene = new SceneRenderer($('scene'), { onSelect: id => { if (canAct()) action(() => model.selectOrMove(id)); }, onFriend: askFriend });
 function refreshFriends() { scene.friends = courtyardFriends(readJSON('wslice-flatland-friends'), readJSON('wslice-flatland-gardens')); }
 refreshFriends();
@@ -268,7 +268,8 @@ function updateUI() {
   updateRoom(state);
   scene.setState(state);
   const friendHint = friendGuideText(state, scene.friends);
-  $('ask-friend').hidden = !scene.friends.length;
+  $('ask-friend').hidden = false;
+  setHTML('ask-friend', `${scene.friends.length ? '问问伙伴' : '请求提示'} <kbd>H</kbd>`);
   $('ask-friend').disabled = !canAct() || !model.snapshot().companionGuide;
   $('friend-guide').hidden = !friendHint;
   setText('friend-guide', friendHint);
@@ -340,10 +341,14 @@ function updateUI() {
   $('risk-mode').setAttribute('aria-pressed',String(state.riskMode));
   $('safe-mode').disabled = $('risk-mode').disabled = state.phase !== 'playing' || !!state.travel || !!state.wave;
   $('align').disabled = !range || !!state.travel || state.phase !== 'playing';
+  const mustActivate = state.interactAvailable && currentNode?.kind === 'mechanism' && !state.activated.includes(state.node);
   $('move').disabled = !state.canMove || paused;
+  $('move').className = mustActivate ? 'secondary-button' : 'primary-button';
   setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${state.riskMode?'冒险穿越':'穿越'} <span>Space ↗</span>`);
   $('interact').disabled = !state.interactAvailable || paused;
+  $('interact').className = mustActivate ? 'primary-button attention-action' : 'secondary-button';
   setHTML('interact',`${state.interactLabel || '启动机关'} <kbd>E</kbd>`);
+  $('destinations').closest('.destination-row')?.classList.toggle('deemphasized', mustActivate);
   $('stability-wrap').hidden = !state.travel && state.phaseStability>=.99;
   if (state.travel || state.phaseStability<.99) {
     const stability = state.travel?.stability ?? state.phaseStability;
@@ -376,8 +381,8 @@ function updateUI() {
 
 $('w-slider').addEventListener('input',e=>{ if(canAct()) action(()=>model.setW(Number(e.target.value))); });
 $('align').addEventListener('click',()=>{ if(canAct()) action(()=>model.setW(model.snapshot().range?.center ?? .5)); });
-$('safe-mode').addEventListener('click',()=>{ if(canAct()) action(()=>model.setRisk(false)); });
-$('risk-mode').addEventListener('click',()=>{ if(canAct()) action(()=>model.setRisk(true)); });
+$('safe-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(false)); if(e.detail>0) $('w-slider').focus({preventScroll:true}); } });
+$('risk-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(true)); if(e.detail>0) $('w-slider').focus({preventScroll:true}); } });
 $('move').addEventListener('click',()=>{ if(canAct()) { action(()=>model.move()); if(model.snapshot().travel) $('w-slider').focus({preventScroll:true}); } });
 $('interact').addEventListener('click',()=>{ if(canAct()) action(()=>model.interact()); });
 $('ask-friend').addEventListener('click', askFriend);
@@ -405,7 +410,8 @@ document.addEventListener('keydown',e=>{
   // Other game shortcuts remain available after a click or slider adjustment.
   if(e.target===$('w-slider')&&['arrowleft','arrowright','arrowup','arrowdown','home','end','pageup','pagedown'].includes(key))return;
   if(e.target.matches('input,select,textarea')&&e.target!==$('w-slider'))return;
-  if(e.target.matches('button,a')&&[' ','enter'].includes(key))return;
+  const activeModeToggle = (e.target === $('risk-mode') && model.snapshot().riskMode) || (e.target === $('safe-mode') && !model.snapshot().riskMode);
+  if(e.target.matches('button,a')&&[' ','enter'].includes(key)&&!(key===' '&&activeModeToggle))return;
   if(['a','d','arrowleft','arrowright'].includes(key)){e.preventDefault();action(()=>model.setW(model.snapshot().w+(['a','arrowleft'].includes(key)?-.015:.015)));}
   else if(key===' '||key==='enter'){e.preventDefault();action(()=>model.move());}
   else if(key==='e'){e.preventDefault();action(()=>model.interact());}

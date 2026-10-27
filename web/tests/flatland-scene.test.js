@@ -178,6 +178,20 @@ test('locks hide the side view behind a question mark until revealed', () => {
   assert.ok(!texts(calls).includes('?'));
 });
 
+test('narrow 320px side view keeps readable height and non-overlapping height ticks', () => {
+  for (const h of [220, 260, 400]) {
+    const { scene, calls } = renderer(320, h);
+    const m = new FlatlandModel(levelIndex('visitor'), { seed: 42, playStyle: 'explore' }); m.start();
+    scene.setState(m.snapshot()); scene.render(.016);
+    assert.ok(scene.view.side.h >= 88, `side view height ${scene.view.side.h} at 320x${h}`);
+    const ticks = calls.filter(c => c.method === 'fillText' && /^[0-6]$/.test(c.args[0])).map(c => c.args[2]);
+    assert.ok(ticks.length >= 4);
+    for (let i = 1; i < ticks.length; i++) {
+      assert.ok(Math.abs(ticks[i] - ticks[i - 1]) >= 10, `ticks separated at 320x${h}`);
+    }
+  }
+});
+
 test('ascend renders both dimensions and a reversible pointer projection', () => {
   for (const [width, height] of SIZES) for (const reduced of [false, true]) {
     const { scene, calls } = renderer(width, height); scene.reducedMotion = reduced;

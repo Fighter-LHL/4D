@@ -127,8 +127,9 @@ export class FlatlandRenderer {
     }
     const s = this.state, pad = 12, side = s?.sideView !== 'off';
     const wide = width / height > 1.25, bounds = s?.bounds || { w: 20, h: 12 };
-    // Narrow screens: the main view only takes the height its world needs (plus HUD).
-    const narrowH = Math.min((height - pad * 3) * .7, (width - pad * 2 - 20) * bounds.h / bounds.w + 90);
+    // Narrow screens: reserve readable height for the side view so 0..6 ticks do not collide.
+    const minSideH = Math.max(88, Math.round((height - pad * 3) * .35));
+    const narrowH = Math.max(112, Math.min(height - pad * 3 - minSideH, (width - pad * 2 - 20) * bounds.h / bounds.w + 36));
     const mainBox = !side ? { x: pad, y: pad, w: width - pad * 2, h: height - pad * 2 }
       : wide ? { x: pad, y: pad, w: (width - pad * 3) * .66, h: height - pad * 2 }
         : { x: pad, y: pad, w: width - pad * 2, h: narrowH };
@@ -521,7 +522,8 @@ export class FlatlandRenderer {
     const ctx = this.ctx, s = this.state, dpr = this.view.dpr;
     if (s.mirror) { this.drawMirrorSide(box); return; }
     this.card(box);
-    const top = box.y + 22, left = box.x + 26, w = box.w - 40, h = box.h - 44;
+    const compact = box.h < 120;
+    const top = box.y + (compact ? 10 : 22), left = box.x + 26, w = box.w - 38, h = Math.max(36, box.h - (compact ? 20 : 44));
     // Frame the X span that holds something; storms use the whole width.
     const xs = s.storm || s.sideView === 'player-only' ? [0, s.bounds.w] : [s.player.x - 1, s.player.x + 1, ...s.shards.flatMap(shard => [shard.x - 1, shard.x + 1])];
     for (const item of s.profiles) {
@@ -537,10 +539,13 @@ export class FlatlandRenderer {
     const screenStroke = (style, width) => { ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.strokeStyle = style; ctx.lineWidth = width; ctx.stroke(); ctx.restore(); };
     ctx.save();
     ctx.fillStyle = COLORS.muted; ctx.font = '500 9px system-ui, sans-serif'; ctx.textAlign = 'right';
+    const tickStep = kz < 10 ? 2 : 1;
     for (let z = s.slice.min; z <= s.slice.max + 1e-9; z++) {
       ctx.strokeStyle = COLORS.grid; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(ox + x0 * kx, toY(z)); ctx.lineTo(ox + x1 * kx, toY(z)); ctx.stroke();
-      ctx.fillText(String(z), ox + x0 * kx - 6, toY(z) + 3);
+      if (Math.round(z - s.slice.min) % tickStep === 0 || Math.abs(z - s.slice.max) < 1e-6) {
+        ctx.fillText(String(z), ox + x0 * kx - 6, toY(z) + 3);
+      }
     }
     if (s.locks && !s.locks.revealed) {
       ctx.fillStyle = COLORS.line; ctx.font = `700 ${Math.round(range * kz * .45)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';

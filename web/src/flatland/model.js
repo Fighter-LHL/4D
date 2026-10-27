@@ -6,7 +6,7 @@ import { ASCEND_BOXES, DIMENSION_DURATION, W_SLICE, boxPresent, roomBlocker, roo
 import { hazardSolid, hazardZ, spawnStormHazard } from './hazards.js';
 import { createRandom, randomSeed } from './random.js';
 import { createEncounter, encounterView, stepEncounter, normalizeCollection, FRIENDS } from './discoveries.js';
-import { createCompanionState, resetCompanionAction, useCompanions, stepCompanions, companionView, gardenSolids, normalizeGardenMemories, collectGardenSeed, gardenCollection, hasCompanion } from './companions.js';
+import { createCompanionState, resetCompanionAction, useCompanions, stepCompanions, companionView, gardenSolids, normalizeGardenMemories, collectGardenSeed, gardenCollection, restoreGardenProgress, hasCompanion } from './companions.js';
 // Authoritative rules for chapter 0. Views consume snapshots and events only.
 const STEP = 1 / 120;
 const MAX_FRAME_TIME = .1;
@@ -40,6 +40,7 @@ export class FlatlandModel {
     this.encounter = createEncounter(this.level.id, this.seed);
     this.petUntil = 0;
     this.companions = createCompanionState();
+    restoreGardenProgress(this);
     this.pokeUntil = 0;
     this.variant = this.level.build?.(createRandom(this.seed)) || {};
     this.stormRng = createRandom(this.seed ^ 0x9e3779b9);
@@ -295,7 +296,7 @@ export class FlatlandModel {
       shard.taken = true;
       const points = this._addScore(shard.golden ? 400 : 100, [shard.x, shard.y], 'shard');
       this._emit('shard', { id: shard.id, x: shard.x, y: shard.y, golden: !!shard.golden, points, combo: this.combo.count, taken: this.shards.filter(item => item.taken).length, total: this.shards.length });
-      if (shard.bonus) collectGardenSeed(this);
+      if (shard.bonus) collectGardenSeed(this, shard.id);
     }
     if (this.storm) this.shards = this.shards.filter(shard => !shard.taken);
   }
@@ -750,7 +751,7 @@ export class FlatlandModel {
     return {
       index: this.index, count: this.levels.length, levelId: level.id, title: level.title, tagline: level.tagline, mode: level.mode, endless: !!level.endless, seed: this.seed,
       phase: this.phase, exploration: this.exploration, paused: this.paused, precision: this.precision, cleared: this.cleared, time: this.time, s: this.s, slice: { ...this.sliceRange() }, bounds: { ...level.bounds },
-      encounter: encounterView(this.encounter, this), collection: normalizeCollection(this.collection), gardenMemories: { ...this.gardenMemories }, gardenCollection: gardenCollection(this.gardenMemories, this.levels), companions, lanternGhosts, petting: Math.max(0, this.petUntil - this.time),
+      encounter: encounterView(this.encounter, this), collection: normalizeCollection(this.collection), gardenMemories: normalizeGardenMemories(this.gardenMemories, this.levels), gardenCollection: gardenCollection(this.gardenMemories, this.levels), companions, lanternGhosts, petting: Math.max(0, this.petUntil - this.time),
       canPoke: this.exploration && !!this.rings && this.canSlice() && this.time >= this.pokeUntil && this.visible.has(this.level.visitor?.id),
       player: { ...this.player }, canMove: level.player.canMove && !this._frozen(), canSlice: this.canSlice(), sideView,
       sections: structuredClone([...this.visible.values()]), hazards: structuredClone(this.hazardShapes), warnings: this._warnings(), profiles,

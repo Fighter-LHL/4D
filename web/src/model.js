@@ -604,16 +604,15 @@ export class GameModel {
       return this._inLayer(entry) ? '返回桥已恢复；沿桥回到归响台，存入随身回响'
         : `花匣本庭已结束；先切回${LAYERS[entry].name}，再沿返回桥回到归响台`;
     }
-    if (MECHANISMS.includes(this.node) && !this.activated.has(this.node) && this.powered.has(this.node)) return `启动${this._node().name}；${this._mechanismHint(this.node)}`;
-    const route = this._nextRoute();
-    if (route?.length) {
-      const step = route[0];
-      if (step.type === 'shift') return `保持 XYZ 位置，切到${LAYERS[step.layer].name}：这里会显现${this._node(step.to).name}`;
-      const prefix = this._inLayer(step.layer) ? '' : this._node().anchor ? `在锚台切到${LAYERS[step.layer].name}，` : `切回${LAYERS[step.layer].name}，`;
-      return `${prefix}沿${LAYERS[step.layer].name}的桥前往${this._node(step.to).name}${this._allActivated() ? '，走向已打开的庭门' : ''}`;
+    if (MECHANISMS.includes(this.node)) {
+      if (!this.activated.has(this.node) && this.powered.has(this.node)) return `启动${this._node().name}（按 E）；${this._mechanismHint(this.node)}`;
+      if (this.activated.has(this.node)) return `${this._node().name}已启动（${this.activated.size}/3）；${this._allActivated() ? '三座机关全部共鸣，通往庭门的实体桥已开放' : '观察供能槽，切层或沿桥前往下一处机关'}`;
+      return `${this._node().name}尚未供能：${this._mechanismHint(this.node)}`;
     }
     if (this.pending.some(cue => cue.kind === 'power')) return '跨层能量正在抵达，等待目标机关点亮';
-    return '观察各层机关的供能连线，在安全锚台换层继续探索';
+    if (this._allActivated()) return '三座机关已全部启动，通往庭门的实体桥已开放';
+    const ready = this.roomConfig.order.filter(id => this.powered.has(id) && !this.activated.has(id)).map(id => this._node(id).name);
+    return ready.length ? `已供能待启动：${ready.join('、')}（机关 ${this.activated.size}/3）` : `机关 ${this.activated.size}/3 已启动；观察各层机关的供能连线，在安全锚台换层探索`;
   }
   _mechanismHint(id) {
     const incoming = this.roomConfig.requires[id];

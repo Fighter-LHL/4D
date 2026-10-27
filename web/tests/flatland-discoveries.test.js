@@ -50,7 +50,9 @@ test('sleeping friend is hidden behind the box and needs a nearby overhead peek 
   const m = roam('vault');
   assert.equal(m.snapshot().encounter.visible, false);
   assert.equal(m.snapshot().encounter.trace, false);
-  slide(m, 4.8); m.setPeek(true); wait(m, 1);
+  slide(m, 4.8);
+  assert.equal(m.snapshot().encounter.trace, true, 'climbing above the box reveals the snoring trace');
+  m.setPeek(true); wait(m, 1);
   assert.equal(m.encounter.step, 0, 'a distant peek only reveals the sleeper');
   m.setPeek(false); goto(m, m.encounter.x, m.encounter.y); wait(m, 1);
   assert.equal(m.encounter.step, 0, 'standing above is not the interaction');

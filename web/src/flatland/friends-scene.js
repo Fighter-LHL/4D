@@ -60,6 +60,10 @@ export function drawEncounter(renderer, k) {
       asleep: e.kind === 'peek' && e.step === 0, ghost: e.peeking, happy: e.hold > .1 });
     if (e.kind === 'peek' && e.step === 0) {
       ctx.fillStyle = '#a28656'; ctx.font = `${12 / k}px system-ui`; ctx.fillText('z z', e.x + .3, e.y - .7);
+      if (!e.peeking && e.nearby) {
+        ctx.font = `${10 / k}px system-ui`; ctx.textAlign = 'center';
+        ctx.fillText('升到盒子上方 · 按住 Space 俯视', e.x, e.y - 1.05);
+      }
     }
     if (e.kind === 'mirror') {
       const shape = keyShape(0, 0, e.chirality, e.turns);
@@ -69,10 +73,18 @@ export function drawEncounter(renderer, k) {
     }
     if (e.hold > 0) { ctx.strokeStyle = '#e3b348'; ctx.lineWidth = 3 / k; ctx.beginPath(); ctx.arc(e.x, e.y, .65, -Math.PI / 2, -Math.PI / 2 + TAU * e.hold); ctx.stroke(); }
   } else if (e.trace) {
-    ctx.strokeStyle = '#77a88a'; ctx.lineWidth = 1.5 / k; ctx.globalAlpha = e.nearby ? .8 : .45;
-    // A pair of ears and a drifting speck invite investigation, without a target number.
-    for (const dx of [-.14, .14]) { ctx.beginPath(); ctx.ellipse(e.x + dx, e.y, .09, .19, dx, 0, TAU); ctx.stroke(); }
-    ctx.beginPath(); ctx.moveTo(e.x - .12, e.y - e.direction * .6); ctx.lineTo(e.x, e.y - e.direction * .78); ctx.lineTo(e.x + .12, e.y - e.direction * .6); ctx.stroke();
+    if (e.kind === 'peek') {
+      ctx.fillStyle = ctx.strokeStyle = '#bc872f'; ctx.lineWidth = 1.5 / k; ctx.globalAlpha = e.nearby ? .9 : .55;
+      ctx.font = `${12 / k}px system-ui`; ctx.textAlign = 'center';
+      ctx.fillText('z z', e.x, e.y - .35);
+      ctx.setLineDash([.1, .12]); ctx.beginPath(); ctx.arc(e.x, e.y, .45, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+      if (e.nearby) { ctx.font = `${10 / k}px system-ui`; ctx.fillText('按住 Space 俯视盒内', e.x, e.y - .9); }
+    } else {
+      ctx.strokeStyle = '#77a88a'; ctx.lineWidth = 1.5 / k; ctx.globalAlpha = e.nearby ? .8 : .45;
+      // A pair of ears and a drifting speck invite investigation, without a target number.
+      for (const dx of [-.14, .14]) { ctx.beginPath(); ctx.ellipse(e.x + dx, e.y, .09, .19, dx, 0, TAU); ctx.stroke(); }
+      ctx.beginPath(); ctx.moveTo(e.x - .12, e.y - e.direction * .6); ctx.lineTo(e.x, e.y - e.direction * .78); ctx.lineTo(e.x + .12, e.y - e.direction * .6); ctx.stroke();
+    }
   }
   ctx.restore();
 }
@@ -168,8 +180,13 @@ export function drawCompanionToys(renderer, k) {
     }
   }
   const budVisible = Math.abs(s.s - g.bud.z) <= .45;
-  ctx.globalAlpha = budVisible ? 1 : .25; ctx.fillStyle = '#4d9270';
+  const budLit = c.radius > 0 && Math.hypot(s.player.x - g.bud.x, s.player.y - g.bud.y) <= c.radius;
+  ctx.globalAlpha = budVisible ? 1 : budLit ? .78 : .22; ctx.fillStyle = budLit && !budVisible ? '#bc872f' : '#4d9270';
   ctx.font = `${22 / k}px system-ui`; ctx.fillText(g.probeOpen ? '✿' : '♧', g.bud.x, g.bud.y + .2);
+  if (!g.probeOpen && budVisible && Math.hypot(s.player.x - g.bud.x, s.player.y - g.bud.y) < 1.1) {
+    ctx.globalAlpha = 1; ctx.font = `${10 / k}px system-ui`; ctx.textAlign = 'center'; ctx.fillStyle = '#386f53';
+    ctx.fillText('用跳跳 B 触碰', g.bud.x, g.bud.y - .65);
+  }
   ctx.restore();
   if (c.probe) {
     const p = c.probe, ghost = Math.abs(p.z - s.s) > .35;

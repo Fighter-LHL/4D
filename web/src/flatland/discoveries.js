@@ -4,7 +4,7 @@ import { createRandom } from './random.js';
 // Coordinates are deliberately reachable without changing the collision rules.
 export const FRIENDS = Object.freeze([
   Object.freeze({ id: 'sprout', level: 'escape', name: '跳跳', icon: '♧', color: '#4d9270', clue: '墙上方，有一对耳朵。', memory: '它总想再躲一次。' }),
-  Object.freeze({ id: 'lantern', level: 'vault', name: '瞌睡灯', icon: '✦', color: '#bc872f', clue: '盒子里，似乎还有谁在睡觉。', memory: '看一眼，它就醒了。' }),
+  Object.freeze({ id: 'lantern', level: 'vault', name: '瞌睡灯', icon: '✦', color: '#bc872f', clue: '升到盒子上方，按住 Space 往下看，谁在打呼噜？', memory: '看一眼，它就醒了。' }),
   Object.freeze({ id: 'ribbon', level: 'mirror', name: '反反', icon: '❧', color: '#8c6cad', clue: '有个倒影，没在照着你做。', memory: '绕到另一面，才认得彼此。' }),
 ]);
 
@@ -37,7 +37,9 @@ export function encounterView(encounter, model) {
   if (encounter.found) return { id: encounter.id, kind: 'home', x: p.x, y: p.y };
   const visible = Math.abs(model.s - p.z) <= .4;
   const peeking = encounter.kind === 'peek' && model.peek && model.s > p.z + .4;
-  const hidden = encounter.kind === 'peek' && !peeking && !model.visible.has('vault-key') && encounter.step === 0;
+  const aboveBox = encounter.kind === 'peek' && model.s > 4;
+  const insideBox = encounter.kind === 'peek' && model.player.x > 8.35 && model.player.x < 11.65 && model.player.y > 4.35 && model.player.y < 7.65;
+  const hidden = encounter.kind === 'peek' && !peeking && !aboveBox && !insideBox && !model.visible.has('vault-key') && encounter.step === 0;
   return { id: encounter.id, kind: encounter.kind, x: p.x, y: p.y, visible: visible && !hidden, peeking,
     nearby: distance < 2, trace: !hidden && (!visible || encounter.cooldown > 0), hold: Math.min(1, encounter.hold / .25),
     step: encounter.step, chirality: encounter.chirality, turns: encounter.turns,

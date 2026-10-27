@@ -6,7 +6,7 @@ import { normalizeProgress, normalizeBest, isLevelUnlocked } from './progress.js
 import { COURTYARD_ENTRY } from './handoff.js';
 import { parseSeed, randomSeed } from './random.js';
 import { FRIENDS, friendPortrait } from './discoveries.js';
-import { COMPANION_HELP, gardenCollection } from './companions.js';
+import { COMPANION_HELP, GARDEN_SEEDS, gardenCollection, gardenSeedList } from './companions.js';
 
 const $ = id => document.getElementById(id);
 const setText = (id, text) => { const el = $(id), value = String(text); if (el.textContent !== value) el.textContent = value; };
@@ -90,7 +90,9 @@ function renderLevels(snap) {
   setHTML('levels', FLATLAND_LEVELS.map((level, i) => {
     const stars = progress[level.id] || 0, label = level.endless ? `∞ · ${level.title}` : `${i + 1} · ${level.title}`;
     const friend = FRIENDS.find(f => f.level === level.id);
-    const badge = playStyle === 'explore' ? `${friend ? model.collection.found.includes(friend.id) ? friend.icon : '◌' : visits[level.id] ? '·' : ''}${model.gardenMemories[level.id] ? ' ✿' : ''}` : `${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`;
+    const seeds = level.garden ? gardenSeedList(model.gardenMemories, level.id) : [];
+    const gardenBadge = seeds.length === GARDEN_SEEDS.length ? ' ✿' : seeds.length ? ` ${seeds.length}/3` : '';
+    const badge = playStyle === 'explore' ? `${friend ? model.collection.found.includes(friend.id) ? friend.icon : '◌' : visits[level.id] ? '·' : ''}${gardenBadge}` : `${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`;
     return `<li><button data-level="${i}" class="${level.endless ? 'endless' : ''}" ${i === snap.index ? 'aria-current="true"' : ''} ${unlocked(i) || i === snap.index ? '' : 'disabled'}>${escapeHTML(label)}<span class="level-stars">${badge}</span></button></li>`;
   }).join(''));
   revealCurrentLevel();
@@ -172,7 +174,10 @@ function renderCollection() {
     return `<article class="friend-card ${has ? 'found' : ''}"><span class="friend-portrait">${friendPortrait(friend, has, { crowned: gardens.complete })}</span><h3>${has ? friend.name : '还没遇见'}</h3><p>${has ? COMPANION_HELP[friend.id] : friend.clue}</p><button class="secondary-button" ${has ? `data-companion="${friend.id}" aria-pressed="${companion === friend.id}"` : `data-visit="${friend.level}"`}>${has ? companion === friend.id ? '正跟着你' : '一起走' : '去看看'}</button></article>`;
   }).join(''));
   $('travel-together').disabled = found.length < FRIENDS.length;
-  setHTML('garden-memories', FLATLAND_LEVELS.filter(level => level.garden).map(level => `<span class="${model.gardenMemories[level.id] ? 'bloomed' : ''}">${model.gardenMemories[level.id] ? '✿' : '○'} ${level.title}</span>`).join(''));
+  setHTML('garden-memories', FLATLAND_LEVELS.filter(level => level.garden).map(level => {
+    const seeds = gardenSeedList(model.gardenMemories, level.id), bloomed = seeds.length === GARDEN_SEEDS.length;
+    return `<span class="${bloomed ? 'bloomed' : seeds.length ? 'sprouting' : ''}">${bloomed ? '✿' : seeds.length ? '◐' : '○'} ${level.title} ${seeds.length}/3</span>`;
+  }).join(''));
   setText('garden-tally', `花园 ${gardens.count} / ${gardens.total} ✿`);
   $('garden-keepsake').hidden = !gardens.complete;
   $('travel-together').setAttribute('aria-pressed', String(companion === 'all'));
@@ -273,7 +278,7 @@ function consumeEvents() {
     if (event.type === 'friend_garden') announce(event.kind === 'probe' ? '花苞醒了，金色光屑落到花垫那层。' : '你和反反一起打开了花匣，金色光屑出现了。');
     if (event.type === 'garden_bloom') { savePreference(GARDENS_KEY, JSON.stringify(model.gardenMemories)); renderLevels(model.snapshot()); announce('这座花园点亮了，已经收进口袋。'); }
     if (event.type === 'gardens_complete') announce('六座花园全部盛开，朋友们戴上了小花冠。');
-    if (event.type === 'garden_seed') announce(`收下花种 ${event.petals} / 3`);
+    if (event.type === 'garden_seed') { savePreference(GARDENS_KEY, JSON.stringify(model.gardenMemories)); renderLevels(model.snapshot()); announce(`收下花种 ${event.petals} / 3`); }
     if (event.type === 'friend_blocked') announce(event.reason === 'height' ? '跳跳到高度边缘了，请切换跳跃方向。' : '跳跳要去的那层有墙，请挪一挪。');
     if (event.type === 'ring_hit') announce(model.exploration ? '接住啦。' : `接住，+${event.points}`);
     if (event.type === 'ring_miss') announce('错过一道光环');

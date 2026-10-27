@@ -32,8 +32,13 @@
     </div>
 
     <section class="controls" aria-label="控制">
-      <div id="hint" class="hint" hidden aria-live="polite"></div>
-      <div class="control-guide"><span id="control-hint"></span><button id="fine-control" class="fine-button" aria-pressed="false">精调 <kbd>Shift</kbd></button></div>
+      <div class="control-guide">
+        <div class="hint-slot">
+          <span id="control-hint"></span>
+          <div id="hint" class="hint" hidden aria-live="polite"></div>
+        </div>
+        <button id="fine-control" class="fine-button" aria-pressed="false">精调 <kbd>Shift</kbd></button>
+      </div>
       <div id="slice-row" class="slice-row">
         <button id="s-down" class="hold-button" aria-label="降低">▼ <kbd>Q</kbd></button>
         <label for="s-slider" class="s-label"><b id="slice-axis">S</b></label>

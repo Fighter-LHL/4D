@@ -2,6 +2,7 @@ import { circleHitsShape, sliceSolid, EPSILON } from './geometry.js';
 import { sightBlocked } from './perception.js';
 
 export const PROBE_OFFSET = 1.5, PROBE_REACH = 2.4, PROBE_FLIGHT = .3, PROBE_STAY = 2;
+export const GARDEN_SEEDS = Object.freeze(['friend-probe-0', 'friend-mirror-0', 'friend-mirror-1']);
 export const COMPANION_HELP = Object.freeze({
   sprout: 'B：向前跳，捡光屑、碰花苞、引开守卫。C：切换上层 / 同层 / 下层。',
   lantern: '微光照出附近上下层。B：扩大光圈；虚线只是线索，换到那层才能碰到。',
@@ -72,9 +73,19 @@ function openGarden(m, kind, at) {
   if (garden[`${kind}Open`]) return;
   garden[`${kind}Open`] = true;
   const { left, drops } = gardenLayout(m);
-  drops[kind].forEach((p, i) => m.shards.push({ id: `friend-${kind}-${i}`, x: p.x, y: p.y,
-    z: [left.z - .3, left.z + .3], taken: false, golden: true, bonus: true }));
+  const saved = new Set(gardenSeedList(m.gardenMemories, m.level.id));
+  drops[kind].forEach((p, i) => {
+    const id = `friend-${kind}-${i}`;
+    if (saved.has(id) || m.shards.some(s => s.id === id)) return;
+    m.shards.push({ id, x: p.x, y: p.y, z: [left.z - .3, left.z + .3], taken: false, golden: true, bonus: true });
+  });
   m._emit('friend_garden', { kind, x: at.x, y: at.y, z: left.z });
+}
+export function restoreGardenProgress(m) {
+  if (!companionsEnabled(m) || !m.level.garden) return;
+  const saved = new Set(gardenSeedList(m.gardenMemories, m.level.id));
+  m.companions.garden.probeOpen = saved.has('friend-probe-0');
+  m.companions.garden.mirrorOpen = saved.has('friend-mirror-0') && saved.has('friend-mirror-1');
 }
 export function stepCompanions(m, dt) {
   if (!companionsEnabled(m)) { resetCompanionAction(m); return; }
@@ -93,7 +104,7 @@ export function stepCompanions(m, dt) {
   if (!m.level.garden) return;
   const { left, right, bud } = gardenLayout(m), p = m.player;
   const touch = (actor, target) => Math.abs(actor.z - target.z) <= .35 && Math.hypot(actor.x - target.x, actor.y - target.y) <= .6;
-  if ((c.probe && touch(c.probe, bud)) || touch({ ...p, z: m.s }, bud)) openGarden(m, 'probe', bud);
+  if (c.probe && touch(c.probe, bud)) openGarden(m, 'probe', bud);
   const mirror = mirrorPose(m);
   const paired = mirror && !mirror.blocked && ((touch({ ...p, z: m.s }, left) && touch(mirror, right)) ||
     (touch({ ...p, z: m.s }, right) && touch(mirror, left)));
@@ -121,24 +132,48 @@ export function steerGuards(m, dt) {
   }
 }
 
+export function gardenSeedList(value, levelId) {
+  const raw = value?.[levelId];
+  if (raw === true) return [...GARDEN_SEEDS];
+  if (!Array.isArray(raw)) return [];
+  return GARDEN_SEEDS.filter(id => raw.includes(id));
+}
+
+export function isGardenBloomed(value, levelId) {
+  return gardenSeedList(value, levelId).length === GARDEN_SEEDS.length;
+}
+
 export function normalizeGardenMemories(value, levels) {
-  return Object.fromEntries(levels.filter(l => l.garden && value?.[l.id] === true).map(l => [l.id, true]));
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const entries = [];
+  for (const level of levels) {
+    if (!level.garden) continue;
+    const seeds = gardenSeedList(value, level.id);
+    if (seeds.length) entries.push([level.id, seeds]);
+  }
+  return Object.fromEntries(entries);
 }
 
 export function gardenCollection(value, levels) {
+  const normalized = normalizeGardenMemories(value, levels);
   const total = levels.filter(l => l.garden).length;
-  const count = Object.keys(normalizeGardenMemories(value, levels)).length;
+  const count = levels.filter(l => l.garden && isGardenBloomed(normalized, l.id)).length;
   return { count, total, complete: total > 0 && count === total };
 }
 
-export function collectGardenSeed(m) {
+export function collectGardenSeed(m, shardId) {
   if (!m.exploration || !m.level.garden) return;
-  const petals = m.shards.filter(s => s.bonus && s.taken).length;
-  m._emit('garden_seed', { petals });
-  if (petals === 3) {
-    const wasComplete = gardenCollection(m.gardenMemories, m.levels).complete;
-    const fresh = !m.gardenMemories[m.level.id]; m.gardenMemories[m.level.id] = true;
-    m._emit('garden_bloom', { fresh, x: m.level.garden.axis, y: m.level.garden.left.y });
+  const wasComplete = gardenCollection(m.gardenMemories, m.levels).complete;
+  const previous = gardenSeedList(m.gardenMemories, m.level.id);
+  const wasBloomed = previous.length === GARDEN_SEEDS.length;
+  const takenIds = new Set([...previous, ...m.shards.filter(s => s.bonus && s.taken).map(s => s.id)]);
+  if (shardId && GARDEN_SEEDS.includes(shardId)) takenIds.add(shardId);
+  const seeds = GARDEN_SEEDS.filter(id => takenIds.has(id));
+  if (seeds.length) m.gardenMemories[m.level.id] = seeds;
+  const petals = seeds.length;
+  m._emit('garden_seed', { id: shardId, petals, seeds: [...seeds] });
+  if (petals === GARDEN_SEEDS.length) {
+    m._emit('garden_bloom', { fresh: !wasBloomed, x: m.level.garden.axis, y: m.level.garden.left.y });
     if (!wasComplete && gardenCollection(m.gardenMemories, m.levels).complete) {
       m._emit('gardens_complete', { x: m.player.x, y: m.player.y });
     }
@@ -149,10 +184,13 @@ export function companionView(m) {
   const enabled = companionsEnabled(m), c = m.companions;
   const radius = hasCompanion(m, 'lantern') ? m.time < c.glowUntil ? 5 : 3.2 : 0;
   const probe = enabled && c.probe;
+  const savedSeeds = enabled && m.level.garden ? gardenSeedList(m.gardenMemories, m.level.id) : [];
+  const takenIds = new Set([...savedSeeds, ...m.shards.filter(s => s.bonus && s.taken).map(s => s.id)]);
+  const seeds = GARDEN_SEEDS.filter(id => takenIds.has(id));
   return { enabled, direction: c.direction, cooldown: Math.max(0, c.readyAt - m.time),
     canAim: hasCompanion(m, 'sprout') && m.phase === 'playing' && !m._frozen(),
     canUse: enabled && !!m.collection.companion && m.phase === 'playing' && !m._frozen() && m.time >= c.readyAt,
     probe: probe ? { x: probe.x, y: probe.y, z: probe.z, remaining: Math.max(0, PROBE_FLIGHT + PROBE_STAY - (m.time - probe.born)) } : null,
     mirror: mirrorPose(m), radius, garden: enabled && m.level.garden ? { ...gardenLayout(m), ...c.garden, hold: c.garden.hold / .6,
-      petals: m.shards.filter(s => s.bonus && s.taken).length, bloomed: !!m.gardenMemories[m.level.id] } : null };
+      petals: seeds.length, seeds, bloomed: seeds.length === GARDEN_SEEDS.length } : null };
 }
