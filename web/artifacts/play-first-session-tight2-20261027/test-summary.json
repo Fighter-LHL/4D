@@ -1,0 +1,11 @@
+{
+  "command": "npm test --prefix web",
+  "status": "passed",
+  "node": "v24.12.0",
+  "tests": 315,
+  "pass": 315,
+  "fail": 0,
+  "cancelled": 0,
+  "skipped": 0,
+  "todo": 0
+}

@@ -1,0 +1,10 @@
+{
+  "web/scripts/courtyard-first-beat.mjs": {
+    "removedAssertionLines": [],
+    "addedAssertionLines": 29
+  },
+  "web/scripts/verify-penpal.mjs": {
+    "removedAssertionLines": [],
+    "addedAssertionLines": 3
+  }
+}
