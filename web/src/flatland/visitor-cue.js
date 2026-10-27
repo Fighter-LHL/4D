@@ -21,9 +21,12 @@ export class VisitorCueSequence {
       if (event.type === 'visitor_poke') this.pokedAt = state.time;
     }
   }
+  arrivalActive(state) {
+    return state.exploration && state.phase === 'playing' && state.levelId === 'escape' &&
+      this.arrivedAt !== null && state.time - this.arrivedAt < 4;
+  }
   text(state) {
-    if (state.exploration && state.phase === 'playing' && state.levelId === 'escape' &&
-        this.arrivedAt !== null && state.time - this.arrivedAt < 4) return '墙那边有动静 · 换个切片看看';
+    if (this.arrivalActive(state)) return '墙那边有动静 · 换个切片看看';
     return visitorCue(state, this.pokedAt);
   }
 }

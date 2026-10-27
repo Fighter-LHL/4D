@@ -30,8 +30,23 @@ try {
       const response = await route.fetch();
       await route.fulfill({ response, body: await response.text() + `
 window.__top5Events = [];
+window.__top5Near = [];
+window.__top5CueConflicts = [];
 const top5Push = scene.pushEvents.bind(scene);
-scene.pushEvents = events => { window.__top5Events.push(...structuredClone(events)); top5Push(events); };
+scene.pushEvents = events => {
+  window.__top5Events.push(...structuredClone(events));
+  for (const event of events.filter(e => e.type === 'discovery_near')) {
+    window.__top5Near.push({ key: event.key, time: model.time, duringArrival: visitorCues.arrivalActive(model.snapshot()) });
+  }
+  top5Push(events);
+};
+const top5Render = scene.render.bind(scene);
+scene.render = dt => {
+  top5Render(dt);
+  const arrival = document.querySelector('#visitor-goal').textContent.includes('墙那边有动静');
+  const announcedNear = window.__top5Events.some(e => e.type === 'discovery_near' && e.text === document.querySelector('#announcement').textContent);
+  if (arrival && (scene.popups.some(p => p.near) || announcedNear)) window.__top5CueConflicts.push({ time: model.time });
+};
 window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: scene.popups, view: scene.view, reduced: scene.reducedMotion, audioState: audio.context?.state });
 ` });
     });
@@ -59,7 +74,33 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
     assert.match(await page.locator('#levels [aria-current=true]').innerText(), /越墙/);
     assert.equal(await page.locator('#garden-count').innerText(), '0/6');
     assert.equal(await page.locator('#garden-petals').innerText(), '0/3');
-    await page.waitForFunction(() => window.__top5Events.some(e => e.type === 'discovery_near'));
+    await screenshot('arrival');
+    await page.waitForFunction(() => window.__top5Read().state.time >= 4.2);
+    assert.equal((await page.evaluate(() => window.__top5Events)).some(e => e.type === 'discovery_near'), false,
+      'standing on the starting slice stays quiet even after narration ends');
+    await screenshot('idle-after-arrival');
+    // Replay through real controls, deliberately revealing a nearby friend during narration.
+    await page.keyboard.press('r'); await slice(4.7);
+    await page.waitForFunction(() => window.__top5Read().state.time >= 1);
+    assert.equal((await read()).state.encounter.visible, true);
+    assert.match(await page.locator('#visitor-goal').innerText(), /墙那边有动静/);
+    assert.equal((await page.evaluate(() => window.__top5Events)).some(e => e.type === 'discovery_near'), false);
+    assert.equal(await page.locator('#announcement').innerText(), '');
+    await screenshot('arrival-visible-friend');
+    await page.locator('#pause').click();
+    const arrivalPausedAt = (await read()).state.time;
+    await page.waitForTimeout(250);
+    assert.equal((await read()).state.time, arrivalPausedAt);
+    assert.match(await page.locator('#visitor-goal').innerText(), /墙那边有动静/);
+    await page.locator('#resume').click();
+    await page.waitForFunction(() => window.__top5Read().popups.some(p => p.near));
+    const approach = await read(), approachPopup = approach.popups.find(p => p.near);
+    const nearEvents = await page.evaluate(() => window.__top5Near);
+    assert.equal(nearEvents.length, 1);
+    assert.equal(nearEvents[0].duringArrival, false); assert.ok(nearEvents[0].time >= 4);
+    assert.equal(await page.locator('#visitor-goal').isVisible(), false);
+    const narrowCanvas = approach.view.width <= 480;
+    assert.equal(approachPopup.duration, narrowCanvas ? 1.3 : 2.2);
     await screenshot('approach');
     await page.locator('#pause').click();
     const pausedCue = (await read()).popups;
@@ -67,6 +108,11 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
     await page.waitForTimeout(250);
     assert.deepEqual((await read()).popups, pausedCue, 'approach cue also freezes while paused');
     await page.locator('#resume').click();
+    await page.waitForFunction(() => !window.__top5Read().popups.some(p => p.near));
+    const approachClearedAt = (await read()).state.time;
+    assert.ok(approachClearedAt - nearEvents[0].time <= approachPopup.duration + .25);
+    assert.equal((await read()).state.encounter.step, 0, 'cue expires while the encounter is still present');
+    await screenshot('approach-cleared');
     await page.locator('#scene').click({ position: { x: 15, y: 15 } }); // user gesture unlocks audio, outside the world
     if (width === 320) await page.locator('#sound').click();
     const notesBefore = await page.evaluate(() => window.__top5Notes.length);
@@ -79,6 +125,8 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
     }
     await page.waitForFunction(() => window.__top5Read().popups.some(p => p.text === '跳跳跟上来了'));
     const found = await read(); assert.deepEqual(found.state.collection.found, ['sprout']);
+    const discoveryDuration = found.popups.find(p => p.discovery).duration;
+    assert.equal(discoveryDuration, narrowCanvas ? 1.35 : 1.8);
     assert.equal((await page.evaluate(() => window.__top5Events)).filter(e => e.type === 'friend_found' && e.fresh).length, 1, 'one delivery of the first discovery');
     assert.equal(found.state.phase, 'playing'); assert.equal(found.state.paused, false);
     assert.equal(await page.locator('dialog[open]').count(), 0);
@@ -91,6 +139,8 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
     assert.deepEqual((await read()).popups, frozen.popups);
     await page.locator('#resume').click();
     await page.waitForFunction(() => !window.__top5Read().popups.some(p => p.discovery));
+    await screenshot('friend-found-cleared');
+    assert.equal((await page.evaluate(() => window.__top5Near)).filter(e => e.key === 'escape:friend:sprout').length, 1);
     await page.locator('[data-level="0"]').click();
     const visitorSeed = (await read()).state.seed;
     assert.equal(await page.locator('#title').innerText(), '访客');
@@ -110,10 +160,12 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
     assert.equal(await page.locator('#garden-count').innerText(), '0/6', 'one seed is not a completed garden');
     assert.equal(await page.locator('#visitor-goal').innerText(), '走到光环边找访客', 'seed discovery does not reset the visitor beat');
     assert.equal((await read()).popups.filter(p => p.discovery).length, 1, 'one discovery label alongside the visitor goal');
+    assert.equal((await read()).popups.find(p => p.discovery).duration, discoveryDuration);
     await screenshot('seed-found');
     const firstSeed = (await page.evaluate(() => window.__top5Events)).find(e => e.type === 'garden_seed');
     assert.equal(firstSeed.fresh, true);
     assert.equal((await page.evaluate(() => window.__top5Events)).filter(e => e.type === 'garden_seed' && e.fresh).length, 1, 'one delivery of the first seed');
+    assert.deepEqual(await page.evaluate(() => window.__top5CueConflicts), [], 'arrival never shares a frame with near text or its announcement');
     await page.reload(); await ready();
     assert.deepEqual((await read()).state.collection.found, ['sprout']);
     assert.equal(await page.locator('#garden-petals').innerText(), '1/3');
@@ -144,7 +196,8 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
     await page.keyboard.press('e');
     await page.waitForFunction(() => document.querySelector('#action-feedback').textContent.includes('去辉光源'));
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    receipt.checks.push({ width, reducedMotion: width === 320, muted: width === 320, friendFound: true, seedFound: true, savedAfterReloadAndRetry: true, levelHighlightSynced: true, noOverflow: true, visitorAndDiscoveryCoexist: true, discoveryDeliveredOnce: true, earnedCollectionToCourtyardCTA: true });
+    receipt.checks.push({ width, reducedMotion: width === 320, muted: width === 320, friendFound: true, seedFound: true, savedAfterReloadAndRetry: true, levelHighlightSynced: true, noOverflow: true, visitorAndDiscoveryCoexist: true, discoveryDeliveredOnce: true, earnedCollectionToCourtyardCTA: true,
+      arrivalAndNearExclusive: true, idleAfterArrivalQuiet: true, nearOnce: nearEvents, approachDuration: approachPopup.duration, approachClearedAfter: approachClearedAt - nearEvents[0].time, discoveryDuration });
     console.log(`passed ${width}px: discovery, seed, pause, saved progress, HUD, visitor beat and courtyard CTA`);
     await context.close();
   }

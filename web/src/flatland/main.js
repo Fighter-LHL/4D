@@ -506,7 +506,7 @@ function frame(now) {
   if (Math.abs(snap.s - lastS) > 1e-6) { audio.slice(snap.s - snap.slice.min, snap.slice.max - snap.slice.min, closeness(snap)); lastS = snap.s; }
   if (resultTimer > 0) { resultTimer -= dt; if (resultTimer <= 0 && snap.phase === 'complete') showResult(snap); }
   scene.setState(snap);
-  const discoveryCue = discoveryHints.update(snap, isModal() || document.hidden ? 0 : dt);
+  const discoveryCue = discoveryHints.update(snap, isModal() || document.hidden ? 0 : dt, { suppressed: visitorCues.arrivalActive(snap) });
   if (discoveryCue) { scene.pushEvents([discoveryCue]); announce(discoveryCue.text); }
   scene.render(document.hidden || model.paused ? 0 : dt);
   requestAnimationFrame(frame);

@@ -1,0 +1,49 @@
+{
+  "base": "1aa03a121645221bd81fe0b57972cb141ffdd604",
+  "tracked_changes": [
+    "web/scripts/verify-top5.mjs",
+    "web/src/flatland/audio.js",
+    "web/src/flatland/main.js",
+    "web/src/flatland/scene.js",
+    "web/src/flatland/visitor-cue.js",
+    "web/src/play-feedback.js",
+    "web/tests/flatland-audio.test.js",
+    "web/tests/flatland-scene.test.js",
+    "web/tests/play-feedback.test.js"
+  ],
+  "all_changes_in_web": true,
+  "unchanged_protected_files": {
+    "src/model.js": {
+      "identical_to_base": true,
+      "sha256": "503e8c5bb264cfcd9ef645f5be8886958030ee1d5e7fd2b78496edf37432c940"
+    },
+    "src/rooms.js": {
+      "identical_to_base": true,
+      "sha256": "53d202c4cacfbb0ebc6005980e0da74a0ef5888aa04356a4f175ec144eaacff4"
+    },
+    "src/flatland/model.js": {
+      "identical_to_base": true,
+      "sha256": "b8e1fef4126d3e57072a120fc29349be510052881d72372d5361b7d5d1523763"
+    },
+    "src/flatland/levels.js": {
+      "identical_to_base": true,
+      "sha256": "095e4ff15ca20dbd0d3386bbeb2490d5650d69652a43c6f657ab3594b0a4d0b4"
+    },
+    "src/flatland/discoveries.js": {
+      "identical_to_base": true,
+      "sha256": "f7efd0296a69454fe548c65bc5329a7df39e217b138800fa3a437d1c4974e1dd"
+    },
+    "src/flatland/companions.js": {
+      "identical_to_base": true,
+      "sha256": "87e5416c556964c64c884ac21777b7606257e8af944fd2ba636283cdf271bcec"
+    },
+    "src/courtyard-friends.js": {
+      "identical_to_base": true,
+      "sha256": "fb7fd8d1fc6095edf6481a29a8027172360ec67476751537c94b07e282a1baac"
+    },
+    "scripts/verify-penpal.mjs": {
+      "identical_to_base": true,
+      "sha256": "7fb7cd519ac7c25cbae82721f923fd7ea8b9a89c5f3ba1d1cb009e8696f439cd"
+    }
+  }
+}

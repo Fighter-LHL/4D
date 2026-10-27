@@ -74,6 +74,7 @@ export class FlatlandRenderer {
     this.popups = this.popups.slice(-6);
   }
   pushEvents(events) {
+    const narrow = this.canvas.getBoundingClientRect().width <= 480;
     for (const event of events) {
       const st = this.state;
       if (['load', 'dimension_start', 'dimension_ready'].includes(event.type)) { this.volumeOpacity = new Map(); this.dimensionView = null; }
@@ -95,12 +96,12 @@ export class FlatlandRenderer {
       if (event.type === 'friend_wake') { this.popup(event.x, event.y - .8, '…？', COLORS.amber); this.burst(event.x, event.y, '#e8b74e', 18, 2); }
       if (event.type === 'visitor_poke') this.bursts.push({ x: event.x, y: event.y, r: .4, age: 0, color: COLORS.slice });
       if (event.type === 'discovery_near') {
-        this.popup(event.x, event.y - 1.8, event.text, event.color, false, { duration: 2.2, near: event });
+        this.popup(event.x, event.y - 1.8, event.text, event.color, false, { duration: narrow ? 1.3 : 2.2, near: event });
       }
       const discovery = discoveryFeedback(event);
       if (discovery) {
         this.popups = this.popups.filter(p => !p.near && !p.discovery);
-        this.popup(event.x, event.y - .9, discovery.text, discovery.color, false, { duration: 1.8, discovery: true });
+        this.popup(event.x, event.y - .9, discovery.text, discovery.color, false, { duration: narrow ? 1.35 : 1.8, discovery: true });
       }
       if (event.type === 'friend_found' && event.fresh) {
         const friend = FRIENDS.find(f => f.id === event.id);
@@ -263,7 +264,7 @@ export class FlatlandRenderer {
     for (const pop of this.popups) {
       const p = pop.age / pop.duration;
       if (pop.near) {
-        ctx.globalAlpha = .35 * (1 - p); ctx.strokeStyle = pop.color; ctx.lineWidth = 2 / k;
+        ctx.globalAlpha = .22 * (1 - p); ctx.strokeStyle = pop.color; ctx.lineWidth = 2 / k;
         const r = .8 + (this.reducedMotion ? 0 : .12 * Math.sin(p * TAU));
         ctx.beginPath(); ctx.ellipse(pop.near.x, pop.near.y, r, r, 0, 0, TAU); ctx.stroke();
       }

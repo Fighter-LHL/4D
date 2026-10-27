@@ -1,0 +1,45 @@
+✔ fresh discovery cues are short, seed pickup avoids a second melody, and mute stays silent (2.251958ms)
+✔ peek audio has one voice per hold and releases it on release, mute, return, load and completion (0.287083ms)
+✔ pause and retry cancel scheduled tones rather than replaying them on resume (0.213084ms)
+✔ audio events remain safe before Web Audio unlock and delayed unlock does not revive a released peek (0.136917ms)
+✔ discovery popups fit phones, pause, expire, stay still with reduced motion and suppress repeated finds (8.635709ms)
+✔ approach highlight clears when leaving the real clue layer or loading another scene (17.268625ms)
+✔ every level renders finite geometry across the slice range, wide and narrow (75.552959ms)
+✔ full bot runs draw score popups, particles and the HUD for every story level (635.398458ms)
+✔ hazards, warnings and deaths draw in the danger colour with a screen flash (6.715ms)
+✔ storm draws hearts, waves and hazard profiles in the side view (59.628ms)
+✔ pause freezes particles, popups and the current shake offset (0.565625ms)
+✔ exploration draws encounters, companion parties and toy faces with finite geometry (85.751666ms)
+✔ storm friends cheer at grazes and high combos, keep crowns, and freeze with pause or reduced motion (1.302625ms)
+✔ a large visitor section cannot paint over the nearby flower-pad instruction on a phone (1.970875ms)
+✔ blocked events flash the blocking solid (0.888458ms)
+✔ screenToWorld maps canvas pixels into the flat world (0.365208ms)
+✔ locks hide the side view behind a question mark until revealed (0.458792ms)
+✔ narrow 320px side view keeps readable height and non-overlapping height ticks (0.321459ms)
+✔ ascend renders both dimensions and a reversible pointer projection (51.088667ms)
+✔ discovery approach is nearby, once per region, frozen on pause and never solves or moves (19.501292ms)
+✔ arrival narration defers the first approach cue without consuming it, including pause and retry (17.820292ms)
+✔ standing on an off-layer trace stays quiet; revealing and approaching the friend gives one cue (24.551875ms)
+✔ discovery cues respect the box concealment and current flower layer without leaking future positions (51.639ms)
+✔ real seed pickup reports fresh position once, then saved seeds cannot re-celebrate (7.081125ms)
+✔ short starter choices retain all five abilities and their complete descriptions (3.477541ms)
+✔ first-step highlight works without companions and expires without moving or solving (10.46975ms)
+✔ failed E explains empty bank, crossing and missing footing without changing state (2.021ms)
+✔ missing source feedback distinguishes partial delivery from energy still in flight (5.017125ms)
+✔ activation reports its real count; pressing E twice cannot award another activation (2.435125ms)
+✔ wave and wrong-layer chest feedback take priority over ordinary E hints (3.364916ms)
+✔ help presents one current action and never mutates the route or exposes a full solution (0.956083ms)
+✔ visitor goal explains invisible slice, poke and its response, independently of the pocket (1.11425ms)
+✔ preview, crossing, activation and completed source give one executable primary action (30.684709ms)
+✔ unavailable footing, wrong slices, waves and non-playing phases never advertise a crossing (5.801334ms)
+✔ either dual source points only at the unsent branch, including before delivery arrives (8.418375ms)
+✔ visitor observation advances on game time, persists after cooldown and resets on replay (11.124875ms)
+✔ escape arrival gives one short scene line, freezes on pause and expires without discovery effects (21.486542ms)
+ℹ tests 37
+ℹ suites 0
+ℹ pass 37
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1027.15475

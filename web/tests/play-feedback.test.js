@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { GameModel, RELICS } from '../src/model.js';
 import { FriendGuide } from '../src/friend-guide.js';
 import { STARTER_RELICS, mechanismFeedback, contextualHelp, DiscoveryHints, nearbyDiscovery, discoveryFeedback } from '../src/play-feedback.js';
-import { visitorCue } from '../src/flatland/visitor-cue.js';
+import { visitorCue, VisitorCueSequence } from '../src/flatland/visitor-cue.js';
 import { FlatlandModel } from '../src/flatland/model.js';
 import { start, travel, reach, advance, seedFor, activateAll } from './model-helpers.js';
 import { goto, slide, wait, walk, levelIndex } from './flatland-helpers.js';
@@ -30,6 +30,42 @@ test('discovery approach is nearby, once per region, frozen on pause and never s
   }
 });
 
+test('arrival narration defers the first approach cue without consuming it, including pause and retry', () => {
+  const m = new FlatlandModel(levelIndex('escape'), { seed: 42, playStyle: 'explore' }); m.start();
+  const hints = new DiscoveryHints(), visitor = new VisitorCueSequence();
+  visitor.receive(m.drainEvents(), m.snapshot());
+  slide(m, 4.7);
+  const cue = () => { const s = m.snapshot(); return hints.update(s, .05, { suppressed: visitor.arrivalActive(s) }); };
+  assert.ok(nearbyDiscovery(m.snapshot()), 'player has deliberately revealed the nearby friend');
+  assert.equal(cue(), null);
+  wait(m, 1); m.setPaused(true); const pausedTime = m.time; wait(m, 5);
+  assert.equal(m.time, pausedTime); assert.equal(cue(), null);
+  m.setPaused(false); wait(m, 2.99);
+  assert.match(visitor.text(m.snapshot()), /墙那边/); assert.equal(cue(), null);
+  assert.equal(hints.seen.size, 0); assert.equal(hints.cooldown, 0);
+  wait(m, .02);
+  assert.equal(visitor.text(m.snapshot()), '');
+  assert.equal(cue().key, 'escape:friend:sprout');
+  assert.equal(cue(), null, 'only one cue after narration');
+  m.restart(); m.start(); visitor.receive(m.drainEvents(), m.snapshot()); slide(m, 4.7); wait(m, 4.1);
+  assert.equal(cue(), null, 'retry does not reset the once-per-region memory');
+});
+
+test('standing on an off-layer trace stays quiet; revealing and approaching the friend gives one cue', () => {
+  const m = new FlatlandModel(levelIndex('escape'), { seed: 42, playStyle: 'explore' }); m.start();
+  const hints = new DiscoveryHints(); wait(m, 5);
+  const idle = m.snapshot();
+  assert.equal(idle.encounter.trace, true); assert.equal(idle.encounter.nearby, true);
+  assert.equal(hints.update(idle, .1), null, 'arrival ending alone must not reveal the friend');
+  slide(m, 4.7); goto(m, 9.2, 5);
+  assert.equal(m.snapshot().encounter.visible, true);
+  assert.equal(hints.update(m.snapshot(), .1), null, 'old two-unit radius is too early');
+  goto(m, 9.4, 5);
+  assert.equal(hints.update(m.snapshot(), .1).key, 'escape:friend:sprout');
+  assert.equal(hints.update(m.snapshot(), 3), null);
+  assert.equal(m.encounter.step, 0); assert.deepEqual(m.collection.found, []);
+});
+
 test('discovery cues respect the box concealment and current flower layer without leaking future positions', () => {
   const m = new FlatlandModel(levelIndex('vault'), { seed: 42, playStyle: 'explore' }); m.start();
   slide(m, 1.25); goto(m, 7.9, 6.8);
@@ -37,6 +73,8 @@ test('discovery cues respect the box concealment and current flower layer withou
   const hidden = m.snapshot();
   assert.equal(nearbyDiscovery({ ...hidden, encounter: { ...hidden.encounter, nearby: true } }), null, 'even nearby must respect concealment');
   m.restart(); m.start(); slide(m, 4.8); goto(m, 9.2, 6.8);
+  assert.equal(nearbyDiscovery(m.snapshot()), null, 'off-layer trace alone stays quiet');
+  m.setPeek(true);
   const cue = nearbyDiscovery(m.snapshot());
   assert.equal(cue.key, 'vault:friend:lantern');
   assert.equal(cue.z, undefined); assert.equal(cue.path, undefined); assert.equal(cue.turns, undefined);

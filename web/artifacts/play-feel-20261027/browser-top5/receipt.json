@@ -1,0 +1,84 @@
+{
+  "status": "passed",
+  "baseURL": "http://127.0.0.1:4192",
+  "checks": [
+    {
+      "width": 1280,
+      "reducedMotion": false,
+      "muted": false,
+      "friendFound": true,
+      "seedFound": true,
+      "savedAfterReloadAndRetry": true,
+      "levelHighlightSynced": true,
+      "noOverflow": true,
+      "visitorAndDiscoveryCoexist": true,
+      "discoveryDeliveredOnce": true,
+      "earnedCollectionToCourtyardCTA": true,
+      "arrivalAndNearExclusive": true,
+      "idleAfterArrivalQuiet": true,
+      "nearOnce": [
+        {
+          "key": "escape:friend:sprout",
+          "time": 4.010400000047673,
+          "duringArrival": false
+        }
+      ],
+      "approachDuration": 2.2,
+      "approachClearedAfter": 2.192100000095463,
+      "discoveryDuration": 1.8
+    },
+    {
+      "width": 390,
+      "reducedMotion": false,
+      "muted": false,
+      "friendFound": true,
+      "seedFound": true,
+      "savedAfterReloadAndRetry": true,
+      "levelHighlightSynced": true,
+      "noOverflow": true,
+      "visitorAndDiscoveryCoexist": true,
+      "discoveryDeliveredOnce": true,
+      "earnedCollectionToCourtyardCTA": true,
+      "arrivalAndNearExclusive": true,
+      "idleAfterArrivalQuiet": true,
+      "nearOnce": [
+        {
+          "key": "escape:friend:sprout",
+          "time": 4.0112999999046215,
+          "duringArrival": false
+        }
+      ],
+      "approachDuration": 1.3,
+      "approachClearedAfter": 1.2929999999046968,
+      "discoveryDuration": 1.35
+    },
+    {
+      "width": 320,
+      "reducedMotion": true,
+      "muted": true,
+      "friendFound": true,
+      "seedFound": true,
+      "savedAfterReloadAndRetry": true,
+      "levelHighlightSynced": true,
+      "noOverflow": true,
+      "visitorAndDiscoveryCoexist": true,
+      "discoveryDeliveredOnce": true,
+      "earnedCollectionToCourtyardCTA": true,
+      "arrivalAndNearExclusive": true,
+      "idleAfterArrivalQuiet": true,
+      "nearOnce": [
+        {
+          "key": "escape:friend:sprout",
+          "time": 4.011700000047674,
+          "duringArrival": false
+        }
+      ],
+      "approachDuration": 1.3,
+      "approachClearedAfter": 1.292699999952374,
+      "discoveryDuration": 1.35
+    }
+  ],
+  "errors": [],
+  "instrumentation": "read-only snapshot/event observer; Web Audio start observer; real range/pointer/key inputs",
+  "browserVersion": "130.0.6723.31"
+}

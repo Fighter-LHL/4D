@@ -29,8 +29,8 @@ const SIZES = [[1000, 560], [380, 600]];
 const texts = calls => calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
 
 test('discovery popups fit phones, pause, expire, stay still with reduced motion and suppress repeated finds', () => {
-  for (const reduced of [false, true]) {
-    const { scene, calls } = renderer(280, 400); scene.reducedMotion = reduced;
+  for (const width of [1000, 380, 280]) for (const reduced of [false, true]) {
+    const { scene, calls } = renderer(width, 400); scene.reducedMotion = reduced;
     const m = new FlatlandModel(0, { seed: 42, playStyle: 'explore' }); m.start();
     const before = m.snapshot(); scene.setState(before);
     const event = { type: 'garden_seed', id: 'friend-probe-0', fresh: true, petals: 1, x: .1, y: .1 };
@@ -41,6 +41,8 @@ test('discovery popups fit phones, pause, expire, stay still with reduced motion
     scene.setState({ ...before, paused: true }); scene.render(3); assert.equal(scene.popups[0].age, .1);
     scene.setState(before); scene.render(.2);
     if (reduced) assert.deepEqual(drawn().args, first.args, 'no drift or scale change');
+    scene.render(1.15);
+    assert.equal(scene.popups.length, width <= 480 ? 0 : 1, 'phone discovery clears earlier than desktop');
     scene.render(2); assert.equal(scene.popups.length, 0);
     scene.pushEvents([{ ...event, fresh: false }, { type: 'friend_found', id: 'sprout', fresh: false }]);
     assert.equal(scene.popups.length, 0);
@@ -52,17 +54,21 @@ test('discovery popups fit phones, pause, expire, stay still with reduced motion
 });
 
 test('approach highlight clears when leaving the real clue layer or loading another scene', () => {
-  const { scene } = renderer();
-  const m = new FlatlandModel(0, { seed: 42, playStyle: 'explore' }); m.start();
-  m.setSlice(2.1); goto(m, 6.5, 9); scene.setState(m.snapshot());
-  const cue = { type: 'discovery_near', key: 'visitor:pads', x: 6.5, y: 9, text: '这两片花垫是一对', color: '#78658f' };
-  scene.pushEvents([cue]); scene.render(.1); assert.equal(scene.popups.length, 1);
-  m.setPaused(true); scene.setState(m.snapshot()); scene.render(3);
-  assert.equal(scene.popups.length, 1); assert.equal(scene.popups[0].age, .1);
-  m.setPaused(false);
-  m.setSlice(.6); scene.setState(m.snapshot()); scene.render(.1); assert.equal(scene.popups.length, 0);
-  m.setSlice(2.1); scene.setState(m.snapshot()); scene.pushEvents([cue, { type: 'load' }]); scene.render(0);
-  assert.equal(scene.popups.length, 0);
+  for (const width of [1000, 380, 280]) {
+    const { scene } = renderer(width);
+    const m = new FlatlandModel(0, { seed: 42, playStyle: 'explore' }); m.start();
+    m.setSlice(2.1); goto(m, 6.5, 9); scene.setState(m.snapshot());
+    const cue = { type: 'discovery_near', key: 'visitor:pads', x: 6.5, y: 9, text: '这两片花垫是一对', color: '#78658f' };
+    scene.pushEvents([cue]); scene.render(.1); assert.equal(scene.popups.length, 1);
+    m.setPaused(true); scene.setState(m.snapshot()); scene.render(3);
+    assert.equal(scene.popups.length, 1); assert.equal(scene.popups[0].age, .1);
+    m.setPaused(false);
+    m.setSlice(.6); scene.setState(m.snapshot()); scene.render(.1); assert.equal(scene.popups.length, 0);
+    m.setSlice(2.1); scene.setState(m.snapshot()); scene.pushEvents([cue, { type: 'load' }]); scene.render(0);
+    assert.equal(scene.popups.length, 0);
+    scene.pushEvents([cue]); scene.render(1.4);
+    assert.equal(scene.popups.length, width <= 480 ? 0 : 1, 'phone approach clears earlier than desktop');
+  }
 });
 // Steps the model while drawing every frame, so bots exercise every effect path.
 function drawing(m, scene) {
