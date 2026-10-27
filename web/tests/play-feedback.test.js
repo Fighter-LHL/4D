@@ -2,10 +2,66 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameModel, RELICS } from '../src/model.js';
 import { FriendGuide } from '../src/friend-guide.js';
-import { STARTER_RELICS, mechanismFeedback, contextualHelp } from '../src/play-feedback.js';
+import { STARTER_RELICS, mechanismFeedback, contextualHelp, DiscoveryHints, nearbyDiscovery, discoveryFeedback } from '../src/play-feedback.js';
 import { visitorCue } from '../src/flatland/visitor-cue.js';
 import { FlatlandModel } from '../src/flatland/model.js';
 import { start, travel, reach, advance, seedFor, activateAll } from './model-helpers.js';
+import { goto, slide, wait, walk, levelIndex } from './flatland-helpers.js';
+import { collectGardenSeed } from '../src/flatland/companions.js';
+
+test('discovery approach is nearby, once per region, frozen on pause and never solves or moves', () => {
+  const m = new FlatlandModel(levelIndex('escape'), { seed: 42, playStyle: 'explore' }); m.start();
+  const hints = new DiscoveryHints();
+  slide(m, 4.7); goto(m, 4, 3);
+  assert.equal(hints.update(m.snapshot(), .1), null);
+  slide(m, 4.7); goto(m, 9.4, 5);
+  const before = m.snapshot(), cue = hints.update(before, .1);
+  assert.equal(cue.key, 'escape:friend:sprout');
+  assert.equal(cue.text, '咦，耳朵动了一下');
+  assert.deepEqual(m.snapshot(), before);
+  assert.equal(m.encounter.step, 0); assert.deepEqual(m.collection.found, []);
+  assert.equal(hints.update({ ...before, paused: true }, 10), null);
+  assert.equal(hints.cooldown, 2.4);
+  assert.equal(hints.update(before, 3), null, 'remaining near does not repeat');
+  m.restart(); m.start(); slide(m, 4.7); goto(m, 9.4, 5);
+  assert.equal(hints.update(m.snapshot(), 3), null, 'retry keeps session clue memory');
+  for (const patch of [{ paused: true }, { phase: 'intro' }, { exploration: false }, { dying: {} }, { returning: 1 }, { collection: { found: ['sprout'] } }]) {
+    assert.equal(nearbyDiscovery({ ...before, ...patch }), null);
+  }
+});
+
+test('discovery cues respect the box concealment and current flower layer without leaking future positions', () => {
+  const m = new FlatlandModel(levelIndex('vault'), { seed: 42, playStyle: 'explore' }); m.start();
+  slide(m, 1.25); goto(m, 7.9, 6.8);
+  assert.equal(nearbyDiscovery(m.snapshot()), null);
+  const hidden = m.snapshot();
+  assert.equal(nearbyDiscovery({ ...hidden, encounter: { ...hidden.encounter, nearby: true } }), null, 'even nearby must respect concealment');
+  m.restart(); m.start(); slide(m, 4.8); goto(m, 9.2, 6.8);
+  const cue = nearbyDiscovery(m.snapshot());
+  assert.equal(cue.key, 'vault:friend:lantern');
+  assert.equal(cue.z, undefined); assert.equal(cue.path, undefined); assert.equal(cue.turns, undefined);
+  const garden = new FlatlandModel(0, { seed: 42, playStyle: 'explore' }); garden.start();
+  slide(garden, 2.1); goto(garden, 6.5, 9);
+  assert.equal(nearbyDiscovery(garden.snapshot()).key, 'visitor:pads');
+  slide(garden, .6); assert.equal(nearbyDiscovery(garden.snapshot()), null);
+  slide(garden, garden.level.garden.bud.z); goto(garden, garden.level.garden.bud.x, garden.level.garden.bud.y);
+  assert.equal(nearbyDiscovery(garden.snapshot()).key, 'visitor:bud');
+});
+
+test('real seed pickup reports fresh position once, then saved seeds cannot re-celebrate', () => {
+  const m = new FlatlandModel(0, { seed: 42, playStyle: 'explore', collection: { found: ['sprout'], companion: 'sprout' } }); m.start(); m.drainEvents();
+  slide(m, 2.1); goto(m, 6.5, 9); walk(m, 1, 0, .008); m.petCompanion(); wait(m, .7);
+  const drop = m.level.garden.drops.probe[0]; goto(m, drop.x, drop.y); wait(m, .1);
+  const seed = m.drainEvents().find(e => e.type === 'garden_seed');
+  assert.ok(seed.fresh); assert.equal(seed.x, drop.x); assert.equal(seed.y, drop.y);
+  assert.equal(discoveryFeedback(seed).text, '收下花种 · 1/3');
+  const restored = new FlatlandModel(0, { seed: 42, playStyle: 'explore', gardenMemories: m.gardenMemories });
+  restored.start(); restored.drainEvents(); collectGardenSeed(restored, seed.id);
+  const repeated = restored.drainEvents().find(e => e.type === 'garden_seed');
+  assert.equal(repeated.fresh, false); assert.equal(discoveryFeedback(repeated), null);
+  assert.equal(discoveryFeedback({ type: 'friend_found', id: 'sprout', fresh: false }), null);
+  assert.equal(discoveryFeedback({ type: 'friend_found', id: 'sprout', fresh: true }).text, '跳跳跟上来了');
+});
 
 test('short starter choices retain all five abilities and their complete descriptions', () => {
   assert.deepEqual(Object.keys(STARTER_RELICS).sort(), RELICS.map(r => r.id).sort());

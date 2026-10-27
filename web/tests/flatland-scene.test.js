@@ -27,6 +27,43 @@ function renderer(width = 1000, height = 560) {
 }
 const SIZES = [[1000, 560], [380, 600]];
 const texts = calls => calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
+
+test('discovery popups fit phones, pause, expire, stay still with reduced motion and suppress repeated finds', () => {
+  for (const reduced of [false, true]) {
+    const { scene, calls } = renderer(280, 400); scene.reducedMotion = reduced;
+    const m = new FlatlandModel(0, { seed: 42, playStyle: 'explore' }); m.start();
+    const before = m.snapshot(); scene.setState(before);
+    const event = { type: 'garden_seed', id: 'friend-probe-0', fresh: true, petals: 1, x: .1, y: .1 };
+    scene.pushEvents([event]); scene.render(.1);
+    const drawn = () => calls.findLast(c => c.method === 'fillText' && c.args[0] === '收下花种 · 1/3');
+    const first = drawn(); assert.ok(first); assert.ok(first.args[1] > event.x, 'edge text is clamped inward');
+    assert.ok(first.args[3] * scene.view.main.scale <= scene.view.main.w);
+    scene.setState({ ...before, paused: true }); scene.render(3); assert.equal(scene.popups[0].age, .1);
+    scene.setState(before); scene.render(.2);
+    if (reduced) assert.deepEqual(drawn().args, first.args, 'no drift or scale change');
+    scene.render(2); assert.equal(scene.popups.length, 0);
+    scene.pushEvents([{ ...event, fresh: false }, { type: 'friend_found', id: 'sprout', fresh: false }]);
+    assert.equal(scene.popups.length, 0);
+    scene.pushEvents([{ type: 'friend_found', id: 'sprout', x: 4, y: 3, fresh: true }]);
+    assert.equal(scene.popups[0].text, '跳跳跟上来了');
+    scene.pushEvents([{ type: 'load' }]); assert.equal(scene.popups.length, 0);
+    assert.deepEqual(m.snapshot(), before, 'rendering has no game authority');
+  }
+});
+
+test('approach highlight clears when leaving the real clue layer or loading another scene', () => {
+  const { scene } = renderer();
+  const m = new FlatlandModel(0, { seed: 42, playStyle: 'explore' }); m.start();
+  m.setSlice(2.1); goto(m, 6.5, 9); scene.setState(m.snapshot());
+  const cue = { type: 'discovery_near', key: 'visitor:pads', x: 6.5, y: 9, text: '这两片花垫是一对', color: '#78658f' };
+  scene.pushEvents([cue]); scene.render(.1); assert.equal(scene.popups.length, 1);
+  m.setPaused(true); scene.setState(m.snapshot()); scene.render(3);
+  assert.equal(scene.popups.length, 1); assert.equal(scene.popups[0].age, .1);
+  m.setPaused(false);
+  m.setSlice(.6); scene.setState(m.snapshot()); scene.render(.1); assert.equal(scene.popups.length, 0);
+  m.setSlice(2.1); scene.setState(m.snapshot()); scene.pushEvents([cue, { type: 'load' }]); scene.render(0);
+  assert.equal(scene.popups.length, 0);
+});
 // Steps the model while drawing every frame, so bots exercise every effect path.
 function drawing(m, scene) {
   const update = m.update.bind(m);

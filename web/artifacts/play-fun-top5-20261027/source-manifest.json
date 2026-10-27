@@ -1,0 +1,18 @@
+{
+  "verified_utc": "2026-10-27T02:49:32.200554+00:00",
+  "base_sha": "cf94c0c1dfb25f541ae53e90128e1f89155cbdd4",
+  "files": {
+    "web/flatland.css": "ebd60475acf14cda5a37362300044f58e2d5e218a003b1e7e199142c33ee9687",
+    "web/flatland.html": "6aa290fb12fa4d6e5f156389ffc97f2a72c1f3685d2ab539b4a688a0278b3058",
+    "web/scripts/verify-top5.mjs": "1a94cfb1dd163899ebc5c94d0a53d02f98d3a402d659abc32f6d9ae778d88207",
+    "web/src/flatland/audio.js": "6e95fb243ff9c1badea2bf8493c084bb80af9325c2139778d7d0fc0e21f11b95",
+    "web/src/flatland/companions.js": "87e5416c556964c64c884ac21777b7606257e8af944fd2ba636283cdf271bcec",
+    "web/src/flatland/friends-scene.js": "5a58067d445a8deb1ef4e7e8f9a9f546cc0bf051ba57e037cdaaf419959d4e8e",
+    "web/src/flatland/main.js": "5e466c6f4d8169f6771fa71699571e216f01beaeb5895f3b4b1788825a05d9da",
+    "web/src/flatland/scene.js": "b73532eb3d5c2999998755f861bbaf99f10aad7d5a7859c449a78bbe66d00746",
+    "web/src/play-feedback.js": "ee7e27a173d7022dbe91ef2894f47d2a7c52ae21d66149c7e6108d4789306af9",
+    "web/tests/flatland-audio.test.js": "0814db5d82300661b6b82130beac83dd2165f03fbe8e5dde2e688e362fcdf491",
+    "web/tests/flatland-scene.test.js": "f4a19073224e59b99bb836c49c4a7471f6e92a8c4581b34ea9008704aef1469e",
+    "web/tests/play-feedback.test.js": "369535d883d54af34426d3378235ba538ebb044977913381bf2acfeaa0fee9aa"
+  }
+}

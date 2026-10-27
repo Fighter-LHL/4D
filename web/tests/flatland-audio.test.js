@@ -24,6 +24,28 @@ class Context {
   close() { this.state = 'closed'; }
 }
 
+test('fresh discovery cues are short, seed pickup avoids a second melody, and mute stays silent', async t => {
+  const prior = globalThis.AudioContext; globalThis.AudioContext = Context;
+  t.after(() => { if (prior) globalThis.AudioContext = prior; else delete globalThis.AudioContext; });
+  const audio = new FlatlandAudio(), notes = [];
+  const tone = audio._tone.bind(audio);
+  audio._tone = (freq, options) => { notes.push({ freq, ...options }); tone(freq, options); };
+  const events = [{ type: 'shard', id: 'friend-probe-0', golden: true }, { type: 'garden_seed', id: 'friend-probe-0', fresh: true }];
+  audio.handle(events); assert.equal(audio.context, null, 'no automatic audio unlock');
+  await audio.unlock(); notes.length = 0;
+  audio.handle(events); assert.equal(notes.length, 2); assert.equal(audio.context.oscillators.length, 2);
+  assert.ok(notes.every(n => n.at + n.duration < .5));
+  notes.length = 0; audio.handle([{ type: 'friend_found', fresh: true }]);
+  assert.equal(notes.length, 4); assert.ok(notes.every(n => n.at + n.duration < .5));
+  notes.length = 0;
+  audio.handle([{ type: 'friend_found', fresh: false }, { type: 'garden_seed', fresh: false }, { type: 'discovery_near' }]);
+  assert.equal(notes.length, 0);
+  audio.setEnabled(false); const count = audio.context.oscillators.length;
+  audio.handle(events); assert.equal(audio.context.oscillators.length, count);
+  audio.setEnabled(true); assert.equal(audio.context.oscillators.length, count, 'unmute never replays the discovery');
+  audio.dispose();
+});
+
 test('peek audio has one voice per hold and releases it on release, mute, return, load and completion', async t => {
   const prior = globalThis.AudioContext;
   globalThis.AudioContext = Context;

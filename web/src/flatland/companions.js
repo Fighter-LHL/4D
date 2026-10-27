@@ -171,7 +171,9 @@ export function collectGardenSeed(m, shardId) {
   const seeds = GARDEN_SEEDS.filter(id => takenIds.has(id));
   if (seeds.length) m.gardenMemories[m.level.id] = seeds;
   const petals = seeds.length;
-  m._emit('garden_seed', { id: shardId, petals, seeds: [...seeds] });
+  const shard = m.shards.find(s => s.id === shardId);
+  m._emit('garden_seed', { id: shardId, petals, seeds: [...seeds], fresh: seeds.length > previous.length,
+    x: shard?.x ?? m.player.x, y: shard?.y ?? m.player.y });
   if (petals === GARDEN_SEEDS.length) {
     m._emit('garden_bloom', { fresh: !wasBloomed, x: m.level.garden.axis, y: m.level.garden.left.y });
     if (!wasComplete && gardenCollection(m.gardenMemories, m.levels).complete) {

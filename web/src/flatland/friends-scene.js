@@ -122,6 +122,7 @@ export function gardenPadHint(s) {
 // Draw the nearby instruction after world shapes so a large section cannot hide it.
 export function drawGardenPadHint(renderer, k) {
   const s = renderer.state, g = s.companions?.garden;
+  if (renderer.popups.some(p => p.near?.key === `${s.levelId}:pads`)) return;
   if (!g || Math.abs(s.s - g.left.z) > .35) return;
   const pad = [g.left, g.right].find(p => Math.hypot(s.player.x - p.x, s.player.y - p.y) < 2);
   if (!pad) return;

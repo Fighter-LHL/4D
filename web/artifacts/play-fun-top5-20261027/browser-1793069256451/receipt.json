@@ -1,0 +1,37 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "width": 1280,
+      "reducedMotion": false,
+      "muted": false,
+      "friendFound": true,
+      "seedFound": true,
+      "savedAfterReloadAndRetry": true,
+      "levelHighlightSynced": true,
+      "noOverflow": true
+    },
+    {
+      "width": 390,
+      "reducedMotion": false,
+      "muted": false,
+      "friendFound": true,
+      "seedFound": true,
+      "savedAfterReloadAndRetry": true,
+      "levelHighlightSynced": true,
+      "noOverflow": true
+    },
+    {
+      "width": 320,
+      "reducedMotion": true,
+      "muted": true,
+      "friendFound": true,
+      "seedFound": true,
+      "savedAfterReloadAndRetry": true,
+      "levelHighlightSynced": true,
+      "noOverflow": true
+    }
+  ],
+  "errors": [],
+  "instrumentation": "read-only snapshot/event observer; Web Audio start observer; real range/pointer/key inputs"
+}

@@ -82,13 +82,14 @@ export class FlatlandAudio {
       if (event.type === 'friend_hop') [659, 988].forEach((note, i) => this._tone(note, { at: i * .08, duration: .16, gain: .05, slide: note * 1.15 }));
       if (event.type === 'friend_wake') this._tone(220, { duration: .65, gain: .045, slide: 660 });
       if (event.type === 'visitor_poke') this._tone(180, { type: 'triangle', duration: .35, gain: .07, slide: 620 });
-      if (event.type === 'friend_found') [523, 659, 784, 1047].forEach((note, i) => this._tone(note, { type: 'triangle', at: i * .09, duration: .4, gain: .06 }));
+      if (event.type === 'friend_found' && event.fresh) [523, 659, 784, 1047].forEach((note, i) => this._tone(note, { type: 'triangle', at: i * .075, duration: .24, gain: .06 }));
+      if (event.type === 'garden_seed' && event.fresh) [784, 1047].forEach((note, i) => this._tone(note, { type: 'sine', at: i * .075, duration: .2, gain: .055 }));
       if (event.type === 'friend_play') {
         const note = event.id === 'sprout' ? 660 : event.id === 'lantern' ? 440 : 880;
         [1, 1.25, 1.5].forEach((ratio, i) => this._tone(note * ratio, { at: i * .1, duration: .15, gain: .04 }));
       }
       if (event.type === 'explore_clear') [392, 587].forEach((note, i) => this._tone(note, { at: i * .12, duration: .35, gain: .04 }));
-      if (event.type === 'shard') {
+      if (event.type === 'shard' && !events.some(e => e.type === 'garden_seed' && e.id === event.id)) {
         const base = 880 * 2 ** (Math.min(event.combo - 1, 8) / 12 * 2);
         (event.golden ? [1, 1.25, 1.5, 2] : [1, 1.5]).forEach((ratio, i) => this._tone(base * ratio, { type: 'triangle', at: i * .05, duration: .22, gain: .06 }));
       }

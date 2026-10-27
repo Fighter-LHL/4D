@@ -1,0 +1,7 @@
+{
+  "status": "failed",
+  "checks": [],
+  "errors": [],
+  "instrumentation": "read-only snapshot/event observer; Web Audio start observer; real range/pointer/key inputs",
+  "failure": "AssertionError [ERR_ASSERTION]: discovery melody scheduled after user gesture\n    at file:///Users/lvhanlin/Documents/GitHub/4D/web/scripts/verify-top5.mjs:75:17"
+}

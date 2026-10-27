@@ -3,6 +3,7 @@ import { sightFan } from './perception.js';
 import { keyPoints, keyShape, flipVertices } from './mirror.js';
 import { drawAscendScene, ascendScreenToWorld } from './ascend-scene.js';
 import { FRIENDS } from './discoveries.js';
+import { discoveryFeedback, nearbyDiscovery } from '../play-feedback.js';
 import { drawEncounter, drawCompanions, drawCompanionToys, drawGardenPadHint } from './friends-scene.js';
 // Draws the flat world (only sections at the current S) beside a side view of
 // the whole 3D scene. Effects (particles, popups, shake) follow model events.
@@ -68,7 +69,10 @@ export class FlatlandRenderer {
       this.particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, age: 0, life: .5 + Math.random() * .4, color, size: size * (.6 + Math.random() * .8) });
     }
   }
-  popup(x, y, text, color = COLORS.ink, big = false) { this.popups.push({ x, y, text, color, big, age: 0 }); }
+  popup(x, y, text, color = COLORS.ink, big = false, options = {}) {
+    this.popups.push({ x, y, text, color, big, age: 0, duration: 1.1, ...options });
+    this.popups = this.popups.slice(-6);
+  }
   pushEvents(events) {
     for (const event of events) {
       const st = this.state;
@@ -90,9 +94,16 @@ export class FlatlandRenderer {
       if (event.type === 'friend_hop') { this.burst(event.x, event.y, '#79a77a', 15, 2); this.friendTrails.push({ ...event, age: 0 }); }
       if (event.type === 'friend_wake') { this.popup(event.x, event.y - .8, '…？', COLORS.amber); this.burst(event.x, event.y, '#e8b74e', 18, 2); }
       if (event.type === 'visitor_poke') this.bursts.push({ x: event.x, y: event.y, r: .4, age: 0, color: COLORS.slice });
-      if (event.type === 'friend_found') {
+      if (event.type === 'discovery_near') {
+        this.popup(event.x, event.y - 1.8, event.text, event.color, false, { duration: 2.2, near: event });
+      }
+      const discovery = discoveryFeedback(event);
+      if (discovery) {
+        this.popups = this.popups.filter(p => !p.near && !p.discovery);
+        this.popup(event.x, event.y - .9, discovery.text, discovery.color, false, { duration: 1.8, discovery: true });
+      }
+      if (event.type === 'friend_found' && event.fresh) {
         const friend = FRIENDS.find(f => f.id === event.id);
-        this.popup(event.x, event.y - .8, event.fresh ? `${friend.name}跟上来了` : '又见面啦', friend.color, true);
         this.burst(event.x, event.y, friend.color, 30, 4);
         this.bursts.push({ x: event.x, y: event.y, r: .6, age: 0, color: friend.color, big: true });
       }
@@ -101,7 +112,7 @@ export class FlatlandRenderer {
         friends.forEach((friend, i) => this.burst(event.x + (i - 1) * .6, event.y, friend.color, 12, 2.5));
       }
       if (event.type === 'friend_garden') { this.popup(event.x, event.y - .8, event.kind === 'probe' ? '花苞醒了' : '花匣开了', '#4d9270'); this.burst(event.x, event.y, '#d8ae4d', 24, 3); }
-      if (event.type === 'garden_bloom') { this.popup(event.x, event.y + 1.2, '花园点亮了 ✿', '#4d9270', true); this.burst(event.x, event.y, '#79ad63', 32, 3); }
+      if (event.type === 'garden_bloom' && event.fresh) { this.popup(event.x, event.y + 1.2, '花园点亮了 ✿', '#4d9270', true); this.burst(event.x, event.y, '#79ad63', 32, 3); }
       if (event.type === 'gardens_complete' && st) { this.popup(st.bounds.w / 2, 1.6, '六座花园全部盛开 ✿', '#4d9270', true); this.burst(event.x, event.y, '#d6a63b', 30, 3); }
       if (event.type === 'friend_blocked' && st) this.popup(st.player.x, st.player.y - .8, event.reason === 'height' ? '到边缘了，换个方向' : '邻层有墙，挪一挪', '#4d9270');
       if (event.type === 'explore_clear') this.popup(event.x, event.y - .8, '路通啦', COLORS.done);
@@ -161,7 +172,7 @@ export class FlatlandRenderer {
     for (const p of this.particles) { p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 1 - dt * 3; p.vy *= 1 - dt * 3; }
     this.exiting = this.exiting.filter(item => item.age < EXIT);
     this.bursts = this.bursts.filter(item => item.age < (item.big ? 1.3 : .8));
-    this.popups = this.popups.filter(item => item.age < 1.1);
+    this.popups = this.popups.filter(item => item.age < item.duration && (!item.near || s.paused || nearbyDiscovery(s)?.key === item.near.key));
     this.particles = this.particles.filter(p => p.age < p.life);
     this.shake = Math.max(0, this.shake - dt * 1.4);
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 2.2);
@@ -250,10 +261,20 @@ export class FlatlandRenderer {
       ctx.moveTo(s.player.x + .86, s.player.y - .3); ctx.lineTo(s.player.x + 1.2, s.player.y - .3); ctx.lineTo(s.player.x + 1.2, s.player.y - .1); ctx.stroke();
     }
     for (const pop of this.popups) {
-      const p = pop.age / 1.1;
+      const p = pop.age / pop.duration;
+      if (pop.near) {
+        ctx.globalAlpha = .35 * (1 - p); ctx.strokeStyle = pop.color; ctx.lineWidth = 2 / k;
+        const r = .8 + (this.reducedMotion ? 0 : .12 * Math.sin(p * TAU));
+        ctx.beginPath(); ctx.ellipse(pop.near.x, pop.near.y, r, r, 0, 0, TAU); ctx.stroke();
+      }
       ctx.globalAlpha = 1 - p ** 2; ctx.fillStyle = pop.color;
       ctx.font = `700 ${(pop.big ? 20 : 14) / k * (1 + (this.reducedMotion ? 0 : .25 * (1 - ease(pop.age * 5))))}px system-ui, sans-serif`; ctx.textAlign = 'center';
-      ctx.fillText(pop.text, pop.x, pop.y - ease(p) * .9);
+      const maxWidth = b.w - 8 / k, halfWidth = Math.min(maxWidth, ctx.measureText(pop.text).width) / 2;
+      const x = clamp(pop.x, halfWidth + 4 / k, b.w - halfWidth - 4 / k);
+      const y = clamp(pop.y - (this.reducedMotion ? 0 : ease(p) * .9), 22 / k, b.h - 6 / k);
+      ctx.strokeStyle = COLORS.card; ctx.lineWidth = 4 / k; ctx.lineJoin = 'round';
+      ctx.strokeText(pop.text, x, y, maxWidth);
+      ctx.fillText(pop.text, x, y, maxWidth);
     }
     ctx.globalAlpha = 1;
     ctx.restore();

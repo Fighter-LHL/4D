@@ -1,4 +1,5 @@
 import { visitorCue } from './visitor-cue.js';
+import { DiscoveryHints, discoveryFeedback } from '../play-feedback.js';
 import { FlatlandModel } from './model.js';
 import { FlatlandRenderer } from './scene.js';
 import { FlatlandAudio } from './audio.js';
@@ -37,6 +38,7 @@ const model = new FlatlandModel(requested >= 0 ? requested : playStyle === 'expl
 if (model.exploration) model.start();
 const scene = new FlatlandRenderer($('scene'));
 const audio = new FlatlandAudio();
+const discoveryHints = new DiscoveryHints();
 let soundEnabled = readPreference('wslice-sound', 'on') === 'on';
 audio.setEnabled(soundEnabled);
 const keys = new Set();
@@ -217,8 +219,10 @@ function updateUI() {
   const direction = toys.direction > 0 ? '上层 ↑' : toys.direction < 0 ? '下层 ↓' : '同层 →';
   setText('probe-direction-label', `跳向${direction}`);
   $('probe-direction').setAttribute('aria-label', `跳跳当前跳向${direction}，点击或按 C 切换`);
-  $('garden-progress').hidden = !toys.garden;
-  setText('garden-progress', toys.garden ? `${toys.garden.bloomed ? '✿ 已点亮 · ' : ''}花种 ${'●'.repeat(toys.garden.petals)}${'○'.repeat(3 - toys.garden.petals)}` : '');
+  $('garden-progress').hidden = !snap.exploration;
+  setText('garden-count', `${snap.gardenCollection.count}/${snap.gardenCollection.total}`);
+  $('garden-local').hidden = !toys.garden;
+  setText('garden-petals', `${toys.garden?.petals ?? 0}/3`);
   $('companion-hint').hidden = !companion || !toys.enabled;
   setText('companion-hint', companion ? COMPANION_HELP[companion] : '');
   $('poke').hidden = !snap.exploration || !snap.rings;
@@ -272,17 +276,17 @@ function consumeEvents() {
     if (event.type === 'load') announce('');
     if (event.type === 'friend_found') {
       saveCollection(); renderLevels(model.snapshot());
-      announce(`${FRIENDS.find(f => f.id === event.id).name}跟上来了。`);
+      if (event.fresh) announce(discoveryFeedback(event).text);
     }
     if (event.type === 'explore_clear') {
       visits[event.level] = true; savePreference(VISITS_KEY, JSON.stringify(visits));
       renderLevels(model.snapshot()); announce('路通了，也可以留下再逛逛。');
     }
-    if (event.type === 'shard') announce(`光屑 ${event.taken} / ${event.total}`);
+    if (event.type === 'shard' && !events.some(e => e.type === 'garden_seed' && e.id === event.id)) announce(`光屑 ${event.taken} / ${event.total}`);
     if (event.type === 'friend_garden') announce(event.kind === 'probe' ? '花苞醒了，金色光屑落到花垫那层。' : '你和反反一起打开了花匣，金色光屑出现了。');
-    if (event.type === 'garden_bloom') { savePreference(GARDENS_KEY, JSON.stringify(model.gardenMemories)); renderLevels(model.snapshot()); announce('这座花园点亮了，已经收进口袋。'); }
+    if (event.type === 'garden_bloom') { savePreference(GARDENS_KEY, JSON.stringify(model.gardenMemories)); renderLevels(model.snapshot()); if (event.fresh) announce('这座花园点亮了，已经收进口袋。'); }
     if (event.type === 'gardens_complete') announce('六座花园全部盛开，朋友们戴上了小花冠。');
-    if (event.type === 'garden_seed') { savePreference(GARDENS_KEY, JSON.stringify(model.gardenMemories)); renderLevels(model.snapshot()); announce(`收下花种 ${event.petals} / 3`); }
+    if (event.type === 'garden_seed') { savePreference(GARDENS_KEY, JSON.stringify(model.gardenMemories)); renderLevels(model.snapshot()); if (event.fresh) announce(discoveryFeedback(event).text); }
     if (event.type === 'friend_blocked') announce(event.reason === 'height' ? '跳跳到高度边缘了，请切换跳跃方向。' : '跳跳要去的那层有墙，请挪一挪。');
     if (event.type === 'ring_hit') announce(model.exploration ? '接住啦。' : `接住，+${event.points}`);
     if (event.type === 'ring_miss') announce('错过一道光环');
@@ -500,6 +504,8 @@ function frame(now) {
   if (Math.abs(snap.s - lastS) > 1e-6) { audio.slice(snap.s - snap.slice.min, snap.slice.max - snap.slice.min, closeness(snap)); lastS = snap.s; }
   if (resultTimer > 0) { resultTimer -= dt; if (resultTimer <= 0 && snap.phase === 'complete') showResult(snap); }
   scene.setState(snap);
+  const discoveryCue = discoveryHints.update(snap, isModal() || document.hidden ? 0 : dt);
+  if (discoveryCue) { scene.pushEvents([discoveryCue]); announce(discoveryCue.text); }
   scene.render(document.hidden || model.paused ? 0 : dt);
   requestAnimationFrame(frame);
 }

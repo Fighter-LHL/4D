@@ -1,4 +1,50 @@
-// Presentation copy only: none of these cues choose, move, or activate anything.
+import { FRIENDS } from './flatland/discoveries.js';
+
+// Presentation only: none of these cues choose, move, or activate anything.
+export function discoveryFeedback(event) {
+  if (!event.fresh) return null;
+  if (event.type === 'friend_found') {
+    const friend = FRIENDS.find(f => f.id === event.id);
+    return friend ? { text: `${friend.name}跟上来了`, color: friend.color } : null;
+  }
+  if (event.type === 'garden_seed') return { text: `收下花种 · ${event.petals}/3`, color: '#386f53' };
+  return null;
+}
+
+export function nearbyDiscovery(state) {
+  if (!state.exploration || state.phase !== 'playing' || state.paused || state.dying || state.returning) return null;
+  const e = state.encounter;
+  if (e && e.kind !== 'home' && !state.collection.found.includes(e.id) && e.nearby && (e.visible || e.peeking || e.trace)) {
+    const text = e.kind === 'chase' ? '咦，耳朵动了一下' : e.kind === 'peek' ? '这里有轻轻的呼噜声' : '这个倒影有点不一样';
+    return { key: `${state.levelId}:friend:${e.id}`, x: e.x, y: e.y, text, color: '#386f53' };
+  }
+  const g = state.companions?.garden;
+  if (!g || g.bloomed) return null;
+  const near = p => Math.hypot(state.player.x - p.x, state.player.y - p.y) < 2;
+  if (!g.probeOpen && Math.abs(state.s - g.bud.z) <= .45 && near(g.bud)) {
+    return { key: `${state.levelId}:bud`, x: g.bud.x, y: g.bud.y, text: '花苞在等谁碰一碰', color: '#386f53' };
+  }
+  const pad = [g.left, g.right].find(near);
+  if (!g.mirrorOpen && Math.abs(state.s - g.left.z) <= .35 && pad) {
+    return { key: `${state.levelId}:pads`, x: pad.x, y: pad.y, text: '这两片花垫是一对', color: '#78658f' };
+  }
+  return null;
+}
+
+// Once per region in this page session, including retries and level revisits.
+// Collection freshness remains owned by the saved model records.
+export class DiscoveryHints {
+  constructor() { this.seen = new Set(); this.cooldown = 0; }
+  update(state, dt) {
+    if (state.paused || state.phase !== 'playing' || dt <= 0) return null;
+    this.cooldown = Math.max(0, this.cooldown - dt);
+    const cue = nearbyDiscovery(state);
+    if (!cue || this.cooldown || this.seen.has(cue.key)) return null;
+    this.seen.add(cue.key); this.cooldown = 2.4;
+    return { type: 'discovery_near', ...cue };
+  }
+}
+
 export const STARTER_RELICS = {
   prism: '冒险蓄能，在锚台释放脉冲启动机关。',
   shadow: '花 1 回响，在已启动机关留影压桥。',

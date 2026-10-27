@@ -26,7 +26,10 @@
       <div><p class="eyebrow">FLATLAND · 到处走走</p><h1 id="title">平面国</h1></div>
       <ol id="levels" class="levels" aria-label="关卡"></ol>
     </div>
-    <p id="tagline" class="tagline"></p>
+    <div class="scene-status">
+      <p id="tagline" class="tagline"></p>
+      <p id="garden-progress" class="garden-progress" hidden aria-label="花园收藏进度"><span>花园 <strong id="garden-count">0/6</strong></span><span id="garden-local">本园花种 <strong id="garden-petals">0/3</strong></span></p>
+    </div>
     <div class="scene-wrap">
       <canvas id="scene" role="img" tabindex="0" aria-label="平面世界与侧面" aria-describedby="visitor-goal"></canvas>
       <p id="visitor-goal" class="visitor-goal" hidden aria-live="polite"></p>
@@ -63,7 +66,6 @@
         <div class="clock"><span id="timer">0.0</span><small id="par"></small></div>
       </div>
       <p id="companion-hint" class="companion-hint" hidden></p>
-      <p id="garden-progress" class="companion-hint" hidden></p>
     </section>
   </main>
   <div class="sr-only" id="announcement" role="status" aria-live="polite"></div>

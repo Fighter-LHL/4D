@@ -1,0 +1,132 @@
+// Optional local Playwright check. Isolated profiles, no storage preload or model writes.
+// Instrumentation only copies snapshots/events and observes actual oscillator starts.
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+
+const out = fileURLToPath(new URL(`../artifacts/play-fun-top5-20261027/browser-${Date.now()}/`, import.meta.url));
+await mkdir(out, { recursive: true });
+const receipt = { status: 'started', checks: [], errors: [], instrumentation: 'read-only snapshot/event observer; Web Audio start observer; real range/pointer/key inputs' };
+const browser = await chromium.launch({ headless: true });
+try {
+  for (const width of [1280, 390, 320]) {
+    const context = await browser.newContext({ viewport: { width, height: width > 700 ? 900 : 844 }, reducedMotion: width === 320 ? 'reduce' : 'no-preference' });
+    await context.addInitScript(() => {
+      window.__top5Notes = [];
+      const proto = (window.AudioContext || window.webkitAudioContext).prototype;
+      const create = proto.createOscillator;
+      proto.createOscillator = function (...args) {
+        const osc = create.apply(this, args), start = osc.start, setFrequency = osc.frequency.setValueAtTime;
+        let frequency = osc.frequency.value;
+        osc.frequency.setValueAtTime = function (...values) { frequency = values[0]; return setFrequency.apply(this, values); };
+        osc.start = function (...times) { window.__top5Notes.push({ frequency, at: times[0] }); return start.apply(this, times); };
+        return osc;
+      };
+    });
+    await context.route('**/src/flatland/main.js', async route => {
+      const response = await route.fetch();
+      await route.fulfill({ response, body: await response.text() + `
+window.__top5Events = [];
+const top5Push = scene.pushEvents.bind(scene);
+scene.pushEvents = events => { window.__top5Events.push(...structuredClone(events)); top5Push(events); };
+window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: scene.popups, view: scene.view, reduced: scene.reducedMotion, audioState: audio.context?.state });
+` });
+    });
+    const page = await context.newPage();
+    page.on('pageerror', error => receipt.errors.push({ width, message: error.message }));
+    page.on('console', message => { if (['error', 'warning'].includes(message.type())) receipt.errors.push({ width, message: message.text() }); });
+    const read = () => page.evaluate(() => window.__top5Read());
+    const ready = () => page.waitForFunction(() => window.__top5Read?.().view);
+    const screenshot = name => page.screenshot({ path: `${out}/${width}-${name}.png`, fullPage: true });
+    const slice = async value => {
+      // DOM range input uses the same input/change handlers as dragging the slider.
+      await page.locator('#s-slider').evaluate((el, value) => { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }, value);
+      await page.waitForFunction(value => Math.abs(window.__top5Read().state.s - value) < .02, value);
+    };
+    const go = async (x, y) => {
+      await page.locator('#scene').scrollIntoViewIfNeeded();
+      const { view } = await read(), box = await page.locator('#scene').boundingBox();
+      await page.mouse.move(box.x + view.main.ox + x * view.main.scale, box.y + view.main.oy + y * view.main.scale);
+      await page.mouse.down();
+      try { await page.waitForFunction(({ x, y }) => { const p = window.__top5Read().state.player; return Math.hypot(p.x - x, p.y - y) < .22; }, { x, y }, { timeout: 8000 }); }
+      finally { await page.mouse.up(); }
+    };
+    await page.goto('http://127.0.0.1:4173/flatland.html?play=explore&seed=42'); await ready();
+    assert.equal(await page.locator('#title').innerText(), '越墙');
+    assert.match(await page.locator('#levels [aria-current=true]').innerText(), /越墙/);
+    assert.equal(await page.locator('#garden-count').innerText(), '0/6');
+    assert.equal(await page.locator('#garden-petals').innerText(), '0/3');
+    await page.waitForFunction(() => window.__top5Events.some(e => e.type === 'discovery_near'));
+    await screenshot('approach');
+    await page.locator('#pause').click();
+    const pausedCue = (await read()).popups;
+    assert.ok(pausedCue.some(p => p.near));
+    await page.waitForTimeout(250);
+    assert.deepEqual((await read()).popups, pausedCue, 'approach cue also freezes while paused');
+    await page.locator('#resume').click();
+    await page.locator('#scene').click({ position: { x: 15, y: 15 } }); // user gesture unlocks audio, outside the world
+    if (width === 320) await page.locator('#sound').click();
+    const notesBefore = await page.evaluate(() => window.__top5Notes.length);
+    for (const [step, height] of [[0, 4.7], [1, 2.7], [2, .6]]) {
+      if (step === 0) await slice(height);
+      const e = (await read()).state.encounter;
+      await go(e.x, e.y);
+      if (step) await slice(height);
+      await page.waitForFunction(step => { const e = window.__top5Read().state.encounter; return e.kind === 'home' || e.step > step; }, step);
+    }
+    await page.waitForFunction(() => window.__top5Read().popups.some(p => p.text === '跳跳跟上来了'));
+    const found = await read(); assert.deepEqual(found.state.collection.found, ['sprout']);
+    assert.equal(found.state.phase, 'playing'); assert.equal(found.state.paused, false);
+    assert.equal(await page.locator('dialog[open]').count(), 0);
+    if (width === 320) assert.equal(await page.evaluate(() => window.__top5Notes.length), notesBefore, 'muted discovery produces no oscillator');
+    else assert.ok(await page.evaluate(() => window.__top5Notes.some(n => n.frequency === 1047)), 'discovery melody scheduled after user gesture');
+    await screenshot('friend-found');
+    await page.keyboard.press('p');
+    const frozen = await read();
+    await page.waitForTimeout(250);
+    assert.deepEqual((await read()).popups, frozen.popups);
+    await page.locator('#resume').click();
+    await page.waitForFunction(() => !window.__top5Read().popups.some(p => p.discovery));
+    await page.locator('[data-level="0"]').click();
+    const visitorSeed = (await read()).state.seed;
+    assert.equal(await page.locator('#title').innerText(), '访客');
+    assert.match(await page.locator('#levels [aria-current=true]').innerText(), /访客/);
+    await slice(2.1); await go(6.5, 9);
+    // Face east with a brief native key input, then use Sprout's upper-layer hop.
+    await page.keyboard.down('d'); await page.waitForTimeout(30); await page.keyboard.up('d');
+    await page.locator('#pet').click();
+    await page.waitForFunction(() => window.__top5Events.some(e => e.type === 'friend_garden' && e.kind === 'probe'));
+    await go(10, 9.8);
+    await page.waitForFunction(() => window.__top5Read().popups.some(p => p.text === '收下花种 · 1/3'));
+    assert.equal(await page.locator('#garden-petals').innerText(), '1/3');
+    assert.equal(await page.locator('#garden-count').innerText(), '0/6', 'one seed is not a completed garden');
+    await screenshot('seed-found');
+    const firstSeed = (await page.evaluate(() => window.__top5Events)).find(e => e.type === 'garden_seed');
+    assert.equal(firstSeed.fresh, true);
+    await page.reload(); await ready();
+    assert.deepEqual((await read()).state.collection.found, ['sprout']);
+    assert.equal(await page.locator('#garden-petals').innerText(), '1/3');
+    assert.equal((await read()).popups.filter(p => p.discovery).length, 0);
+    await page.keyboard.press('r');
+    assert.equal((await read()).state.seed, visitorSeed);
+    assert.equal(await page.locator('#garden-petals').innerText(), '1/3');
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    const hud = await page.locator('#garden-progress').boundingBox(), canvas = await page.locator('#scene').boundingBox();
+    assert.ok(hud.y + hud.height <= canvas.y, 'HUD sits above gameplay');
+    await screenshot('saved-progress');
+    await page.locator('#style-toggle').click();
+    assert.equal(await page.locator('#garden-progress').isVisible(), false, 'challenge keeps its own HUD');
+    receipt.checks.push({ width, reducedMotion: width === 320, muted: width === 320, friendFound: true, seedFound: true, savedAfterReloadAndRetry: true, levelHighlightSynced: true, noOverflow: true });
+    console.log(`passed ${width}px: discovery, seed, pause, saved progress, HUD and level sync`);
+    await context.close();
+  }
+  assert.deepEqual(receipt.errors, []);
+  receipt.status = 'passed';
+} catch (error) {
+  receipt.status = 'failed'; receipt.failure = error.stack; process.exitCode = 1;
+} finally {
+  await browser.close();
+  await writeFile(`${out}/receipt.json`, JSON.stringify(receipt, null, 2));
+  console.log(JSON.stringify({ ...receipt, output: out }));
+}
