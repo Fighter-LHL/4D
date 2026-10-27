@@ -1,0 +1,29 @@
+{
+  "attempt1": {
+    "penpal": "Stopped at a new assertion that incorrectly required power from every first mechanism. Split-bridge first mechanisms open a bridge without emitting power; the assertion was corrected to inspect actual deliveries only.",
+    "top5": "1280px passed; stopped explicitly before completion to rerun against the final status-line fix. This interrupted run is not counted as passing.",
+    "visualFinding": "Remote completion still appeared in both the action popup and the scene status line. Power transients now leave the scene status line on the local position; the final browser assertion counts that line too.",
+    "evidence": [
+      "browser-penpal-attempt1/receipt.json",
+      "browser-penpal-attempt1.txt",
+      "browser-top5-attempt1.txt"
+    ]
+  },
+  "attempt2": {
+    "penpal": "The new status assertion matched the legitimate platform name 供能回声台 as if it were a progress popup. Restricted the assertion to completion/progress phrases; no runtime change needed.",
+    "top5": "1280px and 390px passed; stopped explicitly to rerun with the corrected shared observer. This interrupted run is not counted as passing.",
+    "evidence": [
+      "browser-penpal-attempt2/receipt.json",
+      "browser-penpal-attempt2.txt",
+      "browser-top5-attempt2.txt"
+    ]
+  },
+  "attempt3": {
+    "penpal": "1280px passed, including complete delivery during mechanism-follow and the entire power chain. At 390px, the pre-existing H-during-follow assertion ran before the .5s delivery created an available next step in a cascade room. A focused model/guide reproduction confirms request=false at .2s and request=true at .55s (help-timing.json). The H check now waits until follow age .55s, still within its .85s duration. Runtime help and beat timing are unchanged.",
+    "top5": "All three widths passed. Retained this successful run; reran both required commands after adjusting the shared helper to bind final evidence to the final script bytes.",
+    "evidence": [
+      "browser-penpal-attempt3/receipt.json",
+      "browser-top5-attempt3/receipt.json"
+    ]
+  }
+}

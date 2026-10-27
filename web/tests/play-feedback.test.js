@@ -187,8 +187,36 @@ test('missing source feedback distinguishes partial delivery from energy still i
   advance(m, .51);
   const complete = m.drainEvents().find(e => e.type === 'power');
   assert.equal(complete.complete, true);
-  assert.match(mechanismFeedback(complete, m.snapshot()), /供能到齐.*按 E/);
+  assert.equal(mechanismFeedback(complete, m.snapshot()), '', 'the ready receiver already offers E');
   assert.equal(m.snapshot().activated.includes(sink.id), false, 'feedback never activates the sink');
+});
+
+test('visible supply slots own partial progress while a hidden list keeps the fallback', () => {
+  const m = start('shell', 2), before = m.snapshot();
+  const event = { type: 'power', to: 'bell', complete: false, received: 1, required: 2 };
+  assert.equal(mechanismFeedback(event, before, { hasSupplySlots: true }), '');
+  assert.match(mechanismFeedback(event, before, { hasSupplySlots: false }), /供能 1\/2 · 还差一路/);
+  assert.deepEqual(m.snapshot(), before);
+});
+
+test('complete supply keeps one remote cue and yields to the receiver activation CTA', () => {
+  const m = start('shell', 2), before = m.snapshot();
+  const event = { type: 'power', to: 'bell', complete: true, received: 2, required: 2 };
+  for (const hasSupplySlots of [false, true]) {
+    assert.match(mechanismFeedback(event, before, { hasSupplySlots }), /供能到齐 · 到台上按 E/);
+    assert.equal(mechanismFeedback(event, { ...before, node: 'bell', interactAvailable: true }, { hasSupplySlots }), '');
+  }
+  assert.deepEqual(m.snapshot(), before);
+});
+
+test('both second beats suppress partial and complete power text', () => {
+  const before = start('shell', 2).snapshot();
+  for (const beat of ['mechanism', 'mechanism-follow']) for (const complete of [false, true]) {
+    const event = { type: 'power', to: 'bell', complete, received: complete ? 2 : 1, required: 2 };
+    for (const hasSupplySlots of [false, true]) {
+      assert.equal(mechanismFeedback(event, { ...before, courtyardMomentum: { beat } }, { hasSupplySlots }), '');
+    }
+  }
 });
 
 test('activation reports its real count; pressing E twice cannot award another activation', () => {

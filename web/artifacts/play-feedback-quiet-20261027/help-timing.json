@@ -1,0 +1,35 @@
+{
+  "room": "cascade",
+  "seed": 10,
+  "records": [
+    {
+      "secondsAfterActivation": 0.2,
+      "companionGuide": null,
+      "helpRequestAccepted": false,
+      "visibleGuide": null
+    },
+    {
+      "secondsAfterActivation": 0.55,
+      "companionGuide": {
+        "kind": "shift",
+        "node": "bell",
+        "layer": 0,
+        "w": 0.18,
+        "x": 708,
+        "y": 458,
+        "aligned": false
+      },
+      "helpRequestAccepted": true,
+      "visibleGuide": {
+        "kind": "shift",
+        "node": "bell",
+        "layer": 0,
+        "w": 0.18,
+        "x": 708,
+        "y": 458,
+        "aligned": false
+      }
+    }
+  ],
+  "conclusion": "Help is unavailable before committed power creates a next step in cascade rooms, and available after .5s. Browser H requests at follow age .55s stay within the unchanged .85s beat."
+}

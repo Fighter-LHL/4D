@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { GameModel } from '../src/model.js';
-import { courtyardBeatObserver, verifyCourtyardFirstBeat } from './courtyard-first-beat.mjs';
+import { courtyardBeatObserver, verifyCourtyardFirstBeat, verifyPowerAtReceiver } from './courtyard-first-beat.mjs';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const baseURL = process.env.BASE_URL || 'http://127.0.0.1:4173';
@@ -179,6 +179,10 @@ ${courtyardBeatObserver}
     await page.locator('#interact').click();
     await page.waitForFunction(() => document.querySelector('#mechanism-count').textContent === '2 / 3');
     await page.waitForFunction(() => document.querySelector('#action-feedback').textContent.includes('供能到齐'));
+    const remotePower = await page.evaluate(() => window.__courtyardBeat());
+    assert.deepEqual(remotePower.powerConflicts, []);
+    assert.deepEqual(remotePower.powerFrames.at(-1).notes, [], 'remote completion has only its action feedback');
+    await page.screenshot({ path: `${out}/courtyard-power-complete-remote-${width}.png`, fullPage: true });
     assert.equal(await page.locator('.action-row .primary-button').count(), 1);
     assert.deepEqual(await page.evaluate(() => window.ctaViolations), []);
     await page.locator('#help').click();
@@ -190,6 +194,7 @@ ${courtyardBeatObserver}
     }
     await page.screenshot({ path: `${out}/courtyard-help-${width}.png` });
     await page.locator('#help-done').click();
+    const powerAtReceiver = await verifyPowerAtReceiver(page, out, width);
     await page.goto(`${baseURL}/flatland.html?level=visitor&play=explore&seed=7`);
     await page.locator('#visitor-goal').waitFor();
     assert.match(await page.locator('#visitor-goal').innerText(), /拖 S.*按 E/);
@@ -237,16 +242,18 @@ ${courtyardBeatObserver}
     }
     assert.deepEqual(await page.evaluate(() => window.__penpalDiscovery().state.collection.found), ['sprout']);
     await page.getByRole('link', { name: '去庭院 ↗', exact: true }).first().click();
-    const firstEntryBeat = await verifyCourtyardFirstBeat(page, out, width, { interrupt: width === 390 ? 'mechanism-follow' : false });
+    const firstEntryBeat = await verifyCourtyardFirstBeat(page, out, width, { interrupt: width === 390 ? 'mechanism-follow' : false, fullPowerChain: true });
     receipt.checks.push({ width, height: width > 700 ? 900 : 844, firstCrossingMs, secondSourceCueMs, landingGuideQuiet: true,
-      landingAndOnwardGlints: true, landing, onwardLayout, compactProgress: width <= 480, singleSupplyProgress: true, followAfterExpiry: true, unfollowedQuietSeconds: 4.2, glintYieldsToExplicitHelp: true, explicitHelpAfterLanding: true, firstEntryBeat, passed: true });
+      landingAndOnwardGlints: true, landing, onwardLayout, compactProgress: width <= 480, singleSupplyProgress: true, remotePower, powerAtReceiver, followAfterExpiry: true, unfollowedQuietSeconds: 4.2, glintYieldsToExplicitHelp: true, explicitHelpAfterLanding: true, firstEntryBeat, passed: true });
     await context.close();
   }
   assert.deepEqual(receipt.errors, []);
   receipt.status = 'passed';
 } catch (error) {
   receipt.status = receipt.checks.length ? 'failed' : 'blocked-or-failed-before-first-check';
-  receipt.failure = error.message;
+  receipt.failure = error.stack;
+  receipt.failureActual = error.actual;
+  receipt.failureExpected = error.expected;
   process.exitCode = 1;
 } finally {
   await browser?.close();
