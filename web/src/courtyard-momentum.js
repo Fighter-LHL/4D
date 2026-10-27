@@ -135,4 +135,15 @@ export class CourtyardMomentum {
   view(state, guide) {
     return roomKey(state) === this.room && this.cue?.age >= 0 && this.valid(state, guide) ? { ...this.cue } : null;
   }
+  // Keep the existing controls legible after the finite glint fades. This is
+  // only the invitation already seen, never a new route or an idle prompt.
+  firstAction(state, guide) {
+    if (!this.firstEntry || roomKey(state) !== this.room || !quiet(state, guide) || state.riskMode || state.stats.failures) return null;
+    const f = this.follow;
+    if (f && !f.crossing && state.node === f.from && state.selected === f.node && reachablePlatforms(state).includes(f.node))
+      return { action: 'move', node: f.node };
+    if (this.mechanism?.invited && this.mechanismReady(state, guide, this.mechanism.node))
+      return { action: 'interact', node: this.mechanism.node };
+    return null;
+  }
 }

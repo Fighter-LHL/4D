@@ -294,6 +294,8 @@ function updateRoom(state) {
 function updateUI() {
   const state = guide.present(model.snapshot());
   state.courtyardMomentum = momentum.view(model.snapshot(), guide);
+  const firstAction = momentum.firstAction(model.snapshot(), guide);
+  const firstTarget = state.nodes.find(node => node.id === firstAction?.node);
   updateRoom(state);
   scene.setState(state);
   const friendHint = friendGuideText(state, scene.friends);
@@ -330,7 +332,9 @@ function updateUI() {
   }
   setText('footing',`${currentNode?.name || ''} · ${currentNode?.anchor?'跨层支撑':currentNode?.present?'本层平台':'离层失稳 · 换回有支撑的层'}`);
   $('footing').classList.toggle('unsafe',state.phaseStability<.99);
-  setText('objective',state.objective || '观察供能关系，切换 W 寻找这一庭的起点');
+  setText('objective',firstTarget
+    ? firstAction.action === 'move' ? `先到${firstTarget.name} · 稳行过去` : `启动脚下的${firstTarget.name} · 按 E`
+    : state.objective || '观察供能关系，切换 W 寻找这一庭的起点');
   for (const node of state.nodes.filter(n => n.kind === 'mechanism')) {
     const row = document.querySelector(`[data-mechanism="${node.id}"]`);
     const active = state.activated.includes(node.id);
@@ -376,7 +380,7 @@ function updateUI() {
   const mustActivate = actions.primary === 'interact' && currentNode?.kind === 'mechanism';
   $('move').disabled = !state.canMove || paused;
   $('move').className = actions.primary === 'move' && canAct() ? 'primary-button attention-action' : 'secondary-button';
-  setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${state.riskMode?'冒险穿越':'稳行'} <span>Space ↗</span>`);
+  setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${firstAction?.action === 'move' ? `到${firstTarget.name}` : state.riskMode?'冒险穿越':'稳行'} <span>Space ↗</span>`);
   $('interact').disabled = !canAct() || actions.interactDisabled;
   $('interact').title = state.interactReason || state.interactLabel;
   $('interact').className = actions.primary === 'interact' && canAct() ? 'primary-button attention-action' : `secondary-button${actions.interactDone ? ' completed-action' : ''}`;

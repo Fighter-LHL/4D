@@ -44,12 +44,27 @@ scene.render = dt => {
 };
 window.__courtyardSupplyState = () => model.snapshot();
 window.__courtyardBeat = () => structuredClone({ time: model.time, firstEntry: momentum.firstEntry,
+  firstAction: momentum.firstAction(model.snapshot(), guide), objective: $('objective').textContent, moveLabel: $('move').textContent,
   cue: scene.state?.courtyardMomentum, renderedNode: scene.momentumNode()?.id, strokes: beatStrokes,
   node: model.node, selected: model.selected, settled: guide.settled, used: [...momentum.used],
   activated: [...model.activated], nodes: model.snapshot().nodes.map(n => ({ id: n.id, required: n.required, received: n.received, powered: n.powered, present: n.present })),
   beats: window.__courtyardBeats, ends: window.__courtyardBeatEnds, events: window.__courtyardBeatEvents, conflicts: window.__courtyardBeatConflicts,
   powerFrames: window.__courtyardPowerFrames, powerConflicts: window.__courtyardPowerConflicts });
 `;
+
+async function assertFirstAction(page, action, node) {
+  const state = await page.evaluate(() => window.__courtyardSupplyState());
+  const target = state.nodes.find(n => n.id === node);
+  const actual = await page.evaluate(() => window.__courtyardBeat());
+  assert.deepEqual(actual.firstAction, { action, node }, 'instruction refers to the invitation already seen');
+  assert.equal(actual.objective, action === 'move' ? `先到${target.name} · 稳行过去` : `启动脚下的${target.name} · 按 E`);
+  const button = page.locator(`#${action}.primary-button.attention-action`);
+  assert.equal(await button.count(), 1);
+  assert.ok((await button.innerText()).includes(action === 'move' ? `到${target.name}` : `启动${target.name}`));
+  assert.ok(await button.evaluate(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight), 'named primary action fits its button');
+  const box = await button.boundingBox();
+  assert.ok(box.x >= 0 && box.x + box.width <= page.viewportSize().width, 'named primary stays within the viewport');
+}
 
 async function reachThroughUI(page, target) {
   const state = await page.evaluate(() => window.__courtyardSupplyState());
@@ -121,6 +136,7 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
   assert.equal(await page.locator('#move.primary-button.attention-action').count(), 1);
   assert.equal(await page.locator('#friend-guide').isVisible(), false);
   assert.equal(await page.locator('#announcement').innerText(), '');
+  await assertFirstAction(page, 'move', invitation.cue.node);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await shot('invitation');
   await page.locator('#pause').click();
@@ -134,6 +150,8 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
     await page.keyboard.press('h');
     assert.equal((await read()).cue, null, 'H immediately takes the invitation channel');
     assert.equal(await page.locator('#friend-guide').isVisible(), true);
+    assert.equal((await read()).firstAction, null, 'H also retires the named instruction');
+    assert.match(await page.locator('#move').innerText(), /^稳行/);
     await shot('help');
     await page.locator('#move').click();
     await page.waitForFunction(() => window.__courtyardBeat().settled);
@@ -145,13 +163,17 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
     assert.equal(idle.cue, null); assert.deepEqual(idle.used, ['arrival']);
     assert.equal(await page.locator('#friend-guide').isVisible(), false, 'no second prompt on the six-second idle timer');
     assert.equal(await page.locator('#announcement').innerText(), '');
+    await assertFirstAction(page, 'move', invitation.cue.node);
     await shot('idle');
     await page.locator('#move').click();
+    assert.equal((await read()).firstAction, null, 'crossing retires the named invitation');
+    assert.match(await page.locator('#move').innerText(), /^穿越中/);
     await page.waitForFunction(() => window.__courtyardBeat().cue?.beat === 'follow' && window.__courtyardBeat().cue.age >= .2);
     completed = await read();
     assert.equal(completed.node, invitation.cue.node);
     assert.equal(completed.renderedNode, completed.node); assert.ok(completed.strokes > 0);
     assert.equal(completed.settled, true);
+    assert.equal(completed.firstAction, null, 'landing completion is not another instruction');
     assert.deepEqual(completed.used, ['arrival', 'follow']);
     assert.equal(await page.locator('#friend-guide').isVisible(), false);
     assert.equal(await page.locator('.action-row .primary-button').count(), 1);
@@ -174,6 +196,7 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
       assert.equal(await page.locator('.action-row .primary-button').count(), 1);
       assert.equal(await page.locator('#interact.primary-button.attention-action').count(), 1);
       assert.equal(await page.locator('#friend-guide').isVisible(), false);
+      await assertFirstAction(page, 'interact', secondInvitation.cue.node);
       await page.screenshot({ path: `${out}/courtyard-second-beat-invitation-${width}.png`, fullPage: true });
       await page.locator('#pause').click();
       const secondFrozen = (await read()).cue;
@@ -183,12 +206,14 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
         await page.keyboard.press('h');
         assert.equal((await read()).cue, null, 'H immediately takes the second invitation channel');
         assert.equal(await page.locator('#friend-guide').isVisible(), true);
+        assert.equal((await read()).firstAction, null, 'help owns the instruction after H');
         await page.screenshot({ path: `${out}/courtyard-second-beat-help-${width}.png`, fullPage: true });
       } else {
         await page.waitForFunction(t => window.__courtyardBeat().time >= t + 6.2, secondInvitation.time);
         assert.equal((await read()).cue, null, 'expired second invitation stays quiet');
         assert.equal(await page.locator('#friend-guide').isVisible(), false, 'no automatic idle help');
         assert.deepEqual((await read()).used, ['arrival', 'follow', 'mechanism']);
+        await assertFirstAction(page, 'interact', secondInvitation.cue.node);
         await page.screenshot({ path: `${out}/courtyard-second-beat-idle-${width}.png`, fullPage: true });
       }
     }
@@ -202,6 +227,7 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
     assert.equal(secondCompleted.renderedNode, secondInvitation.cue.node);
     assert.ok(secondCompleted.strokes > 0);
     assert.ok(secondCompleted.activated.includes(secondInvitation.cue.node));
+    assert.equal(secondCompleted.firstAction, null, 'successful activation settles the instruction');
     assert.equal(secondCompleted.events.filter(e => e.type === 'activate' && e.node === secondInvitation.cue.node && e.via === 'touch').length, 1);
     assert.deepEqual(secondCompleted.used, ['arrival', 'follow', 'mechanism', 'mechanism-follow']);
     assert.equal(await page.locator('#friend-guide').isVisible(), false);
@@ -223,6 +249,8 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
   await page.waitForFunction(t => window.__courtyardBeat().time >= t + 6.2, activatedAt);
   const settled = await read();
   assert.equal(settled.cue, null);
+  assert.equal(settled.firstAction, null);
+  assert.match(await page.locator('#move').innerText(), /^稳行/);
   const expected = helpAt === 'arrival' ? ['arrival'] : helpAt === 'follow' ? ['arrival', 'follow']
     : helpAt === 'mechanism' ? ['arrival', 'follow', 'mechanism'] : ['arrival', 'follow', 'mechanism', 'mechanism-follow'];
   assert.deepEqual(settled.beats.map(b => b.beat), expected);
@@ -267,6 +295,7 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
   await page.waitForFunction(() => window.__courtyardBeat().time >= 3.5);
   const revisit = await read();
   assert.equal(revisit.firstEntry, false); assert.equal(revisit.cue, null);
+  assert.equal(revisit.firstAction, null);
   assert.deepEqual(revisit.beats, []); assert.deepEqual(revisit.used, []);
   assert.deepEqual(revisit.conflicts, []);
   return { invitation, completed, secondInvitation, secondCompleted, settled, powerChain, revisit, interrupt: helpAt, idleSeconds: helpAt === 'arrival' ? null : 6.5, secondIdleSeconds: secondCompleted ? 6.2 : null, passed: true };

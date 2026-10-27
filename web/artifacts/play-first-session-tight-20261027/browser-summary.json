@@ -1,0 +1,136 @@
+{
+  "status": "passed",
+  "viewports": [
+    {
+      "suite": "penpal",
+      "width": 1280,
+      "invitation": "先到架桥泵 · 稳行过去",
+      "moveLabel": "到架桥泵 Space ↗",
+      "mechanismInvitation": "启动脚下的架桥泵 · 按 E",
+      "helpAt": false,
+      "settledInstruction": null,
+      "revisitInstruction": null,
+      "beats": [
+        "arrival",
+        "follow",
+        "mechanism",
+        "mechanism-follow"
+      ],
+      "powerConflicts": [],
+      "fullPowerChainActivated": [
+        "dew",
+        "bell",
+        "bloom"
+      ]
+    },
+    {
+      "suite": "penpal",
+      "width": 390,
+      "invitation": "先到启程泵 · 稳行过去",
+      "moveLabel": "到启程泵 Space ↗",
+      "mechanismInvitation": "启动脚下的启程泵 · 按 E",
+      "helpAt": "mechanism-follow",
+      "settledInstruction": null,
+      "revisitInstruction": null,
+      "beats": [
+        "arrival",
+        "follow",
+        "mechanism",
+        "mechanism-follow"
+      ],
+      "powerConflicts": [],
+      "fullPowerChainActivated": [
+        "dew",
+        "bell",
+        "bloom"
+      ]
+    },
+    {
+      "suite": "penpal",
+      "width": 320,
+      "invitation": "先到引潮泵 · 稳行过去",
+      "moveLabel": "到引潮泵 Space ↗",
+      "mechanismInvitation": "启动脚下的引潮泵 · 按 E",
+      "helpAt": false,
+      "settledInstruction": null,
+      "revisitInstruction": null,
+      "beats": [
+        "arrival",
+        "follow",
+        "mechanism",
+        "mechanism-follow"
+      ],
+      "powerConflicts": [],
+      "fullPowerChainActivated": [
+        "dew",
+        "bell",
+        "bloom"
+      ]
+    },
+    {
+      "suite": "top5",
+      "width": 1280,
+      "invitation": "先到潮汐源 · 稳行过去",
+      "moveLabel": "到潮汐源 Space ↗",
+      "mechanismInvitation": "启动脚下的潮汐源 · 按 E",
+      "helpAt": "mechanism",
+      "settledInstruction": null,
+      "revisitInstruction": null,
+      "beats": [
+        "arrival",
+        "follow",
+        "mechanism"
+      ],
+      "powerConflicts": [],
+      "fullPowerChainActivated": null
+    },
+    {
+      "suite": "top5",
+      "width": 390,
+      "invitation": "先到启程泵 · 稳行过去",
+      "moveLabel": "到启程泵 Space ↗",
+      "mechanismInvitation": null,
+      "helpAt": "follow",
+      "settledInstruction": null,
+      "revisitInstruction": null,
+      "beats": [
+        "arrival",
+        "follow"
+      ],
+      "powerConflicts": [],
+      "fullPowerChainActivated": null
+    },
+    {
+      "suite": "top5",
+      "width": 320,
+      "invitation": "先到启程泵 · 稳行过去",
+      "moveLabel": "到启程泵 Space ↗",
+      "mechanismInvitation": null,
+      "helpAt": "arrival",
+      "settledInstruction": null,
+      "revisitInstruction": null,
+      "beats": [
+        "arrival"
+      ],
+      "powerConflicts": [],
+      "fullPowerChainActivated": null
+    }
+  ],
+  "tests": {
+    "total": 315,
+    "pass": 315,
+    "fail": 0,
+    "skipped": 0
+  },
+  "sourceUnchangedDuringFinalRuns": true,
+  "penpal": {
+    "status": "passed",
+    "browser": "130.0.6723.31",
+    "errors": []
+  },
+  "top5": {
+    "status": "passed",
+    "browser": "130.0.6723.31",
+    "errors": []
+  }
+}
