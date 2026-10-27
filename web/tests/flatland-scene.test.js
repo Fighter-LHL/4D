@@ -13,11 +13,12 @@ function renderer(width = 1000, height = 560) {
     if (typeof value === 'number') assert.ok(Number.isFinite(value), `non-finite canvas value: ${value}`);
     if (Array.isArray(value)) value.forEach(finite);
   };
-  const special = { createRadialGradient: () => ({ addColorStop() {} }), measureText: text => ({ width: String(text).length * 8 }) };
+  class Gradient { constructor() { this.stops = []; } addColorStop(...stop) { this.stops.push(stop); } }
+  const special = { createRadialGradient: () => new Gradient(), measureText: text => ({ width: String(text).length * 8 }) };
   const context = new Proxy({}, {
     get(target, key) {
       if (key in target) return target[key];
-      return (...args) => { args.forEach(finite); calls.push({ method: key, args, stroke: target.strokeStyle, fill: target.fillStyle }); return special[key]?.(...args); };
+      return (...args) => { args.forEach(finite); calls.push({ method: key, args, stroke: target.strokeStyle, fill: target.fillStyle, alpha: target.globalAlpha, lineWidth: target.lineWidth }); return special[key]?.(...args); };
     },
     set(target, key, value) { finite(value); target[key] = value; return true; },
   });
@@ -44,7 +45,12 @@ test('fresh discoveries leave a bounded wordless tail, freeze on pause and clear
       const first = draw();
       assert.equal(texts(first).length, 0, 'no new text');
       const oval = first.find(c => c.method === 'ellipse');
-      assert.ok((oval.args[3] * scene.view.main.scale + .75) <= 4.75, 'tail stays away from the phone label');
+      const k = scene.view.main.scale;
+      assert.equal(oval.args[3], Math.min(.35, 8 / k), 'readable shallow puddle');
+      assert.equal(first.find(c => c.method === 'stroke').lineWidth * k, width <= 480 ? 4 : 3);
+      assert.equal(first.find(c => c.method === 'stroke').stroke, '#D4A04A');
+      assert.equal(first.find(c => c.method === 'fill').alpha, .32);
+      assert.equal(first.filter(c => c.method === 'fill' && c.fill === '#F0C56A').length, 4);
       scene.setState({ ...before, paused: true }); scene.render(3);
       assert.equal(scene.discoveryEchoes[0].age, .3);
       scene.setState(before); scene.render(.1);
@@ -52,7 +58,11 @@ test('fresh discoveries leave a bounded wordless tail, freeze on pause and clear
       scene.render(width <= 480 ? 1 : 1.45);
       assert.equal(scene.popups.filter(p => p.discovery).length, 0);
       assert.equal(scene.discoveryEchoes.length, 1, 'wordless satisfaction continues after short text');
-      scene.render(.7); assert.equal(scene.discoveryEchoes.length, 0);
+      scene.discoveryEchoes[0].age = 1.5;
+      const held = draw();
+      assert.equal(held.find(c => c.method === 'fill').alpha, .32, 'still readable at 1.5 seconds');
+      if (reduced) assert.deepEqual(held, first, 'hold changes no geometry');
+      scene.render(1.6); assert.equal(scene.discoveryEchoes.length, 0);
       scene.pushEvents([{ ...event, fresh: false }]); assert.equal(scene.discoveryEchoes.length, 0);
       for (const type of ['load', 'hurt', 'death', 'guard_alert', 'dimension_start']) {
         scene.pushEvents([event, { type, x: 6.5, y: 9 }]); assert.equal(scene.discoveryEchoes.length, 0);
@@ -340,7 +350,7 @@ test('phone bud feedback sits below its probe and a fresh discovery retires the 
     assert.equal(scene.popups.find(p => p.garden).duration, .8);
     scene.pushEvents([{ type: 'garden_seed', fresh: true, petals: 1, x: 7, y: 8 }]);
     assert.equal(scene.popups.some(p => p.garden), false); assert.equal(scene.discoveryEchoes.length, 1);
-    scene.render(2.1); assert.equal(scene.popups.length, 0); assert.equal(scene.discoveryEchoes.length, 0);
+    scene.render(2.7); assert.equal(scene.popups.length, 0); assert.equal(scene.discoveryEchoes.length, 0);
     state.companions.probe = null; calls.length = 0; scene.render(.1);
     assert.ok(texts(calls).includes('懂倒影的朋友'), 'nearby pad instruction returns after the probe');
   }
@@ -359,4 +369,26 @@ test('a temporarily collapsed canvas preserves a discovery tail and resumes with
   canvas.getBoundingClientRect = rect; scene.render(.1);
   assert.ok(scene.view.main.scale > 0); assert.ok(scene.discoveryEchoes[0].age > before[0].age);
   assert.ok(calls.filter(c => c.method === 'ellipse').every(c => c.args[2] >= 0 && c.args[3] >= 0));
+});
+
+test('seed collection wins over garden labels in either event order and briefly hides the ring instruction', () => {
+  for (const width of [1280, 390, 320]) for (const reverse of [false, true]) {
+    const { scene, calls } = renderer(width, 400);
+    const m = new FlatlandModel(0, { seed: 42, playStyle: 'explore' }); m.start();
+    const state = m.snapshot();
+    state.rings = { active: true, radius: 1, center: [4, 4], window: null, elapsed: 1, hold: 0 };
+    scene.setState(state); scene.render(0);
+    const seed = { type: 'garden_seed', fresh: true, petals: 1, x: 7, y: 8 };
+    const garden = { type: 'friend_garden', kind: 'probe', x: 7, y: 8 };
+    scene.pushEvents([garden]);
+    scene.pushEvents(reverse ? [seed, garden] : [garden, seed]);
+    assert.deepEqual(scene.popups.map(p => p.text), ['收下花种 · 1/3']);
+    scene.render(.1); scene.pushEvents([garden]);
+    assert.deepEqual(scene.popups.map(p => p.text), ['收下花种 · 1/3']);
+    assert.ok(scene.particles.length, 'garden VFX survives label arbitration');
+    calls.length = 0; scene.drawRing(scene.view.main.scale);
+    assert.equal(texts(calls).includes('走到光环边'), false);
+    scene.render(1); calls.length = 0; scene.drawRing(scene.view.main.scale);
+    assert.ok(texts(calls).includes('走到光环边'), 'the existing instruction returns');
+  }
 });

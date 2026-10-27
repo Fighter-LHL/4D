@@ -39,7 +39,7 @@ scene.ctx.ellipse = (x, y, rx, ry, ...rest) => {
       top: (t.d * (y - ry) + t.f) / d, bottom: (t.d * (y + ry) + t.f) / d }); }
   penpalEllipse(x, y, rx, ry, ...rest);
 };
-window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMomentum, used: [...momentum.used], time: model.time, labels: window.__penpalLabels, glints: window.__penpalGlints });
+window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMomentum, renderedNode: scene.momentumNode()?.id, currentNode: model.node, interactLabel: scene.state?.interactLabel, used: [...momentum.used], time: model.time, labels: window.__penpalLabels, glints: window.__penpalGlints });
 ` });
     });
     // Observe every frame; no game state or saved profile is injected.
@@ -64,7 +64,24 @@ window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMom
     const startedAt = Date.now();
     assert.equal(await page.locator('#choice-dialog').isVisible(), false);
     assert.equal(await page.locator('#friend-guide').isVisible(), true);
-    await page.screenshot({ path: `${out}/courtyard-first-step-${width}.png` });
+    if (width <= 480) {
+      assert.equal(await page.locator('#run-details').evaluate(el => el.open), false);
+      assert.equal(await page.locator('.scoreboard').isVisible(), true);
+      assert.equal(await page.locator('#mechanisms').isVisible(), true);
+      const mechanismHeading = await page.locator('.mechanism-heading').boundingBox();
+      const mechanismList = await page.locator('#mechanisms').boundingBox();
+      assert.ok(mechanismHeading.y + mechanismHeading.height <= mechanismList.y, 'mechanism title stays above the first item');
+      for (const selector of ['.relic-panel', '#resonance-panel', '#secret-panel']) assert.equal(await page.locator(selector).isVisible(), false);
+      await page.locator('#run-details>summary').click();
+      assert.equal(await page.locator('.relic-panel').isVisible(), true, 'build remains available on demand');
+      await page.locator('#run-details>summary').click();
+      await page.evaluate(() => scrollTo(0, 0));
+      for (const selector of ['#scene', '.layer-controls', '#w-slider', '.action-row .primary-button']) {
+        const rect = await page.locator(selector).boundingBox();
+        assert.ok(rect.y >= 0 && rect.y + rect.height <= 844, `${selector} fits the phone first screen: ${JSON.stringify(rect)}`);
+      }
+    } else assert.equal(await page.locator('.relic-panel').isVisible(), true);
+    await page.screenshot({ path: `${out}/courtyard-first-step-${width}.png`, fullPage: true });
     await page.keyboard.press('e');
     await page.waitForFunction(() => document.querySelector('#action-feedback').textContent.includes('没有回响'));
     assert.equal(await page.locator('#action-feedback').evaluate(el => getComputedStyle(el).pointerEvents), 'none');
@@ -92,7 +109,13 @@ window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMom
     assert.ok(firstCrossingMs < 30000, 'scripted fresh-profile first crossing within 30 seconds');
     assert.equal(await page.locator('#friend-guide').isVisible(), false, 'first safe landing is quiet');
     await page.waitForFunction(() => window.__penpalMomentum().cue?.age >= .3);
-    assert.equal((await page.evaluate(() => window.__penpalMomentum())).cue.beat, 'landing');
+    const landing = await page.evaluate(() => window.__penpalMomentum());
+    assert.equal(landing.cue.beat, 'landing');
+    assert.equal(landing.renderedNode, landing.currentNode);
+    assert.equal(landing.cue.node, landing.renderedNode);
+    assert.equal(await page.locator('#interact.primary-button.attention-action').count(), 1);
+    assert.equal(await page.locator('#move.primary-button').count(), 0);
+    assert.ok((await page.locator('#interact').innerText()).includes(landing.interactLabel));
     await page.screenshot({ path: `${out}/courtyard-landing-glint-${width}.png` });
     await page.keyboard.press('h');
     assert.equal(await page.locator('#friend-guide').isVisible(), true, 'explicit help remains available after landing');
@@ -100,16 +123,18 @@ window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMom
     const activatedAt = Date.now();
     await page.locator('#interact').click();
     await page.waitForFunction(() => document.querySelector('#mechanism-count').textContent === '1 / 3');
-    await page.waitForFunction(() => document.querySelector('#action-feedback').textContent.includes('供能 1/2'));
+    await page.waitForFunction(() => [...document.querySelectorAll('#mechanisms small')].some(el => el.textContent === '供能 1/2'));
+    assert.doesNotMatch(await page.locator('#action-feedback').innerText(), /供能 1\/2|还差一路/);
     await page.waitForFunction(() => window.__penpalMomentum().cue?.beat === 'onward' && window.__penpalMomentum().cue.age >= .3);
     assert.equal((await page.evaluate(() => window.__penpalMomentum())).cue.node, 'hub');
     const onwardLayout = await page.evaluate(() => window.__penpalMomentum());
+    assert.equal(onwardLayout.labels.some(l => /供能 1\/2|还差一路/.test(l.text)), false);
     if (width < 700) {
-      const relevant = onwardLayout.labels.filter(l => /供能|归响台/.test(l.text));
-      assert.ok(relevant.some(l => /供能/.test(l.text)) && relevant.some(l => l.text === '归响台'));
-      const power = relevant.find(l => /供能/.test(l.text)), activation = onwardLayout.labels.find(l => /^启动/.test(l.text));
-      assert.ok(activation.top - power.bottom >= 4, 'power note stays above the activation note: ' + JSON.stringify({ power, activation }));
-      for (const note of [power, activation]) for (const label of onwardLayout.labels.filter(l => /^(维度锚台|归响台|潮汐源|裂隙花匣)$/.test(l.text))) {
+      const relevant = onwardLayout.labels.filter(l => /归响台/.test(l.text));
+      assert.ok(relevant.some(l => l.text === '归响台'));
+      const activation = onwardLayout.labels.find(l => /^启动/.test(l.text));
+      assert.ok(activation);
+      for (const note of [activation]) for (const label of onwardLayout.labels.filter(l => /^(维度锚台|归响台|潮汐源|裂隙花匣)$/.test(l.text))) {
         assert.ok(note.right + 3 < label.left || note.left - 3 > label.right || note.bottom + 3 < label.top || note.top - 3 > label.bottom,
           'phone notes avoid platform names as well as each other');
       }
@@ -185,7 +210,7 @@ window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMom
     await page.waitForFunction(() => document.querySelector('#visitor-goal').hidden);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no horizontal overflow');
     receipt.checks.push({ width, height: width > 700 ? 900 : 844, firstCrossingMs, secondSourceCueMs, landingGuideQuiet: true,
-      landingAndOnwardGlints: true, onwardLayout, followAfterExpiry: true, unfollowedQuietSeconds: 4.2, glintYieldsToExplicitHelp: true, explicitHelpAfterLanding: true, passed: true });
+      landingAndOnwardGlints: true, landing, onwardLayout, compactProgress: width <= 480, singleSupplyProgress: true, followAfterExpiry: true, unfollowedQuietSeconds: 4.2, glintYieldsToExplicitHelp: true, explicitHelpAfterLanding: true, passed: true });
     await context.close();
   }
   assert.deepEqual(receipt.errors, []);

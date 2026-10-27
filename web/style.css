@@ -92,4 +92,23 @@ a.icon-button{text-decoration:none;color:var(--green)}
 .action-feedback{position:absolute;left:50%;bottom:38px;transform:translateX(-50%);max-width:calc(100% - 28px);width:max-content;margin:0;padding:9px 14px;background:#f3f5ecf2;border:1px solid #a6c1ad;border-radius:9px;color:#285a4b;font-size:13px;line-height:1.5;text-align:center;pointer-events:none;z-index:2;box-shadow:0 3px 15px #203b3014}
 #mechanism-count{display:inline-block}
 @media(max-width:480px){.starter-choice{padding:18px}.starter-choice h2{font-size:22px}.starter-choice .relic-choice{padding:9px 10px}.action-feedback{font-size:11px;bottom:30px}}
+
+/* Keep progress in view; the longer build and garden story is optional on phones. */
+.run-details{display:contents}
+.run-details>summary{display:none}
+@media(max-width:480px){
+  .run-details{display:block;grid-column:1/-1;border-top:1px solid var(--line);margin-top:12px}
+  .run-details>summary{display:list-item;cursor:pointer;padding:14px 0;font-size:11px;color:var(--muted)}
+  .run-details .relic-panel{display:block}
+  .run-panel{row-gap:0}
+  .run-panel>.room-itinerary{grid-row:1}
+  .run-panel>.scoreboard{grid-column:1/-1;grid-row:2}
+  .run-panel>.mechanism-heading{grid-column:2;grid-row:3}
+  .run-panel>.mechanism-list{grid-column:2;grid-row:4/6;align-self:start}
+  .run-panel>.lives-row{grid-row:4}
+  .run-panel>.chain-row{grid-row:5}
+  .run-panel>.journey-note{grid-row:6}
+  .run-panel>.run-details{grid-row:7}
+  .scene-wrap{height:clamp(195px,calc(100svh - 475px),330px)}
+}
 @media(prefers-reduced-motion:reduce){.starter-choice .relic-choice:hover{transform:none}}

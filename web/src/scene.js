@@ -50,11 +50,12 @@ function hash(n) {
 
 /** Canvas presentation only. The model remains the sole rule authority. */
 export class SceneRenderer {
-  constructor(canvas, { onSelect, onFriend } = {}) {
+  constructor(canvas, { onSelect, onFriend, hasSupplySlots = () => false } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.onSelect = typeof onSelect === 'function' ? onSelect : () => {};
     this.onFriend = typeof onFriend === 'function' ? onFriend : () => {};
+    this.hasSupplySlots = hasSupplySlots;
     this.state = null;
     this.time = 0;
     this.effects = [];
@@ -229,7 +230,8 @@ export class SceneRenderer {
         if (event.type === 'phase_transfer') this.burst(at, this.palette(layer).glow, 16, .5);
       } else if (event.type === 'power') {
         const from = this.node(event.from) || target, to = this.node(event.to) || target;
-        this.addEffect('note', to, { duration: this.width <= 480 ? 1.25 : 2.2, supply: true, text: event.complete ? '供能到齐 · 等你启动' : `供能 ${event.received}/${event.required}`, color: COLORS.teal });
+        if (event.complete || !this.hasSupplySlots(event.to))
+          this.addEffect('note', to, { duration: this.width <= 480 ? 1.25 : 2.2, supply: true, text: event.complete ? '供能到齐 · 等你启动' : `供能 ${event.received}/${event.required}`, color: COLORS.teal });
         this.addEffect('power', from, { to: { x: to.x, y: to.y }, duration: 1.4,
           fromLayer: from.layer ?? this.state.layer, toLayer: to.layer ?? event.layer,
           color: this.palette(to.layer ?? event.layer).color, sourceColor: this.palette(from.layer).color });
@@ -906,30 +908,47 @@ export class SceneRenderer {
     ctx.restore();
   }
 
-  drawMomentum() {
+  momentumNode() {
     const cue = this.state.courtyardMomentum, node = cue && this.node(cue.node);
-    if (!node?.present || this.state.companionGuide || this.state.travel || this.state.wave || this.state.phase !== 'playing') return;
+    return node?.present && cue.age >= 0 && cue.age < cue.duration && !this.state.companionGuide &&
+      !this.state.travel && !this.state.wave && this.state.phase === 'playing' ? node : null;
+  }
+
+  drawMomentum() {
+    const node = this.momentumNode(), cue = this.state.courtyardMomentum;
+    if (!node) return;
     const ctx = this.ctx, p = clamp(cue.age / cue.duration);
     const opacity = Math.min(1, cue.age / .25) * (1 - ease((p - .55) / .45));
     const narrow = this.width <= 480, follow = cue.beat === 'follow';
-    const swell = this.reducedMotion ? 0 : Math.sin(Math.PI * p) * (narrow ? 2 : 5);
+    const pulse = this.reducedMotion ? 1 : .5 - .5 * Math.cos(TAU * cue.age / 1.4);
     const width = node.id === 'hub' ? 91 : 64;
+    const swell = this.reducedMotion ? 0 : width * .06 * pulse;
+    const section = node.anchor ? 1 : node.scale, pixel = 1 / (this.scale * section);
     ctx.save(); ctx.translate(node.x, node.y);
-    ctx.scale(node.anchor ? 1 : node.scale, node.anchor ? 1 : node.scale);
-    ctx.globalAlpha = (follow ? .23 : .13) * opacity;
-    const rimY = narrow ? -1 : 5, rimHeight = narrow ? 16 : 24;
-    ellipse(ctx, 0, rimY, width + swell, rimHeight + swell * .2, this.palette(node.layer ?? this.state.layer).color);
-    ctx.globalAlpha = (follow ? .85 : .55) * opacity;
+    ctx.scale(section, section);
+    ctx.globalAlpha = (follow ? .23 : .28) * opacity;
+    const rimY = narrow ? -5 : 5, rimHeight = narrow ? 20 : 24;
+    ellipse(ctx, 0, rimY, width + swell, rimHeight + swell * .2, '#E8B45A');
+    ctx.globalAlpha = (follow ? .85 : .70) * opacity;
     // A shallow rim glint stays on the platform, clear of the name below it.
-    ctx.strokeStyle = COLORS.gold; ctx.lineWidth = 1.5 / this.scale;
+    ctx.strokeStyle = '#D4A04A'; ctx.lineWidth = (narrow ? 4 : 3) * pixel;
     ctx.beginPath(); ctx.ellipse(0, rimY, width + swell, rimHeight + swell * .2, 0, .15 * Math.PI, .85 * Math.PI); ctx.stroke();
+    ctx.globalAlpha = .35 * opacity; ctx.setLineDash([6 * pixel, 4 * pixel]);
+    ellipse(ctx, 0, rimY - 3 * pixel, width + swell, rimHeight, null, '#D4A04A', (narrow ? 3 : 2) * pixel);
+    ctx.setLineDash([]);
+    // One finite sparkle; no idle particle emitter or extra label.
+    ctx.globalAlpha = (.45 + .30 * pulse) * opacity * (1 - clamp(cue.age / .8) ** 2);
+    for (let i = 0; i < 5; i++) {
+      const a = Math.PI * (.15 + .7 * i / 4), dot = (narrow ? 4 : 3) * pixel / 2;
+      ellipse(ctx, Math.cos(a) * (width + swell), rimY - Math.sin(a) * rimHeight, dot, dot, '#F0C56A');
+    }
     ctx.restore();
   }
 
   drawSceneCues() {
     const s = this.state, ctx = this.ctx;
     if (s.phase !== 'playing' || s.travel || s.wave) return;
-    const reachable = new Set(reachablePlatforms(s));
+    const reachable = new Set(this.momentumNode() ? [] : reachablePlatforms(s));
     const missing = new Set(missingSupplySources(s).map(node => node.id));
     const pulse = this.reducedMotion ? .65 : .5 + .5 * Math.sin(this.time * 3);
     for (const node of s.nodes) {

@@ -76,6 +76,7 @@ export class FlatlandRenderer {
   }
   pushEvents(events) {
     const narrow = this.canvas.getBoundingClientRect().width <= 480;
+    const seedFound = events.some(event => event.type === 'garden_seed' && event.fresh);
     for (const event of events) {
       const st = this.state;
       if (['load', 'hurt', 'death', 'guard_alert', 'dimension_start'].includes(event.type)) this.discoveryEchoes = [];
@@ -102,9 +103,9 @@ export class FlatlandRenderer {
       }
       const discovery = discoveryFeedback(event);
       if (discovery) {
-        this.popups = this.popups.filter(p => !p.near && !p.discovery && !(narrow && p.garden));
+        this.popups = this.popups.filter(p => !p.near && !p.discovery && !p.garden);
         this.popup(event.x, event.y - .9, discovery.text, discovery.color, false, { duration: narrow ? 1.35 : 1.8, discovery: true });
-        this.discoveryEchoes = [{ x: event.x, y: event.y, slice: st?.s, color: discovery.color, age: 0, duration: narrow ? 2 : 2.4 }];
+        this.discoveryEchoes = [{ x: event.x, y: event.y, slice: st?.s, age: 0, duration: narrow ? 2.6 : 3 }];
       }
       if (event.type === 'friend_found' && event.fresh) {
         const friend = FRIENDS.find(f => f.id === event.id);
@@ -116,8 +117,10 @@ export class FlatlandRenderer {
         friends.forEach((friend, i) => this.burst(event.x + (i - 1) * .6, event.y, friend.color, 12, 2.5));
       }
       if (event.type === 'friend_garden') {
-        if (narrow) this.popups = this.popups.filter(p => !p.near);
-        this.popup(event.x, event.y - .8, event.kind === 'probe' ? '花苞醒了' : '花匣开了', '#4d9270', false, { garden: true, duration: narrow ? .8 : 1.1 }); this.burst(event.x, event.y, '#d8ae4d', 24, 3); }
+        this.popups = this.popups.filter(p => !p.near);
+        if (!seedFound && !this.popups.some(p => p.discovery && p.age < .35))
+          this.popup(event.x, event.y - .8, event.kind === 'probe' ? '花苞醒了' : '花匣开了', '#4d9270', false, { garden: true, duration: narrow ? .8 : 1.1 });
+        this.burst(event.x, event.y, '#d8ae4d', 24, 3); }
       if (event.type === 'garden_bloom' && event.fresh) { this.popup(event.x, event.y + 1.2, '花园点亮了 ✿', '#4d9270', true); this.burst(event.x, event.y, '#79ad63', 32, 3); }
       if (event.type === 'gardens_complete' && st) { this.popup(st.bounds.w / 2, 1.6, '六座花园全部盛开 ✿', '#4d9270', true); this.burst(event.x, event.y, '#d6a63b', 30, 3); }
       if (event.type === 'friend_blocked' && st) this.popup(st.player.x, st.player.y - .8, event.reason === 'height' ? '到边缘了，换个方向' : '邻层有墙，挪一挪', '#4d9270');
@@ -218,20 +221,28 @@ export class FlatlandRenderer {
   tint() { const s = this.state, t = clamp((s.s - s.slice.min) / (s.slice.max - s.slice.min || 1)); return mixColor('#f9f3e6', '#e9f2f4', t); }
 
   drawDiscoveryEchoes(k) {
-    const ctx = this.ctx;
+    const ctx = this.ctx, narrow = this.view.width <= 480;
     ctx.save();
-    // Keep the echo within five CSS pixels vertically: the phone label starts
-    // 24px below the find. Reduced motion retains only the soft opacity tail.
+    // Hold a warm puddle beyond the short label, then fade. The shallow footprint
+    // leaves room for phone text; reduced motion changes opacity only.
     ctx.beginPath(); ctx.rect(0, 0, this.state.bounds.w, this.state.bounds.h); ctx.clip();
     for (const echo of this.discoveryEchoes) {
-      const p = echo.age / echo.duration;
-      const opacity = Math.min(1, echo.age / .18) * (1 - clamp((p - .68) / .32) ** 2);
+      const hold = Math.max(.9, echo.duration * .6);
+      const opacity = 1 - clamp((echo.age - hold) / (echo.duration - hold)) ** 2;
       const settle = this.reducedMotion ? 1 : 1 + .18 * Math.sin(Math.PI * Math.min(1, echo.age / 1.1));
-      const rx = Math.min(1.1, (this.view.width <= 480 ? 22 : 26) / k) * settle, ry = Math.min(.2, 4 / k);
-      ctx.fillStyle = ctx.strokeStyle = echo.color; ctx.lineWidth = 1.5 / k;
-      ctx.globalAlpha = .14 * opacity;
+      const rx = Math.max(this.state.player.r * 2.4, (narrow ? 22 : 26) / k) * settle, ry = Math.min(.35, 8 / k);
+      const aura = ctx.createRadialGradient(echo.x, echo.y, 0, echo.x, echo.y, rx);
+      aura.addColorStop(0, '#E8B45A'); aura.addColorStop(.55, '#E8B45A'); aura.addColorStop(1, '#E8B45A30');
+      ctx.fillStyle = aura; ctx.strokeStyle = '#D4A04A'; ctx.lineWidth = (narrow ? 4 : 3) / k;
+      ctx.globalAlpha = (echo.age < .12 ? .4 : .32) * opacity;
       ctx.beginPath(); ctx.ellipse(echo.x, echo.y, rx, ry, 0, 0, TAU); ctx.fill();
-      ctx.globalAlpha = .55 * opacity; ctx.stroke();
+      ctx.globalAlpha = .85 * opacity; ctx.stroke();
+      ctx.fillStyle = '#F0C56A';
+      const dot = (narrow ? 4 : 3) / (2 * k);
+      for (let i = 0; i < 4; i++) {
+        const x = echo.x + (i / 3 - .5) * rx * 1.5;
+        ctx.beginPath(); ctx.ellipse(x, echo.y - ry * .55, dot, dot, 0, 0, TAU); ctx.fill();
+      }
     }
     ctx.restore();
   }
@@ -426,7 +437,7 @@ export class FlatlandRenderer {
     ctx.globalAlpha = .9; ctx.strokeStyle = left < .3 ? COLORS.danger : COLORS.muted; ctx.lineWidth = 2.5 / k;
     if (r.window !== null) { ctx.beginPath(); ctx.ellipse(x, y, r.radius + .35, r.radius + .35, 0, -Math.PI / 2, -Math.PI / 2 + TAU * left); ctx.stroke(); }
     if (r.hold > 0) { ctx.strokeStyle = COLORS.done; ctx.lineWidth = 6 / k; ctx.beginPath(); ctx.ellipse(x, y, r.radius, r.radius, 0, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(r.hold)); ctx.stroke(); }
-    if (this.state.exploration) { ctx.fillStyle = COLORS.ink; ctx.font = `${12 / k}px system-ui`; ctx.textAlign = 'center'; ctx.fillText(r.near ? '换层接住' : '走到光环边', x, y - r.radius - .6); }
+    if (this.state.exploration && !this.popups.some(p => p.discovery && p.age < 1)) { ctx.fillStyle = COLORS.ink; ctx.font = `${12 / k}px system-ui`; ctx.textAlign = 'center'; ctx.fillText(r.near ? '换层接住' : '走到光环边', x, y - r.radius - .6); }
     ctx.restore();
   }
 

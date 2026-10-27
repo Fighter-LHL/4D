@@ -18,7 +18,7 @@ function scene(reducedMotion = false) {
       if (key in target) return target[key];
       if (key === 'measureText') return text => ({ width: String(text).length * 12 });
       if (key === 'createLinearGradient' || key === 'createRadialGradient') return (...args) => { args.forEach(finite); return { addColorStop() {} }; };
-      return (...args) => { args.forEach(finite); calls.push({ method: key, args, fill: target.fillStyle, stroke: target.strokeStyle, alpha: target.globalAlpha }); };
+      return (...args) => { args.forEach(finite); calls.push({ method: key, args, fill: target.fillStyle, stroke: target.strokeStyle, alpha: target.globalAlpha, lineWidth: target.lineWidth }); };
     },
     set(target, key, value) { finite(value); target[key] = value; return true; },
   });
@@ -107,6 +107,38 @@ test('power and activation labels render, pause, expire and stay still with redu
     assert.ok(renderer.effects.length <= 36);
     renderer.destroy();
   }
+});
+
+test('visible momentum owns reachable rims and expiry restores them while missing supply stays dashed', () => {
+  const m = start('shell', 2), { renderer, calls } = scene();
+  travel(m, m.selected); m.interact();
+  const s = { ...m.snapshot(), companionGuide: null, courtyardMomentum: { beat: 'onward', node: 'hub', age: .4, duration: 2.1 } };
+  renderer.setState(s); renderer.drawSceneCues();
+  assert.equal(calls.some(c => c.method === 'stroke' && c.stroke === '#d79943'), false);
+  assert.ok(calls.some(c => c.method === 'setLineDash' && c.args[0].length));
+  for (const width of [1280, 390, 320]) {
+    renderer.width = width; renderer.scale = width / 1000; calls.length = 0; renderer.drawMomentum();
+    assert.equal(renderer.momentumNode().id, s.courtyardMomentum.node);
+    const rim = calls.find(c => c.method === 'stroke');
+    assert.equal(rim.stroke, '#D4A04A'); assert.equal(rim.alpha, .70);
+    assert.ok(Math.abs(rim.lineWidth * renderer.scale - (width <= 480 ? 4 : 3)) < 1e-9);
+    assert.ok(calls.some(c => c.method === 'setLineDash' && c.args[0].length === 2));
+  }
+  s.courtyardMomentum.age = 2.1; calls.length = 0; renderer.drawSceneCues();
+  assert.ok(calls.some(c => c.method === 'stroke' && c.stroke === '#d79943'));
+  calls.length = 0; renderer.drawMomentum(); assert.equal(calls.length, 0);
+  renderer.destroy();
+});
+
+test('existing supply slots suppress only the duplicate progress note and keep power VFX', () => {
+  const { renderer } = scene(); renderer.setState(state()); renderer.hasSupplySlots = id => id === 'bell';
+  const event = { type: 'power', from: 'dew', to: 'bell', complete: false, received: 1, required: 2 };
+  renderer.pushEvents([event]);
+  assert.equal(renderer.effects.some(e => e.kind === 'note'), false);
+  assert.ok(renderer.effects.some(e => e.kind === 'power')); assert.ok(renderer.particles.length);
+  renderer.pushEvents([{ ...event, complete: true, received: 2 }]);
+  assert.ok(renderer.effects.some(e => e.text === '供能到齐 · 等你启动'));
+  renderer.destroy();
 });
 
 test('collected companions and the real next-layer guide render at desktop and mobile scales', () => {

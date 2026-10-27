@@ -8,6 +8,12 @@ import { CourtyardMomentum } from './courtyard-momentum.js';
 import { STARTER_RELICS, mechanismFeedback, contextualHelp, courtyardActions } from './play-feedback.js';
 
 const $ = id => document.getElementById(id);
+const compactProgress = matchMedia('(max-width:480px)');
+const syncProgressDetails = () => { $('run-details').open = !compactProgress.matches; };
+compactProgress.addEventListener('change', syncProgressDetails);
+syncProgressDetails();
+const hasSupplySlots = id => [...$('mechanisms').children].some(row =>
+  row.dataset.mechanism === id && row.querySelector('[data-source]') && row.getClientRects().length > 0);
 const setHTML = (id,html) => { const el=$(id); if(el.innerHTML!==html)el.innerHTML=html; };
 const setText = (id,text) => { const el=$(id); const value=String(text);if(el.textContent!==value)el.textContent=value; };
 const icons = { prism:'◇', shadow:'◌', shell:'◈', coil:'⌁', weave:'❋' };
@@ -50,7 +56,7 @@ const momentum = new CourtyardMomentum({ arrival: firstDiscoveryArrival });
 // Spend the entry attempt now, including an entry already occupied by guidance.
 if (firstDiscoveryArrival) savePreference('wslice-courtyard-welcome', 'seen');
 function askFriend() { if (canAct()) { momentum.cancel(); guide.request(model.snapshot()); updateUI(); } }
-const scene = new SceneRenderer($('scene'), { onSelect: id => { if (canAct()) action(() => model.selectOrMove(id)); }, onFriend: askFriend });
+const scene = new SceneRenderer($('scene'), { onSelect: id => { if (canAct()) action(() => model.selectOrMove(id)); }, onFriend: askFriend, hasSupplySlots });
 function refreshFriends() { scene.friends = courtyardFriends(readJSON('wslice-flatland-friends'), readJSON('wslice-flatland-gardens')); }
 refreshFriends();
 window.addEventListener('storage', event => {
@@ -74,7 +80,8 @@ function consumeEvents() {
   scene.pushEvents(events);
   audio.handle(events);
   for (const event of events) {
-    let message = mechanismFeedback(event, model.snapshot());
+    let message = event.type === 'power' && !event.complete && hasSupplySlots(event.to)
+      ? '' : mechanismFeedback(event, model.snapshot());
     if (event.type === 'activate' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       $('mechanism-count').animate([{ transform: 'scale(1.3)', color: '#a06c24' }, { transform: 'scale(1)' }], { duration: 550 });
     }
@@ -361,6 +368,8 @@ function updateUI() {
   $('safe-mode').disabled = $('risk-mode').disabled = state.phase !== 'playing' || !!state.travel || !!state.wave;
   $('align').disabled = !range || !!state.travel || state.phase !== 'playing';
   const actions = courtyardActions(state);
+  // The finite landing glint and E refer to the same current platform.
+  if (state.courtyardMomentum?.beat === 'landing') actions.primary = 'interact';
   const mustActivate = actions.primary === 'interact' && currentNode?.kind === 'mechanism';
   $('move').disabled = !state.canMove || paused;
   $('move').className = actions.primary === 'move' && canAct() ? 'primary-button attention-action' : 'secondary-button';
