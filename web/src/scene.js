@@ -1,4 +1,5 @@
 import { drawCourtyardFriends } from './courtyard-friends.js';
+import { missingSupplySources, reachablePlatforms } from './play-feedback.js';
 const WORLD_W = 1000;
 const WORLD_H = 650;
 const TAU = Math.PI * 2;
@@ -379,6 +380,7 @@ export class SceneRenderer {
       this.drawConnections();
       const nodes = [...this.state.nodes].sort((a, b) => a.y - b.y);
       for (const node of nodes) this.drawIsland(node);
+      this.drawSceneCues();
       this.drawEffects(false);
       this.drawGhost();
       this.drawWave();
@@ -900,6 +902,34 @@ export class SceneRenderer {
       diamond(ctx, (stage - ((wave.steps || 1) - 1) / 2) * 13, -72, 3.8, done ? '#299c80' : stage === (wave.step || 1) - 1 ? COLORS.danger : null, done ? '#299c80' : COLORS.danger);
     }
     ctx.restore();
+  }
+
+  drawSceneCues() {
+    const s = this.state, ctx = this.ctx;
+    if (s.phase !== 'playing' || s.travel || s.wave) return;
+    const reachable = new Set(reachablePlatforms(s));
+    const missing = new Set(missingSupplySources(s).map(node => node.id));
+    const pulse = this.reducedMotion ? .65 : .5 + .5 * Math.sin(this.time * 3);
+    for (const node of s.nodes) {
+      const available = reachable.has(node.id), waiting = missing.has(node.id);
+      if (!available && !waiting) continue;
+      const color = available ? COLORS.gold : this.palette(node.layer).color;
+      const width = node.id === 'hub' ? 110 : node.anchor ? 82 : 90;
+      ctx.save(); ctx.translate(node.x, node.y);
+      // Off-slice sources stay hollow and dashed; the cue never creates footing.
+      const section = node.present ? (node.anchor ? 1 : node.scale) : 1;
+      ctx.scale(section, section);
+      ctx.globalAlpha = available ? .55 + pulse * .35 : .28 + pulse * .23;
+      ctx.setLineDash(node.present ? [] : [7, 7]);
+      ellipse(ctx, 0, 1, width + 8 + pulse * 4, 52 + pulse * 3, null, color, (available ? 2.4 : 1.5) / this.scale);
+      ctx.restore();
+      if (waiting) {
+        ctx.save(); ctx.fillStyle = color; ctx.textAlign = 'center';
+        ctx.font = `500 ${clamp(11 / this.scale, 16, 38)}px system-ui, sans-serif`;
+        ctx.fillText(`${node.name} · ${s.layers[node.layer].name}`, node.x, node.y - 108);
+        ctx.restore();
+      }
+    }
   }
 
   drawIsland(node) {

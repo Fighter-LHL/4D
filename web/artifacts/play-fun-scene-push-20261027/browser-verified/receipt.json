@@ -1,0 +1,28 @@
+{
+  "status": "passed",
+  "baseURL": "http://127.0.0.1:4187",
+  "checks": [
+    {
+      "width": 1280,
+      "height": 900,
+      "firstCrossingMs": 1645,
+      "secondSourceCueMs": 653,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "firstCrossingMs": 1588,
+      "secondSourceCueMs": 629,
+      "passed": true
+    },
+    {
+      "width": 320,
+      "height": 844,
+      "firstCrossingMs": 1633,
+      "secondSourceCueMs": 726,
+      "passed": true
+    }
+  ],
+  "errors": []
+}

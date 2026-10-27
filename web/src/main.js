@@ -4,7 +4,7 @@ import { GameAudio } from './audio.js';
 import { isFlatlandArrival } from './flatland/handoff.js';
 import { courtyardFriends, friendGuideText } from './courtyard-friends.js';
 import { FriendGuide } from './friend-guide.js';
-import { STARTER_RELICS, mechanismFeedback, contextualHelp } from './play-feedback.js';
+import { STARTER_RELICS, mechanismFeedback, contextualHelp, courtyardActions } from './play-feedback.js';
 
 const $ = id => document.getElementById(id);
 const setHTML = (id,html) => { const el=$(id); if(el.innerHTML!==html)el.innerHTML=html; };
@@ -353,14 +353,15 @@ function updateUI() {
   $('risk-mode').setAttribute('aria-pressed',String(state.riskMode));
   $('safe-mode').disabled = $('risk-mode').disabled = state.phase !== 'playing' || !!state.travel || !!state.wave;
   $('align').disabled = !range || !!state.travel || state.phase !== 'playing';
-  const mustActivate = state.interactAvailable && currentNode?.kind === 'mechanism' && !state.activated.includes(state.node);
+  const actions = courtyardActions(state);
+  const mustActivate = actions.primary === 'interact' && currentNode?.kind === 'mechanism';
   $('move').disabled = !state.canMove || paused;
-  $('move').className = mustActivate ? 'secondary-button' : 'primary-button';
-  setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${state.riskMode?'冒险穿越':'穿越'} <span>Space ↗</span>`);
-  $('interact').disabled = !canAct();
+  $('move').className = actions.primary === 'move' && canAct() ? 'primary-button attention-action' : 'secondary-button';
+  setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${state.riskMode?'冒险穿越':'稳行'} <span>Space ↗</span>`);
+  $('interact').disabled = !canAct() || actions.interactDisabled;
   $('interact').title = state.interactReason || state.interactLabel;
-  $('interact').className = mustActivate ? 'primary-button attention-action' : 'secondary-button';
-  setHTML('interact',`${state.interactLabel || '启动机关'} <kbd>E</kbd>`);
+  $('interact').className = actions.primary === 'interact' && canAct() ? 'primary-button attention-action' : `secondary-button${actions.interactDone ? ' completed-action' : ''}`;
+  setHTML('interact',`${actions.interactDone ? '已启动' : state.interactLabel || '启动机关'} <kbd>E</kbd>`);
   $('destinations').closest('.destination-row')?.classList.toggle('deemphasized', mustActivate);
   $('stability-wrap').hidden = !state.travel && state.phaseStability>=.99;
   if (state.travel || state.phaseStability<.99) {
