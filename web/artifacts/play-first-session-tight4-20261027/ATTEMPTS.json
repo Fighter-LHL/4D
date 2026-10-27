@@ -1,0 +1,82 @@
+{
+  "baselineReturnInspection": {
+    "path": "baseline-return",
+    "status": "passed",
+    "checks": 4
+  },
+  "baselineOnward": {
+    "path": "baseline-onward",
+    "status": "passed",
+    "checks": 12
+  },
+  "baselineReturnMatrix": {
+    "path": "baseline-return-all",
+    "status": "passed",
+    "checks": 12
+  },
+  "returnAttempt1": {
+    "path": "browser-return-attempt1",
+    "status": "failed",
+    "reason": "320 cascade: the destination label occupied 2 lines; expected 1. Shortened the hub label from 稳行到维度锚台 to 到维度锚台; retained the single-line assertion and strengthened the full button-label assertion."
+  },
+  "initialPenpal": {
+    "path": "browser-penpal",
+    "status": "passed",
+    "checks": 3,
+    "note": "Started before the final label shortening; not used as final evidence. Repeated the full suite on final source."
+  },
+  "final": {
+    "penpal": {
+      "status": "passed",
+      "checks": 3,
+      "widths": [
+        1280,
+        390,
+        320
+      ],
+      "errors": [],
+      "receipt": "browser-penpal-final/receipt.json",
+      "browserVersion": "130.0.6723.31"
+    },
+    "top5": {
+      "status": "passed",
+      "checks": 3,
+      "widths": [
+        1280,
+        390,
+        320
+      ],
+      "errors": [],
+      "receipt": "browser-top5-final/receipt.json",
+      "browserVersion": "130.0.6723.31"
+    },
+    "onward": {
+      "status": "passed",
+      "checks": 12,
+      "widths": [
+        1280,
+        390,
+        320
+      ],
+      "errors": [],
+      "receipt": "browser-onward-final/receipt.json",
+      "browserVersion": "130.0.6723.31"
+    },
+    "return": {
+      "status": "passed",
+      "checks": 12,
+      "widths": [
+        1280,
+        390,
+        320
+      ],
+      "errors": [],
+      "receipt": "browser-return-final/receipt.json",
+      "browserVersion": "130.0.6723.31",
+      "scriptedSecondsToHub": {
+        "min": 13.52,
+        "max": 17.01
+      }
+    }
+  }
+}

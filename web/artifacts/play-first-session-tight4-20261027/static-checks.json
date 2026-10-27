@@ -1,0 +1,26 @@
+[
+  {
+    "command": "node --check web/src/main.js",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": "node --check web/scripts/verify-first-onward.mjs",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": "node --check web/scripts/verify-first-return.mjs",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": "git diff --check",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

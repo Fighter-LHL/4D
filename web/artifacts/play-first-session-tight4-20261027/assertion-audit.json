@@ -1,0 +1,12 @@
+{
+  "base": "cc4179484f9559ca81afe15a326224002494934d",
+  "unchangedScripts": [
+    "web/scripts/verify-penpal.mjs",
+    "web/scripts/verify-top5.mjs",
+    "web/scripts/courtyard-first-beat.mjs"
+  ],
+  "onwardOriginalAssertionLinesRetained": true,
+  "changedScope": "The final two post-departure checks remain unchanged away from hub. At hub, assert the exact selected destination, one correct enabled control, and exact layer/bridge instruction. Risk-mode checks are unchanged.",
+  "originalOnwardAssertionLines": 46,
+  "currentOnwardAssertionLines": 51
+}
