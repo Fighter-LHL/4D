@@ -14,7 +14,7 @@ test('discovery approach is nearby, once per region, frozen on pause and never s
   const hints = new DiscoveryHints();
   slide(m, 4.7); goto(m, 4, 3);
   assert.equal(hints.update(m.snapshot(), .1), null);
-  slide(m, 4.7); goto(m, 9.4, 5);
+  slide(m, 4.7); goto(m, 9.7, 5);
   const before = m.snapshot(), cue = hints.update(before, .1);
   assert.equal(cue.key, 'escape:friend:sprout');
   assert.equal(cue.text, '咦，耳朵动了一下');
@@ -23,7 +23,7 @@ test('discovery approach is nearby, once per region, frozen on pause and never s
   assert.equal(hints.update({ ...before, paused: true }, 10), null);
   assert.equal(hints.cooldown, 3.6);
   assert.equal(hints.update(before, 3), null, 'remaining near does not repeat');
-  m.restart(); m.start(); slide(m, 4.7); goto(m, 9.4, 5);
+  m.restart(); m.start(); slide(m, 4.7); goto(m, 9.7, 5);
   assert.equal(hints.update(m.snapshot(), 3), null, 'retry keeps session clue memory');
   for (const patch of [{ paused: true }, { phase: 'intro' }, { exploration: false }, { dying: {} }, { returning: 1 }, { collection: { found: ['sprout'] } }]) {
     assert.equal(nearbyDiscovery({ ...before, ...patch }), null);
@@ -34,20 +34,20 @@ test('arrival narration defers the first approach cue without consuming it, incl
   const m = new FlatlandModel(levelIndex('escape'), { seed: 42, playStyle: 'explore' }); m.start();
   const hints = new DiscoveryHints(), visitor = new VisitorCueSequence();
   visitor.receive(m.drainEvents(), m.snapshot());
-  slide(m, 4.7);
+  slide(m, 4.7); goto(m, 9.7, 5);
   const cue = () => { const s = m.snapshot(); return hints.update(s, .05, { suppressed: visitor.arrivalActive(s) }); };
   assert.ok(nearbyDiscovery(m.snapshot()), 'player has deliberately revealed the nearby friend');
   assert.equal(cue(), null);
   wait(m, 1); m.setPaused(true); const pausedTime = m.time; wait(m, 5);
   assert.equal(m.time, pausedTime); assert.equal(cue(), null);
-  m.setPaused(false); wait(m, 2.99);
+  m.setPaused(false); wait(m, 3.99 - m.time);
   assert.match(visitor.text(m.snapshot()), /墙那边/); assert.equal(cue(), null);
   assert.equal(hints.seen.size, 0); assert.equal(hints.cooldown, 0);
   wait(m, .02);
   assert.equal(visitor.text(m.snapshot()), '');
   assert.equal(cue().key, 'escape:friend:sprout');
   assert.equal(cue(), null, 'only one cue after narration');
-  m.restart(); m.start(); visitor.receive(m.drainEvents(), m.snapshot()); slide(m, 4.7); wait(m, 4.1);
+  m.restart(); m.start(); visitor.receive(m.drainEvents(), m.snapshot()); slide(m, 4.7); goto(m, 9.7, 5); wait(m, 4.1);
   assert.equal(cue(), null, 'retry does not reset the once-per-region memory');
 });
 
@@ -74,10 +74,15 @@ test('standing on an off-layer trace stays quiet; revealing and approaching the 
   const idle = m.snapshot();
   assert.equal(idle.encounter.trace, true); assert.equal(idle.encounter.nearby, true);
   assert.equal(hints.update(idle, .1), null, 'arrival ending alone must not reveal the friend');
+  slide(m, 4.7); wait(m, 1);
+  assert.equal(m.snapshot().encounter.visible, true);
+  assert.equal(hints.update(m.snapshot(), .1), null, 'revealing from the spawn point still needs a step closer');
   slide(m, 4.7); goto(m, 9.2, 5);
   assert.equal(m.snapshot().encounter.visible, true);
   assert.equal(hints.update(m.snapshot(), .1), null, 'old two-unit radius is too early');
   goto(m, 9.4, 5);
+  assert.equal(hints.update(m.snapshot(), .1), null, 'the previous 1.7-unit radius no longer gives the cue');
+  goto(m, 9.7, 5);
   assert.equal(hints.update(m.snapshot(), .1).key, 'escape:friend:sprout');
   assert.equal(hints.update(m.snapshot(), 3), null);
   assert.equal(m.encounter.step, 0); assert.deepEqual(m.collection.found, []);
@@ -89,7 +94,7 @@ test('discovery cues respect the box concealment and current flower layer withou
   assert.equal(nearbyDiscovery(m.snapshot()), null);
   const hidden = m.snapshot();
   assert.equal(nearbyDiscovery({ ...hidden, encounter: { ...hidden.encounter, nearby: true } }), null, 'even nearby must respect concealment');
-  m.restart(); m.start(); slide(m, 4.8); goto(m, 9.2, 6.8);
+  m.restart(); m.start(); slide(m, 4.8); goto(m, 9.4, 6.8);
   assert.equal(nearbyDiscovery(m.snapshot()), null, 'off-layer trace alone stays quiet');
   m.setPeek(true);
   const cue = nearbyDiscovery(m.snapshot());

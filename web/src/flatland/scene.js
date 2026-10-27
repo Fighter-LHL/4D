@@ -99,12 +99,12 @@ export class FlatlandRenderer {
       if (event.type === 'friend_wake') { this.popup(event.x, event.y - .8, '…？', COLORS.amber); this.burst(event.x, event.y, '#e8b74e', 18, 2); }
       if (event.type === 'visitor_poke') this.bursts.push({ x: event.x, y: event.y, r: .4, age: 0, color: COLORS.slice });
       if (event.type === 'discovery_near') {
-        this.popup(event.x, event.y - 1.8, event.text, event.color, false, { duration: narrow ? 1.3 : 2.2, near: event });
+        this.popup(event.x, event.y - 1.8, event.text, event.color, false, { duration: narrow ? 1.1 : 2.2, near: event });
       }
       const discovery = discoveryFeedback(event);
       if (discovery) {
         this.popups = this.popups.filter(p => !p.near && !p.discovery && !p.garden);
-        this.popup(event.x, event.y - .9, discovery.text, discovery.color, false, { duration: narrow ? 1.35 : 1.8, discovery: true });
+        this.popup(event.x, event.y - .9, discovery.text, discovery.color, false, { duration: narrow ? 1.2 : 1.8, discovery: true });
         this.discoveryEchoes = [{ x: event.x, y: event.y, slice: st?.s, age: 0, duration: narrow ? 2.6 : 3 }];
       }
       if (event.type === 'friend_found' && event.fresh) {
