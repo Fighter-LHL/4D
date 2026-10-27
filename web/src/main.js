@@ -4,6 +4,7 @@ import { GameAudio } from './audio.js';
 import { isFlatlandArrival } from './flatland/handoff.js';
 import { courtyardFriends, friendGuideText } from './courtyard-friends.js';
 import { FriendGuide } from './friend-guide.js';
+import { STARTER_RELICS, mechanismFeedback, contextualHelp } from './play-feedback.js';
 
 const $ = id => document.getElementById(id);
 const setHTML = (id,html) => { const el=$(id); if(el.innerHTML!==html)el.innerHTML=html; };
@@ -37,6 +38,7 @@ let lastStatus = '';
 let lastFrame = performance.now();
 let transient = null;
 let transientTime = 0;
+let actionFeedback = '';
 const dialogs = ['choice-dialog','help-dialog','pause-dialog','result-dialog','restart-dialog'];
 const isModal = () => dialogs.some(id => $(id).open);
 const canAct = () => !paused && !isModal() && model.snapshot().phase === 'playing';
@@ -66,7 +68,10 @@ function consumeEvents() {
   scene.pushEvents(events);
   audio.handle(events);
   for (const event of events) {
-    let message = '';
+    let message = mechanismFeedback(event, model.snapshot());
+    if (event.type === 'activate' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      $('mechanism-count').animate([{ transform: 'scale(1.3)', color: '#a06c24' }, { transform: 'scale(1)' }], { duration: 550 });
+    }
     if (event.type === 'fail') message = event.protected ? '缓落壳接住了你，随身回响保留。' : `失稳回退，失去 ${event.value} 枚未存回响。`;
     if (event.type === 'bank') message = `已存入 ${event.value} 枚回响。`;
     if (event.type === 'unlock') message = '机关共鸣，通往庭门的实体桥已打开。';
@@ -80,7 +85,6 @@ function consumeEvents() {
     if (event.type === 'rift_clear') message = '三重回流已渡过，整座庭院正在升起。';
     if (event.type === 'ascension' && event.stage===3) message = '升庭桥已展开，完成本庭机关后可以从隐星台直达庭门。';
     if (event.type === 'phase_transfer') message = '位置没有变，脚下已是另一层的机关。';
-    if (event.type === 'power') message = `回响抵达${model.snapshot().nodes.find(n=>n.id===event.node)?.name || '另一层'}${event.complete===false?`，供能 ${event.received}/${event.required}`:''}。`;
     if (event.type === 'warning') {
       const state=model.snapshot();
       message = `第 ${state.wave?.step || 1}/${state.wave?.steps || 1} 波将抵达，切到${(state.wave?.safeLayers || []).map(i=>state.layers[i].name).join('或')}。`;
@@ -90,7 +94,10 @@ function consumeEvents() {
     }
     if (event.type === 'evade') message = '跨层避开回流，花匣中的回响归你。';
     if (event.type === 'dodge') message = model.snapshot().wave?.variant==='rift' ? '一枚星环点亮，切入下一枚符印对应的安全层。' : '躲过一波；下一波会追到这里，再换一次层。';
-    if (message) { transient = message; transientTime = 2.8; $('announcement').textContent = message; }
+    if (message) {
+      transient = message; transientTime = 2.8; $('announcement').textContent = message;
+      actionFeedback = ['interact_blocked', 'activate', 'power'].includes(event.type) ? message : '';
+    }
     if (['restart','room'].includes(event.type)) { transient = null; transientTime = 0; $('announcement').textContent = ''; }
   }
 }
@@ -111,14 +118,18 @@ function choiceSynergy(state,id) {
 
 function showChoice(state) {
   const next = state.phase === 'interlude';
+  $('choice-dialog').classList.toggle('starter-choice', !next);
   const upcoming=next ? state.nextRoom : state.roomPlan?.[0];
   $('choice-kicker').textContent = next ? `第 ${state.room + 1} 庭完成 · 已带回 ${state.banked} 回响` : `随机旅程 #${state.seed.toString(16).toUpperCase().padStart(8,'0')}`;
-  $('choice-title').innerHTML = next ? '下一庭，<br>换一种解法。' : '展开这一局，<br>未知的路径。';
-  $('choice-intro').textContent = next ? '已有遗物全部保留。补齐一种组合，解开下一庭的隐藏路线；也可升阶现有能力。' : '选一件起手遗物，随后跨庭补齐构筑。冒险唤醒花径，组合与 W 符印通往隐藏的隐星台。';
-  renderItinerary('choice-route',state,next?state.room+1:0);
+  $('choice-title').innerHTML = next ? '下一庭，<br>换一种解法。' : '带一件，就出发。';
+  $('choice-intro').textContent = next ? '已有遗物全部保留。补齐一种组合，解开下一庭的隐藏路线；也可升阶现有能力。' : '点选即出发 · 详细能力随时看「本局构筑」';
+  $('choice-route').hidden = !next;
+  if (next) renderItinerary('choice-route',state,state.room+1);
+  document.querySelector('.choice-preview').hidden = !next;
+  document.querySelector('.intro-rules').hidden = !next;
+  document.querySelector('.dialog-foot').hidden = !next;
   if (fromFlatland && !next) {
-    $('choice-title').textContent = '从平面国，走进回响庭院。';
-    $('choice-intro').textContent = scene.friends.length ? `${scene.friends.map(f => f.name).join('、')}也来了。先选一件遗物；需要线索时，点伙伴或按 H。` : '带一件喜欢的遗物出发。这次，路会在不同的 W 层接起来。';
+    $('choice-intro').textContent = scene.friends.length ? '伙伴也来了 · 带一件遗物出发' : '带一件出发，看看 W 里的新世界。';
   }
   setText('choice-room-name',`${next?'即将进入':'首先进入'} · ${upcoming?.name || state.roomName}`);
   setText('choice-room-description',upcoming?.description || state.roomDescription);
@@ -130,9 +141,10 @@ function showChoice(state) {
     button.className = 'relic-choice';
     button.setAttribute('aria-label', `选择${relic.name}`);
     const combo=choiceSynergy(state,relic.id);
-    button.innerHTML = `<span class="relic-art" aria-hidden="true">${icons[relic.id]}</span><span class="choice-arrow" aria-hidden="true">↗</span><h3>${relic.name}</h3><p>${relic.description}</p><small>${rank?`进阶 ${'ⅠⅡⅢ'[rank-1]} → ${'ⅠⅡⅢ'[rank] || 'Ⅲ'}`:'获得新能力'} · ${traits[relic.id]}</small>${combo?`<span class="choice-synergy">${combo}</span>`:''}`;
+    button.innerHTML = next ? `<span class="relic-art" aria-hidden="true">${icons[relic.id]}</span><span class="choice-arrow" aria-hidden="true">↗</span><h3>${relic.name}</h3><p>${relic.description}</p><small>${rank?`进阶 ${'ⅠⅡⅢ'[rank-1]} → ${'ⅠⅡⅢ'[rank] || 'Ⅲ'}`:'获得新能力'} · ${traits[relic.id]}</small>${combo?`<span class="choice-synergy">${combo}</span>`:''}`
+      : `<span class="relic-art" aria-hidden="true">${icons[relic.id]}</span><h3>${relic.name}</h3><p>${STARTER_RELICS[relic.id]}</p>`;
     button.classList.toggle('has-synergy',!!combo);
-    button.addEventListener('click', () => { $('choice-dialog').close(); paused = false; action(() => model.chooseRelic(relic.id)); $('move').focus({preventScroll:true}); });
+    button.addEventListener('click', () => { $('choice-dialog').close(); paused = false; action(() => { model.chooseRelic(relic.id); if (!next) guide.request(model.snapshot()); }); $('w-slider').focus({preventScroll:true}); });
     return button;
   }));
   $('choice-dialog').showModal();
@@ -157,7 +169,7 @@ function updateBuild(state) {
     buildKey = key;
     $('build-list').replaceChildren(...owned.map(relic => {
       const row = document.createElement('div'); row.className='build-item';
-      row.innerHTML=`<span class="build-icon" aria-hidden="true">${icons[relic.id]}</span><strong>${relic.name}</strong><small>${'ⅠⅡⅢ'[state.relics[relic.id]-1]}</small><span id="build-detail-${relic.id}" class="build-detail"></span>`;
+      row.innerHTML=`<span class="build-icon" aria-hidden="true">${icons[relic.id]}</span><strong>${relic.name}</strong><small>${'ⅠⅡⅢ'[state.relics[relic.id]-1]}</small><span id="build-detail-${relic.id}" class="build-detail"></span><details class="relic-detail"><summary>能力详情</summary><p>${relic.description}</p></details>`;
       return row;
     }));
     $('ability-list').replaceChildren(...owned.filter(relic=>state.abilities.find(ability=>ability.id===relic.id)?.active).map(relic=>{
@@ -345,7 +357,8 @@ function updateUI() {
   $('move').disabled = !state.canMove || paused;
   $('move').className = mustActivate ? 'secondary-button' : 'primary-button';
   setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${state.riskMode?'冒险穿越':'穿越'} <span>Space ↗</span>`);
-  $('interact').disabled = !state.interactAvailable || paused;
+  $('interact').disabled = !canAct();
+  $('interact').title = state.interactReason || state.interactLabel;
   $('interact').className = mustActivate ? 'primary-button attention-action' : 'secondary-button';
   setHTML('interact',`${state.interactLabel || '启动机关'} <kbd>E</kbd>`);
   $('destinations').closest('.destination-row')?.classList.toggle('deemphasized', mustActivate);
@@ -371,6 +384,8 @@ function updateUI() {
   $('pause').disabled = state.phase !== 'playing';
   setText('context-hint',state.objective || '切换空间，观察能量会传到哪一层。');
   const status = transient || (state.travel ? (state.travel.risky?'冒险中 · 留意移动光带':'沿当前切片前进') : `${currentNode?.name || '归响台'} · ${currentLayer?.name || '层间隙'}`);
+  $('action-feedback').hidden = !transient || !actionFeedback;
+  setText('action-feedback', transient ? actionFeedback : '');
   if (status !== lastStatus) { $('scene-state').textContent = status; lastStatus = status; }
   if (state.phase !== lastPhase) {
     lastPhase = state.phase;
@@ -392,7 +407,12 @@ function pauseGame() { if(model.snapshot().phase!=='playing'||isModal())return; 
 function resumeGame() { $('pause-dialog').close(); paused=false; lastFrame=performance.now(); syncAudio(); $('w-slider').focus({preventScroll:true}); }
 $('pause').addEventListener('click',pauseGame); $('resume').addEventListener('click',resumeGame);
 $('pause-dialog').addEventListener('cancel',e=>{e.preventDefault();resumeGame();});
-$('help').addEventListener('click',()=>{ if(!isModal()){paused=true;$('help-dialog').showModal();syncAudio();} });
+function selectHelp(topic) {
+  setText('help-tip', contextualHelp(model.snapshot(), topic));
+  for (const button of document.querySelectorAll('[data-help]')) button.setAttribute('aria-pressed', String(button.dataset.help === topic));
+}
+for (const button of document.querySelectorAll('[data-help]')) button.addEventListener('click', () => selectHelp(button.dataset.help));
+$('help').addEventListener('click',()=>{ if(!isModal()){paused=true;selectHelp('next');$('help-dialog').showModal();syncAudio();} });
 function closeHelp() {$('help-dialog').close();paused=false;lastFrame=performance.now();syncAudio();}
 $('close-help').addEventListener('click',closeHelp);$('help-done').addEventListener('click',closeHelp);$('help-dialog').addEventListener('cancel',e=>{e.preventDefault();closeHelp();});
 $('restart').addEventListener('click',()=>{if(!isModal()){paused=true;$('restart-dialog').showModal();syncAudio();}});
@@ -414,7 +434,7 @@ document.addEventListener('keydown',e=>{
   if(e.target.matches('button,a')&&[' ','enter'].includes(key)&&!(key===' '&&activeModeToggle))return;
   if(['a','d','arrowleft','arrowright'].includes(key)){e.preventDefault();action(()=>model.setW(model.snapshot().w+(['a','arrowleft'].includes(key)?-.015:.015)));}
   else if(key===' '||key==='enter'){e.preventDefault();action(()=>model.move());}
-  else if(key==='e'){e.preventDefault();action(()=>model.interact());}
+  else if(key==='e'){e.preventDefault();if(!e.repeat)action(()=>model.interact());}
   else if(key==='q'){e.preventDefault();action(()=>model.useAbility());}
   else if(['z','x','c'].includes(key)){e.preventDefault();action(()=>model.setW(model.snapshot().layers[['z','x','c'].indexOf(key)].center));}
   else if(/^[1-9]$/.test(key)){e.preventDefault();const id=model.snapshot().availableNodes[Number(key)-1];if(id)action(()=>model.select(id));}
@@ -425,7 +445,7 @@ window.addEventListener('pageshow',event=>{if(event.persisted){audio.setEnabled(
 function frame(now) {
   const dt=Math.max(0,Math.min(.05,(now-lastFrame)/1000));lastFrame=now;
   if(!paused&&!isModal()&&!document.hidden){model.update(dt);if(transientTime>0){transientTime-=dt;if(transientTime<=0)transient=null;}}
-  guide.update(dt, model.snapshot(), !paused && !isModal() && !document.hidden && scene.friends.length > 0);
+  guide.update(dt, model.snapshot(), !paused && !isModal() && !document.hidden, scene.friends.length > 0);
   consumeEvents();updateUI();syncAudio();scene.render(paused||document.hidden?0:dt);requestAnimationFrame(frame);
 }
 updateSoundButton();consumeEvents();updateUI();requestAnimationFrame(frame);

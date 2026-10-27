@@ -27,6 +27,7 @@
       <p id="room-description" class="room-description">每一庭，都有不同的跨层连锁。</p>
       <div class="scene-wrap">
         <canvas id="scene" aria-label="庭院场景：点平台预览，再点已选平台稳行；也可选目的地后按 Space 穿越" role="img"></canvas>
+        <p id="action-feedback" class="action-feedback" hidden></p>
         <div class="layer-badge"><span id="layer-symbol">Ⅰ</span><div><strong id="layer-name">潮汐层</strong><small id="position-readout">同一空间，不同切片</small></div></div>
         <div class="scene-caption"><span class="dot"></span><span id="scene-state">选择一件遗物，开始你的旅程</span></div>
         <div id="stability-wrap" class="stability-wrap" hidden><span id="stability-label">稳定度</span><div class="stability-track"><i id="stability-bar"></i></div></div>
@@ -54,6 +55,7 @@
     <aside class="run-panel" aria-label="本局进度">
       <div class="panel-top"><p class="eyebrow">YOUR JOURNEY</p><span id="seed-label">本次旅程</span></div>
       <h2>新的路，<br>从另一层展开。</h2><div id="room-itinerary" class="room-itinerary" aria-label="本局随机庭院"></div>
+      <details class="journey-note"><summary>关于这次旅程</summary><p>每局三庭，遗物跨庭保留并升级。冒险可唤醒花径，组合遗物还能发现隐藏路线。复制网页地址可重走同一旅程。</p></details>
       <div class="scoreboard"><div><span class="score-label">已存入 <i>◆</i></span><strong id="banked">0</strong><small>失手也会保留</small></div><div><span class="score-label">随身回响 <i class="amber">◇</i></span><strong id="carried">0</strong><small>回中央岛存入</small></div></div>
       <div class="lives-row"><span>回程结</span><div id="lives" aria-label="剩余 3 次"><i></i><i></i><i></i></div></div>
       <div class="chain-row"><span>冒险连响</span><div id="combo" aria-label="0 层"><i></i><i></i><i></i></div></div>
@@ -80,7 +82,17 @@
     <div id="relic-choices" class="relic-choices"></div>
     <div class="intro-rules"><span><b>Ⅰ</b>观察机关的供能关系</span><span><b>Ⅱ</b>在同一位置穿入另一层</span><span><b>Ⅲ</b>挑战回流，把收益带回来</span></div><p class="dialog-foot">每局抽取三座不同庭院 · 遗物跨庭保留并升级 · 复制网页地址可重走同一旅程</p>
   </dialog>
-  <dialog id="help-dialog" class="small-dialog"><button class="dialog-close" id="close-help" aria-label="关闭玩法说明">×</button><p class="eyebrow">MOVE THROUGH W</p><h2>这一层的尽头，<br>可能是另一层的起点。</h2><ol class="help-steps"><li><b>空间有第四个方向：W</b><span>三层按钮快速切换，拖 W 看截面连续变化。淡轮廓在别的层，现在不能踩。归响台、维度锚台与花匣基座始终支撑你。</span></li><li><b>每庭的机关关系都不同</b><span>查看机关旁的供能槽。有的逐级接力，有的需要两个源同时点亮；能量到达才可启动。相同位置的另一层可能藏着下一环。</span></li><li><b>路径也会随切片改变</b><span>机关启动后实体桥才会接通。到安全锚台观察其他层；普通平台切出所在层会失稳，要及时切回或落到同位平台。</span></li><li><b>把遗物组合起来</b><span>棱镜点亮上游后，线圈可在锚台下一次换层时自动接力下游；织桥种消耗冒险挣来的桥种，在机关旁留下永久捷径。配合留影，还能从锚台远程种桥。缓落壳保护失手收益。</span></li><li><b>用构筑解开隐藏路线</b><span>棱镜＋线圈完成远程启动，留影＋织桥完成代种，缓落壳＋织桥完成种桥和花匣避波；随后到入口按符印顺序切换 W。每次都需真正进入新层，原地停留或层间隙不算。</span></li><li><b>隐星台的三重试炼</b><span>可选择押上 2 枚随身回响，连续三波切入指定安全层；全部成功得 9 枚，并唤醒整座庭院的升庭桥。失败不返押注，本庭不能重试；也可随时在开战前沿原路返回。</span></li><li><b>花匣有三种额外挑战</b><span>单次回流、连续追波或双层封锁。看危险层标记和安全层箭头，及时换层；连续追波必须再次切换，全部躲过才领奖。首次冒险成功还会让花匣与锚台间长出新花径。也可以不打开花匣。</span></li></ol><div class="shortcut-guide">Z / X / C 换层　·　← → / A D 微调 W<br>1–9 选落脚点　·　Space 穿越　·　E 机关 / 存入<br>Q 可用遗物　·　Esc 暂停</div><button id="help-done" class="primary-button">回到庭院 ↗</button></dialog>
+  <dialog id="help-dialog" class="small-dialog" aria-labelledby="help-title">
+    <button class="dialog-close" id="close-help" aria-label="关闭玩法说明">×</button>
+    <h2 id="help-title">先试这一步。</h2>
+    <div class="help-topics" role="group" aria-label="选择当前卡点">
+      <button data-help="next" aria-pressed="true">往哪走</button>
+      <button data-help="slice" aria-pressed="false">怎么换层</button>
+      <button data-help="action" aria-pressed="false">E 没反应</button>
+    </div>
+    <p id="help-tip" role="status" aria-live="polite"></p>
+    <button id="help-done" class="primary-button">回去试一下 ↗</button>
+  </dialog>
   <dialog id="pause-dialog" class="small-dialog"><p class="eyebrow">TAKE A BREATH</p><h2>庭院正在等你。</h2><p>路径、危险和遗物计时都已暂停。</p><button id="resume" class="primary-button">继续旅程 ↗</button></dialog>
   <dialog id="result-dialog" class="small-dialog result-dialog"><div id="result-symbol" class="result-symbol">✧</div><p id="result-kicker" class="eyebrow">JOURNEY COMPLETE</p><h2 id="result-title">庭院记住了你的回响。</h2><p id="result-description"></p><div class="result-score"><strong id="result-score">0</strong><span>回响已带回</span></div><p id="result-stats"></p><button id="play-again" class="primary-button">换一种走法，再来一局 ↗</button></dialog>
   <dialog id="restart-dialog" class="small-dialog"><p class="eyebrow">A NEW PATH</p><h2>从新的庭院出发？</h2><p>新一局会清除当前旅程进度，最佳记录保留。</p><div class="dialog-actions"><button id="cancel-restart" class="secondary-button">继续这一局</button><button id="confirm-restart" class="primary-button">开始新一局 ↗</button></div></dialog>

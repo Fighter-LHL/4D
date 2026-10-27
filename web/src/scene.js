@@ -228,6 +228,7 @@ export class SceneRenderer {
         if (event.type === 'phase_transfer') this.burst(at, this.palette(layer).glow, 16, .5);
       } else if (event.type === 'power') {
         const from = this.node(event.from) || target, to = this.node(event.to) || target;
+        this.addEffect('note', to, { duration: 2.2, text: event.complete ? '供能到齐 · 等你启动' : `供能 ${event.received}/${event.required}`, color: COLORS.teal });
         this.addEffect('power', from, { to: { x: to.x, y: to.y }, duration: 1.4,
           fromLayer: from.layer ?? this.state.layer, toLayer: to.layer ?? event.layer,
           color: this.palette(to.layer ?? event.layer).color, sourceColor: this.palette(from.layer).color });
@@ -244,6 +245,7 @@ export class SceneRenderer {
         // The model emits one reward as well; avoid a second celebration burst.
         this.addEffect('section', target, { duration: 1.1, radius: 130, color: this.palette().color });
       } else if (event.type === 'activate') {
+        this.addEffect('note', target, { duration: 2.2, text: `启动！${event.tier}/3`, color: COLORS.teal });
         this.addEffect('ring', target, { duration: 1.2, radius: 110, color, tier: 2 });
         this.addEffect('bloom', target, { duration: 1, radius: 85, color });
         this.burst(target, this.palette(target.layer ?? this.state?.layer).glow, 28, 1.25);
@@ -1337,9 +1339,17 @@ export class SceneRenderer {
       if (effect.age < (effect.delay || 0)) continue;
       const p = clamp((effect.age - (effect.delay || 0)) / effect.duration);
       const e = this.reducedMotion ? .7 : ease(p);
-      if (foreground !== ['pulse', 'power', 'section', 'crown', 'shield', 'bank', 'break', 'gather', 'value', 'collect', 'bridge_echo', 'growth_signal', 'root_growth', 'coil_arc', 'seal_turn', 'ascension_signal', 'astral_bridge'].includes(effect.kind)) continue;
+      if (foreground !== ['note', 'pulse', 'power', 'section', 'crown', 'shield', 'bank', 'break', 'gather', 'value', 'collect', 'bridge_echo', 'growth_signal', 'root_growth', 'coil_arc', 'seal_turn', 'ascension_signal', 'astral_bridge'].includes(effect.kind)) continue;
       ctx.save(); ctx.globalAlpha = (1 - p) ** .7;
-      if (effect.kind === 'seal_turn') {
+      if (effect.kind === 'note') {
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = `600 ${clamp(12 / this.scale, 16, 30)}px system-ui, sans-serif`;
+        const half = ctx.measureText(effect.text).width / 2 + 8;
+        const x = Math.max(half, Math.min(WORLD_W - half, effect.x));
+        const y = Math.max(28, effect.y - 105 - (this.reducedMotion ? 0 : e * 12));
+        ctx.lineWidth = 5; ctx.strokeStyle = '#f3f5ec'; ctx.fillStyle = effect.color;
+        ctx.strokeText(effect.text, x, y); ctx.fillText(effect.text, x, y);
+      } else if (effect.kind === 'seal_turn') {
         const radius = this.reducedMotion ? 42 : 24 + e * 55;
         ellipse(ctx, effect.x, effect.y - 23, radius, radius * .65, null, effect.color, 2.4);
         for (let i = 0; i < 3; i++) {

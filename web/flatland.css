@@ -105,3 +105,8 @@ kbd{font:10px GameSans,sans-serif;opacity:.6;border:1px solid currentColor;borde
 .garden-memories .bloomed { color:#387b52; background:#d9ebce; }
 .garden-keepsake { margin:20px 0 0; padding:16px 10px; border:1px solid #c8d9b9; border-radius:14px; color:#387b52; background:#edf3dc; text-align:center; line-height:1.8; }
 .garden-keepsake small { color:#667b5f; font-size:11px; }
+
+/* One current action, inside the scene; never intercept a poke or drag. */
+.scene-wrap{position:relative}
+.visitor-goal{position:absolute;top:16px;left:24px;max-width:calc(100% - 48px);margin:0;padding:8px 12px;border:1px solid #b8d0c4;border-radius:8px;background:#f7f9eff2;color:#285a4b;font-size:13px;line-height:1.5;pointer-events:none}
+@media(max-width:600px){.visitor-goal{top:12px;left:16px;max-width:calc(100% - 32px);font-size:12px;padding:7px 9px}}

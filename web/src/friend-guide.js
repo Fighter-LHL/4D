@@ -12,7 +12,7 @@ export class FriendGuide {
     this.target = { ...state.companionGuide }; this.key = signature(state);
     this.remaining = GUIDE_DURATION; this.used = true; return true;
   }
-  update(dt, state, active = true) {
+  update(dt, state, active = true, allowIdleHint = true) {
     const room = `${state.seed}:${state.room}`;
     if (room !== this.room) { this.activity(); this.room = room; }
     if (!active) return;
@@ -20,7 +20,7 @@ export class FriendGuide {
     if (this.target && signature(state) !== this.key) { this.target = null; this.remaining = 0; this.used = true; }
     this.remaining = Math.max(0, this.remaining - Math.min(.1, Math.max(0, dt)));
     this.idle += Math.min(.1, Math.max(0, dt));
-    if (!this.used && this.idle >= GUIDE_IDLE) this.request(state);
+    if (allowIdleHint && !this.used && this.idle >= GUIDE_IDLE) this.request(state);
   }
   view(state) { return available(state) && this.remaining > 0 && this.key === signature(state) ? { ...this.target, aligned: state.companionGuide.aligned } : null; }
   present(state) { return { ...state, companionGuide: this.view(state) }; }

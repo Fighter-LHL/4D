@@ -31,6 +31,34 @@ function scene(reducedMotion = false) {
 }
 function state(seed = 1) { const model = new GameModel(seed); model.chooseRelic('shadow'); return model.snapshot(); }
 
+test('power and activation labels render, pause, expire and stay still with reduced motion', () => {
+  for (const reduced of [false, true]) {
+    const { renderer, calls } = scene(reduced);
+    renderer.setState(state());
+    const events = [
+      { type: 'activate', node: 'dew', tier: 1 },
+      { type: 'power', from: 'dew', to: 'bell', complete: false, received: 1, required: 2 },
+    ];
+    renderer.pushEvents(events); renderer.render(.1);
+    const notes = renderer.effects.filter(e => e.kind === 'note');
+    assert.equal(notes.length, 2);
+    assert.ok(calls.some(c => c.method === 'fillText' && c.args[0] === '启动！1/3'));
+    assert.ok(calls.some(c => c.method === 'fillText' && c.args[0] === '供能 1/2'));
+    const age = notes.map(e => e.age); renderer.render(0);
+    assert.deepEqual(notes.map(e => e.age), age);
+    calls.length = 0; renderer.render(.1);
+    const y = calls.find(c => c.method === 'fillText' && c.args[0] === '启动！1/3').args[2];
+    calls.length = 0; renderer.render(.1);
+    const nextY = calls.find(c => c.method === 'fillText' && c.args[0] === '启动！1/3').args[2];
+    if (reduced) assert.equal(y, nextY); else assert.ok(nextY < y);
+    for (let i = 0; i < 24; i++) renderer.render(.1);
+    assert.equal(renderer.effects.filter(e => e.kind === 'note').length, 0);
+    for (let i = 0; i < 50; i++) renderer.pushEvents(events);
+    assert.ok(renderer.effects.length <= 36);
+    renderer.destroy();
+  }
+});
+
 test('collected companions and the real next-layer guide render at desktop and mobile scales', () => {
   for (const reduced of [true, false]) {
     const { renderer, calls } = scene(reduced);

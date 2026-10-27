@@ -315,8 +315,31 @@ export class GameModel {
     if (this.node === 'rift') return this._riftAvailable();
     return MECHANISMS.includes(this.node) && this.powered.has(this.node) && !this.activated.has(this.node);
   }
+  _interactReason() {
+    if (this._interactAvailable()) return '';
+    if (this.phase !== 'playing') return '先选一件遗物，再出发';
+    if (this.travel) return '还在穿越，落稳后再按 E';
+    if (this.wave) return '回流中，先换到安全层';
+    if (!this._supported()) return `脚下没站稳，切回${LAYERS[this._node().layer].name}`;
+    if (this.node === 'hub') return this._allActivated() ? '还没有回响可存 · 庭门已经打开'
+      : this.activated.size ? '还没有回响可存 · 沿桥继续探索' : '还没有回响可存 · 先去发光的供能源';
+    if (MECHANISMS.includes(this.node)) {
+      if (this.activated.has(this.node)) return '这座已启动 · 看看能量送向哪里';
+      const missing = this.roomConfig.requires[this.node].filter(id => !this.received[this.node].has(id));
+      if (missing.every(id => this.activated.has(id))) return '能量正在路上，等供能槽亮起';
+      return `还缺${missing.filter(id => !this.activated.has(id)).map(id => this._node(id).name).join('、')}供能`;
+    }
+    if (this.node === 'vault') return this.vaultStatus !== 'available' ? '花匣已结束，沿桥返回'
+      : !this._inLayer(this.roomConfig.challenge.entryLayer) ? `开匣先切到${LAYERS[this.roomConfig.challenge.entryLayer].name}` : '花匣还未接通，先启动供能机关';
+    if (this.node === 'rift') return this.riftStatus !== 'available' ? '本庭试炼已结束，沿桥返回'
+      : this._actualLayer() === -1 ? '层间隙不能入场 · 先切到实体层' : '需要 2 枚随身回响才能入场';
+    return '这里没有可启动机关 · 点平台继续走';
+  }
   interact() {
-    if (!this._interactAvailable()) return false;
+    if (!this._interactAvailable()) {
+      if (this.phase === 'playing') this._emit('interact_blocked', { node: this.node, text: this._interactReason() });
+      return false;
+    }
     if (this.node === 'hub') return this._bank();
     if (this.node === 'vault') {
       this.vaultStatus = 'warning';
@@ -694,7 +717,7 @@ export class GameModel {
       ghost: this.ghost ? { ...this.ghost } : null, wave: this.wave ? { ...this.wave, dangerLayers: [...this.wave.dangerLayers], safeLayers: [...this.wave.safeLayers] } : null, vaultStatus: this.vaultStatus,
       phaseStability: this.phaseStability, lastAnchor: this.lastAnchor,
       abilities, abilityAvailable: abilities.some(ability => ability.available), abilityLabel: primaryAbility.label,
-      interactAvailable: this._interactAvailable(), interactLabel, objective: this._objective(),
+      interactAvailable: this._interactAvailable(), interactReason: this._interactReason(), interactLabel, objective: this._objective(),
       stats: { ...this.stats }, roomScore: this.roomScore,
     };
   }

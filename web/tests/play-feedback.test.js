@@ -1,0 +1,124 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { GameModel, RELICS } from '../src/model.js';
+import { FriendGuide } from '../src/friend-guide.js';
+import { STARTER_RELICS, mechanismFeedback, contextualHelp } from '../src/play-feedback.js';
+import { visitorCue } from '../src/flatland/visitor-cue.js';
+import { FlatlandModel } from '../src/flatland/model.js';
+import { start, travel, reach, advance, seedFor, activateAll } from './model-helpers.js';
+
+test('short starter choices retain all five abilities and their complete descriptions', () => {
+  assert.deepEqual(Object.keys(STARTER_RELICS).sort(), RELICS.map(r => r.id).sort());
+  for (const relic of RELICS) {
+    assert.ok(STARTER_RELICS[relic.id].length <= 24);
+    assert.ok(relic.description.length > STARTER_RELICS[relic.id].length);
+    const model = new GameModel(42);
+    assert.equal(model.chooseRelic(relic.id), true);
+    assert.equal(model.snapshot().relics[relic.id], 1);
+  }
+});
+
+test('first-step highlight works without companions and expires without moving or solving', () => {
+  const m = start('shell', 42), guide = new FriendGuide(), before = m.snapshot();
+  assert.equal(guide.request(before), true);
+  assert.deepEqual(guide.view(before), before.companionGuide);
+  for (let n = 0; n < 50; n++) guide.update(.1, m.snapshot(), false, false);
+  assert.ok(guide.view(before), 'modal time must preserve the first hint');
+  for (let n = 0; n < 50; n++) guide.update(.1, m.snapshot(), true, false);
+  assert.equal(guide.view(before), null);
+  for (let n = 0; n < 200; n++) guide.update(.1, m.snapshot(), true, false);
+  assert.equal(guide.view(before), null, 'no idle walkthrough for a new profile');
+  assert.deepEqual(m.snapshot(), before);
+});
+
+test('failed E explains empty bank, crossing and missing footing without changing state', () => {
+  const m = start('shell', 42);
+  const reject = pattern => {
+    m.drainEvents(); const before = m.snapshot();
+    assert.equal(m.interact(), false); assert.deepEqual(m.snapshot(), before);
+    const [event] = m.drainEvents(); assert.equal(event.type, 'interact_blocked');
+    assert.match(mechanismFeedback(event, before), pattern);
+  };
+  reject(/没有回响/);
+  const target = m.snapshot().selected;
+  m.setW(m.snapshot().range.center); m.move(); reject(/穿越/);
+  advance(m, 1.4); assert.equal(m.snapshot().node, target);
+  m.setW(.34); reject(/脚下没站稳/);
+});
+
+test('missing source feedback distinguishes partial delivery from energy still in flight', () => {
+  const m = start('shell', seedFor('confluence'));
+  const sources = m.snapshot().nodes.filter(n => n.kind === 'mechanism' && !n.required.length);
+  const sink = m.snapshot().nodes.find(n => n.required.length === 2);
+  // Reach the shared XYZ, then change W to the unpowered receiver.
+  reach(m, sources[0].id);
+  m.setW(sink.center);
+  assert.equal(m.snapshot().node, sink.id);
+  const before = m.snapshot(); assert.equal(m.interact(), false);
+  assert.deepEqual(m.snapshot(), before);
+  const rejection = m.drainEvents().find(e => e.type === 'interact_blocked');
+  assert.match(rejection.text, /还缺/);
+  for (const source of sources) assert.ok(rejection.text.includes(source.name));
+  reach(m, sources[1].id); m.interact(); advance(m, .51);
+  const partial = m.drainEvents().find(e => e.type === 'power');
+  assert.equal(partial.complete, false);
+  assert.match(mechanismFeedback(partial, m.snapshot()), /1\/2.*还差/);
+  reach(m, sources[0].id); m.interact();
+  m.setW(sink.center);
+  assert.equal(m.snapshot().node, sink.id);
+  assert.equal(m.interact(), false);
+  assert.match(m.drainEvents().find(e => e.type === 'interact_blocked').text, /正在路上/);
+  advance(m, .51);
+  const complete = m.drainEvents().find(e => e.type === 'power');
+  assert.equal(complete.complete, true);
+  assert.match(mechanismFeedback(complete, m.snapshot()), /供能到齐.*按 E/);
+  assert.equal(m.snapshot().activated.includes(sink.id), false, 'feedback never activates the sink');
+});
+
+test('activation reports its real count; pressing E twice cannot award another activation', () => {
+  const m = start('shell', 42); reach(m, m.snapshot().selected); m.drainEvents();
+  assert.equal(m.interact(), true);
+  const event = m.drainEvents().find(e => e.type === 'activate');
+  assert.match(mechanismFeedback(event, m.snapshot()), /已启动 · 1\/3/);
+  const before = m.snapshot(); assert.equal(m.interact(), false); assert.deepEqual(m.snapshot(), before);
+  assert.match(m.drainEvents()[0].text, /已启动/);
+});
+
+test('wave and wrong-layer chest feedback take priority over ordinary E hints', () => {
+  const m = start('shell', 42); activateAll(m); reach(m, 'vault');
+  const entry = m.snapshot().roomChallenge.entryLayer;
+  m.setW(m.snapshot().layers[(entry + 1) % 3].center);
+  assert.equal(m.interact(), false);
+  assert.match(m.drainEvents().find(e => e.type === 'interact_blocked').text, /开匣先切到/);
+  m.setW(m.snapshot().layers[entry].center); m.interact();
+  assert.equal(m.interact(), false);
+  assert.match(m.drainEvents().find(e => e.type === 'interact_blocked').text, /回流中/);
+  for (const topic of ['next', 'slice', 'action']) assert.match(contextualHelp(m.snapshot(), topic), /回流来了/);
+});
+
+test('help presents one current action and never mutates the route or exposes a full solution', () => {
+  const m = start('shell', 42), before = m.snapshot();
+  assert.match(contextualHelp(before, 'action'), /没有回响/);
+  assert.match(contextualHelp(before, 'slice'), /跨层支撑/);
+  for (const topic of ['next', 'slice', 'action']) {
+    const text = contextualHelp(before, topic);
+    assert.ok(text.length < 55); assert.doesNotMatch(text, /隐星|符印|棱镜.*线圈/);
+  }
+  assert.deepEqual(m.snapshot(), before);
+  travel(m, before.selected);
+  assert.match(contextualHelp(m.snapshot(), 'next'), /按 E/);
+});
+
+test('visitor goal explains invisible slice, poke and its response, independently of the pocket', () => {
+  const m = new FlatlandModel(0, { seed: 7, playStyle: 'explore' }); m.start();
+  assert.equal(m.snapshot().exploration, true);
+  m.setSlice(0);
+  assert.match(visitorCue(m.snapshot()), /拖 S.*按 E/);
+  m.setSlice(3);
+  const before = m.snapshot(); assert.match(visitorCue(before), /戳一下球/);
+  assert.deepEqual(m.snapshot(), before, 'cue does not adjust slice or move the player');
+  assert.equal(m.pokeVisitor(), true);
+  assert.match(visitorCue(m.snapshot()), /跳起来了/);
+  assert.equal(visitorCue({ ...m.snapshot(), exploration: false }), '');
+  assert.equal(visitorCue({ ...m.snapshot(), rings: null }), '');
+});

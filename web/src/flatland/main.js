@@ -1,3 +1,4 @@
+import { visitorCue } from './visitor-cue.js';
 import { FlatlandModel } from './model.js';
 import { FlatlandRenderer } from './scene.js';
 import { FlatlandAudio } from './audio.js';
@@ -227,6 +228,9 @@ function updateUI() {
   $('explore-courtyard').hidden = !snap.exploration || !snap.ascend?.readyForCourtyard;
   $('explore-courtyard').href = COURTYARD_ENTRY;
   setText('control-hint', controlHint(snap));
+  const visitorGoal = visitorCue(snap);
+  $('visitor-goal').hidden = !visitorGoal;
+  setText('visitor-goal', visitorGoal);
   $('pause').disabled = snap.phase !== 'playing';
   $('fine-control').hidden = !!snap.mirror;
   $('fine-control').disabled = !snap.canSlice;
