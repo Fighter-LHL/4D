@@ -1,0 +1,19 @@
+PASS node --check web/scripts/verify-penpal.mjs
+PASS node --check web/scripts/verify-top5.mjs
+PASS node --check web/src/flatland/audio.js
+PASS node --check web/src/flatland/companions.js
+PASS node --check web/src/flatland/friends-scene.js
+PASS node --check web/src/flatland/main.js
+PASS node --check web/src/flatland/scene.js
+PASS node --check web/src/flatland/visitor-cue.js
+PASS node --check web/src/main.js
+PASS node --check web/src/play-feedback.js
+PASS node --check web/src/scene.js
+PASS node --check web/tests/flatland-audio.test.js
+PASS node --check web/tests/flatland-scene.test.js
+PASS node --check web/tests/play-feedback.test.js
+PASS node --check web/tests/scene-push.test.js
+PASS node --check web/tests/scene.test.js
+PASS git diff --check
+PASS git diff --cached --check
+PASS no unresolved merge entries

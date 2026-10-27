@@ -1,0 +1,34 @@
+{
+  "verified_utc": "2026-10-27T03:14:47.885727+00:00",
+  "common_base": "cf94c0c1dfb25f541ae53e90128e1f89155cbdd4",
+  "top5_parent": "9c062bfbc33d61420be42b30b796344e3cbce942",
+  "scene_push_parent": "a75688e0870031e93af6ddfd9cad01b2d30933fa",
+  "path_base": "repository root",
+  "files": {
+    "web/flatland.css": "ebd60475acf14cda5a37362300044f58e2d5e218a003b1e7e199142c33ee9687",
+    "web/flatland.html": "6aa290fb12fa4d6e5f156389ffc97f2a72c1f3685d2ab539b4a688a0278b3058",
+    "web/scripts/verify-penpal.mjs": "7fb7cd519ac7c25cbae82721f923fd7ea8b9a89c5f3ba1d1cb009e8696f439cd",
+    "web/scripts/verify-top5.mjs": "b319be94ef736d9b32c561a82f25f00526f79b752d5b84b238bda55636175db3",
+    "web/src/flatland/audio.js": "6e95fb243ff9c1badea2bf8493c084bb80af9325c2139778d7d0fc0e21f11b95",
+    "web/src/flatland/companions.js": "87e5416c556964c64c884ac21777b7606257e8af944fd2ba636283cdf271bcec",
+    "web/src/flatland/friends-scene.js": "5a58067d445a8deb1ef4e7e8f9a9f546cc0bf051ba57e037cdaaf419959d4e8e",
+    "web/src/flatland/main.js": "cd2fe16e23ac3d771fd59025e5b976d85ef32a33d37c6581a01cb14fd2201180",
+    "web/src/flatland/scene.js": "b73532eb3d5c2999998755f861bbaf99f10aad7d5a7859c449a78bbe66d00746",
+    "web/src/flatland/visitor-cue.js": "b4b9ffbdf2ffe191b75f8df0cf58abfa140dffe71bbe43511f6d53c12004cc09",
+    "web/src/main.js": "ef5080ea75bd8051f93e2027ee31ed340ffcc27fc04c9fe6823eea3354ec9506",
+    "web/src/play-feedback.js": "bf8368c46a84ed2b3751f645a12ec10a3bdb53cb5bc5e50894389c3d32d2cc11",
+    "web/src/scene.js": "50217a13e57da0b99691a8a70878de0718c24106478ea275e5a974a0dc7e7701",
+    "web/style.css": "2df43a76bf5bea9e621ceebadec928ec8371668d0db3af21591306e3b3a9120a",
+    "web/tests/flatland-audio.test.js": "0814db5d82300661b6b82130beac83dd2165f03fbe8e5dde2e688e362fcdf491",
+    "web/tests/flatland-scene.test.js": "f4a19073224e59b99bb836c49c4a7471f6e92a8c4581b34ea9008704aef1469e",
+    "web/tests/play-feedback.test.js": "369535d883d54af34426d3378235ba538ebb044977913381bf2acfeaa0fee9aa",
+    "web/tests/scene-push.test.js": "a8e7a137b2afc5d53be053193ff7685873c7657f2e8f2b6ad0a83ab6ed92b80f",
+    "web/tests/scene.test.js": "0bc43575ff0513f211cd50a6a1d64767e48e7d89ad75bf64a1c9b1fa07634e45"
+  },
+  "unchanged_authority_files": {
+    "web/src/model.js": "503e8c5bb264cfcd9ef645f5be8886958030ee1d5e7fd2b78496edf37432c940",
+    "web/src/rooms.js": "53d202c4cacfbb0ebc6005980e0da74a0ef5888aa04356a4f175ec144eaacff4",
+    "web/src/flatland/model.js": "b8e1fef4126d3e57072a120fc29349be510052881d72372d5361b7d5d1523763",
+    "web/src/flatland/levels.js": "095e4ff15ca20dbd0d3386bbeb2490d5650d69652a43c6f657ab3594b0a4d0b4"
+  }
+}

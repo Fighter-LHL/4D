@@ -1,0 +1,48 @@
+{
+  "status": "passed",
+  "baseURL": "http://127.0.0.1:4188",
+  "checks": [
+    {
+      "width": 1280,
+      "reducedMotion": false,
+      "muted": false,
+      "friendFound": true,
+      "seedFound": true,
+      "savedAfterReloadAndRetry": true,
+      "levelHighlightSynced": true,
+      "noOverflow": true,
+      "visitorAndDiscoveryCoexist": true,
+      "discoveryDeliveredOnce": true,
+      "earnedCollectionToCourtyardCTA": true
+    },
+    {
+      "width": 390,
+      "reducedMotion": false,
+      "muted": false,
+      "friendFound": true,
+      "seedFound": true,
+      "savedAfterReloadAndRetry": true,
+      "levelHighlightSynced": true,
+      "noOverflow": true,
+      "visitorAndDiscoveryCoexist": true,
+      "discoveryDeliveredOnce": true,
+      "earnedCollectionToCourtyardCTA": true
+    },
+    {
+      "width": 320,
+      "reducedMotion": true,
+      "muted": true,
+      "friendFound": true,
+      "seedFound": true,
+      "savedAfterReloadAndRetry": true,
+      "levelHighlightSynced": true,
+      "noOverflow": true,
+      "visitorAndDiscoveryCoexist": true,
+      "discoveryDeliveredOnce": true,
+      "earnedCollectionToCourtyardCTA": true
+    }
+  ],
+  "errors": [],
+  "instrumentation": "read-only snapshot/event observer; Web Audio start observer; real range/pointer/key inputs",
+  "browserVersion": "130.0.6723.31"
+}

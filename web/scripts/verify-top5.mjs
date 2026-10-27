@@ -5,10 +5,12 @@ import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
-const out = fileURLToPath(new URL(`../artifacts/play-fun-top5-20261027/browser-${Date.now()}/`, import.meta.url));
+const baseURL = process.env.BASE_URL || 'http://127.0.0.1:4173';
+const out = process.env.ARTIFACT_DIR || fileURLToPath(new URL(`../artifacts/play-fun-top5-20261027/browser-${Date.now()}/`, import.meta.url));
 await mkdir(out, { recursive: true });
-const receipt = { status: 'started', checks: [], errors: [], instrumentation: 'read-only snapshot/event observer; Web Audio start observer; real range/pointer/key inputs' };
-const browser = await chromium.launch({ headless: true });
+const receipt = { status: 'started', baseURL, checks: [], errors: [], instrumentation: 'read-only snapshot/event observer; Web Audio start observer; real range/pointer/key inputs' };
+const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
+receipt.browserVersion = browser.version();
 try {
   for (const width of [1280, 390, 320]) {
     const context = await browser.newContext({ viewport: { width, height: width > 700 ? 900 : 844 }, reducedMotion: width === 320 ? 'reduce' : 'no-preference' });
@@ -52,7 +54,7 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
       try { await page.waitForFunction(({ x, y }) => { const p = window.__top5Read().state.player; return Math.hypot(p.x - x, p.y - y) < .22; }, { x, y }, { timeout: 8000 }); }
       finally { await page.mouse.up(); }
     };
-    await page.goto('http://127.0.0.1:4173/flatland.html?play=explore&seed=42'); await ready();
+    await page.goto(`${baseURL}/flatland.html?play=explore&seed=42`); await ready();
     assert.equal(await page.locator('#title').innerText(), '越墙');
     assert.match(await page.locator('#levels [aria-current=true]').innerText(), /越墙/);
     assert.equal(await page.locator('#garden-count').innerText(), '0/6');
@@ -77,6 +79,7 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
     }
     await page.waitForFunction(() => window.__top5Read().popups.some(p => p.text === '跳跳跟上来了'));
     const found = await read(); assert.deepEqual(found.state.collection.found, ['sprout']);
+    assert.equal((await page.evaluate(() => window.__top5Events)).filter(e => e.type === 'friend_found' && e.fresh).length, 1, 'one delivery of the first discovery');
     assert.equal(found.state.phase, 'playing'); assert.equal(found.state.paused, false);
     assert.equal(await page.locator('dialog[open]').count(), 0);
     if (width === 320) assert.equal(await page.evaluate(() => window.__top5Notes.length), notesBefore, 'muted discovery produces no oscillator');
@@ -92,6 +95,10 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
     const visitorSeed = (await read()).state.seed;
     assert.equal(await page.locator('#title').innerText(), '访客');
     assert.match(await page.locator('#levels [aria-current=true]').innerText(), /访客/);
+    // Integration smoke: visitor sequence and discovery consumers share one event drain.
+    await slice(3); await page.locator('#poke').click();
+    assert.match(await page.locator('#visitor-goal').innerText(), /跳起来了/);
+    await page.waitForFunction(() => document.querySelector('#visitor-goal').textContent === '走到光环边找访客');
     await slice(2.1); await go(6.5, 9);
     // Face east with a brief native key input, then use Sprout's upper-layer hop.
     await page.keyboard.down('d'); await page.waitForTimeout(30); await page.keyboard.up('d');
@@ -101,9 +108,12 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
     await page.waitForFunction(() => window.__top5Read().popups.some(p => p.text === '收下花种 · 1/3'));
     assert.equal(await page.locator('#garden-petals').innerText(), '1/3');
     assert.equal(await page.locator('#garden-count').innerText(), '0/6', 'one seed is not a completed garden');
+    assert.equal(await page.locator('#visitor-goal').innerText(), '走到光环边找访客', 'seed discovery does not reset the visitor beat');
+    assert.equal((await read()).popups.filter(p => p.discovery).length, 1, 'one discovery label alongside the visitor goal');
     await screenshot('seed-found');
     const firstSeed = (await page.evaluate(() => window.__top5Events)).find(e => e.type === 'garden_seed');
     assert.equal(firstSeed.fresh, true);
+    assert.equal((await page.evaluate(() => window.__top5Events)).filter(e => e.type === 'garden_seed' && e.fresh).length, 1, 'one delivery of the first seed');
     await page.reload(); await ready();
     assert.deepEqual((await read()).state.collection.found, ['sprout']);
     assert.equal(await page.locator('#garden-petals').innerText(), '1/3');
@@ -117,8 +127,25 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
     await screenshot('saved-progress');
     await page.locator('#style-toggle').click();
     assert.equal(await page.locator('#garden-progress').isVisible(), false, 'challenge keeps its own HUD');
-    receipt.checks.push({ width, reducedMotion: width === 320, muted: width === 320, friendFound: true, seedFound: true, savedAfterReloadAndRetry: true, levelHighlightSynced: true, noOverflow: true });
-    console.log(`passed ${width}px: discovery, seed, pause, saved progress, HUD and level sync`);
+    // Integration smoke: the same newly earned collection enters the courtyard CTA flow.
+    await page.goto(`${baseURL}/?seed=2`);
+    await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
+    await page.locator('#align').click();
+    assert.equal(await page.locator('.action-row .primary-button').count(), 1);
+    assert.equal(await page.locator('#move.attention-action').count(), 1);
+    assert.match(await page.locator('#move').innerText(), /稳行/);
+    await screenshot('discovery-to-courtyard');
+    await page.locator('#move').click();
+    assert.equal(await page.locator('#interact').isDisabled(), true);
+    assert.equal(await page.locator('.action-row .primary-button, .action-row .attention-action').count(), 0);
+    await page.waitForFunction(() => document.querySelector('#interact').classList.contains('attention-action'));
+    assert.equal(await page.locator('.action-row .primary-button').count(), 1);
+    await page.locator('#interact').click();
+    await page.keyboard.press('e');
+    await page.waitForFunction(() => document.querySelector('#action-feedback').textContent.includes('去辉光源'));
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    receipt.checks.push({ width, reducedMotion: width === 320, muted: width === 320, friendFound: true, seedFound: true, savedAfterReloadAndRetry: true, levelHighlightSynced: true, noOverflow: true, visitorAndDiscoveryCoexist: true, discoveryDeliveredOnce: true, earnedCollectionToCourtyardCTA: true });
+    console.log(`passed ${width}px: discovery, seed, pause, saved progress, HUD, visitor beat and courtyard CTA`);
     await context.close();
   }
   assert.deepEqual(receipt.errors, []);

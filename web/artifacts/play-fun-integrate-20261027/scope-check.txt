@@ -1,0 +1,6 @@
+PASS: changes relative to Top5 parent are confined to web/.
+PASS: all non-overlapping branch changes preserved byte-for-byte, except adapted verify-penpal.mjs and verify-top5.mjs.
+PASS: both branches added tests retained without edits.
+PASS: authoritative model.js, rooms.js, flatland/model.js, flatland/levels.js unchanged from common base.
+PASS: both browser receipts passed 1280/390/320 with errors=[].
+PASS: source-manifest.json records merged source/tests/scripts and unchanged authority file hashes.

@@ -31,6 +31,35 @@ function scene(reducedMotion = false) {
 }
 function state(seed = 1) { const model = new GameModel(seed); model.chooseRelic('shadow'); return model.snapshot(); }
 
+test('reachable rims and the other source persist, freeze on pause and respect reduced motion', () => {
+  for (const reduced of [false, true]) {
+    const m = start('shell', 2), { renderer, calls } = scene(reduced);
+    const draw = () => {
+      calls.length = 0; renderer.drawSceneCues();
+      return calls.filter(c => ['ellipse', 'stroke', 'fillText', 'setLineDash'].includes(c.method))
+        .map(c => ({ method: c.method, args: structuredClone(c.args), alpha: c.alpha,
+          ...(c.method === 'stroke' ? { stroke: c.stroke } : {}) }));
+    };
+    m.setW(m.snapshot().range.center); renderer.setState(m.snapshot());
+    const initial = draw();
+    assert.ok(initial.some(c => c.method === 'stroke' && c.stroke === '#d79943'));
+    renderer.render(.1); const next = draw();
+    if (reduced) assert.deepEqual(next, initial); else assert.notDeepEqual(next, initial);
+    renderer.render(0); assert.deepEqual(draw(), next, 'paused frame keeps the pulse still');
+    travel(m, m.selected); m.interact(); advance(m, 8);
+    renderer.setState(m.snapshot());
+    const waiting = draw();
+    assert.ok(waiting.some(c => c.method === 'fillText' && c.args[0].startsWith('辉光源')));
+    assert.ok(waiting.some(c => c.method === 'setLineDash' && c.args[0].length), 'off-slice source stays dashed');
+    const other = m.snapshot().nodes.find(n => n.name === '辉光源');
+    m.setW(other.center); // Still a real slice change, never activated by a cue.
+    assert.equal(m.snapshot().activated.includes(other.id), false);
+    renderer.setState({ ...m.snapshot(), travel: { progress: .1 } });
+    assert.deepEqual(draw(), [], 'crossing suppresses destination prompts');
+    renderer.destroy();
+  }
+});
+
 test('power and activation labels render, pause, expire and stay still with reduced motion', () => {
   for (const reduced of [false, true]) {
     const { renderer, calls } = scene(reduced);

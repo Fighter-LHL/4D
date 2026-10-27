@@ -1,4 +1,4 @@
-import { visitorCue } from './visitor-cue.js';
+import { VisitorCueSequence } from './visitor-cue.js';
 import { DiscoveryHints, discoveryFeedback } from '../play-feedback.js';
 import { FlatlandModel } from './model.js';
 import { FlatlandRenderer } from './scene.js';
@@ -37,6 +37,7 @@ const model = new FlatlandModel(requested >= 0 ? requested : playStyle === 'expl
 });
 if (model.exploration) model.start();
 const scene = new FlatlandRenderer($('scene'));
+const visitorCues = new VisitorCueSequence();
 const audio = new FlatlandAudio();
 const discoveryHints = new DiscoveryHints();
 let soundEnabled = readPreference('wslice-sound', 'on') === 'on';
@@ -232,7 +233,7 @@ function updateUI() {
   $('explore-courtyard').hidden = !snap.exploration || !snap.ascend?.readyForCourtyard;
   $('explore-courtyard').href = COURTYARD_ENTRY;
   setText('control-hint', controlHint(snap));
-  const visitorGoal = visitorCue(snap);
+  const visitorGoal = visitorCues.text(snap);
   $('visitor-goal').hidden = !visitorGoal;
   setText('visitor-goal', visitorGoal);
   $('pause').disabled = snap.phase !== 'playing';
@@ -269,6 +270,7 @@ function updateUI() {
 function consumeEvents() {
   const events = model.drainEvents();
   if (!events.length) return;
+  visitorCues.receive(events, model.snapshot());
   scene.setState(model.snapshot());
   scene.pushEvents(events);
   audio.handle(events);
