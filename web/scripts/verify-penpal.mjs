@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { GameModel } from '../src/model.js';
+import { courtyardBeatObserver, verifyCourtyardFirstBeat } from './courtyard-first-beat.mjs';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const baseURL = process.env.BASE_URL || 'http://127.0.0.1:4173';
@@ -40,7 +41,12 @@ scene.ctx.ellipse = (x, y, rx, ry, ...rest) => {
   penpalEllipse(x, y, rx, ry, ...rest);
 };
 window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMomentum, renderedNode: scene.momentumNode()?.id, currentNode: model.node, interactLabel: scene.state?.interactLabel, used: [...momentum.used], time: model.time, labels: window.__penpalLabels, glints: window.__penpalGlints });
+${courtyardBeatObserver}
 ` });
+    });
+    await context.route('**/src/flatland/main.js', async route => {
+      const response = await route.fetch();
+      await route.fulfill({ response, body: await response.text() + '\nwindow.__penpalDiscovery = () => structuredClone({ state: model.snapshot(), view: scene.view });' });
     });
     // Observe every frame; no game state or saved profile is injected.
     await page.addInitScript(() => {
@@ -209,8 +215,31 @@ window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMom
     await page.screenshot({ path: `${out}/escape-arrival-${width}.png` });
     await page.waitForFunction(() => document.querySelector('#visitor-goal').hidden);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no horizontal overflow');
+    // New-save collection is earned through the actual chase before the handoff.
+    await page.goto(`${baseURL}/flatland.html?level=escape&play=explore&seed=42`);
+    await page.waitForFunction(() => window.__penpalDiscovery?.().view);
+    for (const [step, height] of [[0, 4.7], [1, 2.7], [2, .6]]) {
+      const slice = async () => {
+        await page.locator('#s-slider').evaluate((el, value) => { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }, height);
+        await page.waitForFunction(value => Math.abs(window.__penpalDiscovery().state.s - value) < .02, height);
+      };
+      if (!step) await slice();
+      await page.locator('#scene').scrollIntoViewIfNeeded();
+      const { state, view } = await page.evaluate(() => window.__penpalDiscovery()), box = await page.locator('#scene').boundingBox();
+      const { x, y } = state.encounter;
+      await page.mouse.move(box.x + view.main.ox + x * view.main.scale, box.y + view.main.oy + y * view.main.scale);
+      await page.mouse.down();
+      try {
+        await page.waitForFunction(({ x, y }) => { const p = window.__penpalDiscovery().state.player; return Math.hypot(p.x - x, p.y - y) < .22; }, { x, y }, { timeout: 8000 });
+      } finally { await page.mouse.up(); }
+      if (step) await slice();
+      await page.waitForFunction(step => { const e = window.__penpalDiscovery().state.encounter; return e.kind === 'home' || e.step > step; }, step);
+    }
+    assert.deepEqual(await page.evaluate(() => window.__penpalDiscovery().state.collection.found), ['sprout']);
+    await page.getByRole('link', { name: '去庭院 ↗', exact: true }).first().click();
+    const firstEntryBeat = await verifyCourtyardFirstBeat(page, out, width);
     receipt.checks.push({ width, height: width > 700 ? 900 : 844, firstCrossingMs, secondSourceCueMs, landingGuideQuiet: true,
-      landingAndOnwardGlints: true, landing, onwardLayout, compactProgress: width <= 480, singleSupplyProgress: true, followAfterExpiry: true, unfollowedQuietSeconds: 4.2, glintYieldsToExplicitHelp: true, explicitHelpAfterLanding: true, passed: true });
+      landingAndOnwardGlints: true, landing, onwardLayout, compactProgress: width <= 480, singleSupplyProgress: true, followAfterExpiry: true, unfollowedQuietSeconds: 4.2, glintYieldsToExplicitHelp: true, explicitHelpAfterLanding: true, firstEntryBeat, passed: true });
     await context.close();
   }
   assert.deepEqual(receipt.errors, []);
