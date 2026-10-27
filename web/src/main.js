@@ -85,6 +85,12 @@ function consumeEvents() {
   scene.pushEvents(events);
   audio.handle(events);
   for (const event of events) {
+    // Local E feedback belongs to the platform just used, not the next crossing.
+    // A rejected move emits no move event; remote supply messages stay relevant.
+    if (event.type === 'move' && ['interact_blocked', 'activate'].includes(transientType)) {
+      transient = null; transientTime = 0; transientType = ''; actionFeedback = '';
+      $('announcement').textContent = '';
+    }
     let message = mechanismFeedback(event, state, { hasSupplySlots: hasSupplySlots(event.to) });
     if (event.type === 'activate' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       $('mechanism-count').animate([{ transform: 'scale(1.3)', color: '#a06c24' }, { transform: 'scale(1)' }], { duration: 550 });
@@ -454,8 +460,8 @@ function updateUI() {
   updateSecrets(state);
   $('pause').disabled = state.phase !== 'playing';
   setText('context-hint',state.objective || '切换空间，观察能量会传到哪一层。');
-  // Power already has the action popup and its live announcement; keep this line local.
-  const status = (transientType === 'power' ? null : transient) || (state.travel ? (state.travel.risky?'冒险中 · 留意移动光带':'沿当前切片前进') : `${currentNode?.name || '归响台'} · ${currentLayer?.name || '层间隙'}`);
+  // The action popup owns its result; the caption keeps the current place legible.
+  const status = (actionFeedback || transientType === 'power' ? null : transient) || (state.travel ? (state.travel.risky?'冒险中 · 留意移动光带':'沿当前切片前进') : `${currentNode?.name || '归响台'} · ${currentLayer?.name || '层间隙'}`);
   $('action-feedback').hidden = !transient || !actionFeedback;
   setText('action-feedback', transient ? actionFeedback : '');
   if (status !== lastStatus) { $('scene-state').textContent = status; lastStatus = status; }
@@ -471,7 +477,15 @@ $('align').addEventListener('click',()=>{ if(canAct()) action(()=>model.setW(mod
 $('safe-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(false)); if(e.detail>0) $('w-slider').focus({preventScroll:true}); } });
 $('risk-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(true)); if(e.detail>0) $('w-slider').focus({preventScroll:true}); } });
 $('move').addEventListener('click',()=>{ if(canAct()) { action(()=>model.move()); if(model.snapshot().travel) $('w-slider').focus({preventScroll:true}); } });
-$('interact').addEventListener('click',()=>{ if(canAct()) action(()=>model.interact()); });
+$('interact').addEventListener('click',e=>{
+  if (!canAct()) return;
+  const before = model.snapshot();
+  action(()=>model.interact());
+  // Match move/mode pointer handoffs so Space can take the next bridge.
+  // Keyboard activation and unsuccessful E clicks retain native button focus.
+  if (e.detail > 0 && momentum.firstEntry && !before.activated.includes(before.node) && model.snapshot().activated.includes(before.node))
+    $('w-slider').focus({preventScroll:true});
+});
 $('ask-friend').addEventListener('click', askFriend);
 for(const button of document.querySelectorAll('.layer-controls [data-layer]'))button.addEventListener('click',()=>{if(canAct())action(()=>model.setW(model.snapshot().layers[Number(button.dataset.layer)].center));});
 $('sound').addEventListener('click',()=>{ soundEnabled = !soundEnabled; audio.setEnabled(soundEnabled); unlockAudio(); savePreference('wslice-sound',soundEnabled?'on':'off'); updateSoundButton(); });
