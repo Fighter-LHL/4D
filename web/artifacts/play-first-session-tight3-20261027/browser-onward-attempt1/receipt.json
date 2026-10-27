@@ -1,0 +1,10 @@
+{
+  "baseline": false,
+  "status": "failed",
+  "checks": [],
+  "errors": [],
+  "browserVersion": "130.0.6723.31",
+  "failure": "AssertionError [ERR_ASSERTION]: pause removes actionable emphasis\n\n1 !== 0\n\n    at file:///private/tmp/4d-play-first-session-tight3-20261027-wt/web/scripts/verify-first-onward.mjs:89:14",
+  "actual": 1,
+  "expected": 0
+}

@@ -1,0 +1,26 @@
+{
+  "existing": [
+    {
+      "path": "web/scripts/courtyard-first-beat.mjs",
+      "originalAssertionLines": 127,
+      "identicalAssertionLines": true
+    },
+    {
+      "path": "web/scripts/verify-penpal.mjs",
+      "originalAssertionLines": 63,
+      "identicalAssertionLines": true
+    },
+    {
+      "path": "web/scripts/verify-top5.mjs",
+      "originalAssertionLines": 90,
+      "identicalAssertionLines": true
+    }
+  ],
+  "newBrowserAssertionLines": 46,
+  "observerChange": "Single-primary invariant expanded to include layer-controls .attention-action; no assertion removed or weakened.",
+  "newHarnessCorrections": [
+    "Pause/resume assertions wait for the existing animation-frame UI update before checking the unchanged expected state.",
+    "320px innerText includes a CSS-induced newline: normalize whitespace, still require exact text: 稳行 Space ↗."
+  ],
+  "finalVisualFix": "Compact the named movement button shortcut to an arrow below 480px; add a DOM Range assertion that the actual destination text stays on one line."
+}

@@ -52,7 +52,7 @@ ${courtyardBeatObserver}
     await page.addInitScript(() => {
       window.ctaViolations = [];
       function audit() {
-        const primary = [...document.querySelectorAll('.action-row .primary-button, .action-row .attention-action')];
+        const primary = [...document.querySelectorAll('.action-row .primary-button, .action-row .attention-action, .layer-controls .attention-action')];
         if (primary.length > 1 || primary.some(el => el.disabled)) window.ctaViolations.push(primary.map(el => el.id));
         requestAnimationFrame(audit);
       }

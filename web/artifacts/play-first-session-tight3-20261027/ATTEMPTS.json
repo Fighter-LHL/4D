@@ -1,0 +1,62 @@
+[
+  {
+    "name": "baseline-penpal",
+    "status": "passed",
+    "completedChecks": 3,
+    "failure": null
+  },
+  {
+    "name": "baseline-onward",
+    "status": "passed",
+    "completedChecks": 12,
+    "failure": null
+  },
+  {
+    "name": "browser-onward-attempt1",
+    "status": "failed",
+    "completedChecks": 0,
+    "failure": "AssertionError [ERR_ASSERTION]: pause removes actionable emphasis\n\n1 !== 0\n\n    at file:///private/tmp/4d-play-first-session-tight3-20261027-wt/web/scripts/verify-first-onward.mjs:89:14"
+  },
+  {
+    "name": "browser-onward-attempt2",
+    "status": "failed",
+    "completedChecks": 9,
+    "failure": "AssertionError [ERR_ASSERTION]: explicit selection retires the handoff copy\n+ actual - expected\n\n+ '稳行\\nSpace ↗'\n- '稳行 Space ↗'\n     ^\n\n    at file:///private/tmp/4d-play-first-session-tight3-20261027-wt/web/scripts/verify-first-onward.mjs:115:16"
+  },
+  {
+    "name": "browser-onward-attempt3",
+    "status": "passed",
+    "completedChecks": 4,
+    "failure": null
+  },
+  {
+    "name": "browser-penpal-attempt1",
+    "status": "passed",
+    "completedChecks": 3,
+    "failure": null
+  },
+  {
+    "name": "browser-top5-attempt1",
+    "status": "passed",
+    "completedChecks": 3,
+    "failure": null
+  },
+  {
+    "name": "browser-onward-final",
+    "status": "passed",
+    "completedChecks": 12,
+    "failure": null
+  },
+  {
+    "name": "browser-penpal-final",
+    "status": "passed",
+    "completedChecks": 3,
+    "failure": null
+  },
+  {
+    "name": "browser-top5-final",
+    "status": "passed",
+    "completedChecks": 3,
+    "failure": null
+  }
+]

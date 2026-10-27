@@ -1,0 +1,293 @@
+{
+  "runtimeChanged": [
+    "web/src/main.js",
+    "web/style.css"
+  ],
+  "protectedUnchanged": 71,
+  "checks": [
+    {
+      "path": "docs/courtyard-slice.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/playtests/courtyard-five-player-template.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/playtests/llm-design-and-playtest-prompt.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/releases/courtyard-chain-reactions-candidate.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/releases/courtyard-resonance-candidate.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/releases/movement-continuity-candidate.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/releases/v0.2-wslice-demo.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/releases/v0.3-wslice-demo.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/releases/v0.4-courtyard-runtime.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/roguelike-design.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/third-party/TMP-Essential-Resources.import.json",
+      "unchanged": true
+    },
+    {
+      "path": "docs/third-party/TMP-Essential-Resources.md",
+      "unchanged": true
+    },
+    {
+      "path": "docs/third-party/Unity-UI-LICENSE.md",
+      "unchanged": true
+    },
+    {
+      "path": "web/flatland.html",
+      "unchanged": true
+    },
+    {
+      "path": "web/index.html",
+      "unchanged": true
+    },
+    {
+      "path": "web/package.json",
+      "unchanged": true
+    },
+    {
+      "path": "web/serve.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/audio.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/courtyard-friends.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/courtyard-momentum.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/ascend-scene.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/ascend.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/audio.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/companions.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/discoveries.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/friends-scene.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/geometry.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/handoff.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/hazards.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/levels.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/main.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/mirror.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/model.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/perception.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/progress.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/random.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/scene.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/flatland/visitor-cue.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/friend-guide.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/model.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/play-feedback.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/rooms.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/src/scene.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/audio.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/companion-qol.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/courtyard-click.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/courtyard-friends.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/courtyard-momentum.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-ascend.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-audio.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-companions.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-discoveries.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-exploration.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-geometry.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-helpers.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-mirror.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-model.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-playability.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-progress.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-scene.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-storm.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/flatland-vault.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/friend-guide.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/generation.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/hidden.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/model-helpers.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/model.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/play-feedback.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/scene-push.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/scene.test.js",
+      "unchanged": true
+    },
+    {
+      "path": "web/tests/synergies.test.js",
+      "unchanged": true
+    }
+  ]
+}

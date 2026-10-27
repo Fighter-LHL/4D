@@ -1,0 +1,27 @@
+[
+  {
+    "command": "node --check web/src/main.js",
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "command": "node --check web/scripts/courtyard-first-beat.mjs",
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "command": "node --check web/scripts/verify-penpal.mjs",
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "command": "node --check web/scripts/verify-first-onward.mjs",
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "command": "git diff --check",
+    "exitCode": 0,
+    "output": ""
+  }
+]
