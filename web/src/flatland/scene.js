@@ -46,6 +46,7 @@ export class FlatlandRenderer {
     this.bursts = [];
     this.particles = [];
     this.popups = [];
+    this.discoveryEchoes = [];
     this.trail = [];
     this.friendTrails = [];
     this.friendCheer = 0;
@@ -77,6 +78,7 @@ export class FlatlandRenderer {
     const narrow = this.canvas.getBoundingClientRect().width <= 480;
     for (const event of events) {
       const st = this.state;
+      if (['load', 'hurt', 'death', 'guard_alert', 'dimension_start'].includes(event.type)) this.discoveryEchoes = [];
       if (['load', 'dimension_start', 'dimension_ready'].includes(event.type)) { this.volumeOpacity = new Map(); this.dimensionView = null; }
       if (['load', 'guard_alert', 'respawn', 'lock_spawn'].includes(event.type)) { this.appear.clear(); this.exiting = []; this.shapes.clear(); this.trail = []; }
       if (event.type === 'load') { this.flash.clear(); this.bursts = []; this.particles = []; this.popups = []; this.friendTrails = []; this.friendCheer = 0; this.shake = 0; this.shakeOffset = [0, 0]; this.hurtFlash = 0; this.lastS = null; }
@@ -102,6 +104,7 @@ export class FlatlandRenderer {
       if (discovery) {
         this.popups = this.popups.filter(p => !p.near && !p.discovery);
         this.popup(event.x, event.y - .9, discovery.text, discovery.color, false, { duration: narrow ? 1.35 : 1.8, discovery: true });
+        this.discoveryEchoes = [{ x: event.x, y: event.y, slice: st?.s, color: discovery.color, age: 0, duration: narrow ? 2 : 2.4 }];
       }
       if (event.type === 'friend_found' && event.fresh) {
         const friend = FRIENDS.find(f => f.id === event.id);
@@ -170,6 +173,8 @@ export class FlatlandRenderer {
     this.friendTrails = this.friendTrails.filter(t => t.age < 3);
     for (const map of [this.appear, this.flash]) for (const [id, age] of map) map.set(id, age + dt);
     for (const item of [...this.exiting, ...this.bursts, ...this.popups]) item.age += dt;
+    for (const echo of this.discoveryEchoes) echo.age += dt;
+    this.discoveryEchoes = this.discoveryEchoes.filter(e => e.age < e.duration && s.exploration && !s.dying && !s.returning && Math.abs(s.s - e.slice) <= .5);
     for (const p of this.particles) { p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 1 - dt * 3; p.vy *= 1 - dt * 3; }
     this.exiting = this.exiting.filter(item => item.age < EXIT);
     this.bursts = this.bursts.filter(item => item.age < (item.big ? 1.3 : .8));
@@ -206,6 +211,25 @@ export class FlatlandRenderer {
   // Paper tint follows height: warm near the floor, cool near the top.
   tint() { const s = this.state, t = clamp((s.s - s.slice.min) / (s.slice.max - s.slice.min || 1)); return mixColor('#f9f3e6', '#e9f2f4', t); }
 
+  drawDiscoveryEchoes(k) {
+    const ctx = this.ctx;
+    ctx.save();
+    // Keep the echo within five CSS pixels vertically: the phone label starts
+    // 24px below the find. Reduced motion retains only the soft opacity tail.
+    ctx.beginPath(); ctx.rect(0, 0, this.state.bounds.w, this.state.bounds.h); ctx.clip();
+    for (const echo of this.discoveryEchoes) {
+      const p = echo.age / echo.duration;
+      const opacity = Math.min(1, echo.age / .18) * (1 - clamp((p - .68) / .32) ** 2);
+      const settle = this.reducedMotion ? 1 : 1 + .18 * Math.sin(Math.PI * Math.min(1, echo.age / 1.1));
+      const rx = Math.min(1.1, (this.view.width <= 480 ? 22 : 26) / k) * settle, ry = Math.min(.2, 4 / k);
+      ctx.fillStyle = ctx.strokeStyle = echo.color; ctx.lineWidth = 1.5 / k;
+      ctx.globalAlpha = .14 * opacity;
+      ctx.beginPath(); ctx.ellipse(echo.x, echo.y, rx, ry, 0, 0, TAU); ctx.fill();
+      ctx.globalAlpha = .55 * opacity; ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   drawMain(main) {
     const ctx = this.ctx, s = this.state, b = s.bounds, k = main.scale;
     this.card(main, this.tint());
@@ -214,6 +238,7 @@ export class FlatlandRenderer {
     for (let x = 0; x <= b.w; x++) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, b.h); ctx.stroke(); }
     for (let y = 0; y <= b.h; y++) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(b.w, y); ctx.stroke(); }
     ctx.globalAlpha = 1; ctx.strokeStyle = COLORS.line; ctx.lineWidth = 2 / k; ctx.strokeRect(0, 0, b.w, b.h);
+    this.drawDiscoveryEchoes(k);
 
     for (const ghost of s.ghosts || []) this.drawGhost(ghost, k);
     drawCompanionToys(this, k);

@@ -380,6 +380,7 @@ export class SceneRenderer {
       this.drawConnections();
       const nodes = [...this.state.nodes].sort((a, b) => a.y - b.y);
       for (const node of nodes) this.drawIsland(node);
+      this.drawMomentum();
       this.drawSceneCues();
       this.drawEffects(false);
       this.drawGhost();
@@ -901,6 +902,24 @@ export class SceneRenderer {
       const done = stage < (wave.step || 1) - 1;
       diamond(ctx, (stage - ((wave.steps || 1) - 1) / 2) * 13, -72, 3.8, done ? '#299c80' : stage === (wave.step || 1) - 1 ? COLORS.danger : null, done ? '#299c80' : COLORS.danger);
     }
+    ctx.restore();
+  }
+
+  drawMomentum() {
+    const cue = this.state.courtyardMomentum, node = cue && this.node(cue.node);
+    if (!node?.present || this.state.companionGuide || this.state.travel || this.state.wave || this.state.phase !== 'playing') return;
+    const ctx = this.ctx, p = clamp(cue.age / cue.duration);
+    const opacity = Math.min(1, cue.age / .25) * (1 - ease((p - .55) / .45));
+    const swell = this.reducedMotion ? 0 : Math.sin(Math.PI * p) * 5;
+    const width = node.id === 'hub' ? 91 : 64;
+    ctx.save(); ctx.translate(node.x, node.y);
+    ctx.scale(node.anchor ? 1 : node.scale, node.anchor ? 1 : node.scale);
+    ctx.globalAlpha = .13 * opacity;
+    ellipse(ctx, 0, 5, width + swell, 24 + swell * .2, this.palette(node.layer ?? this.state.layer).color);
+    ctx.globalAlpha = .55 * opacity;
+    // A low rim glint stays on the platform, away from labels above it.
+    ctx.strokeStyle = COLORS.gold; ctx.lineWidth = 1.5 / this.scale;
+    ctx.beginPath(); ctx.ellipse(0, 5, width + swell, 24 + swell * .2, 0, .15 * Math.PI, .85 * Math.PI); ctx.stroke();
     ctx.restore();
   }
 

@@ -31,6 +31,27 @@ function scene(reducedMotion = false) {
 }
 function state(seed = 1) { const model = new GameModel(seed); model.chooseRelic('shadow'); return model.snapshot(); }
 
+test('courtyard momentum stays on the platform without text or reduced-motion travel', () => {
+  for (const reduced of [false, true]) {
+    const { renderer, calls } = scene(reduced), m = start('shell', 2);
+    travel(m, m.selected);
+    const s = { ...m.snapshot(), companionGuide: null, courtyardMomentum: { node: m.node, age: .4, duration: 2.1 } };
+    renderer.setState(s);
+    const draw = () => { calls.length = 0; renderer.drawMomentum(); return structuredClone(calls); };
+    const first = draw();
+    assert.ok(first.some(c => c.method === 'stroke'));
+    assert.equal(first.some(c => c.method === 'fillText'), false);
+    const geometry = list => list.filter(c => c.method === 'ellipse').map(c => c.args);
+    s.courtyardMomentum.age = .9;
+    if (reduced) assert.deepEqual(geometry(draw()), geometry(first));
+    else assert.notDeepEqual(geometry(draw()), geometry(first));
+    for (const change of [{ companionGuide: m.snapshot().companionGuide }, { travel: {} }, { wave: {} }, { phase: 'interlude' }]) {
+      renderer.setState({ ...s, ...change }); assert.deepEqual(draw(), []);
+    }
+    renderer.destroy();
+  }
+});
+
 test('reachable rims and the other source persist, freeze on pause and respect reduced motion', () => {
   for (const reduced of [false, true]) {
     const m = start('shell', 2), { renderer, calls } = scene(reduced);

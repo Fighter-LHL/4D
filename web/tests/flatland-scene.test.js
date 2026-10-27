@@ -28,6 +28,43 @@ function renderer(width = 1000, height = 560) {
 const SIZES = [[1000, 560], [380, 600]];
 const texts = calls => calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
 
+test('fresh discoveries leave a bounded wordless tail, freeze on pause and clear on interruption', () => {
+  for (const width of [1000, 380, 280]) for (const reduced of [false, true]) {
+    const { scene, calls } = renderer(width, 400); scene.reducedMotion = reduced;
+    const m = new FlatlandModel(0, { seed: 42, playStyle: 'explore' }); m.start();
+    const before = m.snapshot(); scene.setState(before); scene.render(0);
+    assert.deepEqual(scene.discoveryEchoes, []);
+    for (const event of [
+      { type: 'garden_seed', fresh: true, petals: 1, x: 6.5, y: 9 },
+      { type: 'friend_found', fresh: true, id: 'sprout', x: 6.5, y: 9 },
+    ]) {
+      scene.pushEvents([event]); scene.render(.3);
+      assert.equal(scene.discoveryEchoes.length, 1);
+      const draw = () => { calls.length = 0; scene.drawDiscoveryEchoes(scene.view.main.scale); return structuredClone(calls); };
+      const first = draw();
+      assert.equal(texts(first).length, 0, 'no new text');
+      const oval = first.find(c => c.method === 'ellipse');
+      assert.ok((oval.args[3] * scene.view.main.scale + .75) <= 4.75, 'tail stays away from the phone label');
+      scene.setState({ ...before, paused: true }); scene.render(3);
+      assert.equal(scene.discoveryEchoes[0].age, .3);
+      scene.setState(before); scene.render(.1);
+      if (reduced) assert.deepEqual(draw(), first, 'reduced motion has no moving geometry');
+      scene.render(width <= 480 ? 1 : 1.45);
+      assert.equal(scene.popups.filter(p => p.discovery).length, 0);
+      assert.equal(scene.discoveryEchoes.length, 1, 'wordless satisfaction continues after short text');
+      scene.render(.7); assert.equal(scene.discoveryEchoes.length, 0);
+      scene.pushEvents([{ ...event, fresh: false }]); assert.equal(scene.discoveryEchoes.length, 0);
+      for (const type of ['load', 'hurt', 'death', 'guard_alert', 'dimension_start']) {
+        scene.pushEvents([event, { type, x: 6.5, y: 9 }]); assert.equal(scene.discoveryEchoes.length, 0);
+      }
+      scene.pushEvents([event]); scene.setState({ ...before, s: before.s + .6 }); scene.render(0);
+      assert.equal(scene.discoveryEchoes.length, 0, 'no stale glow on another slice');
+      scene.setState(before);
+    }
+    assert.deepEqual(m.snapshot(), before);
+  }
+});
+
 test('discovery popups fit phones, pause, expire, stay still with reduced motion and suppress repeated finds', () => {
   for (const width of [1000, 380, 280]) for (const reduced of [false, true]) {
     const { scene, calls } = renderer(width, 400); scene.reducedMotion = reduced;

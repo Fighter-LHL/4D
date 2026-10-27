@@ -18,6 +18,12 @@ try {
   for (const width of [1280, 390, 320]) {
     const context = await browser.newContext({ viewport: { width, height: width > 700 ? 900 : 844 }, reducedMotion: width === 320 ? 'reduce' : 'no-preference' });
     const page = await context.newPage();
+    await context.route('**/src/main.js', async route => {
+      const response = await route.fetch();
+      await route.fulfill({ response, body: await response.text() + `
+window.__penpalMomentum = () => structuredClone({ cue: scene.state?.courtyardMomentum, used: [...momentum.used] });
+` });
+    });
     // Observe every frame; no game state or saved profile is injected.
     await page.addInitScript(() => {
       window.ctaViolations = [];
@@ -67,12 +73,19 @@ try {
     const firstCrossingMs = Date.now() - startedAt;
     assert.ok(firstCrossingMs < 30000, 'scripted fresh-profile first crossing within 30 seconds');
     assert.equal(await page.locator('#friend-guide').isVisible(), false, 'first safe landing is quiet');
+    await page.waitForFunction(() => window.__penpalMomentum().cue?.age >= .3);
+    assert.equal((await page.evaluate(() => window.__penpalMomentum())).cue.beat, 'landing');
+    await page.screenshot({ path: `${out}/courtyard-landing-glint-${width}.png` });
     await page.keyboard.press('h');
     assert.equal(await page.locator('#friend-guide').isVisible(), true, 'explicit help remains available after landing');
+    assert.equal((await page.evaluate(() => window.__penpalMomentum())).cue, null, 'explicit help suppresses the ambient beat');
     const activatedAt = Date.now();
     await page.locator('#interact').click();
     await page.waitForFunction(() => document.querySelector('#mechanism-count').textContent === '1 / 3');
     await page.waitForFunction(() => document.querySelector('#action-feedback').textContent.includes('供能 1/2'));
+    await page.waitForFunction(() => window.__penpalMomentum().cue?.beat === 'onward' && window.__penpalMomentum().cue.age >= .3);
+    assert.equal((await page.evaluate(() => window.__penpalMomentum())).cue.node, 'hub');
+    await page.screenshot({ path: `${out}/courtyard-onward-glint-${width}.png` });
     await page.locator('#scene').scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${out}/courtyard-power-${width}.png` });
     assert.match(await page.locator('#interact').innerText(), /^已启动/);
@@ -131,7 +144,8 @@ try {
     await page.screenshot({ path: `${out}/escape-arrival-${width}.png` });
     await page.waitForFunction(() => document.querySelector('#visitor-goal').hidden);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no horizontal overflow');
-    receipt.checks.push({ width, height: width > 700 ? 900 : 844, firstCrossingMs, secondSourceCueMs, landingGuideQuiet: true, explicitHelpAfterLanding: true, passed: true });
+    receipt.checks.push({ width, height: width > 700 ? 900 : 844, firstCrossingMs, secondSourceCueMs, landingGuideQuiet: true,
+      landingAndOnwardGlints: true, glintYieldsToExplicitHelp: true, explicitHelpAfterLanding: true, passed: true });
     await context.close();
   }
   assert.deepEqual(receipt.errors, []);

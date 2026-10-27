@@ -16,6 +16,15 @@ try {
     const context = await browser.newContext({ viewport: { width, height: width > 700 ? 900 : 844 }, reducedMotion: width === 320 ? 'reduce' : 'no-preference' });
     await context.addInitScript(() => {
       window.__top5Labels = [];
+      window.__top5EchoBounds = [];
+      const ellipse = CanvasRenderingContext2D.prototype.ellipse;
+      CanvasRenderingContext2D.prototype.ellipse = function (x, y, rx, ry, ...rest) {
+        if (window.__top5DrawingEcho) {
+          const t = this.getTransform(), dpr = devicePixelRatio || 1;
+          window.__top5EchoBounds.push({ bottom: (t.d * (y + ry + this.lineWidth / 2) + t.f) / dpr });
+        }
+        return ellipse.call(this, x, y, rx, ry, ...rest);
+      };
       const fillText = CanvasRenderingContext2D.prototype.fillText;
       CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
         if (/^(收下花种|跳跳跟上来了|S .*s$)/.test(text)) {
@@ -52,20 +61,26 @@ scene.pushEvents = events => {
   top5Push(events);
 };
 const top5Render = scene.render.bind(scene);
+const top5Echo = scene.drawDiscoveryEchoes.bind(scene);
+scene.drawDiscoveryEchoes = k => {
+  window.__top5DrawingEcho = true;
+  try { top5Echo(k); } finally { window.__top5DrawingEcho = false; }
+};
 scene.render = dt => {
   window.__top5Labels = [];
+  window.__top5EchoBounds = [];
   top5Render(dt);
   const arrival = document.querySelector('#visitor-goal').textContent.includes('墙那边有动静');
   const announcedNear = window.__top5Events.some(e => e.type === 'discovery_near' && e.text === document.querySelector('#announcement').textContent);
   if (arrival && (scene.popups.some(p => p.near) || announcedNear)) window.__top5CueConflicts.push({ time: model.time });
 };
-window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: scene.popups, view: scene.view, reduced: scene.reducedMotion, audioState: audio.context?.state, labels: window.__top5Labels });
+window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: scene.popups, echoes: scene.discoveryEchoes, echoBounds: window.__top5EchoBounds, view: scene.view, reduced: scene.reducedMotion, audioState: audio.context?.state, labels: window.__top5Labels });
 ` });
     });
     await context.route('**/src/main.js', async route => {
       const response = await route.fetch();
       await route.fulfill({ response, body: await response.text() + `
-window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, friends: scene.friends.length });
+window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, friends: scene.friends.length, cue: scene.state?.courtyardMomentum, used: [...momentum.used] });
 ` });
     });
     const page = await context.newPage();
@@ -96,6 +111,7 @@ window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, frie
     await page.waitForFunction(() => window.__top5Read().state.time >= 4.2);
     assert.equal((await page.evaluate(() => window.__top5Events)).some(e => e.type === 'discovery_near'), false,
       'standing on the starting slice stays quiet even after narration ends');
+    assert.deepEqual((await read()).echoes, [], 'standing still cannot trigger a discovery echo');
     await screenshot('idle-after-arrival');
     // Replay through real controls, deliberately revealing a nearby friend during narration.
     await page.keyboard.press('r'); await slice(4.7);
@@ -145,6 +161,9 @@ window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, frie
     const found = await read(); assert.deepEqual(found.state.collection.found, ['sprout']);
     const discoveryDuration = found.popups.find(p => p.discovery).duration;
     assert.equal(discoveryDuration, narrowCanvas ? 1.35 : 1.8);
+    assert.equal(found.echoes.length, 1);
+    const echoDuration = found.echoes[0].duration;
+    assert.equal(echoDuration, narrowCanvas ? 2 : 2.4);
     assert.equal((await page.evaluate(() => window.__top5Events)).filter(e => e.type === 'friend_found' && e.fresh).length, 1, 'one delivery of the first discovery');
     assert.equal(found.state.phase, 'playing'); assert.equal(found.state.paused, false);
     assert.equal(await page.locator('dialog[open]').count(), 0);
@@ -155,8 +174,12 @@ window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, frie
     const frozen = await read();
     await page.waitForTimeout(250);
     assert.deepEqual((await read()).popups, frozen.popups);
+    assert.deepEqual((await read()).echoes, frozen.echoes, 'pause freezes the wordless tail too');
     await page.locator('#resume').click();
     await page.waitForFunction(() => !window.__top5Read().popups.some(p => p.discovery));
+    assert.equal((await read()).echoes.length, 1, 'echo remains briefly after the label');
+    await screenshot('friend-afterglow');
+    await page.waitForFunction(() => !window.__top5Read().echoes.length);
     await screenshot('friend-found-cleared');
     assert.equal((await page.evaluate(() => window.__top5Near)).filter(e => e.key === 'escape:friend:sprout').length, 1);
     await page.locator('[data-level="0"]').click();
@@ -179,14 +202,21 @@ window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, frie
     assert.equal(await page.locator('#visitor-goal').innerText(), '走到光环边找访客', 'seed discovery does not reset the visitor beat');
     assert.equal((await read()).popups.filter(p => p.discovery).length, 1, 'one discovery label alongside the visitor goal');
     assert.equal((await read()).popups.find(p => p.discovery).duration, discoveryDuration);
-    const seedLayout = await page.evaluate(() => window.__top5Read().labels);
+    const seedFeedback = await read(), seedLayout = seedFeedback.labels;
+    assert.equal(seedFeedback.echoes.length, 1);
     if (narrowCanvas) {
       const seedLabel = seedLayout.find(l => l.text.startsWith('收下花种'));
       const probeLabel = seedLayout.find(l => l.text.startsWith('S '));
       assert.ok(seedLabel && probeLabel, 'observe both live Canvas labels');
       assert.ok(seedLabel.top - probeLabel.bottom >= 4, 'seed text leaves a visible gap below the probe label');
+      assert.ok(seedFeedback.echoBounds.length > 0, 'observe the rendered echo footprint');
+      assert.ok(seedLabel.top - seedFeedback.echoBounds[0].bottom >= 4, 'echo stays above the phone discovery text');
     }
     await screenshot('seed-found');
+    await page.waitForFunction(() => !window.__top5Read().popups.some(p => p.discovery));
+    assert.equal((await read()).echoes.length, 1);
+    await screenshot('seed-afterglow');
+    await page.waitForFunction(() => !window.__top5Read().echoes.length);
     const firstSeed = (await page.evaluate(() => window.__top5Events)).find(e => e.type === 'garden_seed');
     assert.equal(firstSeed.fresh, true);
     assert.equal((await page.evaluate(() => window.__top5Events)).filter(e => e.type === 'garden_seed' && e.fresh).length, 1, 'one delivery of the first seed');
@@ -195,6 +225,7 @@ window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, frie
     assert.deepEqual((await read()).state.collection.found, ['sprout']);
     assert.equal(await page.locator('#garden-petals').innerText(), '1/3');
     assert.equal((await read()).popups.filter(p => p.discovery).length, 0);
+    assert.deepEqual((await read()).echoes, [], 'saved discoveries do not replay after reload');
     await page.keyboard.press('r');
     assert.equal((await read()).state.seed, visitorSeed);
     assert.equal(await page.locator('#garden-petals').innerText(), '1/3');
@@ -221,20 +252,36 @@ window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, frie
     assert.equal(landed.friends, 1, 'test the idle guide with the genuinely earned companion');
     assert.equal(landed.settled, true);
     assert.equal(await page.locator('#friend-guide').isVisible(), false);
+    await page.waitForFunction(() => window.__top5Courtyard().cue?.age >= .3);
+    assert.equal((await page.evaluate(() => window.__top5Courtyard())).cue.beat, 'landing');
+    await screenshot('courtyard-landing-glint');
+    await page.locator('#pause').click();
+    const frozenGlint = await page.evaluate(() => window.__top5Courtyard().cue);
+    await page.waitForTimeout(250);
+    assert.deepEqual(await page.evaluate(() => window.__top5Courtyard().cue), frozenGlint);
+    await page.locator('#resume').click();
     await page.waitForFunction(time => window.__top5Courtyard().time >= time + 6.2, landed.time);
     assert.equal(await page.locator('#friend-guide').isVisible(), false, 'no automatic guide at the old six-second idle trigger');
+    assert.equal(await page.evaluate(() => window.__top5Courtyard().cue), null, 'the landing glint expires and does not loop');
     await screenshot('courtyard-settled-quiet');
     await page.keyboard.press('h');
     assert.equal(await page.locator('#friend-guide').isVisible(), true);
     await page.waitForFunction(() => document.querySelector('#friend-guide').hidden);
     await screenshot('courtyard-requested-help-cleared');
     await page.locator('#interact').click();
+    await page.waitForFunction(() => window.__top5Courtyard().cue?.beat === 'onward' && window.__top5Courtyard().cue.age >= .3);
+    assert.equal((await page.evaluate(() => window.__top5Courtyard())).cue.node, 'hub');
+    await screenshot('courtyard-onward-glint');
+    await page.waitForFunction(() => !window.__top5Courtyard().cue);
+    const glintUsed = await page.evaluate(() => window.__top5Courtyard().used);
+    assert.deepEqual(glintUsed, ['landing', 'onward']);
     await page.keyboard.press('e');
     await page.waitForFunction(() => document.querySelector('#action-feedback').textContent.includes('去辉光源'));
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     receipt.checks.push({ width, reducedMotion: width === 320, muted: width === 320, friendFound: true, seedFound: true, savedAfterReloadAndRetry: true, levelHighlightSynced: true, noOverflow: true, visitorAndDiscoveryCoexist: true, discoveryDeliveredOnce: true, earnedCollectionToCourtyardCTA: true,
       arrivalAndNearExclusive: true, idleAfterArrivalQuiet: true, nearOnce: nearEvents, approachDuration: approachPopup.duration, approachClearedAfter: approachClearedAt - nearEvents[0].time, discoveryDuration,
-      seedLayout, courtyardGuideRetiredAfterLanding: true, companionIdleQuietSeconds: 6.2, explicitHelpStillExpires: true });
+      seedLayout, echoDuration, seedEchoBounds: seedFeedback.echoBounds, echoesPauseExpireAndDoNotReplay: true, glintUsed,
+      courtyardGuideRetiredAfterLanding: true, companionIdleQuietSeconds: 6.2, explicitHelpStillExpires: true });
     console.log(`passed ${width}px: discovery, seed, pause, saved progress, HUD, visitor beat and courtyard CTA`);
     await context.close();
   }

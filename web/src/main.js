@@ -4,6 +4,7 @@ import { GameAudio } from './audio.js';
 import { isFlatlandArrival } from './flatland/handoff.js';
 import { courtyardFriends, friendGuideText } from './courtyard-friends.js';
 import { FriendGuide } from './friend-guide.js';
+import { CourtyardMomentum } from './courtyard-momentum.js';
 import { STARTER_RELICS, mechanismFeedback, contextualHelp, courtyardActions } from './play-feedback.js';
 
 const $ = id => document.getElementById(id);
@@ -43,6 +44,7 @@ const dialogs = ['choice-dialog','help-dialog','pause-dialog','result-dialog','r
 const isModal = () => dialogs.some(id => $(id).open);
 const canAct = () => !paused && !isModal() && model.snapshot().phase === 'playing';
 const guide = new FriendGuide();
+const momentum = new CourtyardMomentum();
 function askFriend() { if (canAct()) { guide.request(model.snapshot()); updateUI(); } }
 const scene = new SceneRenderer($('scene'), { onSelect: id => { if (canAct()) action(() => model.selectOrMove(id)); }, onFriend: askFriend });
 function refreshFriends() { scene.friends = courtyardFriends(readJSON('wslice-flatland-friends'), readJSON('wslice-flatland-gardens')); }
@@ -277,6 +279,7 @@ function updateRoom(state) {
 
 function updateUI() {
   const state = guide.present(model.snapshot());
+  state.courtyardMomentum = momentum.view(model.snapshot(), guide);
   updateRoom(state);
   scene.setState(state);
   const friendHint = friendGuideText(state, scene.friends);
@@ -447,6 +450,7 @@ function frame(now) {
   const dt=Math.max(0,Math.min(.05,(now-lastFrame)/1000));lastFrame=now;
   if(!paused&&!isModal()&&!document.hidden){model.update(dt);if(transientTime>0){transientTime-=dt;if(transientTime<=0)transient=null;}}
   guide.update(dt, model.snapshot(), !paused && !isModal() && !document.hidden, scene.friends.length > 0);
+  momentum.update(dt, model.snapshot(), guide, !paused && !isModal() && !document.hidden);
   consumeEvents();updateUI();syncAudio();scene.render(paused||document.hidden?0:dt);requestAnimationFrame(frame);
 }
 updateSoundButton();consumeEvents();updateUI();requestAnimationFrame(frame);
