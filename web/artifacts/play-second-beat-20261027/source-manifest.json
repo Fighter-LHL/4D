@@ -1,0 +1,29 @@
+{
+  "baseline": "1e3f8fbff7d56d34622916c0ac5502188835fdbb",
+  "files": [
+    {
+      "path": "scripts/courtyard-first-beat.mjs",
+      "sha256": "bc18ee3d07f947303ad57759092445b065a6393a77aecfaa3b3c2237844f7401"
+    },
+    {
+      "path": "scripts/verify-penpal.mjs",
+      "sha256": "27c167ca95f7ee41927030d0edaba3b2f170481d8791000f8c12273a760170af"
+    },
+    {
+      "path": "scripts/verify-top5.mjs",
+      "sha256": "705f9916761e8431b0ab0ea4aa7e960b6b2f7d452589a8eac36f122d88f14662"
+    },
+    {
+      "path": "src/courtyard-momentum.js",
+      "sha256": "40162c8fa2da5ea5a2c092aa6271699ddaaeda3e58bb12e880e152c89a4bd7b3"
+    },
+    {
+      "path": "src/scene.js",
+      "sha256": "6d284a317a75414e2b4eb0f35232bd1c9e9ee769eeba032a01080ad224fef845"
+    },
+    {
+      "path": "tests/courtyard-momentum.test.js",
+      "sha256": "3a36f80e0ee0c8c419f4cf6cb9b13bdac2dd7c8ab6e389060c402b61d815b699"
+    }
+  ]
+}

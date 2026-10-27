@@ -1,0 +1,409 @@
+{
+  "baseline": "1e3f8fbff7d56d34622916c0ac5502188835fdbb",
+  "protectedCount": 67,
+  "allUnchanged": true,
+  "files": [
+    {
+      "path": "CONTRACT.md",
+      "baselineSha256": "1ae8c59744dcce791e56ed6985e86be179274fddc606229cddb32fdc36ba0c65",
+      "currentSha256": "1ae8c59744dcce791e56ed6985e86be179274fddc606229cddb32fdc36ba0c65",
+      "unchanged": true
+    },
+    {
+      "path": "HIDDEN-ROUTES-CONTRACT.md",
+      "baselineSha256": "5276097811e329e3d239aee8010ddf02139ae857d731ab939587cff50d47b92c",
+      "currentSha256": "5276097811e329e3d239aee8010ddf02139ae857d731ab939587cff50d47b92c",
+      "unchanged": true
+    },
+    {
+      "path": "RANDOM-ROOMS-CONTRACT.md",
+      "baselineSha256": "6ebd092bbb8cc1f6323c1ac950a0c5b779e5de416a7b210a30bcfdd3ff26993d",
+      "currentSha256": "6ebd092bbb8cc1f6323c1ac950a0c5b779e5de416a7b210a30bcfdd3ff26993d",
+      "unchanged": true
+    },
+    {
+      "path": "README.md",
+      "baselineSha256": "f9d76398978c0a05ee52893dea636c4fd4d5b4db24d31ae74c060a53f713f923",
+      "currentSha256": "f9d76398978c0a05ee52893dea636c4fd4d5b4db24d31ae74c060a53f713f923",
+      "unchanged": true
+    },
+    {
+      "path": "SLICE-CONTRACT.md",
+      "baselineSha256": "b55364f0b364f95a657b0c46fa63384e0f3bdbecdf38d77a76acf44f1fd38e2b",
+      "currentSha256": "b55364f0b364f95a657b0c46fa63384e0f3bdbecdf38d77a76acf44f1fd38e2b",
+      "unchanged": true
+    },
+    {
+      "path": "SYNERGY-CONTRACT.md",
+      "baselineSha256": "ae3f102f2e9dcd7543ffc51859836aebb41bb71989895bb7272ea08e93d162c7",
+      "currentSha256": "ae3f102f2e9dcd7543ffc51859836aebb41bb71989895bb7272ea08e93d162c7",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/companion-qol-20261026/validation.md",
+      "baselineSha256": "b9492ae927c482a40c1a8ba644505d9ddd7feaef9ca805e71f0888e33a8916c9",
+      "currentSha256": "b9492ae927c482a40c1a8ba644505d9ddd7feaef9ca805e71f0888e33a8916c9",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/companions-20261026/validation.md",
+      "baselineSha256": "29641ced9c61e9e6b841cca9ba1bab9dd725bdb40d5674c315eed9d0d8a0ec0a",
+      "currentSha256": "29641ced9c61e9e6b841cca9ba1bab9dd725bdb40d5674c315eed9d0d8a0ec0a",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/discovery-20261026/validation.md",
+      "baselineSha256": "ea2dc1ed042c442dd50020abdb187d55cc203cb4483a90fcdd32d18b5859f9aa",
+      "currentSha256": "ea2dc1ed042c442dd50020abdb187d55cc203cb4483a90fcdd32d18b5859f9aa",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/flatland-ascend-20261024/validation.md",
+      "baselineSha256": "e6d024acda95df495aeff22f53bc1475cbb7011fdb3aba623050d78462e001be",
+      "currentSha256": "e6d024acda95df495aeff22f53bc1475cbb7011fdb3aba623050d78462e001be",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/flatland-guess-20261024/validation.md",
+      "baselineSha256": "a42bf5776ef48af00c2ce888bde11c91aa4a502c5cf01c440d86e3a0424c222d",
+      "currentSha256": "a42bf5776ef48af00c2ce888bde11c91aa4a502c5cf01c440d86e3a0424c222d",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/flatland-mirror-20261024/validation.md",
+      "baselineSha256": "918de28e0fcb2c30c8bb81377453cf261ba7bf38e3db3596e4d9d43dc86d33b5",
+      "currentSha256": "918de28e0fcb2c30c8bb81377453cf261ba7bf38e3db3596e4d9d43dc86d33b5",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/flatland-vault-20261024/validation.md",
+      "baselineSha256": "58c68875a2f3b8c80410811575bd70f6f3e7cf21d6952c73d3e426478e56bfcf",
+      "currentSha256": "58c68875a2f3b8c80410811575bd70f6f3e7cf21d6952c73d3e426478e56bfcf",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/hidden-ascension-20261024/validation.md",
+      "baselineSha256": "b3461df553b1e57b9bb711b94b3a9c289a76808e9d596451fc29c430090191bc",
+      "currentSha256": "b3461df553b1e57b9bb711b94b3a9c289a76808e9d596451fc29c430090191bc",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/hidden-routes-20261023/validation.md",
+      "baselineSha256": "8b870bbc5973e7f9ba73d4a03787640ee08b8b7b173304eafff36ffde7fd16c1",
+      "currentSha256": "8b870bbc5973e7f9ba73d4a03787640ee08b8b7b173304eafff36ffde7fd16c1",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/mechanism-chain-20261024/validation.md",
+      "baselineSha256": "e31ca96c346e6774a76af9730a184c32e3648f0c24fd83017eaf1d4719d4a15a",
+      "currentSha256": "e31ca96c346e6774a76af9730a184c32e3648f0c24fd83017eaf1d4719d4a15a",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/play-courtyard-beat-20261027/CODEX_TASK.md",
+      "baselineSha256": "e0f207ec3f35d03c07ef5497c74c741d8e833f6c529d37192f236850429fb5ef",
+      "currentSha256": "e0f207ec3f35d03c07ef5497c74c741d8e833f6c529d37192f236850429fb5ef",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/play-courtyard-beat-20261027/PR_BODY.md",
+      "baselineSha256": "d7ab6206d8ba45ab32e276f3808c039a79558738e9aea43844fc06726612b9e9",
+      "currentSha256": "d7ab6206d8ba45ab32e276f3808c039a79558738e9aea43844fc06726612b9e9",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/play-courtyard-beat-20261027/VALIDATION.md",
+      "baselineSha256": "7b5acf67e6e6132dd159beb1076d2073304dc5c54e5716dbf357ae60a81aaa3c",
+      "currentSha256": "7b5acf67e6e6132dd159beb1076d2073304dc5c54e5716dbf357ae60a81aaa3c",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/play-feel-20261027/VALIDATION.md",
+      "baselineSha256": "ea44f74f62624d73264b21e167c1efa87e4aa9687dc8d0d57c49d9e5f315f44b",
+      "currentSha256": "ea44f74f62624d73264b21e167c1efa87e4aa9687dc8d0d57c49d9e5f315f44b",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/play-first-session-20261027/VALIDATION.md",
+      "baselineSha256": "d4d3ba2001e424a103dc199bc01b747477b03bb9192b4ea99a6dba675481f8b9",
+      "currentSha256": "d4d3ba2001e424a103dc199bc01b747477b03bb9192b4ea99a6dba675481f8b9",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/play-fun-20261027/baseline-validation.md",
+      "baselineSha256": "a3e60c600e39abb6086abd8ce9186cb17949db048bc5a74c349e58777615e21c",
+      "currentSha256": "a3e60c600e39abb6086abd8ce9186cb17949db048bc5a74c349e58777615e21c",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/play-fun-20261027/penpal-play/TOP5.md",
+      "baselineSha256": "8e30b9a7d02bd0bf7fe47439c69a46ad0cfb455934b3be8512cb1eeab42679fd",
+      "currentSha256": "8e30b9a7d02bd0bf7fe47439c69a46ad0cfb455934b3be8512cb1eeab42679fd",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/play-fun-20261027/validation.md",
+      "baselineSha256": "2d5dc9446e8cf760c021e831237b19b16251506392b0f069f1a2fb4f4281a8cf",
+      "currentSha256": "2d5dc9446e8cf760c021e831237b19b16251506392b0f069f1a2fb4f4281a8cf",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/play-fun-integrate-20261027/VALIDATION.md",
+      "baselineSha256": "e8eb6a817c1e5e1d42623f3e4ab2fdb09ddfdcb64e69f3accea65d571af1e262",
+      "currentSha256": "e8eb6a817c1e5e1d42623f3e4ab2fdb09ddfdcb64e69f3accea65d571af1e262",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/play-fun-scene-push-20261027/VALIDATION.md",
+      "baselineSha256": "1f7fc28091b12cde77412b4a7da9681f293cfaec83f2ccf26254a4ec63b9fd17",
+      "currentSha256": "1f7fc28091b12cde77412b4a7da9681f293cfaec83f2ccf26254a4ec63b9fd17",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/play-fun-top5-20261027/VALIDATION.md",
+      "baselineSha256": "54bc69ffa76bd9d86eab9e47909fa365f350cb53e8973eb55d131574986673cc",
+      "currentSha256": "54bc69ffa76bd9d86eab9e47909fa365f350cb53e8973eb55d131574986673cc",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/play-quiet-20261027/VALIDATION.md",
+      "baselineSha256": "58f23e93b509c0ead5a1753f6bacae20ea59700aac57c44e47b99e60f101fabd",
+      "currentSha256": "58f23e93b509c0ead5a1753f6bacae20ea59700aac57c44e47b99e60f101fabd",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/play-refinement-20261026/validation.md",
+      "baselineSha256": "97f2aae9c8ec699132a46cd6319f244ce8f3bfb60022716156d8b343339c40d7",
+      "currentSha256": "97f2aae9c8ec699132a46cd6319f244ce8f3bfb60022716156d8b343339c40d7",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/playability-20261026/validation.md",
+      "baselineSha256": "8b36f0f7349a1619f46ab0a31afbacc68243ae33c062e15a5b2ea0b8f5a186b1",
+      "currentSha256": "8b36f0f7349a1619f46ab0a31afbacc68243ae33c062e15a5b2ea0b8f5a186b1",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/random-rooms-20261023/validation.md",
+      "baselineSha256": "221fb85cef42a7e75064ca38197a07849db14b71f544ba481173383af74ed6b6",
+      "currentSha256": "221fb85cef42a7e75064ca38197a07849db14b71f544ba481173383af74ed6b6",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/rift-failure-20261024/validation.md",
+      "baselineSha256": "15460722255aed10b04b092b7f99b79c03808d60f80039b5508d0ae707dabd02",
+      "currentSha256": "15460722255aed10b04b092b7f99b79c03808d60f80039b5508d0ae707dabd02",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/shadow-guardian-20261024/validation.md",
+      "baselineSha256": "7f55d15f294799f5fa4a95065ac1a808e2d02e17fa87bc49c5518bc3ad21f390",
+      "currentSha256": "7f55d15f294799f5fa4a95065ac1a808e2d02e17fa87bc49c5518bc3ad21f390",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/slices-20261023/validation.md",
+      "baselineSha256": "646f7e62ad6ddad82bfca41d046999e86dc22729461d5cd3bc0656e543feadf4",
+      "currentSha256": "646f7e62ad6ddad82bfca41d046999e86dc22729461d5cd3bc0656e543feadf4",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/synergies-20261023/validation.md",
+      "baselineSha256": "76cdd67a8214d1e344dac733cf368d417604cffafd5ef5225de85290c041208d",
+      "currentSha256": "76cdd67a8214d1e344dac733cf368d417604cffafd5ef5225de85290c041208d",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/validation.md",
+      "baselineSha256": "736d23bc233f82a2d1fb671098272d354d3031816f38aa171588a96c7ba9e415",
+      "currentSha256": "736d23bc233f82a2d1fb671098272d354d3031816f38aa171588a96c7ba9e415",
+      "unchanged": true
+    },
+    {
+      "path": "flatland.css",
+      "baselineSha256": "ebd60475acf14cda5a37362300044f58e2d5e218a003b1e7e199142c33ee9687",
+      "currentSha256": "ebd60475acf14cda5a37362300044f58e2d5e218a003b1e7e199142c33ee9687",
+      "unchanged": true
+    },
+    {
+      "path": "flatland.html",
+      "baselineSha256": "0f07459755a699650a6f03069855d097ed562cf27a07191ab9f8c6863efde4d7",
+      "currentSha256": "0f07459755a699650a6f03069855d097ed562cf27a07191ab9f8c6863efde4d7",
+      "unchanged": true
+    },
+    {
+      "path": "index.html",
+      "baselineSha256": "81ad1f035e6e8cc48c69aa1af6f735af0ba8f1e9df82a6b390a500b54b77eba7",
+      "currentSha256": "81ad1f035e6e8cc48c69aa1af6f735af0ba8f1e9df82a6b390a500b54b77eba7",
+      "unchanged": true
+    },
+    {
+      "path": "package.json",
+      "baselineSha256": "7d2006a2bc7c446d7bdfe7d692a87071687fa6e40d9acb57941fdca6455d051a",
+      "currentSha256": "7d2006a2bc7c446d7bdfe7d692a87071687fa6e40d9acb57941fdca6455d051a",
+      "unchanged": true
+    },
+    {
+      "path": "serve.js",
+      "baselineSha256": "caf3092767702d4900caa0ac1418ce613e8827a5fe55d040a7cb2b58de7827f9",
+      "currentSha256": "caf3092767702d4900caa0ac1418ce613e8827a5fe55d040a7cb2b58de7827f9",
+      "unchanged": true
+    },
+    {
+      "path": "src/audio.js",
+      "baselineSha256": "51a7097f87a74a6e893f70e3d04424f781cdf50eb010d723a4a7910cee0967d6",
+      "currentSha256": "51a7097f87a74a6e893f70e3d04424f781cdf50eb010d723a4a7910cee0967d6",
+      "unchanged": true
+    },
+    {
+      "path": "src/courtyard-friends.js",
+      "baselineSha256": "fb7fd8d1fc6095edf6481a29a8027172360ec67476751537c94b07e282a1baac",
+      "currentSha256": "fb7fd8d1fc6095edf6481a29a8027172360ec67476751537c94b07e282a1baac",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/ascend-scene.js",
+      "baselineSha256": "a96148325b8704bc071180cc48fd6081de8c88251a63ac36e0ca30dd5d3d3d25",
+      "currentSha256": "a96148325b8704bc071180cc48fd6081de8c88251a63ac36e0ca30dd5d3d3d25",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/ascend.js",
+      "baselineSha256": "96f171829432a60315c25885ce18b130592c8354807457f872d6e6fb6b056412",
+      "currentSha256": "96f171829432a60315c25885ce18b130592c8354807457f872d6e6fb6b056412",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/audio.js",
+      "baselineSha256": "6668cd50695de6a465960726d30fd354e40a72eef062138226b0f9f19b1a6a76",
+      "currentSha256": "6668cd50695de6a465960726d30fd354e40a72eef062138226b0f9f19b1a6a76",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/companions.js",
+      "baselineSha256": "87e5416c556964c64c884ac21777b7606257e8af944fd2ba636283cdf271bcec",
+      "currentSha256": "87e5416c556964c64c884ac21777b7606257e8af944fd2ba636283cdf271bcec",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/discoveries.js",
+      "baselineSha256": "f7efd0296a69454fe548c65bc5329a7df39e217b138800fa3a437d1c4974e1dd",
+      "currentSha256": "f7efd0296a69454fe548c65bc5329a7df39e217b138800fa3a437d1c4974e1dd",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/friends-scene.js",
+      "baselineSha256": "8e4d03953fa06ba29d3558b34963171f1720403018eafba6a4085ef42bcf5de8",
+      "currentSha256": "8e4d03953fa06ba29d3558b34963171f1720403018eafba6a4085ef42bcf5de8",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/geometry.js",
+      "baselineSha256": "efa8bb2704ab2dfb8e43a5a1da05e753a8276e48a9f27658ef0c68d6124333c5",
+      "currentSha256": "efa8bb2704ab2dfb8e43a5a1da05e753a8276e48a9f27658ef0c68d6124333c5",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/handoff.js",
+      "baselineSha256": "e91977f70b1faa9501e35e399953b973f6a4eb565f80b012fbe539b2d43d1170",
+      "currentSha256": "e91977f70b1faa9501e35e399953b973f6a4eb565f80b012fbe539b2d43d1170",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/hazards.js",
+      "baselineSha256": "7ec7c4cc960dec82a98680a22c79b7f04da2c1471e50090c7299afd240615aa3",
+      "currentSha256": "7ec7c4cc960dec82a98680a22c79b7f04da2c1471e50090c7299afd240615aa3",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/levels.js",
+      "baselineSha256": "095e4ff15ca20dbd0d3386bbeb2490d5650d69652a43c6f657ab3594b0a4d0b4",
+      "currentSha256": "095e4ff15ca20dbd0d3386bbeb2490d5650d69652a43c6f657ab3594b0a4d0b4",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/main.js",
+      "baselineSha256": "a5ff05fbc5b1ea7374dad326b2a56d03e001d4f2a3b075adcb75afcb44aba2c0",
+      "currentSha256": "a5ff05fbc5b1ea7374dad326b2a56d03e001d4f2a3b075adcb75afcb44aba2c0",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/mirror.js",
+      "baselineSha256": "c18b446f90506bb5f02a1f76543e947e1512b97fa49b206ca762aebbaaf3d518",
+      "currentSha256": "c18b446f90506bb5f02a1f76543e947e1512b97fa49b206ca762aebbaaf3d518",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/model.js",
+      "baselineSha256": "b8e1fef4126d3e57072a120fc29349be510052881d72372d5361b7d5d1523763",
+      "currentSha256": "b8e1fef4126d3e57072a120fc29349be510052881d72372d5361b7d5d1523763",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/perception.js",
+      "baselineSha256": "ae0e1c39fb977620743efeb72d29c2c2c97d2deff264d93983b11f62594ee8b8",
+      "currentSha256": "ae0e1c39fb977620743efeb72d29c2c2c97d2deff264d93983b11f62594ee8b8",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/progress.js",
+      "baselineSha256": "cca9ed2b656d1e37e5172bc64adc76035d2214e3f4b7c8e79271755e52ec3411",
+      "currentSha256": "cca9ed2b656d1e37e5172bc64adc76035d2214e3f4b7c8e79271755e52ec3411",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/random.js",
+      "baselineSha256": "6889d35720a84598fca7b2aa7294046caaea930efde884ea044a179ebed817e6",
+      "currentSha256": "6889d35720a84598fca7b2aa7294046caaea930efde884ea044a179ebed817e6",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/scene.js",
+      "baselineSha256": "a49fa9842ea6aa51d5a0934df331bd6aaf98feac5a9667cac65e94e3d20bea4a",
+      "currentSha256": "a49fa9842ea6aa51d5a0934df331bd6aaf98feac5a9667cac65e94e3d20bea4a",
+      "unchanged": true
+    },
+    {
+      "path": "src/flatland/visitor-cue.js",
+      "baselineSha256": "6f28f841a2c1b2b38ec9a8a8411309c4957e7be7cbdee57ecc0a5cb9455e8aca",
+      "currentSha256": "6f28f841a2c1b2b38ec9a8a8411309c4957e7be7cbdee57ecc0a5cb9455e8aca",
+      "unchanged": true
+    },
+    {
+      "path": "src/friend-guide.js",
+      "baselineSha256": "e59559a6d7dadc2352c085b378907a1224d6b88d9a434c16d75cce6eacfdeceb",
+      "currentSha256": "e59559a6d7dadc2352c085b378907a1224d6b88d9a434c16d75cce6eacfdeceb",
+      "unchanged": true
+    },
+    {
+      "path": "src/main.js",
+      "baselineSha256": "7c272601a0f04e6eefaeda0a5097c76057747348ec66bddf549218c060c439bf",
+      "currentSha256": "7c272601a0f04e6eefaeda0a5097c76057747348ec66bddf549218c060c439bf",
+      "unchanged": true
+    },
+    {
+      "path": "src/model.js",
+      "baselineSha256": "503e8c5bb264cfcd9ef645f5be8886958030ee1d5e7fd2b78496edf37432c940",
+      "currentSha256": "503e8c5bb264cfcd9ef645f5be8886958030ee1d5e7fd2b78496edf37432c940",
+      "unchanged": true
+    },
+    {
+      "path": "src/play-feedback.js",
+      "baselineSha256": "e324417008f20fdf185098171b448b18526ab3385d5a235605e261c5485443bb",
+      "currentSha256": "e324417008f20fdf185098171b448b18526ab3385d5a235605e261c5485443bb",
+      "unchanged": true
+    },
+    {
+      "path": "src/rooms.js",
+      "baselineSha256": "53d202c4cacfbb0ebc6005980e0da74a0ef5888aa04356a4f175ec144eaacff4",
+      "currentSha256": "53d202c4cacfbb0ebc6005980e0da74a0ef5888aa04356a4f175ec144eaacff4",
+      "unchanged": true
+    },
+    {
+      "path": "style.css",
+      "baselineSha256": "f4b1b471912aa5433224d43fe920faec9a572aa61aad50d2681250994bed74a5",
+      "currentSha256": "f4b1b471912aa5433224d43fe920faec9a572aa61aad50d2681250994bed74a5",
+      "unchanged": true
+    }
+  ]
+}

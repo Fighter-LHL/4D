@@ -1,0 +1,299 @@
+{
+  "status": "passed",
+  "rows": [
+    {
+      "suite": "browser-penpal",
+      "width": 1280,
+      "interrupt": false,
+      "secondInvited": true,
+      "secondCompleted": true,
+      "quietGapSeconds": 0.4666,
+      "beats": [
+        {
+          "beat": "arrival",
+          "node": "dew",
+          "time": 1.2165999999999975
+        },
+        {
+          "beat": "follow",
+          "node": "dew",
+          "time": 9.592399999952445
+        },
+        {
+          "beat": "mechanism",
+          "node": "dew",
+          "time": 10.908999999952417
+        },
+        {
+          "beat": "mechanism-follow",
+          "node": "dew",
+          "time": 17.550899999952218
+        }
+      ],
+      "events": [
+        {
+          "type": "activate",
+          "room": 0,
+          "node": "dew",
+          "via": "touch",
+          "layer": 2,
+          "tier": 1,
+          "time": 17.534199999952218
+        },
+        {
+          "type": "power",
+          "room": 0,
+          "from": "dew",
+          "to": "bell",
+          "node": "bell",
+          "layer": 1,
+          "complete": true,
+          "received": 1,
+          "required": 1,
+          "time": 18.045199999809142
+        }
+      ],
+      "conflicts": [],
+      "revisitBeats": [],
+      "passed": true
+    },
+    {
+      "suite": "browser-penpal",
+      "width": 390,
+      "interrupt": "mechanism-follow",
+      "secondInvited": true,
+      "secondCompleted": true,
+      "quietGapSeconds": 0.45,
+      "beats": [
+        {
+          "beat": "arrival",
+          "node": "dew",
+          "time": 1.2165999999999972
+        },
+        {
+          "beat": "follow",
+          "node": "dew",
+          "time": 9.593200000095491
+        },
+        {
+          "beat": "mechanism",
+          "node": "dew",
+          "time": 10.893100000095462
+        },
+        {
+          "beat": "mechanism-follow",
+          "node": "dew",
+          "time": 17.503100000238316
+        }
+      ],
+      "events": [
+        {
+          "type": "activate",
+          "room": 0,
+          "node": "dew",
+          "via": "touch",
+          "layer": 0,
+          "tier": 1,
+          "time": 17.48650000023832
+        }
+      ],
+      "conflicts": [],
+      "revisitBeats": [],
+      "passed": true
+    },
+    {
+      "suite": "browser-penpal",
+      "width": 320,
+      "interrupt": false,
+      "secondInvited": true,
+      "secondCompleted": true,
+      "quietGapSeconds": 0.45,
+      "beats": [
+        {
+          "beat": "arrival",
+          "node": "dew",
+          "time": 1.216599999999998
+        },
+        {
+          "beat": "follow",
+          "node": "dew",
+          "time": 9.591700000143186
+        },
+        {
+          "beat": "mechanism",
+          "node": "dew",
+          "time": 10.891600000143159
+        },
+        {
+          "beat": "mechanism-follow",
+          "node": "dew",
+          "time": 17.48340000014296
+        }
+      ],
+      "events": [
+        {
+          "type": "activate",
+          "room": 0,
+          "node": "dew",
+          "via": "touch",
+          "layer": 2,
+          "tier": 1,
+          "time": 17.466700000142964
+        },
+        {
+          "type": "power",
+          "room": 0,
+          "from": "dew",
+          "to": "bell",
+          "node": "bell",
+          "layer": 0,
+          "complete": true,
+          "received": 1,
+          "required": 1,
+          "time": 17.975200000333672
+        }
+      ],
+      "conflicts": [],
+      "revisitBeats": [],
+      "passed": true
+    },
+    {
+      "suite": "browser-top5",
+      "width": 1280,
+      "interrupt": "mechanism",
+      "secondInvited": true,
+      "secondCompleted": false,
+      "quietGapSeconds": 0.4666,
+      "beats": [
+        {
+          "beat": "arrival",
+          "node": "dew",
+          "time": 1.2165999999999972
+        },
+        {
+          "beat": "follow",
+          "node": "dew",
+          "time": 9.606800000000138
+        },
+        {
+          "beat": "mechanism",
+          "node": "dew",
+          "time": 10.92340000000011
+        }
+      ],
+      "events": [
+        {
+          "type": "activate",
+          "room": 0,
+          "node": "dew",
+          "via": "touch",
+          "layer": 2,
+          "tier": 1,
+          "time": 11.432499999952412
+        },
+        {
+          "type": "power",
+          "room": 0,
+          "from": "dew",
+          "to": "bell",
+          "node": "bell",
+          "layer": 0,
+          "complete": true,
+          "received": 1,
+          "required": 1,
+          "time": 11.932499999952402
+        }
+      ],
+      "conflicts": [],
+      "revisitBeats": [],
+      "passed": true
+    },
+    {
+      "suite": "browser-top5",
+      "width": 390,
+      "interrupt": "follow",
+      "secondInvited": false,
+      "secondCompleted": false,
+      "quietGapSeconds": null,
+      "beats": [
+        {
+          "beat": "arrival",
+          "node": "dew",
+          "time": 1.2166999999999972
+        },
+        {
+          "beat": "follow",
+          "node": "dew",
+          "time": 9.558799999904767
+        }
+      ],
+      "events": [
+        {
+          "type": "activate",
+          "room": 0,
+          "node": "dew",
+          "via": "touch",
+          "layer": 2,
+          "tier": 1,
+          "time": 9.90869999990476
+        },
+        {
+          "type": "power",
+          "room": 0,
+          "from": "dew",
+          "to": "bell",
+          "node": "bell",
+          "layer": 1,
+          "complete": true,
+          "received": 1,
+          "required": 1,
+          "time": 10.40869999990475
+        }
+      ],
+      "conflicts": [],
+      "revisitBeats": [],
+      "passed": true
+    },
+    {
+      "suite": "browser-top5",
+      "width": 320,
+      "interrupt": "arrival",
+      "secondInvited": false,
+      "secondCompleted": false,
+      "quietGapSeconds": null,
+      "beats": [
+        {
+          "beat": "arrival",
+          "node": "dew",
+          "time": 1.2165999999999972
+        }
+      ],
+      "events": [
+        {
+          "type": "activate",
+          "room": 0,
+          "node": "dew",
+          "via": "touch",
+          "layer": 2,
+          "tier": 1,
+          "time": 8.042400000047852
+        },
+        {
+          "type": "power",
+          "room": 0,
+          "from": "dew",
+          "to": "bell",
+          "node": "bell",
+          "layer": 0,
+          "complete": true,
+          "received": 1,
+          "required": 1,
+          "time": 8.54240000004784
+        }
+      ],
+      "conflicts": [],
+      "revisitBeats": [],
+      "passed": true
+    }
+  ]
+}

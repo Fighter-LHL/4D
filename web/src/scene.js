@@ -919,7 +919,7 @@ export class SceneRenderer {
     if (!node) return;
     const ctx = this.ctx, p = clamp(cue.age / cue.duration);
     const opacity = Math.min(1, cue.age / .25) * (1 - ease((p - .55) / .45));
-    const narrow = this.width <= 480, follow = cue.beat === 'follow';
+    const narrow = this.width <= 480, follow = cue.beat === 'follow' || cue.beat === 'mechanism-follow';
     const pulse = this.reducedMotion ? 1 : .5 - .5 * Math.cos(TAU * cue.age / 1.4);
     const width = node.id === 'hub' ? 91 : 64;
     const swell = this.reducedMotion ? 0 : width * .06 * pulse;

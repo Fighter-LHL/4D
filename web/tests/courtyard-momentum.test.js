@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CourtyardMomentum } from '../src/courtyard-momentum.js';
 import { FriendGuide } from '../src/friend-guide.js';
-import { start, travel, fall } from './model-helpers.js';
+import { start, travel, fall, advance } from './model-helpers.js';
 
-function setup(options) {
-  const model = start('shell', 2), guide = new FriendGuide(), momentum = new CourtyardMomentum(options);
+function setup(options, seed = 2) {
+  const model = start('shell', seed), guide = new FriendGuide(), momentum = new CourtyardMomentum(options);
   const update = model.update.bind(model);
   const tick = (seconds, active = true) => {
     for (let t = 0; t < seconds; t += .01) {
@@ -79,7 +79,7 @@ test('first discovery entry has one quiet opportunity, freezes and yields to occ
   }
 });
 
-test('first entry closes exactly one beat on a real safe landing, with no idle sequel or model changes', () => {
+test('first entry offers one mechanism after a fully quiet follow, then closes on real activation', () => {
   for (const wait of [0, 8]) {
     const { model: m, guide, momentum, tick, view } = setup({ arrival: true });
     tick(1.5); assert.equal(view().beat, 'arrival');
@@ -89,12 +89,25 @@ test('first entry closes exactly one beat on a real safe landing, with no idle s
     assert.equal(view().beat, 'follow'); assert.equal(view().node, m.node);
     assert.equal(guide.settled, true); assert.equal(guide.view(m.snapshot()), null);
     const before = m.snapshot(), frozen = view(); tick(3, false);
-    assert.deepEqual(view(), frozen); tick(10);
-    assert.equal(view(), null); assert.deepEqual(m.snapshot(), before);
-    m.interact(); guide.activity(); tick(8);
-    assert.equal(view(), null, 'activation does not turn the first beat into a tutorial route');
+    assert.deepEqual(view(), frozen);
+    while (momentum.cue?.beat === 'follow') tick(.01);
+    assert.equal(view(), null, 'the first follow has fully faded');
+    tick(.3); assert.equal(view(), null, 'a quiet gap separates the two beats');
+    tick(.2); assert.equal(view().beat, 'mechanism'); assert.equal(view().node, target);
+    assert.equal(m.snapshot().interactAvailable, true, 'existing E action can fulfill the invitation');
+    const invited = view(); tick(3, false); assert.deepEqual(view(), invited);
+    tick(8); assert.equal(view(), null, 'one invitation expires without idle replay');
+    assert.deepEqual(m.snapshot(), before, 'all invitation and quiet time is presentation only');
+    assert.equal(m.interact(), true); guide.activity(); m.update(.01);
+    assert.equal(view().beat, 'mechanism-follow');
+    const activated = view(); tick(3, false); assert.deepEqual(view(), activated);
+    advance(m, .51);
+    assert.deepEqual(m.snapshot().nodes.find(n => n.id === 'bell').received, [target]);
+    assert.equal(m.snapshot().nodes.find(n => n.id === 'bell').powered, false, 'one source does not claim both supplies');
+    tick(8); assert.equal(view(), null);
+    assert.equal(m.interact(), false); tick(1); assert.equal(view(), null);
     travel(m, 'hub'); travel(m, target); tick(1);
-    assert.equal(view(), null); assert.deepEqual([...momentum.used], ['arrival', 'follow']);
+    assert.equal(view(), null); assert.deepEqual([...momentum.used], ['arrival', 'follow', 'mechanism', 'mechanism-follow']);
   }
 });
 
@@ -152,5 +165,73 @@ test('explicit help instantly cancels arrival or earned feedback without delayed
     assert.equal(view().beat, beat);
     momentum.cancel(); guide.request(m.snapshot()); assert.equal(view(), null);
     tick(10); assert.equal(view(), null);
+  }
+});
+
+
+for (const seed of [0, 2, 7, 10]) test(`second beat uses the actual first source/gate in room seed ${seed}`, () => {
+  const { model: m, guide, momentum, tick, view } = setup({ arrival: true }, seed);
+  tick(1.5); const target = view().node;
+  travel(m, target); tick(1.5);
+  assert.equal(view().beat, 'mechanism'); assert.equal(view().node, target);
+  const before = m.snapshot();
+  assert.equal(before.nodes.find(n => n.id === target).kind, 'mechanism');
+  assert.equal(before.interactAvailable, true);
+  assert.ok(before.nodes.some(n => n.kind === 'mechanism' && !n.powered));
+  assert.equal(m.interact(), true); guide.activity(); m.update(.01);
+  assert.equal(view().beat, 'mechanism-follow');
+  advance(m, .51);
+  for (const receiver of before.nodes.filter(n => n.required?.includes(target))) {
+    assert.ok(m.snapshot().nodes.find(n => n.id === receiver.id).received.includes(target));
+  }
+  tick(20); assert.equal(view(), null);
+  assert.deepEqual([...momentum.used], ['arrival', 'follow', 'mechanism', 'mechanism-follow']);
+});
+
+test('early activation never queues an unnecessary second or third step', () => {
+  for (const timing of ['follow', 'gap']) {
+    const { model: m, guide, momentum, tick, view } = setup({ arrival: true });
+    tick(1.5); travel(m, view().node); tick(.2);
+    if (timing === 'gap') while (momentum.cue?.beat === 'follow') tick(.01);
+    assert.equal(m.interact(), true); guide.activity(); advance(m, .6);
+    tick(10); assert.equal(view(), null);
+    assert.deepEqual([...momentum.used], ['arrival', 'follow']);
+  }
+});
+
+test('help at first follow, quiet gap, second invitation, expired invitation or second follow spends the opportunity', () => {
+  for (const timing of ['follow', 'gap', 'invitation', 'expired', 'complete']) {
+    const { model: m, guide, momentum, tick, view } = setup({ arrival: true });
+    tick(1.5); travel(m, view().node); tick(.2);
+    if (timing !== 'follow') while (momentum.cue?.beat === 'follow') tick(.01);
+    if (['invitation', 'expired', 'complete'].includes(timing)) tick(.5);
+    if (timing === 'expired') tick(8);
+    if (timing === 'complete') { m.interact(); m.update(.01); assert.equal(view().beat, 'mechanism-follow'); }
+    momentum.cancel(); guide.request(m.snapshot()); assert.equal(view(), null);
+    tick(5); m.interact(); advance(m, .6); tick(15);
+    assert.equal(view(), null); assert.equal(momentum.mechanism, null);
+    if (timing !== 'complete') assert.equal(momentum.used.has('mechanism-follow'), false);
+  }
+});
+
+test('second opportunity is retired by departure, failed travel, slice change, risk or a new run/room', () => {
+  for (const timing of ['gap', 'invitation', 'expired']) for (const reason of ['depart', 'fail', 'slice', 'risk', 'restart', 'room', 'wave']) {
+    const { model: m, guide, momentum, tick, view } = setup({ arrival: true });
+    tick(1.5); const target = view().node; travel(m, target); tick(.2);
+    while (momentum.cue?.beat === 'follow') tick(.01);
+    if (timing !== 'gap') tick(.5);
+    if (timing === 'expired') tick(8);
+    if (reason === 'depart') { travel(m, 'hub'); travel(m, target); }
+    if (reason === 'fail') fall(m, 'hub');
+    if (reason === 'slice') { m.setW(.5); tick(.1); m.setW(.82); }
+    if (reason === 'risk') { m.setRisk(true); tick(.1); m.setRisk(false); }
+    if (reason === 'restart') { m.restart(); tick(.1); m.chooseRelic('shell'); travel(m, target); }
+    if (reason === 'room' || reason === 'wave') {
+      const s = m.snapshot();
+      momentum.update(.01, reason === 'room' ? { ...s, room: s.room + 1 } : { ...s, wave: {} }, guide);
+    }
+    tick(.1); m.interact(); advance(m, .6); tick(12);
+    assert.equal(view(), null, `${timing}/${reason}`);
+    assert.equal(momentum.used.has('mechanism-follow'), false, `${timing}/${reason}`);
   }
 });

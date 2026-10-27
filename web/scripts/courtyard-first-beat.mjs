@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 // Appended only by the browser checks: observes real input/rendering, never
 // changes the model, timing, collection, or persisted first-entry budget.
 export const courtyardBeatObserver = `
-window.__courtyardBeats = []; window.__courtyardBeatConflicts = [];
+window.__courtyardBeats = []; window.__courtyardBeatEnds = []; window.__courtyardBeatEvents = []; window.__courtyardBeatConflicts = [];
+const beatPush = scene.pushEvents.bind(scene);
+scene.pushEvents = events => { window.__courtyardBeatEvents.push(...events.filter(e => ['activate', 'power', 'fail'].includes(e.type)).map(e => ({ ...e, time: model.time }))); beatPush(events); };
 let observedBeat = null, beatDrawing = false, beatStrokes = 0;
 const beatRender = scene.render.bind(scene), beatDraw = scene.drawMomentum.bind(scene), beatStroke = scene.ctx.stroke.bind(scene.ctx);
 scene.ctx.stroke = (...args) => { if (beatDrawing && scene.ctx.globalAlpha > .05) beatStrokes++; return beatStroke(...args); };
@@ -12,6 +14,7 @@ scene.render = dt => {
   beatStrokes = 0; beatRender(dt);
   const cue = scene.state?.courtyardMomentum, key = cue && cue.beat + ':' + cue.node;
   if (key && key !== observedBeat) window.__courtyardBeats.push({ beat: cue.beat, node: cue.node, time: model.time });
+  if (observedBeat && key !== observedBeat) window.__courtyardBeatEnds.push({ key: observedBeat, time: model.time });
   observedBeat = key;
   const primary = [...document.querySelectorAll('.action-row .primary-button, .action-row .attention-action')];
   if (primary.length > 1 || primary.some(el => el.disabled) || (cue && scene.state.companionGuide))
@@ -20,7 +23,8 @@ scene.render = dt => {
 window.__courtyardBeat = () => structuredClone({ time: model.time, firstEntry: momentum.firstEntry,
   cue: scene.state?.courtyardMomentum, renderedNode: scene.momentumNode()?.id, strokes: beatStrokes,
   node: model.node, selected: model.selected, settled: guide.settled, used: [...momentum.used],
-  beats: window.__courtyardBeats, conflicts: window.__courtyardBeatConflicts });
+  activated: [...model.activated], nodes: model.snapshot().nodes.map(n => ({ id: n.id, required: n.required, received: n.received, powered: n.powered, present: n.present })),
+  beats: window.__courtyardBeats, ends: window.__courtyardBeatEnds, events: window.__courtyardBeatEvents, conflicts: window.__courtyardBeatConflicts });
 `;
 
 // Called after the real "go to courtyard" link with a genuinely earned friend.
@@ -49,8 +53,9 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
   await page.waitForTimeout(250);
   assert.deepEqual((await read()).cue, frozen);
   await page.locator('#resume').click();
-  let completed = null;
-  if (interrupt) {
+  let completed = null, secondInvitation = null, secondCompleted = null;
+  const helpAt = interrupt === true ? 'arrival' : interrupt;
+  if (helpAt === 'arrival') {
     await page.keyboard.press('h');
     assert.equal((await read()).cue, null, 'H immediately takes the invitation channel');
     assert.equal(await page.locator('#friend-guide').isVisible(), true);
@@ -76,20 +81,82 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
     assert.equal(await page.locator('#friend-guide').isVisible(), false);
     assert.equal(await page.locator('.action-row .primary-button').count(), 1);
     await shot('complete');
-    await page.keyboard.press('h');
-    assert.equal((await read()).cue, null, 'earned feedback also yields immediately to H');
-    assert.equal(await page.locator('#friend-guide').isVisible(), true);
+    if (helpAt === 'follow') {
+      await page.keyboard.press('h');
+      assert.equal((await read()).cue, null, 'H during the first follow cancels the second opportunity');
+      assert.equal(await page.locator('#friend-guide').isVisible(), true);
+      await shot('follow-help');
+    } else {
+      await page.waitForFunction(() => window.__courtyardBeat().cue?.beat === 'mechanism' && window.__courtyardBeat().cue.age >= .3);
+      secondInvitation = await read();
+      assert.equal(secondInvitation.cue.node, completed.node, 'invite the actual first source/gate underfoot');
+      assert.equal(secondInvitation.renderedNode, secondInvitation.cue.node);
+      assert.ok(secondInvitation.strokes > 0, 'the second invitation is painted, not only scheduled');
+      const firstEnd = secondInvitation.ends.find(e => e.key === 'follow:' + completed.node);
+      const secondStart = secondInvitation.beats.find(b => b.beat === 'mechanism');
+      assert.ok(secondStart.time - firstEnd.time >= .44, 'first follow fully ends, then a quiet gap');
+      assert.deepEqual(secondInvitation.used, ['arrival', 'follow', 'mechanism']);
+      assert.equal(await page.locator('.action-row .primary-button').count(), 1);
+      assert.equal(await page.locator('#interact.primary-button.attention-action').count(), 1);
+      assert.equal(await page.locator('#friend-guide').isVisible(), false);
+      await page.screenshot({ path: `${out}/courtyard-second-beat-invitation-${width}.png`, fullPage: true });
+      await page.locator('#pause').click();
+      const secondFrozen = (await read()).cue;
+      await page.waitForTimeout(250); assert.deepEqual((await read()).cue, secondFrozen);
+      await page.locator('#resume').click();
+      if (helpAt === 'mechanism') {
+        await page.keyboard.press('h');
+        assert.equal((await read()).cue, null, 'H immediately takes the second invitation channel');
+        assert.equal(await page.locator('#friend-guide').isVisible(), true);
+        await page.screenshot({ path: `${out}/courtyard-second-beat-help-${width}.png`, fullPage: true });
+      } else {
+        await page.waitForFunction(t => window.__courtyardBeat().time >= t + 6.2, secondInvitation.time);
+        assert.equal((await read()).cue, null, 'expired second invitation stays quiet');
+        assert.equal(await page.locator('#friend-guide').isVisible(), false, 'no automatic idle help');
+        assert.deepEqual((await read()).used, ['arrival', 'follow', 'mechanism']);
+        await page.screenshot({ path: `${out}/courtyard-second-beat-idle-${width}.png`, fullPage: true });
+      }
+    }
   }
   await page.locator('#interact').click();
   await page.waitForFunction(() => document.querySelector('#mechanism-count').textContent === '1 / 3');
   const activatedAt = (await read()).time;
+  if (secondInvitation && helpAt !== 'mechanism') {
+    await page.waitForFunction(() => window.__courtyardBeat().cue?.beat === 'mechanism-follow' && window.__courtyardBeat().cue.age >= .2);
+    secondCompleted = await read();
+    assert.equal(secondCompleted.renderedNode, secondInvitation.cue.node);
+    assert.ok(secondCompleted.strokes > 0);
+    assert.ok(secondCompleted.activated.includes(secondInvitation.cue.node));
+    assert.equal(secondCompleted.events.filter(e => e.type === 'activate' && e.node === secondInvitation.cue.node && e.via === 'touch').length, 1);
+    assert.deepEqual(secondCompleted.used, ['arrival', 'follow', 'mechanism', 'mechanism-follow']);
+    assert.equal(await page.locator('#friend-guide').isVisible(), false);
+    await page.screenshot({ path: `${out}/courtyard-second-beat-complete-${width}.png`, fullPage: true });
+    await page.locator('#pause').click();
+    const completionFrozen = (await read()).cue;
+    await page.waitForTimeout(250); assert.deepEqual((await read()).cue, completionFrozen);
+    await page.locator('#resume').click();
+    if (helpAt === 'mechanism-follow') {
+      await page.keyboard.press('h');
+      assert.equal((await read()).cue, null);
+      assert.equal(await page.locator('#friend-guide').isVisible(), true);
+    }
+  }
   await page.waitForFunction(t => window.__courtyardBeat().time >= t + 6.2, activatedAt);
   const settled = await read();
   assert.equal(settled.cue, null);
-  assert.deepEqual(settled.beats.map(b => b.beat), interrupt ? ['arrival'] : ['arrival', 'follow']);
+  const expected = helpAt === 'arrival' ? ['arrival'] : helpAt === 'follow' ? ['arrival', 'follow']
+    : helpAt === 'mechanism' ? ['arrival', 'follow', 'mechanism'] : ['arrival', 'follow', 'mechanism', 'mechanism-follow'];
+  assert.deepEqual(settled.beats.map(b => b.beat), expected);
+  if (secondInvitation) for (const receiver of secondInvitation.nodes.filter(n => n.required?.includes(secondInvitation.cue.node))) {
+    const actual = settled.nodes.find(n => n.id === receiver.id);
+    assert.ok(actual.received.includes(secondInvitation.cue.node), 'real supply reaches the model receiver');
+    assert.equal(actual.powered, actual.required.every(id => actual.received.includes(id)), 'partial supply is never reported complete');
+    assert.equal(settled.events.filter(e => e.type === 'power' && e.from === secondInvitation.cue.node && e.to === receiver.id).length, 1);
+  }
   assert.equal(await page.locator('#friend-guide').isVisible(), false);
   assert.deepEqual(settled.conflicts, []);
   await shot('settled');
+  if (secondInvitation) await page.screenshot({ path: `${out}/courtyard-second-beat-settled-${width}.png`, fullPage: true });
   await page.reload();
   await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
   await page.locator('#align').click();
@@ -98,5 +165,5 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
   assert.equal(revisit.firstEntry, false); assert.equal(revisit.cue, null);
   assert.deepEqual(revisit.beats, []); assert.deepEqual(revisit.used, []);
   assert.deepEqual(revisit.conflicts, []);
-  return { invitation, completed, settled, revisit, interrupt, idleSeconds: interrupt ? null : 6.5, passed: true };
+  return { invitation, completed, secondInvitation, secondCompleted, settled, revisit, interrupt: helpAt, idleSeconds: helpAt === 'arrival' ? null : 6.5, secondIdleSeconds: secondCompleted ? 6.2 : null, passed: true };
 }

@@ -291,7 +291,7 @@ ${courtyardBeatObserver}
     await page.locator('#start').click();
     // Real handoff link, using the freshly earned collection and untouched storage.
     await page.getByRole('link', { name: '去庭院 ↗', exact: true }).first().click();
-    const courtyardEntry = await verifyCourtyardFirstBeat(page, out, width, { interrupt: width === 320 });
+    const courtyardEntry = await verifyCourtyardFirstBeat(page, out, width, { interrupt: width === 320 ? 'arrival' : width === 390 ? 'follow' : 'mechanism' });
     // Continue deterministic courtyard coverage with the same earned collection.
     await page.goto(`${baseURL}/?seed=2`);
     await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();

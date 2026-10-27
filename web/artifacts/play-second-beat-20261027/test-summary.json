@@ -1,0 +1,19 @@
+{
+  "command": "npm test",
+  "exitCode": 0,
+  "tests": 309,
+  "passed": 309,
+  "failed": 0,
+  "skipped": 0,
+  "rawOutputSha256": "c22d0251bf0f70bfa1d66cbaf47b29e164cba732e2933135c16f7060696eae4c",
+  "rawOutputLocal": "npm-test.txt",
+  "syntaxChecked": [
+    "scripts/courtyard-first-beat.mjs",
+    "scripts/verify-penpal.mjs",
+    "scripts/verify-top5.mjs",
+    "src/courtyard-momentum.js",
+    "src/scene.js",
+    "tests/courtyard-momentum.test.js"
+  ],
+  "diffCheckPassed": true
+}

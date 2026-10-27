@@ -237,7 +237,7 @@ ${courtyardBeatObserver}
     }
     assert.deepEqual(await page.evaluate(() => window.__penpalDiscovery().state.collection.found), ['sprout']);
     await page.getByRole('link', { name: '去庭院 ↗', exact: true }).first().click();
-    const firstEntryBeat = await verifyCourtyardFirstBeat(page, out, width);
+    const firstEntryBeat = await verifyCourtyardFirstBeat(page, out, width, { interrupt: width === 390 ? 'mechanism-follow' : false });
     receipt.checks.push({ width, height: width > 700 ? 900 : 844, firstCrossingMs, secondSourceCueMs, landingGuideQuiet: true,
       landingAndOnwardGlints: true, landing, onwardLayout, compactProgress: width <= 480, singleSupplyProgress: true, followAfterExpiry: true, unfollowedQuietSeconds: 4.2, glintYieldsToExplicitHelp: true, explicitHelpAfterLanding: true, firstEntryBeat, passed: true });
     await context.close();
