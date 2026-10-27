@@ -1,0 +1,263 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "suite": "browser-penpal-attempt2",
+      "width": 1280,
+      "height": 900,
+      "status": "passed",
+      "browser": "130.0.6723.31",
+      "errors": [],
+      "entryChoice": {
+        "friends": [
+          {
+            "id": "sprout",
+            "name": "跳跳"
+          }
+        ],
+        "starterRelic": "shell",
+        "initialPhase": "choose",
+        "chosenRelics": {
+          "prism": 0,
+          "shadow": 0,
+          "coil": 0,
+          "weave": 0,
+          "shell": 1
+        },
+        "singlePrimary": true,
+        "keyboardDisclosure": true,
+        "fitsCollapsedAndExpanded": true,
+        "noAutostart": true
+      },
+      "firstEntryUsed": [
+        "arrival",
+        "follow",
+        "mechanism",
+        "mechanism-follow"
+      ],
+      "interrupt": false,
+      "powerChainActivated": [
+        "dew",
+        "bloom",
+        "bell"
+      ],
+      "interludeChoices": [
+        "prism",
+        "shadow",
+        "coil",
+        "weave",
+        "shell"
+      ],
+      "samePageRestartAndRevisitOrdinary": true
+    },
+    {
+      "suite": "browser-penpal-attempt2",
+      "width": 390,
+      "height": 844,
+      "status": "passed",
+      "browser": "130.0.6723.31",
+      "errors": [],
+      "entryChoice": {
+        "friends": [
+          {
+            "id": "sprout",
+            "name": "跳跳"
+          }
+        ],
+        "starterRelic": "shadow",
+        "initialPhase": "choose",
+        "chosenRelics": {
+          "prism": 0,
+          "shadow": 1,
+          "coil": 0,
+          "weave": 0,
+          "shell": 0
+        },
+        "singlePrimary": true,
+        "keyboardDisclosure": true,
+        "fitsCollapsedAndExpanded": true,
+        "noAutostart": true
+      },
+      "firstEntryUsed": [
+        "arrival",
+        "follow",
+        "mechanism",
+        "mechanism-follow"
+      ],
+      "interrupt": "mechanism-follow",
+      "powerChainActivated": [
+        "dew",
+        "bell",
+        "bloom"
+      ],
+      "interludeChoices": [
+        "prism",
+        "shadow",
+        "coil",
+        "weave",
+        "shell"
+      ],
+      "samePageRestartAndRevisitOrdinary": true
+    },
+    {
+      "suite": "browser-penpal-attempt2",
+      "width": 320,
+      "height": 844,
+      "status": "passed",
+      "browser": "130.0.6723.31",
+      "errors": [],
+      "entryChoice": {
+        "friends": [
+          {
+            "id": "sprout",
+            "name": "跳跳"
+          }
+        ],
+        "starterRelic": "shell",
+        "initialPhase": "choose",
+        "chosenRelics": {
+          "prism": 0,
+          "shadow": 0,
+          "coil": 0,
+          "weave": 0,
+          "shell": 1
+        },
+        "singlePrimary": true,
+        "keyboardDisclosure": true,
+        "fitsCollapsedAndExpanded": true,
+        "noAutostart": true
+      },
+      "firstEntryUsed": [
+        "arrival",
+        "follow",
+        "mechanism",
+        "mechanism-follow"
+      ],
+      "interrupt": false,
+      "powerChainActivated": [
+        "dew",
+        "bloom",
+        "bell"
+      ],
+      "interludeChoices": [
+        "prism",
+        "shadow",
+        "coil",
+        "weave",
+        "shell"
+      ],
+      "samePageRestartAndRevisitOrdinary": true
+    },
+    {
+      "suite": "browser-top5-attempt2",
+      "width": 1280,
+      "height": 900,
+      "status": "passed",
+      "browser": "130.0.6723.31",
+      "errors": [],
+      "entryChoice": {
+        "friends": [
+          {
+            "id": "sprout",
+            "name": "跳跳"
+          }
+        ],
+        "starterRelic": "shell",
+        "initialPhase": "choose",
+        "chosenRelics": {
+          "prism": 0,
+          "shadow": 0,
+          "coil": 0,
+          "weave": 0,
+          "shell": 1
+        },
+        "singlePrimary": true,
+        "keyboardDisclosure": true,
+        "fitsCollapsedAndExpanded": true,
+        "noAutostart": true
+      },
+      "firstEntryUsed": [
+        "arrival",
+        "follow",
+        "mechanism"
+      ],
+      "interrupt": "mechanism",
+      "powerChainActivated": null,
+      "interludeChoices": null,
+      "samePageRestartAndRevisitOrdinary": true
+    },
+    {
+      "suite": "browser-top5-attempt2",
+      "width": 390,
+      "height": 844,
+      "status": "passed",
+      "browser": "130.0.6723.31",
+      "errors": [],
+      "entryChoice": {
+        "friends": [
+          {
+            "id": "sprout",
+            "name": "跳跳"
+          }
+        ],
+        "starterRelic": "shell",
+        "initialPhase": "choose",
+        "chosenRelics": {
+          "prism": 0,
+          "shadow": 0,
+          "coil": 0,
+          "weave": 0,
+          "shell": 1
+        },
+        "singlePrimary": true,
+        "keyboardDisclosure": true,
+        "fitsCollapsedAndExpanded": true,
+        "noAutostart": true
+      },
+      "firstEntryUsed": [
+        "arrival",
+        "follow"
+      ],
+      "interrupt": "follow",
+      "powerChainActivated": null,
+      "interludeChoices": null,
+      "samePageRestartAndRevisitOrdinary": true
+    },
+    {
+      "suite": "browser-top5-attempt2",
+      "width": 320,
+      "height": 844,
+      "status": "passed",
+      "browser": "130.0.6723.31",
+      "errors": [],
+      "entryChoice": {
+        "friends": [
+          {
+            "id": "sprout",
+            "name": "跳跳"
+          }
+        ],
+        "starterRelic": "shell",
+        "initialPhase": "choose",
+        "chosenRelics": {
+          "prism": 0,
+          "shadow": 0,
+          "coil": 0,
+          "weave": 0,
+          "shell": 1
+        },
+        "singlePrimary": true,
+        "keyboardDisclosure": true,
+        "fitsCollapsedAndExpanded": true,
+        "noAutostart": true
+      },
+      "firstEntryUsed": [
+        "arrival"
+      ],
+      "interrupt": "arrival",
+      "powerChainActivated": null,
+      "interludeChoices": null,
+      "samePageRestartAndRevisitOrdinary": true
+    }
+  ]
+}

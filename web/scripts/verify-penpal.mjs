@@ -60,6 +60,11 @@ ${courtyardBeatObserver}
     });
     page.on('pageerror', error => receipt.errors.push(error.message));
     page.on('console', message => { if (['error', 'warning'].includes(message.type())) receipt.errors.push(message.text()); });
+    await page.goto(`${baseURL}/?seed=2&from=discovery`);
+    await page.locator('#choice-dialog[open]').waitFor();
+    assert.equal(await page.locator('#choice-dialog.discovery-choice').count(), 0, 'a bare discovery URL cannot fabricate an earned entry');
+    assert.equal(await page.locator('#relic-choices button:visible').count(), 5);
+    assert.equal(await page.evaluate(() => localStorage.getItem('wslice-courtyard-welcome')), null, 'unearned entry does not spend the welcome');
     await page.goto(`${baseURL}/?seed=2`);
     await page.locator('#choice-dialog[open]').waitFor();
     assert.equal(await page.locator('#relic-choices button').count(), 5);
@@ -242,7 +247,7 @@ ${courtyardBeatObserver}
     }
     assert.deepEqual(await page.evaluate(() => window.__penpalDiscovery().state.collection.found), ['sprout']);
     await page.getByRole('link', { name: '去庭院 ↗', exact: true }).first().click();
-    const firstEntryBeat = await verifyCourtyardFirstBeat(page, out, width, { interrupt: width === 390 ? 'mechanism-follow' : false, fullPowerChain: true });
+    const firstEntryBeat = await verifyCourtyardFirstBeat(page, out, width, { interrupt: width === 390 ? 'mechanism-follow' : false, fullPowerChain: true, starterRelic: width === 390 ? 'shadow' : 'shell' });
     receipt.checks.push({ width, height: width > 700 ? 900 : 844, firstCrossingMs, secondSourceCueMs, landingGuideQuiet: true,
       landingAndOnwardGlints: true, landing, onwardLayout, compactProgress: width <= 480, singleSupplyProgress: true, remotePower, powerAtReceiver, followAfterExpiry: true, unfollowedQuietSeconds: 4.2, glintYieldsToExplicitHelp: true, explicitHelpAfterLanding: true, firstEntryBeat, passed: true });
     await context.close();

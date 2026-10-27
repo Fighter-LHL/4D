@@ -44,6 +44,7 @@ scene.render = dt => {
 };
 window.__courtyardSupplyState = () => model.snapshot();
 window.__courtyardBeat = () => structuredClone({ time: model.time, firstEntry: momentum.firstEntry,
+  friends: scene.friends.map(({ id, name }) => ({ id, name })),
   firstAction: momentum.firstAction(model.snapshot(), guide), objective: $('objective').textContent, moveLabel: $('move').textContent,
   cue: scene.state?.courtyardMomentum, renderedNode: scene.momentumNode()?.id, strokes: beatStrokes,
   node: model.node, selected: model.selected, settled: guide.settled, used: [...momentum.used],
@@ -118,11 +119,51 @@ export async function verifyPowerAtReceiver(page, out, width) {
 }
 
 // Called after the real "go to courtyard" link with a genuinely earned friend.
-export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = false, fullPowerChain = false } = {}) {
+export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = false, fullPowerChain = false, starterRelic = 'shell' } = {}) {
   const read = () => page.evaluate(() => window.__courtyardBeat());
   const shot = name => page.screenshot({ path: `${out}/courtyard-first-beat-${name}-${width}.png`, fullPage: true });
   assert.equal(new URL(page.url()).searchParams.get('from'), 'discovery');
-  await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
+  await page.locator('#choice-dialog[open]').waitFor();
+  const beforeChoice = await page.evaluate(() => window.__courtyardSupplyState());
+  const friends = (await read()).friends;
+  assert.ok(friends.length > 0, 'entry uses an actually earned companion');
+  assert.equal(await page.locator('#choice-title').innerText(), `${friends.length === 1 ? friends[0].name : '伙伴们'}也来了。`);
+  const primaryChoice = page.getByRole('button', { name: '带缓落壳出发', exact: true });
+  assert.equal(await page.locator('#relic-choices .primary-button').count(), 1);
+  assert.equal(await page.locator('#relic-choices button:visible').count(), 1);
+  assert.equal(await page.locator('#relic-choices button').count(), 5, 'all five relics remain available');
+  assert.ok(await primaryChoice.evaluate(el => document.activeElement === el), 'entry focuses the explicit departure action');
+  assert.ok(await primaryChoice.evaluate(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight));
+  const choiceBox = await primaryChoice.boundingBox();
+  assert.ok(choiceBox.x >= 0 && choiceBox.x + choiceBox.width <= width && choiceBox.y >= 0 && choiceBox.y + choiceBox.height <= page.viewportSize().height);
+  const fits = () => page.locator('#choice-dialog').evaluate(el => el.scrollHeight <= el.clientHeight + 2 && el.scrollWidth <= el.clientWidth);
+  assert.ok(await fits(), 'collapsed choice fits without scrolling');
+  await page.screenshot({ path: `${out}/courtyard-entry-choice-${width}.png`, fullPage: true });
+  // Native keyboard disclosure never chooses a relic or spends gameplay time.
+  await page.keyboard.press('Tab');
+  assert.ok(await page.locator('.starter-alternatives summary').evaluate(el => document.activeElement === el));
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#relic-choices button:visible').count(), 5);
+  assert.equal(await page.locator('#relic-choices .primary-button').count(), 1);
+  assert.ok(await fits(), 'expanded alternatives fit without scrolling');
+  await page.waitForTimeout(250);
+  assert.deepEqual(await page.evaluate(() => window.__courtyardSupplyState()), beforeChoice, 'browsing choices does not start, advance or equip the run');
+  await page.screenshot({ path: `${out}/courtyard-entry-alternatives-${width}.png`, fullPage: true });
+  if (starterRelic === 'shell') {
+    await page.keyboard.press('Enter');
+    assert.equal(await page.locator('#relic-choices button:visible').count(), 1);
+    await page.keyboard.press('Shift+Tab');
+    assert.ok(await primaryChoice.evaluate(el => document.activeElement === el));
+    await page.keyboard.press('Enter');
+  } else {
+    assert.equal(starterRelic, 'shadow');
+    await page.getByRole('button', { name: '选择留影扣', exact: true }).click();
+  }
+  const chosen = await page.evaluate(() => window.__courtyardSupplyState());
+  assert.equal(chosen.phase, 'playing');
+  assert.deepEqual(Object.entries(chosen.relics).filter(([, rank]) => rank > 0), [[starterRelic, 1]], 'only the explicitly chosen relic is equipped');
+  const entryChoice = { friends, starterRelic, initialPhase: beforeChoice.phase, chosenRelics: chosen.relics,
+    singlePrimary: true, keyboardDisclosure: true, fitsCollapsedAndExpanded: true, noAutostart: true };
   assert.equal(await page.locator('#friend-guide').isVisible(), false, 'entry is not occupied by automatic help');
   await page.waitForFunction(() => window.__courtyardBeat().cue?.beat === 'arrival' && window.__courtyardBeat().cue.age >= .3);
   const invitation = await read();
@@ -267,6 +308,7 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
   await shot('settled');
   if (secondInvitation) await page.screenshot({ path: `${out}/courtyard-second-beat-settled-${width}.png`, fullPage: true });
   let powerChain = null;
+  let interludeChoices = null;
   if (fullPowerChain) {
     for (let i = 0; i < 2; i++) {
       const state = await page.evaluate(() => window.__courtyardSupplyState());
@@ -288,8 +330,29 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
     assert.equal(await page.locator('#friend-guide').isVisible(), false);
     assert.equal(await page.locator('#action-feedback').isVisible(), false);
     await shot('full-power-chain-quiet');
+    // Landing at the exit already banks the run and opens the next-room picker.
+    await reachThroughUI(page, 'exit');
+    await page.locator('#choice-dialog[open]').waitFor();
+    assert.equal(await page.locator('#choice-dialog.discovery-choice').count(), 0, 'next-room choice remains ordinary');
+    assert.equal(await page.locator('.starter-alternatives').count(), 0);
+    const next = await page.evaluate(() => window.__courtyardSupplyState());
+    assert.equal(next.phase, 'interlude');
+    assert.equal(await page.locator('#relic-choices button:visible').count(), next.choices.length);
+    interludeChoices = next.choices.map(relic => relic.id);
+    await page.locator('#relic-choices button').first().click();
   }
+  // Exercise restart on the original discovery page, where the entry flag was
+  // true at load, rather than only after a reload has cleared that condition.
+  await page.locator('#restart').click(); await page.locator('#confirm-restart').click();
+  await page.locator('#choice-dialog[open]').waitFor();
+  assert.equal(await page.locator('#choice-dialog.discovery-choice').count(), 0, 'restart cannot re-arm the first-entry picker');
+  assert.equal(await page.locator('.starter-alternatives').count(), 0);
+  assert.equal(await page.locator('#relic-choices button:visible').count(), 5);
   await page.reload();
+  await page.locator('#choice-dialog[open]').waitFor();
+  assert.equal(await page.locator('#choice-dialog.discovery-choice').count(), 0, 'revisits do not repeat the first-entry picker');
+  assert.equal(await page.locator('#relic-choices button:visible').count(), 5);
+  assert.equal(await page.locator('#relic-choices .primary-button').count(), 0);
   await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
   await page.locator('#align').click();
   await page.waitForFunction(() => window.__courtyardBeat().time >= 3.5);
@@ -298,5 +361,5 @@ export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = f
   assert.equal(revisit.firstAction, null);
   assert.deepEqual(revisit.beats, []); assert.deepEqual(revisit.used, []);
   assert.deepEqual(revisit.conflicts, []);
-  return { invitation, completed, secondInvitation, secondCompleted, settled, powerChain, revisit, interrupt: helpAt, idleSeconds: helpAt === 'arrival' ? null : 6.5, secondIdleSeconds: secondCompleted ? 6.2 : null, passed: true };
+  return { entryChoice, interludeChoices, invitation, completed, secondInvitation, secondCompleted, settled, powerChain, revisit, interrupt: helpAt, idleSeconds: helpAt === 'arrival' ? null : 6.5, secondIdleSeconds: secondCompleted ? 6.2 : null, passed: true };
 }

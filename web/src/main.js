@@ -54,6 +54,7 @@ const guide = new FriendGuide();
 const firstDiscoveryArrival = new URLSearchParams(location.search).get('from') === 'discovery' &&
   courtyardFriends(readJSON('wslice-flatland-friends')).length > 0 && readPreference('wslice-courtyard-welcome', '') !== 'seen';
 const momentum = new CourtyardMomentum({ arrival: firstDiscoveryArrival });
+let discoveryChoicePending = firstDiscoveryArrival;
 // Spend the entry attempt now, including an entry already occupied by guidance.
 if (firstDiscoveryArrival) savePreference('wslice-courtyard-welcome', 'seen');
 function askFriend() { if (canAct()) { momentum.cancel(); guide.request(model.snapshot()); updateUI(); } }
@@ -134,7 +135,12 @@ function choiceSynergy(state,id) {
 
 function showChoice(state) {
   const next = state.phase === 'interlude';
+  // Reuse the earned first-entry budget, once. Choosing still belongs to the
+  // player; restarting or reaching the next room restores the ordinary picker.
+  const discoveryStart = !next && discoveryChoicePending;
+  discoveryChoicePending = false;
   $('choice-dialog').classList.toggle('starter-choice', !next);
+  $('choice-dialog').classList.toggle('discovery-choice', discoveryStart);
   const upcoming=next ? state.nextRoom : state.roomPlan?.[0];
   $('choice-kicker').textContent = next ? `第 ${state.room + 1} 庭完成 · 已带回 ${state.banked} 回响` : `随机旅程 #${state.seed.toString(16).toUpperCase().padStart(8,'0')}`;
   $('choice-title').innerHTML = next ? '下一庭，<br>换一种解法。' : '带一件，就出发。';
@@ -147,11 +153,16 @@ function showChoice(state) {
   if (fromFlatland && !next) {
     $('choice-intro').textContent = scene.friends.length ? '伙伴也来了 · 带一件遗物出发' : '带一件出发，看看 W 里的新世界。';
   }
+  if (discoveryStart) {
+    setText('choice-kicker', '平面国 → 庭院');
+    setText('choice-title', `${scene.friends.length === 1 ? scene.friends[0].name : '伙伴们'}也来了。`);
+    setText('choice-intro', '带上缓落壳，先走一座桥。');
+  }
   setText('choice-room-name',`${next?'即将进入':'首先进入'} · ${upcoming?.name || state.roomName}`);
   setText('choice-room-description',upcoming?.description || state.roomDescription);
   $('choice-build').hidden = !next;
   $('choice-build').textContent = '已有：'+RELICS.filter(r=>state.relics?.[r.id]>0).map(r=>`${r.name} ${'ⅠⅡⅢ'[state.relics[r.id]-1]}`).join(' ＋ ');
-  $('relic-choices').replaceChildren(...(state.choices || RELICS).map(relic => {
+  const choices = (state.choices || RELICS).map(relic => {
     const rank = state.relics?.[relic.id] || 0;
     const button = document.createElement('button');
     button.className = 'relic-choice';
@@ -160,9 +171,26 @@ function showChoice(state) {
     button.innerHTML = next ? `<span class="relic-art" aria-hidden="true">${icons[relic.id]}</span><span class="choice-arrow" aria-hidden="true">↗</span><h3>${relic.name}</h3><p>${relic.description}</p><small>${rank?`进阶 ${'ⅠⅡⅢ'[rank-1]} → ${'ⅠⅡⅢ'[rank] || 'Ⅲ'}`:'获得新能力'} · ${traits[relic.id]}</small>${combo?`<span class="choice-synergy">${combo}</span>`:''}`
       : `<span class="relic-art" aria-hidden="true">${icons[relic.id]}</span><h3>${relic.name}</h3><p>${STARTER_RELICS[relic.id]}</p>`;
     button.classList.toggle('has-synergy',!!combo);
+    if (discoveryStart && relic.id === 'shell') {
+      button.classList.add('primary-button');
+      button.setAttribute('aria-label', '带缓落壳出发');
+      button.querySelector('h3').textContent = '带缓落壳出发 ↗';
+    }
     button.addEventListener('click', () => { $('choice-dialog').close(); paused = false; action(() => { model.chooseRelic(relic.id); if (!next && !momentum.firstEntry) guide.request(model.snapshot()); }); $('w-slider').focus({preventScroll:true}); });
     return button;
-  }));
+  });
+  if (discoveryStart) {
+    const shell = choices.find(button => button.classList.contains('primary-button'));
+    const alternatives = document.createElement('details');
+    alternatives.className = 'starter-alternatives';
+    const summary = document.createElement('summary');
+    summary.textContent = '换一件遗物';
+    const list = document.createElement('div');
+    list.className = 'starter-alternatives-list';
+    list.append(...choices.filter(button => button !== shell));
+    alternatives.append(summary, list);
+    $('relic-choices').replaceChildren(shell, alternatives);
+  } else $('relic-choices').replaceChildren(...choices);
   $('choice-dialog').showModal();
 }
 

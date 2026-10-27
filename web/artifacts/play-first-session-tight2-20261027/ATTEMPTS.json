@@ -1,0 +1,58 @@
+[
+  {
+    "name": "baseline-transition",
+    "status": "passed",
+    "widths": [
+      1280,
+      390,
+      320
+    ],
+    "source": "ee2d822f5fd67eeb89ee113f6d74f219bb9e5461",
+    "description": "Real new-save chase to discovery link; observed five equal choices, prism focus, no companion acknowledgment."
+  },
+  {
+    "name": "baseline-penpal",
+    "status": "passed",
+    "widths": [
+      1280,
+      390,
+      320
+    ],
+    "source": "ee2d822f5fd67eeb89ee113f6d74f219bb9e5461",
+    "description": "Completed before runtime edits; raw receipt and screenshots retained locally."
+  },
+  {
+    "name": "browser-penpal-attempt1",
+    "status": "failed",
+    "description": "New interlude test clicked E after exit landing had already opened interlude; timeout on disabled E. Corrected test to wait for automatic interlude and kept phase/choices assertions."
+  },
+  {
+    "name": "browser-top5-attempt1",
+    "status": "interrupted",
+    "description": "1280 completed; stopped after discovery CTA icon contrast defect was found in screenshots. Not final evidence. PID and cwd checked before stopping our process."
+  },
+  {
+    "name": "runtime-correction",
+    "description": "Set shell icon to inherit light CTA color. No timing/model change. Strengthened restart check to run on original discovery page before reload."
+  },
+  {
+    "name": "browser-penpal-attempt2",
+    "status": "passed",
+    "widths": [
+      1280,
+      390,
+      320
+    ],
+    "description": "Final complete run; sources match source-manifest.json."
+  },
+  {
+    "name": "browser-top5-attempt2",
+    "status": "passed",
+    "widths": [
+      1280,
+      390,
+      320
+    ],
+    "description": "Final complete run; sources match source-manifest.json."
+  }
+]
