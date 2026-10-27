@@ -1,0 +1,349 @@
+{
+  "status": "passed",
+  "comparisons": [
+    {
+      "width": 1280,
+      "room": "cascade",
+      "sameStateFields": [
+        "roomSignature",
+        "node",
+        "w",
+        "selected",
+        "activated",
+        "canMove"
+      ],
+      "before": {
+        "objective": "已供能待启动：折光花（机关 2/3）",
+        "primary": [],
+        "elapsedMs": 16417
+      },
+      "after": {
+        "objective": "换到Ⅱ 回声层 · 显现通往折光花的桥",
+        "primary": [
+          {
+            "id": "layer-1",
+            "text": "Ⅱ回声层 X",
+            "disabled": false
+          }
+        ],
+        "elapsedMs": 12676
+      },
+      "afterPlayerChangesW": {
+        "objective": "到折光花 · 沿桥稳行",
+        "primary": [
+          {
+            "id": "move",
+            "text": "到折光花 Space ↗",
+            "disabled": false
+          }
+        ]
+      }
+    },
+    {
+      "width": 1280,
+      "room": "split",
+      "sameStateFields": [
+        "roomSignature",
+        "node",
+        "w",
+        "selected",
+        "activated",
+        "canMove"
+      ],
+      "before": {
+        "objective": "已供能待启动：承光花（机关 2/3）",
+        "primary": [],
+        "elapsedMs": 17083
+      },
+      "after": {
+        "objective": "换到Ⅱ 回声层 · 显现通往承光花的桥",
+        "primary": [
+          {
+            "id": "layer-1",
+            "text": "Ⅱ回声层 X",
+            "disabled": false
+          }
+        ],
+        "elapsedMs": 12581
+      },
+      "afterPlayerChangesW": {
+        "objective": "到承光花 · 沿桥稳行",
+        "primary": [
+          {
+            "id": "move",
+            "text": "到承光花 Space ↗",
+            "disabled": false
+          }
+        ]
+      }
+    },
+    {
+      "width": 1280,
+      "room": "return",
+      "sameStateFields": [
+        "roomSignature",
+        "node",
+        "w",
+        "selected",
+        "activated",
+        "canMove"
+      ],
+      "before": {
+        "objective": "已供能待启动：远端回声台（机关 1/3）",
+        "primary": [],
+        "elapsedMs": 14270
+      },
+      "after": {
+        "objective": "换到Ⅰ 潮汐层 · 显现通往远端回声台的桥",
+        "primary": [
+          {
+            "id": "layer-0",
+            "text": "Ⅰ潮汐层 Z",
+            "disabled": false
+          }
+        ],
+        "elapsedMs": 11788
+      },
+      "afterPlayerChangesW": {
+        "objective": "到远端回声台 · 沿桥稳行",
+        "primary": [
+          {
+            "id": "move",
+            "text": "到远端回声台 Space ↗",
+            "disabled": false
+          }
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "room": "cascade",
+      "sameStateFields": [
+        "roomSignature",
+        "node",
+        "w",
+        "selected",
+        "activated",
+        "canMove"
+      ],
+      "before": {
+        "objective": "已供能待启动：折光花（机关 2/3）",
+        "primary": [],
+        "elapsedMs": 16020
+      },
+      "after": {
+        "objective": "换到Ⅱ 回声层 · 显现通往折光花的桥",
+        "primary": [
+          {
+            "id": "layer-1",
+            "text": "Ⅱ回声层 X",
+            "disabled": false
+          }
+        ],
+        "elapsedMs": 12403
+      },
+      "afterPlayerChangesW": {
+        "objective": "到折光花 · 沿桥稳行",
+        "primary": [
+          {
+            "id": "move",
+            "text": "到折光花 ↗",
+            "disabled": false
+          }
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "room": "split",
+      "sameStateFields": [
+        "roomSignature",
+        "node",
+        "w",
+        "selected",
+        "activated",
+        "canMove"
+      ],
+      "before": {
+        "objective": "已供能待启动：承光花（机关 2/3）",
+        "primary": [],
+        "elapsedMs": 16878
+      },
+      "after": {
+        "objective": "换到Ⅱ 回声层 · 显现通往承光花的桥",
+        "primary": [
+          {
+            "id": "layer-1",
+            "text": "Ⅱ回声层 X",
+            "disabled": false
+          }
+        ],
+        "elapsedMs": 12480
+      },
+      "afterPlayerChangesW": {
+        "objective": "到承光花 · 沿桥稳行",
+        "primary": [
+          {
+            "id": "move",
+            "text": "到承光花 ↗",
+            "disabled": false
+          }
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "room": "return",
+      "sameStateFields": [
+        "roomSignature",
+        "node",
+        "w",
+        "selected",
+        "activated",
+        "canMove"
+      ],
+      "before": {
+        "objective": "已供能待启动：远端回声台（机关 1/3）",
+        "primary": [],
+        "elapsedMs": 14225
+      },
+      "after": {
+        "objective": "换到Ⅰ 潮汐层 · 显现通往远端回声台的桥",
+        "primary": [
+          {
+            "id": "layer-0",
+            "text": "Ⅰ潮汐层 Z",
+            "disabled": false
+          }
+        ],
+        "elapsedMs": 11740
+      },
+      "afterPlayerChangesW": {
+        "objective": "到远端回声台 · 沿桥稳行",
+        "primary": [
+          {
+            "id": "move",
+            "text": "到远端回声台 ↗",
+            "disabled": false
+          }
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "room": "cascade",
+      "sameStateFields": [
+        "roomSignature",
+        "node",
+        "w",
+        "selected",
+        "activated",
+        "canMove"
+      ],
+      "before": {
+        "objective": "已供能待启动：折光花（机关 2/3）",
+        "primary": [],
+        "elapsedMs": 15969
+      },
+      "after": {
+        "objective": "换到Ⅱ 回声层 · 显现通往折光花的桥",
+        "primary": [
+          {
+            "id": "layer-1",
+            "text": "Ⅱ回声层 X",
+            "disabled": false
+          }
+        ],
+        "elapsedMs": 12442
+      },
+      "afterPlayerChangesW": {
+        "objective": "到折光花 · 沿桥稳行",
+        "primary": [
+          {
+            "id": "move",
+            "text": "到折光花 ↗",
+            "disabled": false
+          }
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "room": "split",
+      "sameStateFields": [
+        "roomSignature",
+        "node",
+        "w",
+        "selected",
+        "activated",
+        "canMove"
+      ],
+      "before": {
+        "objective": "已供能待启动：承光花（机关 2/3）",
+        "primary": [],
+        "elapsedMs": 16904
+      },
+      "after": {
+        "objective": "换到Ⅱ 回声层 · 显现通往承光花的桥",
+        "primary": [
+          {
+            "id": "layer-1",
+            "text": "Ⅱ回声层 X",
+            "disabled": false
+          }
+        ],
+        "elapsedMs": 12567
+      },
+      "afterPlayerChangesW": {
+        "objective": "到承光花 · 沿桥稳行",
+        "primary": [
+          {
+            "id": "move",
+            "text": "到承光花 ↗",
+            "disabled": false
+          }
+        ]
+      }
+    },
+    {
+      "width": 320,
+      "room": "return",
+      "sameStateFields": [
+        "roomSignature",
+        "node",
+        "w",
+        "selected",
+        "activated",
+        "canMove"
+      ],
+      "before": {
+        "objective": "已供能待启动：远端回声台（机关 1/3）",
+        "primary": [],
+        "elapsedMs": 14226
+      },
+      "after": {
+        "objective": "换到Ⅰ 潮汐层 · 显现通往远端回声台的桥",
+        "primary": [
+          {
+            "id": "layer-0",
+            "text": "Ⅰ潮汐层 Z",
+            "disabled": false
+          }
+        ],
+        "elapsedMs": 11749
+      },
+      "afterPlayerChangesW": {
+        "objective": "到远端回声台 · 沿桥稳行",
+        "primary": [
+          {
+            "id": "move",
+            "text": "到远端回声台 ↗",
+            "disabled": false
+          }
+        ]
+      }
+    }
+  ],
+  "controls": 3,
+  "timingNote": "Scripted input times, not human completion or comprehension measurements."
+}

@@ -1,0 +1,53 @@
+{
+  "unchangedSuites": [
+    {
+      "file": "web/scripts/verify-penpal.mjs",
+      "byteIdentical": true,
+      "sha256": "fe7b89528be61472f510005637ed0a23f32c48eb0109aa238623f764911840a1"
+    },
+    {
+      "file": "web/scripts/verify-top5.mjs",
+      "byteIdentical": true,
+      "sha256": "705f9916761e8431b0ab0ea4aa7e960b6b2f7d452589a8eac36f122d88f14662"
+    },
+    {
+      "file": "web/scripts/verify-first-onward.mjs",
+      "byteIdentical": true,
+      "sha256": "5921dec57dc4a846ebea4799f640ab2ca2fe4693749e968c346349518d21ada1"
+    },
+    {
+      "file": "web/scripts/courtyard-first-beat.mjs",
+      "byteIdentical": true,
+      "sha256": "9d5bc901a9578d3ccbc977a315017e0b32befb8b8db9d06240570780784ae932"
+    }
+  ],
+  "modifiedSuite": "web/scripts/verify-first-return.mjs",
+  "modifiedAssertions": [
+    {
+      "former": "After the named hub crossing, every destination has zero highlighted layer controls and the model objective.",
+      "now": "For relay only, require the actual selected next bridge, exactly one enabled correct layer/move action, and the complete named instruction. Other destinations retain the original two assertions.",
+      "reason": "The old blanket exit assertion required the anchor dead end that round 5 fixes; no existing hub checks are removed."
+    }
+  ],
+  "addedSuite": "web/scripts/verify-first-anchor.mjs",
+  "newSuiteCases": "4 first rooms x 3 widths; real discovery; anchor CTA, quiet/pause/help/risk/selection, actual W/crossing/E, complete chain/exit, next room/revisit",
+  "attempts": [
+    {
+      "directory": "browser-anchor-attempt1",
+      "failure": "H hides the objective with CSS; innerText is empty.",
+      "correction": "Assert objective is invisible and its textContent is the unchanged model objective. H remains visible; layer emphasis must be absent."
+    },
+    {
+      "directory": "browser-anchor-attempt2",
+      "failure": "Harness expected phase choosing at the courtyard exit. Actual documented model phase is interlude.",
+      "correction": "Assert interlude plus three active mechanisms, carried=0, banked>0 and ordinary next-room choice."
+    },
+    {
+      "directory": "browser-anchor-attempt3",
+      "failure": "Harness checked firstEntry synchronously after choosing next room, before the existing momentum animation-frame update.",
+      "correction": "Wait for firstEntry=false, then assert room=1 and no layer emphasis."
+    }
+  ],
+  "runtimeChangesDuringAttempts": false,
+  "artifactPackaging": "Initial summarizer assumed a per-check passed field in every suite. Top5 uses named evidence booleans plus its top-level passed status. Packaging now validates its existing courtyardEntry.passed, noOverflow and firstEntryOnceAndRevisitQuiet fields; original suite and receipt unchanged."
+}

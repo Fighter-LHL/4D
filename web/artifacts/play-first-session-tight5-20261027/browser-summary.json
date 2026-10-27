@@ -1,0 +1,60 @@
+{
+  "status": "passed",
+  "suites": {
+    "penpal": {
+      "status": "passed",
+      "checks": 3,
+      "widths": [
+        1280,
+        390,
+        320
+      ],
+      "errors": [],
+      "receipt": "browser-penpal-final/receipt.json"
+    },
+    "top5": {
+      "status": "passed",
+      "checks": 3,
+      "widths": [
+        1280,
+        390,
+        320
+      ],
+      "errors": [],
+      "receipt": "browser-top5-final/receipt.json"
+    },
+    "onward": {
+      "status": "passed",
+      "checks": 12,
+      "widths": [
+        1280,
+        390,
+        320
+      ],
+      "errors": [],
+      "receipt": "browser-onward-final/receipt.json"
+    },
+    "return": {
+      "status": "passed",
+      "checks": 12,
+      "widths": [
+        1280,
+        390,
+        320
+      ],
+      "errors": [],
+      "receipt": "browser-return-final/receipt.json"
+    },
+    "anchor": {
+      "status": "passed",
+      "checks": 12,
+      "widths": [
+        1280,
+        390,
+        320
+      ],
+      "errors": [],
+      "receipt": "browser-anchor-final/receipt.json"
+    }
+  }
+}
