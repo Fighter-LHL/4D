@@ -1,0 +1,135 @@
+{
+  "status": "passed",
+  "baseURL": "http://127.0.0.1:4194",
+  "checks": [
+    {
+      "width": 1280,
+      "reducedMotion": false,
+      "muted": false,
+      "friendFound": true,
+      "seedFound": true,
+      "savedAfterReloadAndRetry": true,
+      "levelHighlightSynced": true,
+      "noOverflow": true,
+      "visitorAndDiscoveryCoexist": true,
+      "discoveryDeliveredOnce": true,
+      "earnedCollectionToCourtyardCTA": true,
+      "arrivalAndNearExclusive": true,
+      "idleAfterArrivalQuiet": true,
+      "nearOnce": [
+        {
+          "key": "escape:friend:sprout",
+          "time": 4.0075999999999885,
+          "duringArrival": false
+        }
+      ],
+      "approachDuration": 2.2,
+      "approachClearedAfter": 2.191200000095467,
+      "discoveryDuration": 1.8,
+      "seedLayout": [
+        {
+          "text": "S 3.6 · 1.3s",
+          "baseline": 371.16591324088233,
+          "top": 363.5045530165489,
+          "bottom": 371.3422753150727
+        },
+        {
+          "text": "收下花种 · 1/3",
+          "baseline": 394.86631278993434,
+          "top": 383.6117912676857,
+          "bottom": 397.3005506129289
+        }
+      ],
+      "courtyardGuideRetiredAfterLanding": true,
+      "companionIdleQuietSeconds": 6.2,
+      "explicitHelpStillExpires": true
+    },
+    {
+      "width": 390,
+      "reducedMotion": false,
+      "muted": false,
+      "friendFound": true,
+      "seedFound": true,
+      "savedAfterReloadAndRetry": true,
+      "levelHighlightSynced": true,
+      "noOverflow": true,
+      "visitorAndDiscoveryCoexist": true,
+      "discoveryDeliveredOnce": true,
+      "earnedCollectionToCourtyardCTA": true,
+      "arrivalAndNearExclusive": true,
+      "idleAfterArrivalQuiet": true,
+      "nearOnce": [
+        {
+          "key": "escape:friend:sprout",
+          "time": 4.007799999904622,
+          "duringArrival": false
+        }
+      ],
+      "approachDuration": 1.3,
+      "approachClearedAfter": 1.292300000095426,
+      "discoveryDuration": 1.35,
+      "seedLayout": [
+        {
+          "text": "S 3.6 · 1.3s",
+          "baseline": 160.51975766610815,
+          "top": 152.64362647336065,
+          "bottom": 160.70106404063563
+        },
+        {
+          "text": "收下花种 · 1/3",
+          "baseline": 213.73999139984696,
+          "top": 202.32347201815216,
+          "bottom": 216.20926618661358
+        }
+      ],
+      "courtyardGuideRetiredAfterLanding": true,
+      "companionIdleQuietSeconds": 6.2,
+      "explicitHelpStillExpires": true
+    },
+    {
+      "width": 320,
+      "reducedMotion": true,
+      "muted": true,
+      "friendFound": true,
+      "seedFound": true,
+      "savedAfterReloadAndRetry": true,
+      "levelHighlightSynced": true,
+      "noOverflow": true,
+      "visitorAndDiscoveryCoexist": true,
+      "discoveryDeliveredOnce": true,
+      "earnedCollectionToCourtyardCTA": true,
+      "arrivalAndNearExclusive": true,
+      "idleAfterArrivalQuiet": true,
+      "nearOnce": [
+        {
+          "key": "escape:friend:sprout",
+          "time": 4.009299999904621,
+          "duringArrival": false
+        }
+      ],
+      "approachDuration": 1.3,
+      "approachClearedAfter": 1.2924000000000548,
+      "discoveryDuration": 1.35,
+      "seedLayout": [
+        {
+          "text": "S 3.6 · 1.3s",
+          "baseline": 132.49532302099973,
+          "top": 124.64875994631316,
+          "bottom": 132.6759489392186
+        },
+        {
+          "text": "收下花种 · 1/3",
+          "baseline": 177.6000021994114,
+          "top": 166.10355351125526,
+          "bottom": 180.0865661097551
+        }
+      ],
+      "courtyardGuideRetiredAfterLanding": true,
+      "companionIdleQuietSeconds": 6.2,
+      "explicitHelpStillExpires": true
+    }
+  ],
+  "errors": [],
+  "instrumentation": "read-only snapshot/event observer; Web Audio start observer; real range/pointer/key inputs",
+  "browserVersion": "130.0.6723.31"
+}

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { FriendGuide } from '../src/friend-guide.js';
 import { GameModel } from '../src/model.js';
 import { courtyardFriends, friendGuideText } from '../src/courtyard-friends.js';
+import { start as startModel, travel, fall } from './model-helpers.js';
 
 function start() { const m = new GameModel(42); m.chooseRelic('shell'); return m.snapshot(); }
 function tick(g, s, seconds, active = true) { for (let n = 0; n < Math.round(seconds * 60); n++) g.update(1 / 60, s, active); }
@@ -47,4 +48,35 @@ test('paused, hidden or modal time does not count as idle time or consume a hint
     tick(g, unavailable, .1); assert.equal(g.view(s), null);
   }
   g.request(s); tick(g, { ...s, room: s.room + 1 }, .1); assert.equal(g.view(s), null);
+});
+
+test('the first safe landing retires idle guidance for this room while explicit help remains available', () => {
+  const m = startModel('shell', 2), g = new FriendGuide();
+  const update = m.update.bind(m);
+  m.update = dt => { update(dt); g.update(dt, m.snapshot()); };
+  g.request(m.snapshot());
+  travel(m, m.snapshot().selected);
+  const landed = m.snapshot();
+  assert.equal(g.settled, true); assert.equal(g.view(landed), null);
+  tick(g, landed, 7); assert.equal(g.view(landed), null, 'no automatic next-step manual after landing');
+  assert.equal(g.request(landed), true); assert.deepEqual(g.view(landed), landed.companionGuide);
+  tick(g, landed, 8, false); assert.ok(g.view(landed), 'pause still freezes requested help');
+  tick(g, landed, 4.1); assert.equal(g.view(landed), null);
+  g.activity(); tick(g, landed, 7); assert.equal(g.view(landed), null, 'actions cannot rearm the retired automatic guide');
+  assert.deepEqual(m.snapshot(), landed, 'guide cannot move or activate anything');
+  const nextRoom = { ...landed, room: landed.room + 1 };
+  tick(g, nextRoom, 6.1); assert.ok(g.view(nextRoom), 'a new room retains its existing help');
+});
+
+test('failed and risky crossings do not retire the safe-crossing guide', () => {
+  for (const risky of [false, true]) {
+    const m = startModel('shell', 2), g = new FriendGuide();
+    const update = m.update.bind(m);
+    m.update = dt => { update(dt); g.update(dt, m.snapshot()); };
+    g.update(.01, m.snapshot());
+    if (risky) travel(m, m.snapshot().selected, true);
+    else fall(m, m.snapshot().selected);
+    assert.equal(g.settled, false);
+    tick(g, m.snapshot(), 6.1); assert.ok(g.view(m.snapshot()));
+  }
 });

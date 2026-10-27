@@ -272,7 +272,10 @@ export class FlatlandRenderer {
       ctx.font = `700 ${(pop.big ? 20 : 14) / k * (1 + (this.reducedMotion ? 0 : .25 * (1 - ease(pop.age * 5))))}px system-ui, sans-serif`; ctx.textAlign = 'center';
       const maxWidth = b.w - 8 / k, halfWidth = Math.min(maxWidth, ctx.measureText(pop.text).width) / 2;
       const x = clamp(pop.x, halfWidth + 4 / k, b.w - halfWidth - 4 / k);
-      const y = clamp(pop.y - (this.reducedMotion ? 0 : ease(p) * .9), 22 / k, b.h - 6 / k);
+      // On phones, keep discovery text below the object and its upper labels.
+      // Hold that small offset still so it never floats back into those labels.
+      const below = pop.discovery && this.view.width <= 480;
+      const y = clamp(below ? pop.y + .9 + 24 / k : pop.y - (this.reducedMotion ? 0 : ease(p) * .9), 22 / k, b.h - 6 / k);
       ctx.strokeStyle = COLORS.card; ctx.lineWidth = 4 / k; ctx.lineJoin = 'round';
       ctx.strokeText(pop.text, x, y, maxWidth);
       ctx.fillText(pop.text, x, y, maxWidth);

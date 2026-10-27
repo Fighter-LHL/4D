@@ -21,7 +21,7 @@ test('discovery approach is nearby, once per region, frozen on pause and never s
   assert.deepEqual(m.snapshot(), before);
   assert.equal(m.encounter.step, 0); assert.deepEqual(m.collection.found, []);
   assert.equal(hints.update({ ...before, paused: true }, 10), null);
-  assert.equal(hints.cooldown, 2.4);
+  assert.equal(hints.cooldown, 3.6);
   assert.equal(hints.update(before, 3), null, 'remaining near does not repeat');
   m.restart(); m.start(); slide(m, 4.7); goto(m, 9.4, 5);
   assert.equal(hints.update(m.snapshot(), 3), null, 'retry keeps session clue memory');
@@ -49,6 +49,23 @@ test('arrival narration defers the first approach cue without consuming it, incl
   assert.equal(cue(), null, 'only one cue after narration');
   m.restart(); m.start(); visitor.receive(m.drainEvents(), m.snapshot()); slide(m, 4.7); wait(m, 4.1);
   assert.equal(cue(), null, 'retry does not reset the once-per-region memory');
+});
+
+test('neighboring regions leave a quiet gap without spending their first cue during cooldown', () => {
+  const m = new FlatlandModel(0, { seed: 42, playStyle: 'explore' }); m.start();
+  const hints = new DiscoveryHints();
+  slide(m, 2.1); goto(m, 6.5, 9);
+  assert.equal(hints.update(m.snapshot(), .1).key, 'visitor:pads');
+  slide(m, m.level.garden.bud.z); goto(m, m.level.garden.bud.x, m.level.garden.bud.y);
+  const before = m.snapshot();
+  assert.equal(hints.update(before, 3.1), null, 'a second region stays quiet beyond the old 2.4s cooldown');
+  assert.equal(hints.seen.has('visitor:bud'), false);
+  assert.equal(hints.update({ ...before, paused: true }, 10), null);
+  assert.equal(hints.update(before, .4), null);
+  assert.equal(hints.update(before, .11).key, 'visitor:bud', 'approaching a new region still gives its one cue');
+  assert.equal(hints.update(before, 10), null);
+  slide(m, 2.1); goto(m, 6.5, 9);
+  assert.equal(hints.update(m.snapshot(), 10), null, 'returning to the first region cannot repeat it');
 });
 
 test('standing on an off-layer trace stays quiet; revealing and approaching the friend gives one cue', () => {

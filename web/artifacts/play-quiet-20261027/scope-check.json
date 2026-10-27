@@ -1,0 +1,82 @@
+{
+  "baseline": "defe5b85e86d50aba741c926331e262b45a2ecc6",
+  "businessAndTestChanges": [
+    "web/scripts/verify-penpal.mjs",
+    "web/scripts/verify-top5.mjs",
+    "web/src/flatland/scene.js",
+    "web/src/friend-guide.js",
+    "web/src/play-feedback.js",
+    "web/tests/flatland-audio.test.js",
+    "web/tests/flatland-scene.test.js",
+    "web/tests/friend-guide.test.js",
+    "web/tests/play-feedback.test.js"
+  ],
+  "allWithinWeb": true,
+  "unchangedAuthorityAudioAndContracts": [
+    {
+      "path": "web/src/model.js",
+      "unchanged": true,
+      "sha256": "503e8c5bb264cfcd9ef645f5be8886958030ee1d5e7fd2b78496edf37432c940"
+    },
+    {
+      "path": "web/src/rooms.js",
+      "unchanged": true,
+      "sha256": "53d202c4cacfbb0ebc6005980e0da74a0ef5888aa04356a4f175ec144eaacff4"
+    },
+    {
+      "path": "web/src/flatland/model.js",
+      "unchanged": true,
+      "sha256": "b8e1fef4126d3e57072a120fc29349be510052881d72372d5361b7d5d1523763"
+    },
+    {
+      "path": "web/src/flatland/levels.js",
+      "unchanged": true,
+      "sha256": "095e4ff15ca20dbd0d3386bbeb2490d5650d69652a43c6f657ab3594b0a4d0b4"
+    },
+    {
+      "path": "web/src/flatland/discoveries.js",
+      "unchanged": true,
+      "sha256": "f7efd0296a69454fe548c65bc5329a7df39e217b138800fa3a437d1c4974e1dd"
+    },
+    {
+      "path": "web/src/flatland/companions.js",
+      "unchanged": true,
+      "sha256": "87e5416c556964c64c884ac21777b7606257e8af944fd2ba636283cdf271bcec"
+    },
+    {
+      "path": "web/src/flatland/audio.js",
+      "unchanged": true,
+      "sha256": "d1d46c2d5ece8dc0f97fe010f0db9ebdd38fbf221f72e70c7025bb396c5db5cd"
+    },
+    {
+      "path": "web/src/audio.js",
+      "unchanged": true,
+      "sha256": "51a7097f87a74a6e893f70e3d04424f781cdf50eb010d723a4a7910cee0967d6"
+    },
+    {
+      "path": "web/CONTRACT.md",
+      "unchanged": true,
+      "sha256": "1ae8c59744dcce791e56ed6985e86be179274fddc606229cddb32fdc36ba0c65"
+    },
+    {
+      "path": "web/HIDDEN-ROUTES-CONTRACT.md",
+      "unchanged": true,
+      "sha256": "5276097811e329e3d239aee8010ddf02139ae857d731ab939587cff50d47b92c"
+    },
+    {
+      "path": "web/RANDOM-ROOMS-CONTRACT.md",
+      "unchanged": true,
+      "sha256": "6ebd092bbb8cc1f6323c1ac950a0c5b779e5de416a7b210a30bcfdd3ff26993d"
+    },
+    {
+      "path": "web/SLICE-CONTRACT.md",
+      "unchanged": true,
+      "sha256": "b55364f0b364f95a657b0c46fa63384e0f3bdbecdf38d77a76acf44f1fd38e2b"
+    },
+    {
+      "path": "web/SYNERGY-CONTRACT.md",
+      "unchanged": true,
+      "sha256": "ae3f102f2e9dcd7543ffc51859836aebb41bb71989895bb7272ea08e93d162c7"
+    }
+  ]
+}

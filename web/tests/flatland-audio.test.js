@@ -39,6 +39,8 @@ test('fresh discovery cues are short, seed pickup avoids a second melody, and mu
   notes.length = 0; audio.handle([{ type: 'friend_found', fresh: true }]);
   assert.equal(notes.length, 4); assert.ok(notes.every(n => n.at + n.duration < .5));
   const friendNotes = [...notes];
+  assert.ok(seedNotes.every(n => n.gain / .055 >= 1.25 && n.gain / .055 <= 1.28), 'seed gain stays in the existing +25–28% band');
+  assert.ok(friendNotes.every(n => n.gain / .06 >= 1.25 && n.gain / .06 <= 1.28), 'friend gain stays in the existing +25–28% band');
   notes.length = 0; audio.handle([{ type: 'friend_hop' }]);
   audio.lastSlice = -Infinity; audio.slice(1, 6, 1);
   const routineGain = Math.max(...notes.map(n => n.gain));

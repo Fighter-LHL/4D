@@ -42,7 +42,7 @@ export class DiscoveryHints {
     this.cooldown = Math.max(0, this.cooldown - dt);
     const cue = nearbyDiscovery(state);
     if (!cue || this.cooldown || this.seen.has(cue.key)) return null;
-    this.seen.add(cue.key); this.cooldown = 2.4;
+    this.seen.add(cue.key); this.cooldown = 3.6;
     return { type: 'discovery_near', ...cue };
   }
 }

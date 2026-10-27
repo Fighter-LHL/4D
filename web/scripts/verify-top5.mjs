@@ -15,6 +15,17 @@ try {
   for (const width of [1280, 390, 320]) {
     const context = await browser.newContext({ viewport: { width, height: width > 700 ? 900 : 844 }, reducedMotion: width === 320 ? 'reduce' : 'no-preference' });
     await context.addInitScript(() => {
+      window.__top5Labels = [];
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+        if (/^(收下花种|跳跳跟上来了|S .*s$)/.test(text)) {
+          const t = this.getTransform(), m = this.measureText(text), dpr = devicePixelRatio || 1;
+          const baseline = (t.b * x + t.d * y + t.f) / dpr;
+          window.__top5Labels.push({ text, baseline, top: baseline - t.d * m.actualBoundingBoxAscent / dpr,
+            bottom: baseline + t.d * m.actualBoundingBoxDescent / dpr });
+        }
+        return fillText.call(this, text, x, y, ...rest);
+      };
       window.__top5Notes = [];
       const proto = (window.AudioContext || window.webkitAudioContext).prototype;
       const create = proto.createOscillator;
@@ -42,12 +53,19 @@ scene.pushEvents = events => {
 };
 const top5Render = scene.render.bind(scene);
 scene.render = dt => {
+  window.__top5Labels = [];
   top5Render(dt);
   const arrival = document.querySelector('#visitor-goal').textContent.includes('墙那边有动静');
   const announcedNear = window.__top5Events.some(e => e.type === 'discovery_near' && e.text === document.querySelector('#announcement').textContent);
   if (arrival && (scene.popups.some(p => p.near) || announcedNear)) window.__top5CueConflicts.push({ time: model.time });
 };
-window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: scene.popups, view: scene.view, reduced: scene.reducedMotion, audioState: audio.context?.state });
+window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: scene.popups, view: scene.view, reduced: scene.reducedMotion, audioState: audio.context?.state, labels: window.__top5Labels });
+` });
+    });
+    await context.route('**/src/main.js', async route => {
+      const response = await route.fetch();
+      await route.fulfill({ response, body: await response.text() + `
+window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, friends: scene.friends.length });
 ` });
     });
     const page = await context.newPage();
@@ -161,6 +179,13 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
     assert.equal(await page.locator('#visitor-goal').innerText(), '走到光环边找访客', 'seed discovery does not reset the visitor beat');
     assert.equal((await read()).popups.filter(p => p.discovery).length, 1, 'one discovery label alongside the visitor goal');
     assert.equal((await read()).popups.find(p => p.discovery).duration, discoveryDuration);
+    const seedLayout = await page.evaluate(() => window.__top5Read().labels);
+    if (narrowCanvas) {
+      const seedLabel = seedLayout.find(l => l.text.startsWith('收下花种'));
+      const probeLabel = seedLayout.find(l => l.text.startsWith('S '));
+      assert.ok(seedLabel && probeLabel, 'observe both live Canvas labels');
+      assert.ok(seedLabel.top - probeLabel.bottom >= 4, 'seed text leaves a visible gap below the probe label');
+    }
     await screenshot('seed-found');
     const firstSeed = (await page.evaluate(() => window.__top5Events)).find(e => e.type === 'garden_seed');
     assert.equal(firstSeed.fresh, true);
@@ -192,12 +217,24 @@ window.__top5Read = () => structuredClone({ state: model.snapshot(), popups: sce
     assert.equal(await page.locator('.action-row .primary-button, .action-row .attention-action').count(), 0);
     await page.waitForFunction(() => document.querySelector('#interact').classList.contains('attention-action'));
     assert.equal(await page.locator('.action-row .primary-button').count(), 1);
+    const landed = await page.evaluate(() => window.__top5Courtyard());
+    assert.equal(landed.friends, 1, 'test the idle guide with the genuinely earned companion');
+    assert.equal(landed.settled, true);
+    assert.equal(await page.locator('#friend-guide').isVisible(), false);
+    await page.waitForFunction(time => window.__top5Courtyard().time >= time + 6.2, landed.time);
+    assert.equal(await page.locator('#friend-guide').isVisible(), false, 'no automatic guide at the old six-second idle trigger');
+    await screenshot('courtyard-settled-quiet');
+    await page.keyboard.press('h');
+    assert.equal(await page.locator('#friend-guide').isVisible(), true);
+    await page.waitForFunction(() => document.querySelector('#friend-guide').hidden);
+    await screenshot('courtyard-requested-help-cleared');
     await page.locator('#interact').click();
     await page.keyboard.press('e');
     await page.waitForFunction(() => document.querySelector('#action-feedback').textContent.includes('去辉光源'));
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     receipt.checks.push({ width, reducedMotion: width === 320, muted: width === 320, friendFound: true, seedFound: true, savedAfterReloadAndRetry: true, levelHighlightSynced: true, noOverflow: true, visitorAndDiscoveryCoexist: true, discoveryDeliveredOnce: true, earnedCollectionToCourtyardCTA: true,
-      arrivalAndNearExclusive: true, idleAfterArrivalQuiet: true, nearOnce: nearEvents, approachDuration: approachPopup.duration, approachClearedAfter: approachClearedAt - nearEvents[0].time, discoveryDuration });
+      arrivalAndNearExclusive: true, idleAfterArrivalQuiet: true, nearOnce: nearEvents, approachDuration: approachPopup.duration, approachClearedAfter: approachClearedAt - nearEvents[0].time, discoveryDuration,
+      seedLayout, courtyardGuideRetiredAfterLanding: true, companionIdleQuietSeconds: 6.2, explicitHelpStillExpires: true });
     console.log(`passed ${width}px: discovery, seed, pause, saved progress, HUD, visitor beat and courtyard CTA`);
     await context.close();
   }

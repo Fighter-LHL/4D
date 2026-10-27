@@ -1,0 +1,48 @@
+✔ fresh discovery cues are short, seed pickup avoids a second melody, and mute stays silent (1.770125ms)
+✔ peek audio has one voice per hold and releases it on release, mute, return, load and completion (0.244375ms)
+✔ pause and retry cancel scheduled tones rather than replaying them on resume (0.190583ms)
+✔ audio events remain safe before Web Audio unlock and delayed unlock does not revive a released peek (0.13525ms)
+✔ discovery popups fit phones, pause, expire, stay still with reduced motion and suppress repeated finds (7.747875ms)
+✔ approach highlight clears when leaving the real clue layer or loading another scene (12.510333ms)
+✔ phone seed and friend discovery text stays below nearby object labels throughout its lifetime (11.524916ms)
+✔ every level renders finite geometry across the slice range, wide and narrow (50.939792ms)
+✔ full bot runs draw score popups, particles and the HUD for every story level (510.137625ms)
+✔ hazards, warnings and deaths draw in the danger colour with a screen flash (9.231ms)
+✔ storm draws hearts, waves and hazard profiles in the side view (51.992041ms)
+✔ pause freezes particles, popups and the current shake offset (0.523292ms)
+✔ exploration draws encounters, companion parties and toy faces with finite geometry (78.958292ms)
+✔ storm friends cheer at grazes and high combos, keep crowns, and freeze with pause or reduced motion (1.312041ms)
+✔ a large visitor section cannot paint over the nearby flower-pad instruction on a phone (1.815833ms)
+✔ blocked events flash the blocking solid (0.820459ms)
+✔ screenToWorld maps canvas pixels into the flat world (0.406916ms)
+✔ locks hide the side view behind a question mark until revealed (0.465917ms)
+✔ narrow 320px side view keeps readable height and non-overlapping height ticks (0.282584ms)
+✔ ascend renders both dimensions and a reversible pointer projection (43.131708ms)
+✔ followers reveal only one short hint after six idle seconds, without repeating it (4.06175ms)
+✔ an explicit request is immediate; a player action recalls the friend and rearms idle guidance (1.107666ms)
+✔ a hinted step never automatically advances to the next waypoint (0.804708ms)
+✔ paused, hidden or modal time does not count as idle time or consume a hint (0.68425ms)
+✔ the first safe landing retires idle guidance for this room while explicit help remains available (3.720167ms)
+✔ failed and risky crossings do not retire the safe-crossing guide (5.062334ms)
+✔ discovery approach is nearby, once per region, frozen on pause and never solves or moves (15.897ms)
+✔ arrival narration defers the first approach cue without consuming it, including pause and retry (14.400458ms)
+✔ neighboring regions leave a quiet gap without spending their first cue during cooldown (4.931958ms)
+✔ standing on an off-layer trace stays quiet; revealing and approaching the friend gives one cue (16.099917ms)
+✔ discovery cues respect the box concealment and current flower layer without leaking future positions (39.69275ms)
+✔ real seed pickup reports fresh position once, then saved seeds cannot re-celebrate (6.01975ms)
+✔ short starter choices retain all five abilities and their complete descriptions (3.247709ms)
+✔ first-step highlight works without companions and expires without moving or solving (7.165292ms)
+✔ failed E explains empty bank, crossing and missing footing without changing state (1.599292ms)
+✔ missing source feedback distinguishes partial delivery from energy still in flight (4.863ms)
+✔ activation reports its real count; pressing E twice cannot award another activation (0.861875ms)
+✔ wave and wrong-layer chest feedback take priority over ordinary E hints (2.52425ms)
+✔ help presents one current action and never mutates the route or exposes a full solution (0.596708ms)
+✔ visitor goal explains invisible slice, poke and its response, independently of the pocket (0.970333ms)
+ℹ tests 40
+ℹ suites 0
+ℹ pass 40
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 837.483334

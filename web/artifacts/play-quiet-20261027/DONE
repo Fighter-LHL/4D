@@ -1,0 +1,10 @@
+DONE
+play-quiet: all four scoped items complete.
+Base: defe5b85e86d50aba741c926331e262b45a2ecc6
+Branch: codex/play-fun-quiet-20261027
+npm test: 285/285 passed.
+verify-penpal: 1280/390/320 passed; no console warnings/errors or pageerrors.
+verify-top5: 1280/390/320 passed; no console warnings/errors or pageerrors.
+Scope: web presentation, regression tests, verification scripts and selected evidence.
+See VALIDATION.md for changes, receipts, reproduction and human playtest limits.
+Human playtesting is still recommended; no comprehension, sound-quality or fun claim.

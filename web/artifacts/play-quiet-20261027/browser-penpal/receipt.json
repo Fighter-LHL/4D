@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "baseURL": "http://127.0.0.1:4194",
+  "checks": [
+    {
+      "width": 1280,
+      "height": 900,
+      "firstCrossingMs": 1644,
+      "secondSourceCueMs": 650,
+      "landingGuideQuiet": true,
+      "explicitHelpAfterLanding": true,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "firstCrossingMs": 1619,
+      "secondSourceCueMs": 623,
+      "landingGuideQuiet": true,
+      "explicitHelpAfterLanding": true,
+      "passed": true
+    },
+    {
+      "width": 320,
+      "height": 844,
+      "firstCrossingMs": 1592,
+      "secondSourceCueMs": 618,
+      "landingGuideQuiet": true,
+      "explicitHelpAfterLanding": true,
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "browserVersion": "130.0.6723.31"
+}

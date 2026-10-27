@@ -70,6 +70,33 @@ test('approach highlight clears when leaving the real clue layer or loading anot
     assert.equal(scene.popups.length, width <= 480 ? 0 : 1, 'phone approach clears earlier than desktop');
   }
 });
+
+test('phone seed and friend discovery text stays below nearby object labels throughout its lifetime', () => {
+  for (const width of [380, 280]) for (const reduced of [false, true]) {
+    const { scene, calls } = renderer(width, 400); scene.reducedMotion = reduced;
+    const m = new FlatlandModel(0, { seed: 42, playStyle: 'explore' }); m.start();
+    m.setSlice(2.1); goto(m, 6.5, 9); scene.setState(m.snapshot());
+    for (const event of [
+      { type: 'garden_seed', fresh: true, petals: 1, x: 6.5, y: 9 },
+      { type: 'friend_found', fresh: true, id: 'sprout', x: 6.5, y: 9 },
+    ]) {
+      scene.pushEvents([event]);
+      let firstY;
+      for (const dt of [.016, .3, .7]) {
+        scene.render(dt);
+        const popup = calls.findLast(c => c.method === 'fillText' && /收下花种|跟上来了/.test(c.args[0]));
+        const padLabel = calls.findLast(c => c.method === 'fillText' && c.args[0] === '懂倒影的朋友');
+        assert.ok(popup && padLabel);
+        const k = scene.view.main.scale;
+        assert.ok((popup.args[2] - padLabel.args[2]) * k >= 24, 'label baselines have room for separate lines');
+        assert.ok((popup.args[2] - event.y) * k >= 23.9, 'discovery appears below its object');
+        if (firstY !== undefined) assert.equal(popup.args[2], firstY, 'no upward drift into existing labels');
+        firstY = popup.args[2];
+      }
+      scene.render(1); assert.equal(scene.popups.length, 0);
+    }
+  }
+});
 // Steps the model while drawing every frame, so bots exercise every effect path.
 function drawing(m, scene) {
   const update = m.update.bind(m);

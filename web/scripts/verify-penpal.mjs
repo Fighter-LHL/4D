@@ -66,6 +66,9 @@ try {
     await page.waitForFunction(() => document.querySelector('#interact').classList.contains('attention-action'));
     const firstCrossingMs = Date.now() - startedAt;
     assert.ok(firstCrossingMs < 30000, 'scripted fresh-profile first crossing within 30 seconds');
+    assert.equal(await page.locator('#friend-guide').isVisible(), false, 'first safe landing is quiet');
+    await page.keyboard.press('h');
+    assert.equal(await page.locator('#friend-guide').isVisible(), true, 'explicit help remains available after landing');
     const activatedAt = Date.now();
     await page.locator('#interact').click();
     await page.waitForFunction(() => document.querySelector('#mechanism-count').textContent === '1 / 3');
@@ -128,7 +131,7 @@ try {
     await page.screenshot({ path: `${out}/escape-arrival-${width}.png` });
     await page.waitForFunction(() => document.querySelector('#visitor-goal').hidden);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no horizontal overflow');
-    receipt.checks.push({ width, height: width > 700 ? 900 : 844, firstCrossingMs, secondSourceCueMs, passed: true });
+    receipt.checks.push({ width, height: width > 700 ? 900 : 844, firstCrossingMs, secondSourceCueMs, landingGuideQuiet: true, explicitHelpAfterLanding: true, passed: true });
     await context.close();
   }
   assert.deepEqual(receipt.errors, []);
