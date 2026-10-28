@@ -1,0 +1,11 @@
+{
+  "resumed": {
+    "focus": "pause",
+    "paused": false,
+    "disabled": true
+  },
+  "afterSpace": {
+    "focus": "resume",
+    "paused": true
+  }
+}

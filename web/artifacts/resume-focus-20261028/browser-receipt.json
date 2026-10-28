@@ -1,0 +1,84 @@
+{
+  "baseline": false,
+  "base": "http://127.0.0.1:4175",
+  "checks": [
+    {
+      "width": 1280,
+      "label": "resume and interrupted crossing 1",
+      "from": "hub",
+      "to": "dew",
+      "lives": 3
+    },
+    {
+      "width": 1280,
+      "label": "resume and interrupted crossing 2",
+      "from": "dew",
+      "to": "hub",
+      "lives": 3
+    },
+    {
+      "width": 1280,
+      "label": "resume and interrupted crossing 3",
+      "from": "hub",
+      "to": "dew",
+      "lives": 3
+    },
+    {
+      "width": 1280,
+      "label": "fresh run resumes correctly; continuous W and E preserved"
+    },
+    {
+      "width": 390,
+      "label": "resume and interrupted crossing 1",
+      "from": "hub",
+      "to": "dew",
+      "lives": 3
+    },
+    {
+      "width": 390,
+      "label": "resume and interrupted crossing 2",
+      "from": "dew",
+      "to": "hub",
+      "lives": 3
+    },
+    {
+      "width": 390,
+      "label": "resume and interrupted crossing 3",
+      "from": "hub",
+      "to": "dew",
+      "lives": 3
+    },
+    {
+      "width": 390,
+      "label": "fresh run resumes correctly; continuous W and E preserved"
+    },
+    {
+      "width": 320,
+      "label": "resume and interrupted crossing 1",
+      "from": "hub",
+      "to": "dew",
+      "lives": 3
+    },
+    {
+      "width": 320,
+      "label": "resume and interrupted crossing 2",
+      "from": "dew",
+      "to": "hub",
+      "lives": 3
+    },
+    {
+      "width": 320,
+      "label": "resume and interrupted crossing 3",
+      "from": "hub",
+      "to": "dew",
+      "lives": 3
+    },
+    {
+      "width": 320,
+      "label": "fresh run resumes correctly; continuous W and E preserved"
+    }
+  ],
+  "errors": [],
+  "browser": "130.0.6723.31",
+  "status": "passed"
+}
