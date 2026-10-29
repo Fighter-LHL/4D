@@ -503,10 +503,16 @@ function selectHelp(topic) {
 }
 for (const button of document.querySelectorAll('[data-help]')) button.addEventListener('click', () => selectHelp(button.dataset.help));
 $('help').addEventListener('click',()=>{ if(!isModal()){paused=true;selectHelp('next');$('help-dialog').showModal();syncAudio();} });
-function closeHelp() {$('help-dialog').close();paused=false;lastFrame=performance.now();syncAudio();}
+function closeHelp() {
+  $('help-dialog').close();paused=false;lastFrame=performance.now();syncAudio();
+  updateUI(); $('w-slider').focus({preventScroll:true});
+}
 $('close-help').addEventListener('click',closeHelp);$('help-done').addEventListener('click',closeHelp);$('help-dialog').addEventListener('cancel',e=>{e.preventDefault();closeHelp();});
 $('restart').addEventListener('click',()=>{if(!isModal()){paused=true;$('restart-dialog').showModal();syncAudio();}});
-function cancelRestart() {$('restart-dialog').close();paused=false;lastFrame=performance.now();syncAudio();}
+function cancelRestart() {
+  $('restart-dialog').close();paused=false;lastFrame=performance.now();syncAudio();
+  updateUI(); $('w-slider').focus({preventScroll:true});
+}
 $('cancel-restart').addEventListener('click',cancelRestart);$('restart-dialog').addEventListener('cancel',e=>{e.preventDefault();cancelRestart();});
 function restart() {for(const id of dialogs)if($(id).open)$(id).close();paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';secretKey='';sealKey='';$('secret-panel').open=false;$('build-list').replaceChildren();$('ability-list').replaceChildren();const seed=newSeed();rememberSeed(seed);action(()=>model.restart(seed));}
 $('confirm-restart').addEventListener('click',restart);$('play-again').addEventListener('click',restart);
