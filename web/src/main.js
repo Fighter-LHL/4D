@@ -490,7 +490,11 @@ $('ask-friend').addEventListener('click', askFriend);
 for(const button of document.querySelectorAll('.layer-controls [data-layer]'))button.addEventListener('click',()=>{if(canAct())action(()=>model.setW(model.snapshot().layers[Number(button.dataset.layer)].center));});
 $('sound').addEventListener('click',()=>{ soundEnabled = !soundEnabled; audio.setEnabled(soundEnabled); unlockAudio(); savePreference('wslice-sound',soundEnabled?'on':'off'); updateSoundButton(); });
 function pauseGame() { if(model.snapshot().phase!=='playing'||isModal())return; paused=true; $('pause-dialog').showModal(); syncAudio(); }
-function resumeGame() { $('pause-dialog').close(); paused=false; lastFrame=performance.now(); syncAudio(); $('w-slider').focus({preventScroll:true}); }
+function resumeGame() {
+  $('pause-dialog').close(); paused=false; lastFrame=performance.now(); syncAudio();
+  // Re-enable controls before focus: disabled ranges ignore focus requests.
+  updateUI(); $('w-slider').focus({preventScroll:true});
+}
 $('pause').addEventListener('click',pauseGame); $('resume').addEventListener('click',resumeGame);
 $('pause-dialog').addEventListener('cancel',e=>{e.preventDefault();resumeGame();});
 function selectHelp(topic) {
