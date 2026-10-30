@@ -1,0 +1,18 @@
+{
+  "recordedAt": "2026-10-30T13:05:21.262825+00:00",
+  "baseSha": "dccd78eb7782b5497bc3f15bb7b261dedb81f14c",
+  "branch": "codex/4d-first-courtyard-exit-20261030",
+  "worktree": "/tmp/4d-first-courtyard-exit-20261030-wt",
+  "artifactRoot": "/tmp/4d-first-courtyard-exit-20261030",
+  "baseURL": "http://127.0.0.1:4211",
+  "nodeVersion": "v24.12.0",
+  "playwrightVersion": "1.58.1",
+  "chromiumVersion": "145.0.7632.6",
+  "dependencies": "Offline npm cache install inside this worktree; no package or lockfile changes.",
+  "commands": [
+    "npm test",
+    "BASE_URL=http://127.0.0.1:4211 ARTIFACT_DIR=/tmp/4d-first-courtyard-exit-20261030/verify-exit node scripts/verify-first-exit.mjs",
+    "BASE_URL=http://127.0.0.1:4211 ARTIFACT_DIR=/tmp/4d-first-courtyard-exit-20261030/verify-anchor node scripts/verify-first-anchor.mjs",
+    "BASE_URL=http://127.0.0.1:4211 ARTIFACT_DIR=/tmp/4d-first-courtyard-exit-20261030/verify-penpal node scripts/verify-penpal.mjs"
+  ]
+}

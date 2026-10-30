@@ -1,0 +1,161 @@
+{
+  "baseline": true,
+  "widths": [
+    320
+  ],
+  "status": "passed",
+  "checks": [
+    {
+      "width": 320,
+      "seed": 10,
+      "room": "cascade",
+      "routeStates": [
+        {
+          "node": "bloom",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 6,
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 0,
+      "room": "split",
+      "routeStates": [
+        {
+          "node": "bloom",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 6,
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 2,
+      "room": "confluence",
+      "routeStates": [
+        {
+          "node": "bell",
+          "target": "hub",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "hub",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 8,
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 7,
+      "room": "return",
+      "routeStates": [
+        {
+          "node": "bloom",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "hub",
+          "aligned": false,
+          "primary": []
+        },
+        {
+          "node": "hub",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "稳行 Space ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 7,
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "browserVersion": "145.0.7632.6"
+}

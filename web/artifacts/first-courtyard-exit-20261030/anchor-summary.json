@@ -1,0 +1,111 @@
+{
+  "baseline": false,
+  "widths": [
+    1280,
+    390,
+    320
+  ],
+  "status": "passed",
+  "errors": [],
+  "browserVersion": "145.0.7632.6",
+  "checks": [
+    {
+      "width": 1280,
+      "seed": 10,
+      "room": "cascade",
+      "control": false,
+      "passed": true,
+      "stepCount": 6
+    },
+    {
+      "width": 1280,
+      "seed": 0,
+      "room": "split",
+      "control": false,
+      "passed": true,
+      "stepCount": 6
+    },
+    {
+      "width": 1280,
+      "seed": 2,
+      "room": "confluence",
+      "control": true,
+      "passed": true,
+      "stepCount": 3
+    },
+    {
+      "width": 1280,
+      "seed": 7,
+      "room": "return",
+      "control": false,
+      "passed": true,
+      "stepCount": 7
+    },
+    {
+      "width": 390,
+      "seed": 10,
+      "room": "cascade",
+      "control": false,
+      "passed": true,
+      "stepCount": 6
+    },
+    {
+      "width": 390,
+      "seed": 0,
+      "room": "split",
+      "control": false,
+      "passed": true,
+      "stepCount": 6
+    },
+    {
+      "width": 390,
+      "seed": 2,
+      "room": "confluence",
+      "control": true,
+      "passed": true,
+      "stepCount": 3
+    },
+    {
+      "width": 390,
+      "seed": 7,
+      "room": "return",
+      "control": false,
+      "passed": true,
+      "stepCount": 7
+    },
+    {
+      "width": 320,
+      "seed": 10,
+      "room": "cascade",
+      "control": false,
+      "passed": true,
+      "stepCount": 6
+    },
+    {
+      "width": 320,
+      "seed": 0,
+      "room": "split",
+      "control": false,
+      "passed": true,
+      "stepCount": 6
+    },
+    {
+      "width": 320,
+      "seed": 2,
+      "room": "confluence",
+      "control": true,
+      "passed": true,
+      "stepCount": 3
+    },
+    {
+      "width": 320,
+      "seed": 7,
+      "room": "return",
+      "control": false,
+      "passed": true,
+      "stepCount": 7
+    }
+  ],
+  "rawReceipt": "/tmp/4d-first-courtyard-exit-20261030/verify-anchor/receipt.json",
+  "rawReceiptSha256": "5d9f00848f49ed951a50ccad70c395749bd36ced74fd2cf9ca49d7bd38022d60"
+}

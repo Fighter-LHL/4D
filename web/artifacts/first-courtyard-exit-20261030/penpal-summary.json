@@ -1,0 +1,55 @@
+{
+  "status": "passed",
+  "baseURL": "http://127.0.0.1:4211",
+  "errors": [],
+  "browserVersion": "145.0.7632.6",
+  "checks": [
+    {
+      "width": 1280,
+      "height": 900,
+      "firstCrossingMs": 1580,
+      "secondSourceCueMs": 943,
+      "landingGuideQuiet": true,
+      "landingAndOnwardGlints": true,
+      "compactProgress": false,
+      "singleSupplyProgress": true,
+      "followAfterExpiry": true,
+      "unfollowedQuietSeconds": 4.2,
+      "glintYieldsToExplicitHelp": true,
+      "explicitHelpAfterLanding": true,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "firstCrossingMs": 1625,
+      "secondSourceCueMs": 883,
+      "landingGuideQuiet": true,
+      "landingAndOnwardGlints": true,
+      "compactProgress": true,
+      "singleSupplyProgress": true,
+      "followAfterExpiry": true,
+      "unfollowedQuietSeconds": 4.2,
+      "glintYieldsToExplicitHelp": true,
+      "explicitHelpAfterLanding": true,
+      "passed": true
+    },
+    {
+      "width": 320,
+      "height": 844,
+      "firstCrossingMs": 1624,
+      "secondSourceCueMs": 898,
+      "landingGuideQuiet": true,
+      "landingAndOnwardGlints": true,
+      "compactProgress": true,
+      "singleSupplyProgress": true,
+      "followAfterExpiry": true,
+      "unfollowedQuietSeconds": 4.2,
+      "glintYieldsToExplicitHelp": true,
+      "explicitHelpAfterLanding": true,
+      "passed": true
+    }
+  ],
+  "rawReceipt": "/tmp/4d-first-courtyard-exit-20261030/verify-penpal/receipt.json",
+  "rawReceiptSha256": "3104857ef6ea3c6c3ac1dc0d016be2ab76c35b840433759bd3fc9cc457a6769e"
+}

@@ -1,0 +1,45 @@
+{
+  "checkedAt": "2026-10-30T12:58:17.967044+00:00",
+  "checks": [
+    {
+      "command": [
+        "node",
+        "--check",
+        "web/src/main.js"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "node",
+        "--check",
+        "web/scripts/verify-first-exit.mjs"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "node",
+        "--check",
+        "web/scripts/verify-first-anchor.mjs"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

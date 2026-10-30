@@ -1,0 +1,376 @@
+[
+  {
+    "room": "cascade",
+    "label": "exit-0-bloom",
+    "sameState": {
+      "roomSignature": "cascade:201:r0:m-1:chase:2",
+      "node": "bloom",
+      "w": 0.5,
+      "selected": "relay",
+      "activated": [
+        "dew",
+        "bell",
+        "bloom"
+      ],
+      "canMove": true,
+      "carried": 4,
+      "banked": 0
+    },
+    "before": {
+      "objective": "折光花已启动（3/3）；三座机关全部共鸣，通往庭门的实体桥已开放",
+      "primary": [
+        {
+          "id": "move",
+          "text": "稳行 Space ↗",
+          "disabled": false
+        }
+      ]
+    },
+    "after": {
+      "objective": "到维度锚台 · 沿桥稳行",
+      "primary": [
+        {
+          "id": "move",
+          "text": "到维度锚台 ↗",
+          "disabled": false
+        }
+      ]
+    }
+  },
+  {
+    "room": "cascade",
+    "label": "exit-1-relay",
+    "sameState": {
+      "roomSignature": "cascade:201:r0:m-1:chase:2",
+      "node": "relay",
+      "w": 0.5,
+      "selected": "exit",
+      "activated": [
+        "dew",
+        "bell",
+        "bloom"
+      ],
+      "canMove": true,
+      "carried": 5,
+      "banked": 0
+    },
+    "before": {
+      "objective": "三座机关已全部启动，通往庭门的实体桥已开放",
+      "primary": [
+        {
+          "id": "move",
+          "text": "稳行 Space ↗",
+          "disabled": false
+        }
+      ]
+    },
+    "after": {
+      "objective": "到庭门 · 沿桥稳行",
+      "primary": [
+        {
+          "id": "move",
+          "text": "到庭门 ↗",
+          "disabled": false
+        }
+      ]
+    }
+  },
+  {
+    "room": "split",
+    "label": "exit-0-bloom",
+    "sameState": {
+      "roomSignature": "split:021:r0:m-1:chase:0",
+      "node": "bloom",
+      "w": 0.5,
+      "selected": "relay",
+      "activated": [
+        "dew",
+        "bell",
+        "bloom"
+      ],
+      "canMove": true,
+      "carried": 4,
+      "banked": 0
+    },
+    "before": {
+      "objective": "承光花已启动（3/3）；三座机关全部共鸣，通往庭门的实体桥已开放",
+      "primary": [
+        {
+          "id": "move",
+          "text": "稳行 Space ↗",
+          "disabled": false
+        }
+      ]
+    },
+    "after": {
+      "objective": "到维度锚台 · 沿桥稳行",
+      "primary": [
+        {
+          "id": "move",
+          "text": "到维度锚台 ↗",
+          "disabled": false
+        }
+      ]
+    }
+  },
+  {
+    "room": "split",
+    "label": "exit-1-relay",
+    "sameState": {
+      "roomSignature": "split:021:r0:m-1:chase:0",
+      "node": "relay",
+      "w": 0.5,
+      "selected": "exit",
+      "activated": [
+        "dew",
+        "bell",
+        "bloom"
+      ],
+      "canMove": true,
+      "carried": 5,
+      "banked": 0
+    },
+    "before": {
+      "objective": "三座机关已全部启动，通往庭门的实体桥已开放",
+      "primary": [
+        {
+          "id": "move",
+          "text": "稳行 Space ↗",
+          "disabled": false
+        }
+      ]
+    },
+    "after": {
+      "objective": "到庭门 · 沿桥稳行",
+      "primary": [
+        {
+          "id": "move",
+          "text": "到庭门 ↗",
+          "disabled": false
+        }
+      ]
+    }
+  },
+  {
+    "room": "confluence",
+    "label": "exit-0-bell",
+    "sameState": {
+      "roomSignature": "confluence:201:r3:m1:single:1",
+      "node": "bell",
+      "w": 0.18,
+      "selected": "hub",
+      "activated": [
+        "dew",
+        "bloom",
+        "bell"
+      ],
+      "canMove": true,
+      "carried": 5,
+      "banked": 0
+    },
+    "before": {
+      "objective": "双源汇流台已启动（3/3）；三座机关全部共鸣，通往庭门的实体桥已开放",
+      "primary": [
+        {
+          "id": "move",
+          "text": "稳行 Space ↗",
+          "disabled": false
+        }
+      ]
+    },
+    "after": {
+      "objective": "到归响台 · 沿桥稳行",
+      "primary": [
+        {
+          "id": "move",
+          "text": "到归响台 ↗",
+          "disabled": false
+        }
+      ]
+    }
+  },
+  {
+    "room": "confluence",
+    "label": "exit-1-hub",
+    "sameState": {
+      "roomSignature": "confluence:201:r3:m1:single:1",
+      "node": "hub",
+      "w": 0.18,
+      "selected": "relay",
+      "activated": [
+        "dew",
+        "bloom",
+        "bell"
+      ],
+      "canMove": true,
+      "carried": 6,
+      "banked": 0
+    },
+    "before": {
+      "objective": "三座机关已全部启动，通往庭门的实体桥已开放",
+      "primary": [
+        {
+          "id": "move",
+          "text": "稳行 Space ↗",
+          "disabled": false
+        }
+      ]
+    },
+    "after": {
+      "objective": "到维度锚台 · 沿桥稳行",
+      "primary": [
+        {
+          "id": "move",
+          "text": "到维度锚台 ↗",
+          "disabled": false
+        }
+      ]
+    }
+  },
+  {
+    "room": "confluence",
+    "label": "exit-2-relay",
+    "sameState": {
+      "roomSignature": "confluence:201:r3:m1:single:1",
+      "node": "relay",
+      "w": 0.18,
+      "selected": "exit",
+      "activated": [
+        "dew",
+        "bloom",
+        "bell"
+      ],
+      "canMove": true,
+      "carried": 7,
+      "banked": 0
+    },
+    "before": {
+      "objective": "三座机关已全部启动，通往庭门的实体桥已开放",
+      "primary": [
+        {
+          "id": "move",
+          "text": "稳行 Space ↗",
+          "disabled": false
+        }
+      ]
+    },
+    "after": {
+      "objective": "到庭门 · 沿桥稳行",
+      "primary": [
+        {
+          "id": "move",
+          "text": "到庭门 ↗",
+          "disabled": false
+        }
+      ]
+    }
+  },
+  {
+    "room": "return",
+    "label": "exit-0-bloom",
+    "sameState": {
+      "roomSignature": "return:201:r3:m-1:single:2",
+      "node": "bloom",
+      "w": 0.5,
+      "selected": "relay",
+      "activated": [
+        "dew",
+        "bell",
+        "bloom"
+      ],
+      "canMove": true,
+      "carried": 4,
+      "banked": 0
+    },
+    "before": {
+      "objective": "反照花已启动（3/3）；三座机关全部共鸣，通往庭门的实体桥已开放",
+      "primary": [
+        {
+          "id": "move",
+          "text": "稳行 Space ↗",
+          "disabled": false
+        }
+      ]
+    },
+    "after": {
+      "objective": "到维度锚台 · 沿桥稳行",
+      "primary": [
+        {
+          "id": "move",
+          "text": "到维度锚台 ↗",
+          "disabled": false
+        }
+      ]
+    }
+  },
+  {
+    "room": "return",
+    "label": "exit-1-relay",
+    "sameState": {
+      "roomSignature": "return:201:r3:m-1:single:2",
+      "node": "relay",
+      "w": 0.5,
+      "selected": "hub",
+      "activated": [
+        "dew",
+        "bell",
+        "bloom"
+      ],
+      "canMove": false,
+      "carried": 5,
+      "banked": 0
+    },
+    "before": {
+      "objective": "三座机关已全部启动，通往庭门的实体桥已开放",
+      "primary": []
+    },
+    "after": {
+      "objective": "换到Ⅲ 绽放层 · 显现通往归响台的桥",
+      "primary": [
+        {
+          "id": "layer-2",
+          "text": "Ⅲ绽放层 C",
+          "disabled": false
+        }
+      ]
+    }
+  },
+  {
+    "room": "return",
+    "label": "exit-2-hub",
+    "sameState": {
+      "roomSignature": "return:201:r3:m-1:single:2",
+      "node": "hub",
+      "w": 0.82,
+      "selected": "exit",
+      "activated": [
+        "dew",
+        "bell",
+        "bloom"
+      ],
+      "canMove": true,
+      "carried": 6,
+      "banked": 0
+    },
+    "before": {
+      "objective": "三座机关已全部启动，通往庭门的实体桥已开放",
+      "primary": [
+        {
+          "id": "move",
+          "text": "稳行 Space ↗",
+          "disabled": false
+        }
+      ]
+    },
+    "after": {
+      "objective": "到归途庭门 · 沿桥稳行",
+      "primary": [
+        {
+          "id": "move",
+          "text": "到归途庭门 ↗",
+          "disabled": false
+        }
+      ]
+    }
+  }
+]
