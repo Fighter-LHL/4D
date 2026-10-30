@@ -1,0 +1,34 @@
+{
+  "exit": {
+    "status": "passed",
+    "cases": 12,
+    "errors": [],
+    "browserVersion": "145.0.7632.6",
+    "source": "/tmp/4d-first-courtyard-exit-20261030/verify-exit/receipt.json",
+    "rawReceiptSha256": "26cfbf8998f161477a684072c4b76a7c0b9cf8daf41e369fdaa147f21f4e1d68"
+  },
+  "anchor": {
+    "status": "passed",
+    "cases": 12,
+    "errors": [],
+    "browserVersion": "145.0.7632.6",
+    "source": "/tmp/4d-first-courtyard-exit-20261030/verify-anchor/receipt.json",
+    "rawReceiptSha256": "5d9f00848f49ed951a50ccad70c395749bd36ced74fd2cf9ca49d7bd38022d60"
+  },
+  "penpal": {
+    "status": "passed",
+    "cases": 3,
+    "errors": [],
+    "browserVersion": "145.0.7632.6",
+    "source": "/tmp/4d-first-courtyard-exit-20261030/verify-penpal/receipt.json",
+    "rawReceiptSha256": "3104857ef6ea3c6c3ac1dc0d016be2ab76c35b840433759bd3fc9cc457a6769e"
+  },
+  "baseline": {
+    "status": "passed",
+    "cases": 4,
+    "errors": [],
+    "browserVersion": "145.0.7632.6",
+    "source": "/tmp/4d-first-courtyard-exit-20261030/verify-baseline/receipt.json",
+    "rawReceiptSha256": "2266d020544fbf784235e5d36fa8e4e644e73fdcba1b0e17c41d80774ed537e4"
+  }
+}

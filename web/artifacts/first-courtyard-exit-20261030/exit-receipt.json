@@ -1,0 +1,481 @@
+{
+  "baseline": false,
+  "widths": [
+    1280,
+    390,
+    320
+  ],
+  "status": "passed",
+  "checks": [
+    {
+      "width": 1280,
+      "seed": 10,
+      "room": "cascade",
+      "routeStates": [
+        {
+          "node": "bloom",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到维度锚台 Space ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到庭门 Space ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 6,
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "seed": 0,
+      "room": "split",
+      "routeStates": [
+        {
+          "node": "bloom",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到维度锚台 Space ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到庭门 Space ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 6,
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "seed": 2,
+      "room": "confluence",
+      "routeStates": [
+        {
+          "node": "bell",
+          "target": "hub",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到归响台 Space ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "hub",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到维度锚台 Space ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到庭门 Space ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 8,
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "seed": 7,
+      "room": "return",
+      "routeStates": [
+        {
+          "node": "bloom",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到维度锚台 Space ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "hub",
+          "aligned": false,
+          "primary": [
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "hub",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到归途庭门 Space ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 7,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "seed": 10,
+      "room": "cascade",
+      "routeStates": [
+        {
+          "node": "bloom",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到庭门 ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 6,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "seed": 0,
+      "room": "split",
+      "routeStates": [
+        {
+          "node": "bloom",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到庭门 ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 6,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "seed": 2,
+      "room": "confluence",
+      "routeStates": [
+        {
+          "node": "bell",
+          "target": "hub",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到归响台 ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "hub",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到庭门 ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 8,
+      "passed": true
+    },
+    {
+      "width": 390,
+      "seed": 7,
+      "room": "return",
+      "routeStates": [
+        {
+          "node": "bloom",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "hub",
+          "aligned": false,
+          "primary": [
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "hub",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到归途庭门 ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 7,
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 10,
+      "room": "cascade",
+      "routeStates": [
+        {
+          "node": "bloom",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到庭门 ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 6,
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 0,
+      "room": "split",
+      "routeStates": [
+        {
+          "node": "bloom",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到庭门 ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 6,
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 2,
+      "room": "confluence",
+      "routeStates": [
+        {
+          "node": "bell",
+          "target": "hub",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到归响台 ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "hub",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到庭门 ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 8,
+      "passed": true
+    },
+    {
+      "width": 320,
+      "seed": 7,
+      "room": "return",
+      "routeStates": [
+        {
+          "node": "bloom",
+          "target": "relay",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到维度锚台 ↗",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "relay",
+          "target": "hub",
+          "aligned": false,
+          "primary": [
+            {
+              "id": "layer-2",
+              "text": "Ⅲ绽放层 C",
+              "disabled": false
+            }
+          ]
+        },
+        {
+          "node": "hub",
+          "target": "exit",
+          "aligned": true,
+          "primary": [
+            {
+              "id": "move",
+              "text": "到归途庭门 ↗",
+              "disabled": false
+            }
+          ]
+        }
+      ],
+      "banked": 7,
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "browserVersion": "145.0.7632.6"
+}

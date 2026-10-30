@@ -53,6 +53,8 @@ npm test
 
 庭院画布支持“点平台预览，再点已选平台稳行”。自动推荐的平台也需要先预览一次；第二次点击走稳行，不沿用冒险模式，不自动换 W，也不能越过未开启的桥。键盘 Space 与底部穿越按钮保留原有风险选择。
 
+首次从伙伴发现页进入庭院时，完成三处机关后，操作区会继续指明到庭门的下一步：桥在另一层时强调对应换层按钮，换层后显示“到归响台”等具名稳行动作。抵达庭门仍按原规则自动存入回响，再选择遗物进入下一庭。H 提示、主动选路、冒险和暂停会让出这段首次提示；下一庭与回访使用普通界面。见 [2026-10-30 首庭离场验证](artifacts/first-courtyard-exit-20261030/VALIDATION.md)。
+
 本轮快捷键、花冠、提示和点击穿越的验证见 [2026-10-26 伙伴 QoL 验证](artifacts/companion-qol-20261026/validation.md)。上一轮 [体验细化验证](artifacts/play-refinement-20261026/validation.md) 保留。此前 [伙伴能力](artifacts/companions-20261026/validation.md)、[发现与探索](artifacts/discovery-20261026/validation.md)、[暂停复玩和风暴](artifacts/playability-20261026/validation.md) 的记录保留为对应版本证据。
 
 代码在 `src/flatland/`：`levels.js`（关卡数据与每局变体 `build(rng)`）、`model.js`（规则、计分、连击、危险物、各模式）、`hazards.js`（移动立体与风暴生成）、`geometry.js`（截面、多面体、形状匹配）、`perception.js`、`mirror.js`、`ascend.js`、`random.js`、`discoveries.js`（伙伴发现与收藏）、`companions.js`（探索能力与花垫机关）、`friends-scene.js`（伙伴与线索绘制）、`scene.js`（画面、HUD、粒子、飘字）、`ascend-scene.js`、`audio.js`、`progress.js`、`handoff.js`。测试为 `tests/flatland-*.test.js`，共用机器人在 `tests/flatland-helpers.js`，覆盖每种变体都能三星通关、风暴的确定性与生命规则。星级阈值来自机器人校准，尚未经过真实玩家试玩。

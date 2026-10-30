@@ -218,15 +218,22 @@ try {
       assert.deepEqual((await beat()).used, b.used, 'layer change, crossing and E add no third beat');
       await page.waitForTimeout(650);
     }
-    // Finish the existing authored chain as a regression. Its other muddy
-    // moments are intentionally not claimed as fixes in this round.
+    // Finish the authored chain, including the completion handoff to the gate.
     let completeAnchor = false;
     for (let index = 0; index < 18 && (await read()).phase === 'playing'; index++) {
       const s = await read();
       if (s.activated.length === 3 && s.node === 'relay') {
         completeAnchor = true;
-        assert.equal(await page.locator('.layer-controls .attention-action').count(), 0);
-        assert.equal(await page.locator('#objective').innerText(), s.objective, 'three-mechanism exit route keeps its existing UI');
+        if (baseline) {
+          assert.equal(await page.locator('.layer-controls .attention-action').count(), 0);
+          assert.equal(await page.locator('#objective').innerText(), s.objective);
+        } else {
+          const g = s.companionGuide, target = s.nodes.find(n => n.id === g.node);
+          assert.deepEqual(await primary.evaluateAll(els => els.map(el => el.id)), [g.aligned ? 'move' : `layer-${g.layer}`]);
+          assert.equal(await primary.isDisabled(), false);
+          assert.equal(await page.locator('#objective').innerText(), g.aligned ? `到${target.name} · 沿桥稳行`
+            : `换到${'ⅠⅡⅢ'[g.layer]} ${s.layers[g.layer].name} · 显现通往${target.name}的桥`);
+        }
         await capture('three-complete-anchor');
       }
       await routeStep();
