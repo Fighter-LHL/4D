@@ -86,9 +86,12 @@ let bannerStage = 0;
 let bannerExpandedUntil = 0;
 let relicHudKey = '';
 
-function showTransient(message, seconds = 3.2) {
+// `type` lets an accepted departure retire messages that belonged to the spot just left
+// ('refused' targets and 'prompt' layer instructions), while remote supply news stays.
+function showTransient(message, seconds = 3.2, type = 'hint') {
   transient = message;
   transientTime = seconds;
+  transientType = type;
   actionFeedback = message;
   $('announcement').textContent = message;
 }
@@ -132,7 +135,7 @@ function promptLayerShift(s, targetId, shift, finalLayer = null) {
   };
   const promptMsg = buildLayerShiftPromptMessage(s, promptInfo, revealExplicit);
   scene.pendingLayerPrompt = { ...promptInfo, message: promptMsg };
-  showTransient(promptMsg, shift.kind === 'recover' ? 3.6 : 4.2);
+  showTransient(promptMsg, shift.kind === 'recover' ? 3.6 : 4.2, 'prompt');
   updateUI();
 }
 
@@ -160,7 +163,7 @@ function stepAutoPilot() {
   if (!plan) {
     autoPilot = null;
     const name = s.nodes.find(n => n.id === targetId)?.name || '目标';
-    showTransient(`🔒 暂时还没有通往「${name}」的路：先点亮前序机关，让桥接通`, 3.2);
+    showTransient(`🔒 暂时还没有通往「${name}」的路：先点亮前序机关，让桥接通`, 3.2, 'refused');
     return;
   }
 
@@ -224,7 +227,7 @@ function manualSwitchLayer(layerIdx, source = 'manual') {
     const partner = s.nodes.find(n => !n.anchor && n.id !== here.id && n.layer === layerIdx && n.world && here.world &&
       Math.abs(n.world.x - here.world.x) < 1e-4 && Math.abs(n.world.y - here.world.y) < 1e-4 && Math.abs(n.world.z - here.world.z) < 1e-4);
     if (!partner) {
-      showTransient('⚓ 外圈平台只存在于当前层，现在换层会踩空。先点亮 ①，之后会教你在中央的 ⚓ 归响台换层', 3.2);
+      showTransient('⚓ 外圈平台只存在于当前层，现在换层会踩空。先点亮 ①，之后会教你在中央的 ⚓ 归响台换层', 3.2, 'refused');
       updateUI();
       return;
     }
@@ -348,13 +351,24 @@ function handleCanvasSelect(id) {
 
   // Plan over (platform, layer): the autopilot walks bridges on the CURRENT layer only and stops
   // exactly where a W change is needed, so the player always rolls the layer that reveals the bridge.
+  scene.pendingLayerPrompt = null;
+  // A mechanism the checklist marks 🔒 says what it still needs instead of sending the player
+  // on a trip to a platform that cannot be lit yet (even when a bridge happens to lead there).
+  if (targetNode?.kind === 'mechanism' && !targetNode.powered && !s.activated.includes(id)) {
+    autoPilot = null;
+    const order = s.mechanismOrder || [];
+    const missing = (targetNode.required || []).filter(req => !(targetNode.received || []).includes(req))
+      .map(req => ['①', '②', '③'][order.indexOf(req)] || '前序机关');
+    showTransient(`🔒「${targetNode.name}」还没供能：先点亮 ${missing.join('+') || '前序机关'}`, 3.2, 'refused');
+    updateUI();
+    return;
+  }
   const finalLayer = id === 'vault' && s.vaultStatus === 'available' ? (s.roomChallenge?.entryLayer ?? null) : null;
   const plan = planLayerRoute(s, id, { finalLayer });
-  scene.pendingLayerPrompt = null;
   if (!plan) {
     autoPilot = null;
     const hint = targetNode?.kind === 'mechanism' && !targetNode.powered ? '先点亮前序机关为它供能' : '先点亮前序机关，让桥接通';
-    showTransient(`🔒 暂时还没有通往「${targetNode?.name || '目标'}」的路：${hint}`, 3.2);
+    showTransient(`🔒 暂时还没有通往「${targetNode?.name || '目标'}」的路：${hint}`, 3.2, 'refused');
     updateUI();
     return;
   }
@@ -371,6 +385,16 @@ function handleCanvasSelect(id) {
   }
   stepAutoPilot();
 }
+
+// Side-panel shortcuts act on the scene; on phones the panel sits below the canvas, so
+// bring the scene (and its result popup) back into view before acting.
+function revealScene() {
+  const wrap = document.querySelector('.scene-wrap') || $('scene');
+  const rect = wrap.getBoundingClientRect();
+  if (rect.top >= 0 && rect.bottom <= innerHeight) return;
+  wrap.scrollIntoView({ block: rect.height > innerHeight ? 'start' : 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+}
+function selectFromPanel(id) { revealScene(); handleCanvasSelect(id); }
 
 function handleAnomalySelect(anomaly) {
   if (!canAct() || !anomaly) return;
@@ -439,7 +463,7 @@ function consumeEvents() {
   for (const event of events) {
     // Local E feedback belongs to the platform just used, not the next crossing.
     // A rejected move emits no move event; remote supply messages stay relevant.
-    if (event.type === 'move' && ['interact_blocked', 'activate'].includes(transientType)) {
+    if (event.type === 'move' && ['interact_blocked', 'activate', 'refused', 'prompt'].includes(transientType)) {
       transient = null; transientTime = 0; transientType = ''; actionFeedback = '';
       $('announcement').textContent = '';
     }
@@ -687,7 +711,7 @@ function updateRoom(state) {
     const node=state.nodes.find(n=>n.id===id);
     const row=document.createElement('div');row.className='mechanism-item';row.dataset.mechanism=id;
     row.style.cursor = 'pointer';
-    row.addEventListener('click', () => handleCanvasSelect(id));
+    row.addEventListener('click', () => selectFromPanel(id));
     row.innerHTML=`<span class="node-light" aria-hidden="true">${numBadges[idx] || '◇'}</span><span class="mechanism-name"><b>${numBadges[idx] || ''}</b> ${node.name}<span class="supply-slots">${(node.required || []).map(source=>{const from=state.nodes.find(n=>n.id===source);return `<i data-source="${source}" title="来自${from.name}" style="--supply-color:${state.layers[from.layer].color}">○</i>`;}).join('')}</span></span><small></small>`;
     return row;
   }));
@@ -921,7 +945,7 @@ function updateUI() {
     if (stageInfo.stage !== bannerStage) {
       bannerStage = stageInfo.stage;
       bannerExpandedUntil = bannerNow + 4500;
-      if (stageInfo.stage > 1) $('announcement').textContent = `${stageInfo.badge}：${stageInfo.instruction}`;
+      // The banner is aria-live itself; #announcement keeps the action result that caused the stage-up.
     }
     // Stage 1 is the very first screen, so its single instruction stays until ① is lit.
     // Later stages expand briefly on arrival, then fold to a one-line badge (click to reopen).
@@ -1249,7 +1273,7 @@ $('vstep-act')?.addEventListener('click', () => {
   }
 });
 $('exit-step-card')?.addEventListener('click', () => {
-  if (canAct()) handleCanvasSelect('exit');
+  if (canAct()) selectFromPanel('exit');
 });
 $('auto-next-btn')?.addEventListener('click', () => {
   if (!canAct()) return;
@@ -1352,10 +1376,10 @@ $('radar-anomaly-card')?.addEventListener('click', () => {
   }
 });
 $('radar-vault-card')?.addEventListener('click', () => {
-  if (canAct()) handleCanvasSelect('vault');
+  if (canAct()) selectFromPanel('vault');
 });
 $('radar-rift-card')?.addEventListener('click', () => {
-  if (canAct()) handleCanvasSelect('rift');
+  if (canAct()) selectFromPanel('rift');
 });
 $('unlock-all-btn')?.addEventListener('click', () => {
   onboarding.unlockAllOverride = true;

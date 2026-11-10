@@ -12,16 +12,19 @@ export function friendGuideText(state, friends = []) {
   if (!state?.companionGuide) return '';
   const g = state.companionGuide, friend = friends[0];
   const targetName = state.nodes?.find(n => n.id === g.node)?.name || '目标平台';
+  // Speak the current controls: click a target to walk there (landing lights it), and the
+  // wheel climbs up towards Ⅲ / down towards Ⅰ (Z/X/C stay as direct keys).
+  const roll = `滚轮${g.layer > (state.layer ?? 0) ? '上滚' : '下滚'}（或按 ${['Z', 'X', 'C'][g.layer]}）`;
   if (!friend) {
-    if (!g.aligned) return `提示：切到${['Ⅰ', 'Ⅱ', 'Ⅲ'][g.layer]}层 · ${['Z', 'X', 'C'][g.layer]} 换层（${targetName}）`;
-    return g.kind === 'activate' ? `提示：按 E 启动${targetName}`
+    if (!g.aligned) return `提示：${roll}切到${['Ⅰ', 'Ⅱ', 'Ⅲ'][g.layer]}层（${targetName}）`;
+    return g.kind === 'activate' ? `提示：点${targetName}把它点亮`
       : g.kind === 'shift' ? `提示：保持当前位置，继续换层显现${targetName}`
-        : `提示：前往${targetName} · 点平台预览，再点稳行`;
+        : `提示：点${targetName}，顺桥走过去`;
   }
-  if (!g.aligned) return `${friend.name}在${['Ⅰ', 'Ⅱ', 'Ⅲ'][g.layer]}层招手 · ${['Z', 'X', 'C'][g.layer]} 换层`;
-  return g.kind === 'activate' ? `${friend.name}围着脚下发光 · E 启动`
+  if (!g.aligned) return `${friend.name}在${['Ⅰ', 'Ⅱ', 'Ⅲ'][g.layer]}层招手 · ${roll}`;
+  return g.kind === 'activate' ? `${friend.name}围着脚下发光 · 点它点亮`
     : g.kind === 'shift' ? `${friend.name}在这里等你，继续换层`
-      : `${friend.name}在前面等你 · 点平台预览，再点稳行`;
+      : `${friend.name}在前面等你 · 点${targetName}走过去`;
 }
 
 // Presentation only. Guide data comes from the same authored route that the
