@@ -22,7 +22,7 @@ export const ONBOARDING_STAGES = [
     id: 'slice_shift',
     badge: '🌀 阶段 2/4 · 四维切面折叠',
     title: '第二步：亲手滚动滚轮换层，让隐形的桥显形！',
-    instruction: '① 已点亮！通往 ② 的路藏在另一层空间。点击 ②，角色会走到能换层的地方停下（安全台，或与 ② 同一位置的平台），然后由你亲手滚动鼠标滚轮（或点 Ⅰ/Ⅱ/Ⅲ 层），看隐形的桥在眼前显形！',
+    instruction: '① 已点亮！通往 ② 的路藏在另一层空间。点击 ②，角色会走到能换层的地方停下（带 ⚓ 的安全台，或与 ② 同一位置的平台），然后由你亲手滚动鼠标滚轮（上滚去上层，或点 Ⅰ/Ⅱ/Ⅲ 层），看隐形的桥在眼前显形！',
     unlockedFeatures: ['click_move', 'layer_shift', 'anomalies'],
   },
   {
@@ -30,7 +30,7 @@ export const ONBOARDING_STAGES = [
     id: 'phase_dodge_and_bloom',
     badge: '⚡ 阶段 3/4 · 空间推理与闪避',
     title: '新技能：看虚线桥推理换层 & 躲避花匣冲击波',
-    instruction: '你已掌握四维换层！现在站上安全台时，请观察虚线桥的颜色与上下偏移自主推理滚轮方向（犹豫或按 H 会给出层提示）；开启「✨ 花匣」后认准绿色「🛡️ 安全」层切入即可夺宝！',
+    instruction: '你已掌握四维换层！现在站上 ⚓ 安全台时，请观察虚线桥的颜色与上下偏移自主推理滚轮方向（桥在上方就上滚）（犹豫或按 H 会给出层提示）；开启「✨ 花匣」后认准绿色「🛡️ 安全」层切入即可夺宝！',
     unlockedFeatures: ['click_move', 'layer_shift', 'anomalies', 'vault_dodge', 'risk_bloom'],
   },
   {
@@ -313,7 +313,7 @@ export class ProgressiveOnboarding {
 
   /**
    * Converts mouse-wheel / trackpad scroll deltas into clean 1-layer steps (Ⅰ <-> Ⅱ <-> Ⅲ)
-   * without trackpad inertia multi-skipping.
+   * without trackpad inertia multi-skipping. Wheel up = higher layer (towards Ⅲ).
    * - Requires accumulated delta >= 80px (or 100 in tests).
    * - Locks after a step until a 150ms quiet gap (or >= 220ms between distinct wheel ticks).
    * - Ignores pinch-to-zoom (`ctrlKey` / `metaKey`).
@@ -351,7 +351,9 @@ export class ProgressiveOnboarding {
       this.wheelAccumulator = 0;
       this.lastWheelStepTime = nowMs;
       this.lockedUntilQuiet = true;
-      const nextLayer = Math.max(0, Math.min(2, currentLayer + (step > 0 ? 1 : -1)));
+      // Wheel up (negative deltaY) climbs to the higher W slice (Ⅲ is drawn on top of the
+      // layer stack), matching the risky-crossing fine tune where wheel up also raises W.
+      const nextLayer = Math.max(0, Math.min(2, currentLayer + (step < 0 ? 1 : -1)));
       if (nextLayer !== currentLayer) return nextLayer;
     }
     return null;
@@ -449,7 +451,7 @@ export function computeRelicHudStatus(state) {
     if (id === 'prism') {
       charged = (state.charge || 0) > 0;
       statusText = charged
-        ? `⚡蓄能 ${state.charge}/${rank}（在安全台对准目标层释放）`
+        ? `⚡蓄能 ${state.charge}/${rank}（在 ⚓ 安全台对准目标层释放）`
         : `蓄能 0/${rank}（新桥首次⚡冒险或避波 +1）`;
     } else if (id === 'weave') {
       charged = (state.weaveCharge || 0) > 0;
@@ -470,7 +472,7 @@ export function computeRelicHudStatus(state) {
       statusText = (state.coilRemaining || 0) === 0
         ? '本庭接力已用完'
         : charged
-          ? '⚡已蓄势（在安全台切入目标层自动点亮）'
+          ? '⚡已蓄势（在 ⚓ 安全台切入目标层自动点亮）'
           : `剩余 ${state.coilRemaining}/${rank} 次（下游供能后换层触发）`;
     } else if (id === 'shell') {
       charged = (state.shieldUses || 0) > 0;
@@ -523,11 +525,11 @@ export function computeRelicHudStatus(state) {
       if (targetMech) {
         const lSym = ['Ⅰ', 'Ⅱ', 'Ⅲ'][targetMech.layer] || '';
         positioningHint = curNode?.anchor
-          ? `◇ 棱镜已蓄满！滚轮切至 ${lSym} 层即可远程点亮「${targetMech.name}」（免过桥）`
-          : `◇ 棱镜已蓄满！走回安全台切至 ${lSym} 层即可远程点亮「${targetMech.name}」`;
+          ? `◇ 棱镜已蓄满！${targetMech.layer > state.layer ? '上滚' : '下滚'}切至 ${lSym} 层即可远程点亮「${targetMech.name}」（免过桥）`
+          : `◇ 棱镜已蓄满！走回 ⚓ 安全台切至 ${lSym} 层即可远程点亮「${targetMech.name}」`;
       }
     } else if ((state.relics.weave || 0) > 0 && (state.weaveCharge || 0) > 0) {
-      positioningHint = '❋ 已获桥种！站上已点亮的机关即可种出通往安全台的永久捷径';
+      positioningHint = '❋ 已获桥种！站上已点亮的机关即可种出通往 ⚓ 安全台的永久捷径';
     }
   }
 

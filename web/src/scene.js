@@ -1414,9 +1414,9 @@ export class SceneRenderer {
     const waitingForShiftHere = !!(stage >= 2 && hint?.here);
     if (waitingForShiftHere) {
       const pos = this.playerPosition();
-      const dirArrow = (s.layers?.[hint.layer]?.center ?? .5) > this.currentW() ? '▼' : '▲';
+      const dirArrow = (s.layers?.[hint.layer]?.center ?? .5) > this.currentW() ? '上滚 ▲' : '下滚 ▼';
       const shiftPillText = explicitHint
-        ? `🌀 在此【滚轮 ${dirArrow}】切至 ${layerShort[hint.layer]} 显桥`
+        ? `🌀 在此【${dirArrow}】切至 ${layerShort[hint.layer]} 显桥`
         : '🌀 看虚线桥颜色与偏移，在此【滚轮】对准显桥';
       drawCalloutPill(
         pos.x,
@@ -1485,8 +1485,8 @@ export class SceneRenderer {
                 ? `🎯 桥已显形 · 点我稳妥走(+1◆) 或点下方⚡冒险冲(+3◆)`
                 : `${isPrimary ? '🎯 桥已显形 · ' : '👉 '}点我走过去点亮 ${num}`
               : explicitHint
-                ? `👻 ${num} 虚影在 ${lTag} · 先去安全台滚轮切层`
-                : `👻 ${num} 在邻层切片 · 先去安全台看虚线桥调谐`;
+                ? `👻 ${num} 虚影在 ${lTag} · 先去 ⚓ 安全台切层`
+                : `👻 ${num} 在邻层切片 · 先去 ⚓ 安全台看虚线桥调谐`;
         const badgeText = onCurrentLayer ? `🎯${num}` : `👻${num}`;
         drawNodeTag(
           id,
@@ -1515,15 +1515,15 @@ export class SceneRenderer {
       const hubNode = this.node('hub');
       if (hubNode && s.node !== 'hub') {
         const hubText = focusNodeId === 'hub' && hint?.at?.id === 'hub'
-          ? (explicitHint ? `⚓ 先回安全台 · 再滚轮切至 ${layerShort[hint.layer]}` : '⚓ 先回安全台 · 观察虚线桥滚轮调谐')
-          : '⚓ 安全台 · 站此滚轮换层';
+          ? (explicitHint ? `⚓ 先回${hubNode.name} · 再${hint.layer > s.layer ? '上滚' : '下滚'}切至 ${layerShort[hint.layer]}` : `⚓ 先回${hubNode.name} · 观察虚线桥调谐`)
+          : '⚓ 站此可换层';
         drawNodeTag('hub', hubNode.x, hubNode.y - 68, hubText, '⚓', '#152b28cc', '#4b9b8a', '#c9f2e7');
       }
       const relayNode = this.node('relay');
       if (relayNode && s.node !== 'relay') {
         const relayText = focusNodeId === 'relay' && hint?.at?.id === 'relay'
-          ? (explicitHint ? `⚓ 先去安全台 · 再滚轮切至 ${layerShort[hint.layer]}` : '⚓ 先去安全台 · 观察虚线桥滚轮调谐')
-          : '⚓ 安全台 · 站此滚轮换层';
+          ? (explicitHint ? `⚓ 先去${relayNode.name} · 再${hint.layer > s.layer ? '上滚' : '下滚'}切至 ${layerShort[hint.layer]}` : `⚓ 先去${relayNode.name} · 观察虚线桥调谐`)
+          : '⚓ 站此可换层';
         drawNodeTag('relay', relayNode.x, relayNode.y - 66, relayText, '⚓', '#152b28cc', '#4b9b8a', '#c9f2e7');
       }
       // Highlight 4D Same-XYZ Folding if standing on an island that shares 3D coordinates with another layer's island
@@ -1745,7 +1745,8 @@ export class SceneRenderer {
       ctx.globalAlpha = .8;
       for (let dot = 0; dot <= i; dot++) ellipse(ctx, 140 + dot * 7, 22 + y, 2, 2, color);
       if (this.visualGuide) {
-        const dirHint = i === 2 ? 'Ⅲ 绽放 ▼下滚' : i === 1 ? 'Ⅱ 回声 ↕滚轮' : 'Ⅰ 潮汐 ▲上滚';
+        // Relative to the current layer: wheel up climbs towards Ⅲ (drawn on top).
+        const dirHint = `${['Ⅰ 潮汐', 'Ⅱ 回声', 'Ⅲ 绽放'][i]} ${i > s.layer ? '▲上滚' : i < s.layer ? '▼下滚' : '● 当前'}`;
         const isPrompted = this.isExplicitLayerHint() && this.pendingLayerPrompt?.targetLayer === i && s.layer !== i;
         ctx.font = `${i === s.layer || isPrompted ? 700 : 500} 9.5px system-ui, sans-serif`;
         ctx.textAlign = 'left';
@@ -2015,7 +2016,8 @@ export class SceneRenderer {
     // Labels retain a useful screen size when the whole garden fits a phone.
     const labelSize = clamp(11 / this.scale, 16, 38);
     ctx.font = `${selected ? 600 : 500} ${labelSize}px system-ui, -apple-system, sans-serif`;
-    const name = node.name || { hub: '归息台', dew: '凝露坛', bell: '回声铃', bloom: '映光花', exit: '折光门' }[node.id] || node.id;
+    // ⚓ marks every cross-layer platform, so the '⚓ 安全台' wording always maps to a visible label.
+    const name = (node.anchor ? '⚓ ' : '') + (node.name || { hub: '归息台', dew: '凝露坛', bell: '回声铃', bloom: '映光花', exit: '折光门' }[node.id] || node.id);
     const textWidth = ctx.measureText(name).width;
     ctx.fillStyle = '#edf2e9dd';
     const labelHeight = labelSize + 8;

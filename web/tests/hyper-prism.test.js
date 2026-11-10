@@ -228,17 +228,19 @@ test('ProgressiveOnboarding gates stages by demonstrated 4D skills, respects ban
   onboarding.recordFailure();
   assert.equal(onboarding.shouldShowAssistButton(), true);
 
-  // Discrete mouse wheel requires >= 80px accumulation, blocks trackpad inertia (<150ms stream), and ignores ctrlKey zoom
-  assert.equal(onboarding.handleDiscreteWheel(100, 0, 1000, { ctrlKey: true }), null, 'ignores pinch-to-zoom');
-  assert.equal(onboarding.handleDiscreteWheel(35, 0, 1200), null, 'accumulates small deltas');
-  assert.equal(onboarding.handleDiscreteWheel(50, 0, 1240), 1, '35 + 50 >= 80 steps 1 layer');
+  // Discrete mouse wheel requires >= 80px accumulation, blocks trackpad inertia (<150ms stream), and ignores ctrlKey zoom.
+  // Direction: wheel up (negative deltaY) climbs towards Ⅲ, the layer drawn on top of the W stack.
+  assert.equal(onboarding.handleDiscreteWheel(-100, 0, 1000, { ctrlKey: true }), null, 'ignores pinch-to-zoom');
+  assert.equal(onboarding.handleDiscreteWheel(-35, 0, 1200), null, 'accumulates small deltas');
+  assert.equal(onboarding.handleDiscreteWheel(-50, 0, 1240), 1, '35 + 50 >= 80 wheel-up steps 1 layer up');
   // Simulated Mac trackpad inertia stream every 30ms must NOT jump to layer 2
-  assert.equal(onboarding.handleDiscreteWheel(120, 1, 1270), null, 'blocked by inertia lock');
-  assert.equal(onboarding.handleDiscreteWheel(110, 1, 1300), null, 'blocked by inertia lock');
-  assert.equal(onboarding.handleDiscreteWheel(95, 1, 1330), null, 'blocked by inertia lock');
+  assert.equal(onboarding.handleDiscreteWheel(-120, 1, 1270), null, 'blocked by inertia lock');
+  assert.equal(onboarding.handleDiscreteWheel(-110, 1, 1300), null, 'blocked by inertia lock');
+  assert.equal(onboarding.handleDiscreteWheel(-95, 1, 1330), null, 'blocked by inertia lock');
   // After >= 150ms quiet pause (and >= 220ms since step at 1240), next intentional scroll steps to layer 2
-  assert.equal(onboarding.handleDiscreteWheel(100, 1, 1520), 2);
-  assert.equal(onboarding.handleDiscreteWheel(-100, 2, 1800), 1);
+  assert.equal(onboarding.handleDiscreteWheel(-100, 1, 1520), 2, 'wheel up climbs to Ⅲ');
+  assert.equal(onboarding.handleDiscreteWheel(100, 2, 1800), 1, 'wheel down descends to Ⅱ');
+  assert.equal(onboarding.handleDiscreteWheel(100, 0, 2100), null, 'wheel down at Ⅰ stays at the bottom layer');
 });
 
 test('findCurrentLayerRoute stays strictly within current W layer and planLayerRoute hands off-layer changes to the player', () => {

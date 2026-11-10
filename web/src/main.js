@@ -88,7 +88,8 @@ function buildLayerShiftPromptMessage(s, { targetId, targetLayer, atNode, toNode
   const atName = s.nodes.find(n => n.id === atNode)?.name || '安全台';
   const targetName = s.nodes.find(n => n.id === targetId)?.name || '目标';
   const toName = s.nodes.find(n => n.id === toNode)?.name || targetName;
-  const how = `亲手【滚动滚轮】（或点左上角 ${layerSymbols[targetLayer]}）切到【${layerLabel}】`;
+  const wheelDir = targetLayer > s.layer ? '上滚 ▲' : '下滚 ▼';
+  const how = `亲手【滚轮${wheelDir}】（或点左上角 ${layerSymbols[targetLayer]}）切到【${layerLabel}】`;
   if (kind === 'recover') return `⚠️ 脚下平台只在【${layerLabel}】存在！${how}站稳`;
   if (!revealExplicit) {
     if (kind === 'same_xyz') {
@@ -208,12 +209,12 @@ function manualSwitchLayer(layerIdx, source = 'manual') {
   const prevLayer = s.layer;
   const here = s.nodes.find(n => n.id === s.node);
   // Stage 1 has not taught layers yet: an outer platform only exists in its own layer,
-  // so a stray wheel / swipe / key there must not drop a new player into the void.
+  // so a stray wheel / key there must not drop a new player into the void.
   if ((scene.onboardingStage ?? 4) < 2 && here && !here.anchor && layerIdx !== prevLayer && source !== 'assist') {
     const partner = s.nodes.find(n => !n.anchor && n.id !== here.id && n.layer === layerIdx && n.world && here.world &&
       Math.abs(n.world.x - here.world.x) < 1e-4 && Math.abs(n.world.y - here.world.y) < 1e-4 && Math.abs(n.world.z - here.world.z) < 1e-4);
     if (!partner) {
-      showTransient('⚓ 外圈平台只存在于当前层，现在换层会踩空。先点亮 ①，之后会教你在中央安全台换层', 3.2);
+      showTransient('⚓ 外圈平台只存在于当前层，现在换层会踩空。先点亮 ①，之后会教你在中央的 ⚓ 归响台换层', 3.2);
       updateUI();
       return;
     }
@@ -295,7 +296,7 @@ function handleCanvasSelect(id) {
     }
     if ($('run-details')) $('run-details').open = true;
     if ($('secret-panel')) $('secret-panel').open = true;
-    transient = '🌌 隐藏秘境「隐星台」：跨庭集齐 2 件共鸣遗物并在安全台完成三印换层，即可开启隐藏第四岛 (+9◆)！已在右侧展开秘印配方。';
+    transient = '🌌 隐藏秘境「隐星台」：跨庭集齐 2 件共鸣遗物并在指定的 ⚓ 安全台完成三印换层，即可开启隐藏第四岛 (+9◆)！已在右侧展开秘印配方。';
     transientTime = 3.8;
     actionFeedback = transient;
     $('announcement').textContent = transient;
@@ -792,7 +793,7 @@ function updateUI() {
         pill.className = 'layer-safety-pill pill-safe';
       }
     }
-    button.title=state.wave?`${state.layers[i].name} · ${state.wave.safeLayers.includes(i)?'安全切片':'回流危险'}`:isVoidHere?`${state.layers[i].name} · 当前圆盘不在此层，请先走回安全台再换层`:state.layers[i].name;
+    button.title=state.wave?`${state.layers[i].name} · ${state.wave.safeLayers.includes(i)?'安全切片':'回流危险'}`:isVoidHere?`${state.layers[i].name} · 当前圆盘不在此层，请先走回 ⚓ 安全台再换层`:state.layers[i].name;
   }
   if ($('void-rescue-banner')) {
     const voidDanger = state.phase === 'playing' && !state.travel && state.phaseStability < .99 && currentNode && !currentNode.anchor;
@@ -800,7 +801,7 @@ function updateUI() {
     if (voidDanger) {
       const safeName = state.layers[currentNode.layer]?.name || '原切片';
       setText('void-rescue-title', `⚠️ 脚下悬空（剩余 ${(state.phaseStability * 2.2).toFixed(1)}s）！当前圆盘不在这一层`);
-      setText('void-rescue-sub', `「${currentNode.name}」只存在于${safeName}，需先走回「安全台」才能安全换层`);
+      setText('void-rescue-sub', `「${currentNode.name}」只存在于${safeName}，需先走回「⚓ 安全台」才能安全换层`);
       setText('void-rescue-btn', `🛡️ 一键切回${safeName}`);
     }
   }
@@ -826,7 +827,7 @@ function updateUI() {
       if (revealExplicit) {
         setText('vstep-shift-icon', layerSymbols[shiftLayerIdx] || '🔀');
         setText('vstep-shift-title', `切到${state.layers[shiftLayerIdx]?.name}`);
-        setText('vstep-shift-sub', '在安全台滚轮或点此切层 ✨');
+        setText('vstep-shift-sub', `${shiftLayerIdx > state.layer ? '上滚 ▲' : '下滚 ▼'}，或点此切层 ✨`);
       } else {
         setText('vstep-shift-icon', '🌀');
         setText('vstep-shift-title', '看虚线桥滚轮调谐');
@@ -835,14 +836,14 @@ function updateUI() {
     } else {
       setText('vstep-shift-icon', '✓');
       setText('vstep-shift-title', `${currentLayer?.name || '当前层'}已对准`);
-      setText('vstep-shift-sub', currentNode?.anchor ? '安全台可自由滚轮换层' : '已在当前机关所在层');
+      setText('vstep-shift-sub', currentNode?.anchor ? `站在 ⚓ ${currentNode.name}，可自由换层` : '已在当前机关所在层');
     }
 
     if (step2Active && gTarget) {
       const returning = !currentNode?.anchor && gTarget.anchor;
       setText('vstep-move-icon', returning ? '⚓' : '🏃');
-      setText('vstep-move-title', returning ? '先回安全台' : `走向${gTarget.name}`);
-      setText('vstep-move-sub', returning ? '点此回安全台再换层 ✨' : '点目标顺桥走过去 ✨');
+      setText('vstep-move-title', returning ? `先回 ⚓ ${gTarget.name}` : `走向${gTarget.name}`);
+      setText('vstep-move-sub', returning ? '点此走回去再换层 ✨' : '点目标顺桥走过去 ✨');
     } else if (step3Active) {
       setText('vstep-move-icon', '✓');
       setText('vstep-move-title', `已登岛 · ${currentNode?.name}`);
@@ -860,7 +861,7 @@ function updateUI() {
     } else {
       setText('vstep-act-icon', state.activated.length === 3 ? '🚪' : '⚡');
       setText('vstep-act-title', `点亮机关 (${state.activated.length}/3)`);
-      setText('vstep-act-sub', state.activated.length === 3 ? '三座全亮 · 点终点门过关' : '登岛自动点亮，再回安全台');
+      setText('vstep-act-sub', state.activated.length === 3 ? '三座全亮 · 点终点门过关' : '登岛自动点亮');
     }
   }
   setText('footing',`${currentNode?.name || ''} · ${currentNode?.anchor?'跨层支撑':currentNode?.present?'本层平台':'离层失稳 · 换回有支撑的层'}`);
@@ -1326,7 +1327,7 @@ $('quick-ability-btn')?.addEventListener('click', () => {
   if (abilityId === 'prism') {
     showTransient('✨ 回流棱镜已释放！跨层脉冲直接点亮了本层机关（免过桥）！', 3.8);
   } else if (abilityId === 'weave') {
-    showTransient('❋ 织桥种已生根！在当前机关与安全台之间长出了永久捷径桥！', 3.8);
+    showTransient('❋ 织桥种已生根！在当前机关与 ⚓ 安全台之间长出了永久捷径桥！', 3.8);
   } else if (abilityId === 'shadow') {
     showTransient('◌ 留影扣已激活！分身留在原地持续压住跨层捷径桥！', 3.8);
   }
@@ -1377,15 +1378,15 @@ function selectHelp(topic) {
   if (!s.wave && !s.travel) {
     if (topic === 'slice') {
       tip = node?.anchor
-        ? '你正站在「⚓ 安全台」上：直接滚动鼠标滚轮（或点下方 Ⅰ/Ⅱ/Ⅲ 层按钮），就能切换四维层，看到隐藏的桥显形！'
-        : `外圈机关只存在于「${s.layers[node?.layer]?.name || '当前层'}」；想换层请先点击中央的「⚓ 安全台」走回去。`;
+        ? `你正站在「⚓ ${node.name}」上：滚轮上滚去上层、下滚去下层（或点下方 Ⅰ/Ⅱ/Ⅲ 层按钮），看隐藏的桥显形！`
+        : `外圈机关只存在于「${s.layers[node?.layer]?.name || '当前层'}」；想换层请先点击带 ⚓ 的安全台（如「⚓ 归响台」）走回去。`;
     } else if (topic === 'action') {
       tip = '无需按 E！只要在当前层看到发光的「① / ② / ③」号机关，直接用鼠标左键点击它，角色走上台就会自动点亮。';
     } else if (topic === 'next') {
       const g = s.companionGuide;
       const target = s.nodes.find(n => n.id === g?.node)?.name || '下一座发光机关';
       tip = g && !g.aligned
-        ? `下一座目标是「${target}」，但桥在【${s.layers[g.layer]?.name}】。请站在安全台滚动鼠标滚轮切到该层！`
+        ? `下一座目标是「${target}」，但桥在【${s.layers[g.layer]?.name}】。请站在 ⚓ 安全台上，${g.layer > s.layer ? '上滚' : '下滚'}切到该层！`
         : `直接用鼠标左键点击画面中发光的「${target}」，顺着桥走过去即可自动点亮。`;
     }
   }
@@ -1423,27 +1424,35 @@ initHyperLab({
   onClose: () => { paused = false; lastFrame = performance.now(); syncAudio(); },
 });
 
+// Remember when the page itself last scrolled, so a scroll gesture that sweeps the canvas
+// under the cursor keeps scrolling the page instead of suddenly switching layers.
+let lastPageScrollAt = -Infinity;
+window.addEventListener('scroll', () => { lastPageScrollAt = performance.now(); }, { passive: true });
+
 $('scene').addEventListener('wheel', e => {
   if (!canAct()) return;
   if (e.ctrlKey || e.metaKey) return;
   const now = performance.now();
   const s = model.snapshot();
-  // Take over the wheel only when the player is clearly playing: the canvas was clicked
-  // (focused), the game is explicitly asking for a layer change, a wave / risky crossing
-  // needs it, or the page has nothing to scroll anyway. Otherwise let the page scroll.
-  const scroller = document.scrollingElement || document.documentElement;
-  const pageScrollable = scroller.scrollHeight > window.innerHeight + 4;
-  const wantsWheel = document.activeElement === $('scene') || !!scene.pendingLayerPrompt ||
-    !!s.wave || !!s.travel?.risky || !pageScrollable;
+  // The wheel over the canvas always means "change layer" (stage 2 adds panels that make the
+  // page scrollable, and the second wheel must not silently scroll the page instead), except
+  // while a page scroll that started elsewhere is still in motion. Waves, risky crossings and
+  // explicit layer prompts always take the wheel.
+  const pageScrollInMotion = now - lastPageScrollAt < 500;
+  const wantsWheel = !pageScrollInMotion || document.activeElement === $('scene') ||
+    !!scene.pendingLayerPrompt || !!s.wave || !!s.travel?.risky;
   if (!wantsWheel) return;
 
   e.preventDefault();
+  // One direction convention everywhere: wheel up / scroll right = higher W (towards Ⅲ),
+  // matching the layer stack (Ⅲ on top) and the W slider (higher values on the right).
+  const wheelDelta = e.deltaY || -e.deltaX;
   if (s.travel?.risky) {
-    const delta = Math.sign(e.deltaY || e.deltaX) * -0.022;
+    const delta = Math.sign(wheelDelta) * -0.022;
     if (delta) action(() => model.setW(s.w + delta));
     return;
   }
-  const nextLayer = onboarding.handleDiscreteWheel(e.deltaY || e.deltaX, s.layer, now, {
+  const nextLayer = onboarding.handleDiscreteWheel(wheelDelta, s.layer, now, {
     ctrlKey: e.ctrlKey,
     metaKey: e.metaKey,
     deltaMode: e.deltaMode,
@@ -1470,16 +1479,9 @@ window.addEventListener('pointermove', e => {
     action(() => model.setW(nextW));
   }
 });
-window.addEventListener('pointerup', e => {
-  if (sceneDrag && sceneDrag.moved && canAct()) {
-    const s = model.snapshot();
-    const dx = e.clientX - sceneDrag.x;
-    const dy = e.clientY - sceneDrag.y;
-    if (!s.travel && Math.abs(dx) >= 48 && Math.abs(dy) < 42) {
-      const nextLayer = Math.max(0, Math.min(2, s.layer + (dx > 0 ? 1 : -1)));
-      if (nextLayer !== s.layer) manualSwitchLayer(nextLayer, 'swipe');
-    }
-  }
+window.addEventListener('pointerup', () => {
+  // Drag only fine-tunes W during a risky crossing; layer changes use the wheel, Z/X/C,
+  // the layer buttons or the W stack, so a drag can never be mistaken for a platform click.
   sceneDrag = null;
 });
 
