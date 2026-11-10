@@ -1,0 +1,8 @@
+verify-first-return exit=0
+verify-first-anchor exit=0
+verify-first-feedback exit=0
+verify-first-onward exit=0
+verify-onboarding-load exit=0
+verify-penpal exit=0
+verify-top5 exit=0
+verify-first-exit exit=0

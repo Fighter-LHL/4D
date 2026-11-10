@@ -1,0 +1,137 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "name": "first run auto-equips the starter shell",
+      "ok": true,
+      "phase": "playing",
+      "relics": {
+        "prism": 0,
+        "shadow": 0,
+        "coil": 0,
+        "weave": 0,
+        "shell": 1
+      }
+    },
+    {
+      "name": "choice dialog stays closed on the first run",
+      "ok": true
+    },
+    {
+      "name": "no mid-run relic switch button",
+      "ok": true
+    },
+    {
+      "name": "wheel up climbs towards Ⅲ and scroll right matches it",
+      "ok": true,
+      "layers": [
+        0,
+        1,
+        2,
+        2,
+        1,
+        2,
+        1,
+        0
+      ]
+    },
+    {
+      "name": "drag does not change layer",
+      "ok": true,
+      "layer": 0
+    },
+    {
+      "name": "stage 1 banner stays expanded",
+      "ok": true
+    },
+    {
+      "name": "later stage banner folds after the announcement",
+      "ok": true,
+      "collapsed": true,
+      "checklist": [
+        "✓ 已点亮",
+        "🎯 当前目标",
+        "🔒 需先点亮 ②"
+      ],
+      "description": "两处独立源都送达，交叠处的汇流台才会回应。"
+    },
+    {
+      "name": "checklist reports state without instructions",
+      "ok": true,
+      "collapsed": true,
+      "checklist": [
+        "✓ 已点亮",
+        "🎯 当前目标",
+        "🔒 需先点亮 ②"
+      ],
+      "description": "两处独立源都送达，交叠处的汇流台才会回应。"
+    },
+    {
+      "name": "room description is the template description",
+      "ok": true,
+      "collapsed": true,
+      "checklist": [
+        "✓ 已点亮",
+        "🎯 当前目标",
+        "🔒 需先点亮 ②"
+      ],
+      "description": "两处独立源都送达，交叠处的汇流台才会回应。"
+    },
+    {
+      "name": "clicking the folded badge reopens the stage instruction",
+      "ok": true
+    },
+    {
+      "name": "R toggles risk and Tab leaves it alone",
+      "ok": true,
+      "riskBefore": false,
+      "riskAfterR": true,
+      "riskAfterTab": true
+    },
+    {
+      "name": "theme toggle repaints the canvas",
+      "ok": true,
+      "darkPixel": [
+        15,
+        28,
+        36
+      ],
+      "lightPixel": [
+        234,
+        241,
+        235
+      ]
+    },
+    {
+      "name": "4D lab readout follows its slider",
+      "ok": true
+    },
+    {
+      "name": "4D lab × closes the dialog",
+      "ok": true
+    },
+    {
+      "name": "hands-off risky crossing fails instead of being auto-steered",
+      "ok": true,
+      "failuresBefore": 0,
+      "failuresAfter": 1,
+      "shieldBefore": 1,
+      "shieldAfter": 0
+    },
+    {
+      "name": "returning player sees the relic picker",
+      "ok": true
+    },
+    {
+      "name": "a new run opens the relic picker again",
+      "ok": true
+    },
+    {
+      "name": "no page or console errors",
+      "ok": true,
+      "errors": []
+    }
+  ],
+  "errors": [],
+  "browserVersion": "130.0.6723.31"
+}

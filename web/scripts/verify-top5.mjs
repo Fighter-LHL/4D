@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { courtyardBeatObserver, verifyCourtyardFirstBeat } from './courtyard-first-beat.mjs';
+import { courtyardFlowObserver, chooseDiscoveryStarter, followGuidance, readFlow, waitSettled } from './courtyard-first-beat.mjs';
 
 const baseURL = process.env.BASE_URL || 'http://127.0.0.1:4173';
 const out = process.env.ARTIFACT_DIR || fileURLToPath(new URL(`../artifacts/play-fun-top5-20261027/browser-${Date.now()}/`, import.meta.url));
@@ -100,7 +100,7 @@ scene.render = dt => {
   top5CourtyardRender(dt);
 };
 window.__top5Courtyard = () => ({ time: model.time, settled: guide.settled, friends: scene.friends.length, cue: scene.state?.courtyardMomentum, used: [...momentum.used] });
-${courtyardBeatObserver}
+${courtyardFlowObserver}
 ` });
     });
     const page = await context.newPage();
@@ -291,49 +291,37 @@ ${courtyardBeatObserver}
     await page.locator('#start').click();
     // Real handoff link, using the freshly earned collection and untouched storage.
     await page.getByRole('link', { name: '去庭院 ↗', exact: true }).first().click();
-    const courtyardEntry = await verifyCourtyardFirstBeat(page, out, width, { interrupt: width === 320 ? 'arrival' : width === 390 ? 'follow' : 'mechanism' });
-    // Continue deterministic courtyard coverage with the same earned collection.
-    await page.goto(`${baseURL}/?seed=2`);
-    await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
-    await page.locator('#align').click();
-    assert.equal(await page.locator('.action-row .primary-button').count(), 1);
-    assert.equal(await page.locator('#move.attention-action').count(), 1);
-    assert.match(await page.locator('#move').innerText(), /稳行/);
-    await screenshot('discovery-to-courtyard');
-    await page.locator('#move').click();
-    assert.equal(await page.locator('#interact').isDisabled(), true);
-    assert.equal(await page.locator('.action-row .primary-button, .action-row .attention-action').count(), 0);
-    await page.waitForFunction(() => document.querySelector('#interact').classList.contains('attention-action'));
-    assert.equal(await page.locator('.action-row .primary-button').count(), 1);
-    const landed = await page.evaluate(() => window.__top5Courtyard());
-    assert.equal(landed.friends, 1, 'test the idle guide with the genuinely earned companion');
-    assert.equal(landed.settled, true);
+    await page.waitForFunction(() => window.__flow?.());
+    const courtyardEntry = await chooseDiscoveryStarter(page, out, width);
+    // The arrival invitation appears before the player acts (acting first cancels it by design).
+    await page.waitForFunction(() => window.__flow().momentum.cue?.beat === 'arrival');
+    // First activation by following only what the game shows, then the quiet that follows it.
+    await followGuidance(page, (await readFlow(page)).state.mechanismOrder[0]);
+    const landed = await waitSettled(page);
+    assert.equal(landed.friends.length, 1, 'test the idle guide with the genuinely earned companion');
+    assert.equal(landed.state.activated.length, 1);
     assert.equal(await page.locator('#friend-guide').isVisible(), false);
-    await page.waitForFunction(() => window.__top5Courtyard().cue?.age >= .3);
-    assert.equal((await page.evaluate(() => window.__top5Courtyard())).cue.beat, 'landing');
-    await screenshot('courtyard-landing-glint');
+    await screenshot('courtyard-first-activation');
     await page.locator('#pause').click();
-    const frozenGlint = await page.evaluate(() => window.__top5Courtyard().cue);
+    const frozenAt = (await readFlow(page)).time;
     await page.waitForTimeout(250);
-    assert.deepEqual(await page.evaluate(() => window.__top5Courtyard().cue), frozenGlint);
+    assert.equal((await readFlow(page)).time, frozenAt, 'pause freezes the courtyard');
     await page.locator('#resume').click();
-    await page.waitForFunction(time => window.__top5Courtyard().time >= time + 6.2, landed.time);
+    await page.waitForFunction(time => window.__flow().time >= time + 6.2, landed.time);
+    const idle = await readFlow(page);
     assert.equal(await page.locator('#friend-guide').isVisible(), false, 'no automatic guide at the old six-second idle trigger');
-    assert.equal(await page.evaluate(() => window.__top5Courtyard().cue), null, 'the landing glint expires and does not loop');
+    assert.equal(idle.momentum.cue, null, 'first-entry glints expire and do not loop');
+    assert.equal(idle.state.node, landed.state.node, 'idling never moves the player');
+    assert.equal(idle.state.layer, landed.state.layer, 'idling never shifts for the player');
     await screenshot('courtyard-settled-quiet');
+    await page.locator('#scene').focus();
     await page.keyboard.press('h');
     assert.equal(await page.locator('#friend-guide').isVisible(), true);
-    await page.waitForFunction(() => document.querySelector('#friend-guide').hidden);
+    await page.waitForFunction(() => document.querySelector('#friend-guide').hidden, null, { timeout: 12000 });
     await screenshot('courtyard-requested-help-cleared');
-    await page.locator('#interact').click();
-    await page.waitForFunction(() => window.__top5Courtyard().cue?.beat === 'onward' && window.__top5Courtyard().cue.age >= .3);
-    assert.equal((await page.evaluate(() => window.__top5Courtyard())).cue.node, 'hub');
-    await screenshot('courtyard-onward-glint');
-    await page.waitForFunction(() => !window.__top5Courtyard().cue);
-    const glintUsed = await page.evaluate(() => window.__top5Courtyard().used);
-    assert.deepEqual(glintUsed, ['landing', 'onward']);
-    await page.keyboard.press('e');
-    await page.waitForFunction(() => document.querySelector('#action-feedback').textContent.includes('去辉光源'));
+    const glintUsed = idle.momentum.used;
+    assert.deepEqual(glintUsed, ['arrival', 'follow'], 'the first entry plays its two beats once');
+    assert.deepEqual(await page.evaluate(() => window.__top5EntryConflicts), [], 'an entry beat never shares the frame with companion help');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     receipt.checks.push({ width, reducedMotion: width === 320, muted: width === 320, friendFound: true, seedFound: true, savedAfterReloadAndRetry: true, levelHighlightSynced: true, noOverflow: true, visitorAndDiscoveryCoexist: true, discoveryDeliveredOnce: true, earnedCollectionToCourtyardCTA: true,
       arrivalAndNearExclusive: true, idleAfterArrivalQuiet: true, nearOnce: nearEvents, approachDuration: approachPopup.duration, approachClearedAfter: approachClearedAt - nearEvents[0].time, discoveryDuration,
