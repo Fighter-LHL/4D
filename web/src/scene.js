@@ -1512,16 +1512,18 @@ export class SceneRenderer {
 
     // 2D. Progressive Role & Mystery Discovery tags
     if (stage >= 2) {
+      // Anchor labels already carry ⚓; their tags appear only when they are the next step or hovered.
+      const anchorFocus = id => focusNodeId === id && hint?.at?.id === id;
       const hubNode = this.node('hub');
-      if (hubNode && s.node !== 'hub') {
-        const hubText = focusNodeId === 'hub' && hint?.at?.id === 'hub'
+      if (hubNode && s.node !== 'hub' && (anchorFocus('hub') || hoverId === 'hub')) {
+        const hubText = anchorFocus('hub')
           ? (explicitHint ? `⚓ 先回${hubNode.name} · 再${hint.layer > s.layer ? '上滚' : '下滚'}切至 ${layerShort[hint.layer]}` : `⚓ 先回${hubNode.name} · 观察虚线桥调谐`)
           : '⚓ 站此可换层';
         drawNodeTag('hub', hubNode.x, hubNode.y - 68, hubText, '⚓', '#152b28cc', '#4b9b8a', '#c9f2e7');
       }
       const relayNode = this.node('relay');
-      if (relayNode && s.node !== 'relay') {
-        const relayText = focusNodeId === 'relay' && hint?.at?.id === 'relay'
+      if (relayNode && s.node !== 'relay' && (anchorFocus('relay') || hoverId === 'relay')) {
+        const relayText = anchorFocus('relay')
           ? (explicitHint ? `⚓ 先去${relayNode.name} · 再${hint.layer > s.layer ? '上滚' : '下滚'}切至 ${layerShort[hint.layer]}` : `⚓ 先去${relayNode.name} · 观察虚线桥调谐`)
           : '⚓ 站此可换层';
         drawNodeTag('relay', relayNode.x, relayNode.y - 66, relayText, '⚓', '#152b28cc', '#4b9b8a', '#c9f2e7');

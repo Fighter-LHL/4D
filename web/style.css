@@ -225,6 +225,9 @@ body[data-theme="astral"] .advanced-drawer{background:rgba(15,29,41,.5)}
 .onboarding-banner[data-stage="3"]{border-color:#299c80;background:linear-gradient(135deg,#eefbf6 0%,#daf2e9 100%)}
 .onboarding-banner[data-stage="4"]{border-color:#8b5cf6;background:linear-gradient(135deg,#f6f1ff 0%,#e9dffb 100%)}
 .onboarding-main{display:flex;flex-direction:column;gap:2px;flex:1 1 220px;min-width:0}
+.onboarding-banner.collapsed{padding:6px 12px}
+.onboarding-banner.collapsed .onboarding-main{cursor:pointer}
+.onboarding-banner.collapsed #onboarding-title,.onboarding-banner.collapsed #onboarding-desc{display:none}
 .onboarding-badge{display:inline-block;width:max-content;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(216,154,43,.18);color:#7a4d0b}
 .onboarding-banner[data-stage="2"] .onboarding-badge{background:rgba(55,141,156,.16);color:#1d606c}
 .onboarding-banner[data-stage="3"] .onboarding-badge{background:rgba(41,156,128,.16);color:#145948}

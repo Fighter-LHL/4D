@@ -79,6 +79,8 @@ function askFriend() {
 }
 let autoPilot = null;
 let oneShotRiskCrossing = false;
+let bannerStage = 0;
+let bannerExpandedUntil = 0;
 let relicHudKey = '';
 
 function showTransient(message, seconds = 3.2) {
@@ -674,7 +676,7 @@ function updateRoom(state) {
   if(roomKey===key)return;
   roomKey=key;destinationKey='';
   scene.pendingLayerPrompt = null;
-  setText('room-description', '🎯 核心玩法：左键点击发光的「① → ② → ③」号机关走过去点亮；当目标在另一层时，站上「⚓ 安全台」滚动鼠标滚轮切换四维层，让隐形的桥显形！');
+  setText('room-description', state.roomDescription || '观察各层机关，让能量接力。');
   renderItinerary('room-itinerary',state,state.room);
   const order=state.mechanismOrder || state.nodes.filter(n=>n.kind==='mechanism').map(n=>n.id);
   const numBadges = ['①', '②', '③'];
@@ -893,12 +895,11 @@ function updateUI() {
     const missingSyms = (node.required || [])
       .filter(reqId => !(node.received || []).includes(reqId))
       .map(reqId => ['①', '②', '③'][orderList.indexOf(reqId)] || '前序');
-    const layerTagText = (revealExplicit || node.layer === state.layer) ? `${layerSymbols[node.layer]}层` : '邻层虚影';
     row.querySelector('small').textContent = active
       ? '✓ 已点亮'
       : node.powered
-        ? `${isPrimary ? '🎯 当前目标 · ' : '👉 '}点我前往 (${layerTagText})`
-        : `🔒 待解锁 · 需先点亮 ${missingSyms.join('+') || '前序'}`;
+        ? (isPrimary ? '🎯 当前目标' : '可点亮')
+        : `🔒 需先点亮 ${missingSyms.join('+') || '前序'}`;
     row.title=node.mechanismHint || '';
     row.querySelector('.node-light').textContent = active ? '✓' : numSym;
     for(const slot of row.querySelectorAll('[data-source]')){const received=node.received?.includes(slot.dataset.source);slot.textContent=received?'●':'○';slot.classList.toggle('received',!!received);}
@@ -912,17 +913,16 @@ function updateUI() {
       ? '✨ 大门已开！点此直接过关 ↗'
       : `🔒 待解锁 · 需先点亮 ①②③ (${state.activated.length}/3)`);
   }
-  if (!transient || transientTime <= 0.4) {
-    const stageUp = onboarding.consumeStageUpBanner(state, anomProg.totalCollected);
-    if (stageUp) {
-      transient = `${stageUp.badge} · ${stageUp.title}`;
-      transientTime = 3.8;
-      actionFeedback = `${stageUp.badge}：${stageUp.instruction}`;
-      $('announcement').textContent = actionFeedback;
-    }
-  }
-
   if ($('onboarding-banner')) {
+    const bannerNow = performance.now();
+    if (stageInfo.stage !== bannerStage) {
+      bannerStage = stageInfo.stage;
+      bannerExpandedUntil = bannerNow + 4500;
+      if (stageInfo.stage > 1) $('announcement').textContent = `${stageInfo.badge}：${stageInfo.instruction}`;
+    }
+    // Stage 1 is the very first screen, so its single instruction stays until ① is lit.
+    // Later stages expand briefly on arrival, then fold to a one-line badge (click to reopen).
+    $('onboarding-banner').classList.toggle('collapsed', stageInfo.stage > 1 && bannerNow > bannerExpandedUntil);
     $('onboarding-banner').dataset.stage = String(stageInfo.stage);
     setText('onboarding-badge', stageInfo.badge);
     setText('onboarding-title', stageInfo.title);
@@ -1152,12 +1152,9 @@ function updateUI() {
   $('pause').disabled = state.phase !== 'playing';
   setText('context-hint',state.objective || '切换空间，观察能量会传到哪一层。');
   // The action popup owns its result; the caption keeps the current place legible.
-  // While a layer-shift prompt is still waiting on the player, keep its instruction visible even after the timer expires.
-  const activePromptMsg = !state.travel && !state.wave && scene.pendingLayerPrompt?.message &&
-    scene.pendingLayerPrompt.targetLayer !== state.layer &&
-    (!scene.pendingLayerPrompt.atNode || scene.pendingLayerPrompt.atNode === state.node)
-      ? scene.pendingLayerPrompt.message : '';
-  const visibleFeedback = (transient && actionFeedback) ? actionFeedback : activePromptMsg;
+  // A waiting layer-shift prompt is announced once here; afterwards the canvas pill and the
+  // visual stepper keep it visible, so the popup does not repeat them indefinitely.
+  const visibleFeedback = (transient && actionFeedback) ? actionFeedback : '';
   const status = (visibleFeedback || transientType === 'power' ? null : transient) || (state.travel ? (state.travel.risky?'冒险中 · 留意移动光带':'沿当前切片前进') : `${currentNode?.name || '归响台'} · ${currentLayer?.name || '层间隙'}`);
   $('action-feedback').hidden = !visibleFeedback;
   setText('action-feedback', visibleFeedback);
@@ -1185,6 +1182,10 @@ $('interact').addEventListener('click',e=>{
     $('w-slider').focus({preventScroll:true});
 });
 $('ask-friend').addEventListener('click', askFriend);
+$('onboarding-banner')?.querySelector('.onboarding-main')?.addEventListener('click', () => {
+  bannerExpandedUntil = performance.now() + 6000;
+  updateUI();
+});
 $('void-rescue-btn')?.addEventListener('click', () => {
   if (!canAct()) return;
   const s = model.snapshot();
