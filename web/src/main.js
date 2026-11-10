@@ -38,8 +38,11 @@ rememberSeed(initialSeed);
 // next room (or ends), every new run opens with the normal relic picker again.
 const FIRST_RUN_DONE_KEY = 'wslice-first-run-done';
 const isFirstRun = () => readPreference(FIRST_RUN_DONE_KEY, '') !== 'yes';
+// Arrivals from Flatland keep their own starter picker (the discovery arrival offers
+// "带缓落壳出发" as the primary choice with alternatives folded away).
+const arrivedFrom = new URLSearchParams(location.search).get('from');
 function autoEquipFirstRun() {
-  if (model.snapshot().phase === 'choose' && !fromFlatland && isFirstRun()) model.chooseRelic('shell');
+  if (model.snapshot().phase === 'choose' && !fromFlatland && arrivedFrom !== 'discovery' && isFirstRun()) model.chooseRelic('shell');
 }
 autoEquipFirstRun();
 const audio = new GameAudio();
