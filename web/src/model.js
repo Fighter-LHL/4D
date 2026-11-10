@@ -1,4 +1,6 @@
 import { ROOM_TEMPLATES, createRoomPlan, roomMetadata, buildRoom } from './rooms.js';
+import { RHYTHM_GATES } from './hyper-prism.js';
+import { buildRoomAnomalies, projectRoomAnomalies } from './exploration-radar.js';
 // Authoritative authored XYZ + W sections. Views consume these gates and never invent routes.
 export const RELICS = Object.freeze([
   Object.freeze({ id: 'prism', name: '回流棱镜', description: '新路线首次冒险或花匣避波成功时蓄能；在归响台或维度锚台释放，启动当前层已供能的机关。升阶增加蓄能上限。' }),
@@ -42,7 +44,14 @@ export class GameModel {
     this.lives = 3;
     this.relic = null;
     this.relics = Object.fromEntries(RELICS.map(relic => [relic.id, 0]));
-    this.stats = { risks: 0, failures: 0, chains: 0 };
+    this.collectedAnomalies = new Set();
+    this.lastAnomaly = null;
+    this.phaseStreak = 0;
+    this.maxPhaseStreak = 0;
+    this.goodBeats = 0;
+    this.syncTime = 0;
+    this.riskyTime = 0;
+    this.stats = { risks: 0, failures: 0, chains: 0, anomalies: 0, perfectBeats: 0, grazes: 0, perfectCrossings: 0 };
     this.events = [];
     this._setupRoom();
     this._emit('restart');
@@ -52,6 +61,7 @@ export class GameModel {
   _setupRoom() {
     this.roomConfig = buildRoom(this.roomPlan[this.room], LAYERS);
     this.nodes = this.roomConfig.nodes.map(nodeCopy);
+    this.roomAnomalies = buildRoomAnomalies(this.seed, this.room, this.nodes);
     this.node = 'hub';
     this.selected = this.roomConfig.start;
     this.selectionExplicit = false;
@@ -82,6 +92,9 @@ export class GameModel {
     this.claims = new Set();
     this.bankedClaims = new Set();
     this.pulseClaims = new Set();
+    this.grazeClaims = new Set();
+    this.grazeArmed = null;
+    this.grazeStepTriggered = null;
     this.ghost = null;
     this.shadowUsed = false;
     this.wave = null;
@@ -136,8 +149,35 @@ export class GameModel {
         if (this.wave?.variant === 'rift' && this.wave.safeLayers.includes(actualLayer)) this.wave.entered = true;
         if (!this.wave) { this._tryCoil(actualLayer); this._trySecretSeal(actualLayer); }
       }
+      if (this.wave) this._checkWaveGraze();
     }
     return true;
+  }
+
+  _checkWaveGraze() {
+    if (!this.wave) {
+      this.grazeArmed = null;
+      this.grazeStepTriggered = null;
+      return;
+    }
+    const layer = nearestLayer(this.w);
+    const inSafe = this.wave.safeLayers.includes(layer) && this._inLayer(layer) && (this.wave.variant !== 'rift' || this.wave.entered);
+    const stepKey = `${this.wave.node}:${this.wave.step}`;
+    if (!inSafe) {
+      if (this.wave.remaining <= .82 && this.grazeStepTriggered !== stepKey && !this.grazeClaims.has(stepKey)) {
+        this.grazeArmed = stepKey;
+      }
+    } else if (this.grazeArmed === stepKey && this.grazeStepTriggered !== stepKey && !this.grazeClaims.has(stepKey) && this.wave.remaining > .02 && this.wave.remaining <= .82) {
+      this.grazeStepTriggered = stepKey;
+      this.grazeArmed = null;
+      this.grazeClaims.add(stepKey);
+      this.stats.grazes += 1;
+      this.phaseStreak += 1;
+      this.maxPhaseStreak = Math.max(this.maxPhaseStreak, this.phaseStreak);
+      this.banked += 1;
+      this.roomScore += 1;
+      this._emit('phase_graze', { node: this.wave.node, step: this.wave.step, remaining: this.wave.remaining, streak: this.phaseStreak, bonus: 1 });
+    }
   }
 
   _tryPhaseTransfer() {
@@ -275,9 +315,32 @@ export class GameModel {
     const edge = this._selectedEdge();
     this.travel = { from: this.node, to: this.selected, progress: 0, duration: this.riskMode ? 2.5 : 1.35,
       risky: this.riskMode, stability: 1, center: LAYERS[edge.layer].center, layer: edge.layer,
-      edgeId: edge.id, kind: edge.kind, min: edge.min, max: edge.max, source: { node: this.node, w: this.w } };
+      edgeId: edge.id, kind: edge.kind, min: edge.min, max: edge.max, source: { node: this.node, w: this.w },
+      gates: ['pending', 'pending', 'pending'] };
     this._emit('move', { from: this.node, to: this.selected, risky: this.riskMode, layer: edge.layer });
     if (this.riskMode) this._emit('risk', { from: this.node, to: this.selected, tier: Math.min(3, this.combo + 1) });
+    return true;
+  }
+
+  collectAnomaly(idOrKey) {
+    if (this.phase !== 'playing' || this.travel || this.wave || !idOrKey) return false;
+    const rawId = String(idOrKey).split(':').pop();
+    const target = this.roomAnomalies.find(item => item.id === rawId);
+    if (!target) return false;
+    const claimKey = `${this.seed}:${this.room}:${target.id}`;
+    if (this.collectedAnomalies.has(claimKey)) return false;
+    const layer = nearestLayer(this.w);
+    const distW = Math.abs(this.w - LAYERS[target.layer].center);
+    if (layer !== target.layer || distW >= HALF_SECTION) {
+      this._emit('anomaly_off_layer', { id: target.id, name: target.name, targetLayer: target.layer });
+      return false;
+    }
+    this.collectedAnomalies.add(claimKey);
+    this.lastAnomaly = { ...target, room: this.room };
+    this.banked += target.bonus;
+    this.roomScore += target.bonus;
+    this.stats.anomalies += 1;
+    this._emit('anomaly', { id: target.id, key: claimKey, name: target.name, bonus: target.bonus, layer: target.layer, total: this.stats.anomalies });
     return true;
   }
 
@@ -448,6 +511,12 @@ export class GameModel {
       this.pulseClaims.add(key);
       if (this.relics.prism > 0) this.charge = Math.min(this.relics.prism, this.charge + 1);
       if (this.relics.weave > 0) this.weaveCharge = Math.min(this.relics.weave, this.weaveCharge + 1);
+      if (fields.perfectSync) {
+        this.stats.perfectCrossings += 1;
+        this.banked += 1;
+        this.roomScore += 1;
+        this._emit('phase_sync', { from: fields.from, to: fields.to, bonus: 1, streak: this.phaseStreak });
+      }
       if (!this.resonance.triggered) {
         this.resonance = { stage: 0, triggered: true, from: this.node };
         for (const [index, delay] of [.25, .6, 1].entries()) this.pending.push({ at: this.time + delay, kind: 'resonance', stage: index + 1, from: this.node });
@@ -462,7 +531,8 @@ export class GameModel {
     this.node = travel.to;
     this.phaseStability = 1;
     if (this._node().anchor) { this.lastAnchor = this.node; this.anchorW = this.w; }
-    this._reward(`${travel.from}>${travel.to}`, travel.risky ? 3 : 1, travel.risky, { from: travel.from, to: travel.to, layer: travel.layer });
+    const perfectSync = Boolean(travel.risky && travel.gates?.length === RHYTHM_GATES.length && travel.gates.every(g => g === 'perfect'));
+    this._reward(`${travel.from}>${travel.to}`, travel.risky ? 3 : 1, travel.risky, { from: travel.from, to: travel.to, layer: travel.layer, ...(perfectSync ? { perfectSync: true } : {}) });
     this._chooseTarget();
     if (this.node === 'exit') {
       this.pending = [];
@@ -529,8 +599,11 @@ export class GameModel {
     this.pending = this.pending.filter(cue => ['power', 'resonance', 'ascension'].includes(cue.kind));
     this.lastActualLayer = this._actualLayer();
     // Power and scene growth are committed world effects. Only presentation celebrations are cancelled.
-    this.events = this.events.filter(event => !['chain', 'reward', 'unlock', 'activate', 'evade', 'rift_clear'].includes(event.type));
+    this.events = this.events.filter(event => !['chain', 'reward', 'unlock', 'activate', 'evade', 'rift_clear', 'phase_beat', 'phase_sync', 'phase_graze'].includes(event.type));
     this.combo = 0;
+    this.phaseStreak = 0;
+    this.grazeArmed = null;
+    this.grazeStepTriggered = null;
     this.charge = 0;
     this.weaveCharge = 0;
     this.ghost = null;
@@ -581,17 +654,47 @@ export class GameModel {
         }
       }
       if (this.wave) {
+        this._checkWaveGraze();
         this.wave.remaining = Math.max(0, this.wave.remaining - dt);
         if (this.wave.remaining <= EPSILON) this._finishWave();
       } else if (this.travel) {
         this.travel.progress = Math.min(1, this.travel.progress + dt / this.travel.duration);
-        this.travel.stability = this._inRange(this._range())
+        const range = this._range();
+        if (this.travel.risky && range) {
+          const width = Math.max(.01, (range.max - range.min) / 2);
+          const delta = Math.abs(this.w - range.center);
+          const locked = delta <= width + EPSILON;
+          const sweetSpot = delta <= width * .58 + EPSILON;
+          this.riskyTime += dt;
+          if (locked) this.syncTime += dt * (sweetSpot ? 1 : .7);
+          RHYTHM_GATES.forEach((gatePos, index) => {
+            if (this.travel.gates[index] === 'pending' && this.travel.progress >= gatePos) {
+              if (sweetSpot) {
+                this.travel.gates[index] = 'perfect';
+                this.phaseStreak += 1;
+                this.maxPhaseStreak = Math.max(this.maxPhaseStreak, this.phaseStreak);
+                this.stats.perfectBeats += 1;
+                this._emit('phase_beat', { rating: 'perfect', gateIndex: index, progress: gatePos, streak: this.phaseStreak });
+              } else if (locked) {
+                this.travel.gates[index] = 'good';
+                this.phaseStreak += 1;
+                this.maxPhaseStreak = Math.max(this.maxPhaseStreak, this.phaseStreak);
+                this.goodBeats += 1;
+                this._emit('phase_beat', { rating: 'good', gateIndex: index, progress: gatePos, streak: this.phaseStreak });
+              } else {
+                this.travel.gates[index] = 'missed';
+                this.phaseStreak = 0;
+              }
+            }
+          });
+        }
+        this.travel.stability = this._inRange(range)
           ? Math.min(1, this.travel.stability + dt * .28)
           : Math.max(0, this.travel.stability - dt / .65);
         if (this.travel.stability <= EPSILON) this._fail('travel');
         // A nearly completed crossing still has to land in its actual slice.
         // Grace permits correction, but cannot award/finish through an absent platform.
-        else if (this.travel.progress >= 1 - EPSILON && this._inRange(this._range()) && this._supported(this._node(this.travel.to))) this._arrive();
+        else if (this.travel.progress >= 1 - EPSILON && this._inRange(range) && this._supported(this._node(this.travel.to))) this._arrive();
       } else if (!this._supported()) {
         this.phaseStability = Math.max(0, this.phaseStability - dt / .9);
         if (this.phaseStability <= EPSILON) this._fail('phase');
@@ -693,15 +796,28 @@ export class GameModel {
       : this.node === 'relay' ? '锚台跨层支撑'
       : this.node === 'exit' ? '抵达庭门'
       : this.activated.has(this.node) ? `${this._node().name}已启动` : `启动${this._node().name}`;
+    const layer = nearestLayer(this.w);
+    const layers = LAYERS.map(item => ({ ...item }));
+    const anomalies = projectRoomAnomalies(this.roomAnomalies, {
+      phase: this.phase,
+      seed: this.seed,
+      room: this.room,
+      w: this.w,
+      layer,
+      layers,
+    }, this.collectedAnomalies);
+    const syncPercent = this.riskyTime > .1 ? Math.round(Math.min(1, Math.max(0, this.syncTime / this.riskyTime)) * 100) : 100;
+    const resonanceScore = this.stats.perfectBeats * 3 + this.goodBeats + this.stats.grazes * 3 + this.maxPhaseStreak;
+    const resonanceRank = resonanceScore >= 12 ? 'S+' : resonanceScore >= 7 ? 'S' : resonanceScore >= 3 ? 'A' : 'B';
     return {
       phase: this.phase, seed: this.seed, room: this.room, roomId: this.roomPlan[this.room].template.id, roomName: this.roomPlan[this.room].template.name,
       roomDescription: this.roomPlan[this.room].template.description, roomSignature: this.roomPlan[this.room].signature,
       roomPlan: this.roomPlan.map(roomMetadata), nextRoom: this.roomPlan[this.room + 1] ? roomMetadata(this.roomPlan[this.room + 1]) : null,
       mechanismOrder: [...this.roomConfig.order], roomChallenge: { ...this.roomConfig.challenge }, shadowDescription: this._shadowDescription(),
       companionGuide: this._companionGuide(),
-      nodes, node: this.node, selected: this.selected, layers: LAYERS.map(layer => ({ ...layer })), layer: nearestLayer(this.w),
+      nodes, node: this.node, selected: this.selected, layers, layer,
       w: this.w, riskMode: this.riskMode, range, canMove: this._canMove(), availableNodes: this._availableNodes(), edges: this._edges(),
-      travel: this.travel ? { ...this.travel, source: { ...this.travel.source } } : null,
+      travel: this.travel ? { ...this.travel, source: { ...this.travel.source }, gates: [...this.travel.gates] } : null,
       carried: this.carried, banked: this.banked, lives: this.lives, combo: this.combo,
       relic: this.relic, relics: { ...this.relics }, choices: RELICS.map(relic => ({ ...relic, rank: this.relics[relic.id], nextRank: Math.min(3, this.relics[relic.id] + 1) })),
       weaveCharge: this.weaveCharge, weaveTarget, weaveDescription, coilArmed: [...this.coilArmed], coilRemaining,
@@ -719,6 +835,26 @@ export class GameModel {
       phaseStability: this.phaseStability, lastAnchor: this.lastAnchor,
       abilities, abilityAvailable: abilities.some(ability => ability.available), abilityLabel: primaryAbility.label,
       interactAvailable: this._interactAvailable(), interactReason: this._interactReason(), interactLabel, objective: this._objective(),
+      anomalies,
+      anomalyProgress: {
+        done: anomalies.filter(a => a.collected).length,
+        total: this.roomAnomalies.length,
+        totalCollected: this.stats.anomalies,
+        bonusScore: this.stats.anomalies * 2,
+        lastDiscovered: this.lastAnomaly ? { ...this.lastAnomaly } : null,
+      },
+      phaseResonance: {
+        streak: this.phaseStreak,
+        maxStreak: this.maxPhaseStreak,
+        perfectBeats: this.stats.perfectBeats,
+        goodBeats: this.goodBeats,
+        grazes: this.stats.grazes,
+        perfectCrossings: this.stats.perfectCrossings,
+        syncPercent,
+        score: resonanceScore,
+        rank: resonanceRank,
+        gates: this.travel?.risky ? [...this.travel.gates] : ['pending', 'pending', 'pending'],
+      },
       stats: { ...this.stats }, roomScore: this.roomScore,
     };
   }

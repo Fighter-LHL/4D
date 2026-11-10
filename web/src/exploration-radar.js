@@ -65,6 +65,52 @@ export const CURIOSITY_CATALOG = [
   },
 ];
 
+export function buildRoomAnomalies(seed, room, nodes = []) {
+  // Pick 2 distinct curiosities for this room based on seed + room index
+  const offset = ((seed >>> 0) + (room || 0) * 2) % CURIOSITY_CATALOG.length;
+  const first = CURIOSITY_CATALOG[offset % CURIOSITY_CATALOG.length];
+  let second = CURIOSITY_CATALOG[(offset + 1) % CURIOSITY_CATALOG.length];
+  if (second.layer === first.layer) {
+    second = CURIOSITY_CATALOG[(offset + 2) % CURIOSITY_CATALOG.length];
+  }
+
+  // Ensure anomalies don't overlap directly with any island center
+  const adjustPos = (item, idx) => {
+    let x = item.x;
+    let y = item.y;
+    for (const node of nodes || []) {
+      if (Math.hypot(node.x - x, node.y - y) < 105) {
+        x = idx === 0 ? 175 : 825;
+        y = idx === 0 ? 255 : 265;
+      }
+    }
+    return { ...item, x, y };
+  };
+
+  return [adjustPos(first, 0), adjustPos(second, 1)];
+}
+
+export function projectRoomAnomalies(roomAnomalies, state, collectedIds = null) {
+  if (!state || state.phase !== 'playing') return [];
+  const roomKey = `${state.seed}:${state.room}`;
+  const layerNames = ['Ⅰ 潮汐层', 'Ⅱ 回声层', 'Ⅲ 绽放层'];
+  return (roomAnomalies || []).map(item => {
+    const key = `${roomKey}:${item.id}`;
+    const collected = Boolean(item.collected || collectedIds?.has(key));
+    const layerCenter = state.layers?.[item.layer]?.center ?? (item.layer * 0.32 + 0.18);
+    const distW = Math.abs((state.w ?? 0.28) - layerCenter);
+    const materialized = state.layer === item.layer && distW < 0.16;
+    return {
+      ...item,
+      key,
+      collected,
+      materialized,
+      proximity: Math.max(0, 1 - distW * 2.4),
+      layerLabel: layerNames[item.layer] || '异维层',
+    };
+  });
+}
+
 export class ExplorationRadar {
   constructor() {
     this.collectedIds = new Set();
@@ -74,54 +120,39 @@ export class ExplorationRadar {
     this.bonusScore = 0;
   }
 
+  reset() {
+    this.collectedIds.clear();
+    this.roomAnomalies = [];
+    this.currentRoomKey = '';
+    this.lastDiscovered = null;
+    this.bonusScore = 0;
+  }
+
   syncRoom(state) {
     if (!state) return;
     const key = `${state.seed}:${state.room}`;
-    if (this.currentRoomKey === key) return;
-    this.currentRoomKey = key;
-
-    // Pick 2 distinct curiosities for this room based on seed + room index
-    const offset = ((state.seed >>> 0) + state.room * 2) % CURIOSITY_CATALOG.length;
-    const first = CURIOSITY_CATALOG[offset % CURIOSITY_CATALOG.length];
-    let second = CURIOSITY_CATALOG[(offset + 1) % CURIOSITY_CATALOG.length];
-    if (second.layer === first.layer) {
-      second = CURIOSITY_CATALOG[(offset + 2) % CURIOSITY_CATALOG.length];
+    if (this.currentRoomKey !== key) {
+      this.currentRoomKey = key;
+      this.roomAnomalies = buildRoomAnomalies(state.seed, state.room, state.nodes);
     }
-
-    // Ensure anomalies don't overlap directly with any island center
-    const adjustPos = (item, idx) => {
-      let x = item.x;
-      let y = item.y;
-      for (const node of state.nodes || []) {
-        if (Math.hypot(node.x - x, node.y - y) < 105) {
-          x = idx === 0 ? 175 : 825;
-          y = idx === 0 ? 255 : 265;
-        }
+    if (Array.isArray(state.anomalies)) {
+      for (const item of state.anomalies) {
+        if (item.collected && item.key) this.collectedIds.add(item.key);
       }
-      return { ...item, x, y };
-    };
-
-    this.roomAnomalies = [adjustPos(first, 0), adjustPos(second, 1)];
+    }
+    if (state.anomalyProgress) {
+      if (state.anomalyProgress.bonusScore > this.bonusScore) {
+        this.bonusScore = state.anomalyProgress.bonusScore;
+      }
+      if (state.anomalyProgress.lastDiscovered) {
+        this.lastDiscovered = state.anomalyProgress.lastDiscovered;
+      }
+    }
   }
 
   visibleAnomalies(state) {
     this.syncRoom(state);
-    if (!state || state.phase !== 'playing') return [];
-    const layerNames = ['Ⅰ 潮汐层', 'Ⅱ 回声层', 'Ⅲ 绽放层'];
-    return this.roomAnomalies.map(item => {
-      const collected = this.collectedIds.has(`${this.currentRoomKey}:${item.id}`);
-      const layerCenter = state.layers?.[item.layer]?.center ?? (item.layer * 0.32 + 0.18);
-      const distW = Math.abs((state.w ?? 0.28) - layerCenter);
-      const materialized = state.layer === item.layer && distW < 0.16;
-      return {
-        ...item,
-        key: `${this.currentRoomKey}:${item.id}`,
-        collected,
-        materialized,
-        proximity: Math.max(0, 1 - distW * 2.4),
-        layerLabel: layerNames[item.layer] || '异维层',
-      };
-    });
+    return projectRoomAnomalies(this.roomAnomalies, state, this.collectedIds);
   }
 
   hitTest(state, worldX, worldY) {

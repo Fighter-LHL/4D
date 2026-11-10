@@ -190,6 +190,7 @@ export class PhaseResonanceController {
     this.grazeStepTriggered = null;
     this.ripples = [];
     this.floatingBeats = [];
+    this.modelSummary = null;
   }
 
   corridor(state) {
@@ -202,6 +203,7 @@ export class PhaseResonanceController {
     const locked = Math.abs(delta) <= width + 1e-6;
     const sweetSpot = Math.abs(delta) <= width * .58 + 1e-6;
     const accuracy = clamp(1 - Math.abs(delta) / width, 0, 1);
+    const gateSource = state.travel?.gates || this.gateStates;
     return {
       center: range.center,
       min: range.min,
@@ -218,7 +220,7 @@ export class PhaseResonanceController {
       progress: state.travel?.progress ?? 0,
       gates: RHYTHM_GATES.map((at, i) => ({
         at,
-        status: state.travel?.risky ? (this.gateStates[i] || 'pending') : 'preview',
+        status: state.travel?.risky ? (gateSource[i] || 'pending') : 'preview',
       })),
     };
   }
@@ -226,11 +228,15 @@ export class PhaseResonanceController {
   update(dt, state, { active = true } = {}) {
     const emitted = [];
     if (!state) return emitted;
+    if (state.phaseResonance) {
+      this.modelSummary = state.phaseResonance;
+    }
     if (state.seed !== this.lastSeed) {
       this.reset();
       this.lastSeed = state.seed;
       this.lastRoom = state.room;
       this.lastW = state.w;
+      if (state.phaseResonance) this.modelSummary = state.phaseResonance;
     } else if (state.room !== this.lastRoom) {
       this.lastRoom = state.room;
       this.gateStates = ['pending', 'pending', 'pending'];
@@ -366,15 +372,25 @@ export class PhaseResonanceController {
   }
 
   summary() {
-    const syncPercent = this.riskyTime > .1 ? Math.round(clamp(this.syncTime / this.riskyTime, 0, 1) * 100) : 100;
-    const score = this.perfectBeats * 3 + this.goodBeats + this.grazes * 3 + this.maxStreak;
+    if (this.modelSummary && this.perfectBeats === 0 && this.goodBeats === 0 && this.grazes === 0) {
+      return { ...this.modelSummary };
+    }
+    const perfectBeats = Math.max(this.perfectBeats, this.modelSummary?.perfectBeats || 0);
+    const goodBeats = Math.max(this.goodBeats, this.modelSummary?.goodBeats || 0);
+    const grazes = Math.max(this.grazes, this.modelSummary?.grazes || 0);
+    const maxStreak = Math.max(this.maxStreak, this.modelSummary?.maxStreak || 0);
+    const streak = this.modelSummary ? this.modelSummary.streak : this.streak;
+    const syncPercent = this.modelSummary
+      ? this.modelSummary.syncPercent
+      : (this.riskyTime > .1 ? Math.round(clamp(this.syncTime / this.riskyTime, 0, 1) * 100) : 100);
+    const score = perfectBeats * 3 + goodBeats + grazes * 3 + maxStreak;
     const rank = score >= 12 ? 'S+' : score >= 7 ? 'S' : score >= 3 ? 'A' : 'B';
     return {
-      streak: this.streak,
-      maxStreak: this.maxStreak,
-      perfectBeats: this.perfectBeats,
-      goodBeats: this.goodBeats,
-      grazes: this.grazes,
+      streak,
+      maxStreak,
+      perfectBeats,
+      goodBeats,
+      grazes,
       syncPercent,
       rank,
     };

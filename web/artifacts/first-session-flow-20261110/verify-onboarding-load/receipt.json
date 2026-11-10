@@ -127,6 +127,36 @@
       "ok": true
     },
     {
+      "name": "off-layer curio click prompts layer shift without awarding score",
+      "ok": true,
+      "banked": 0,
+      "anomalies": 0
+    },
+    {
+      "name": "collecting a materialized curio credits model.banked (+2), HUD and best score",
+      "ok": true,
+      "banked": 2,
+      "anomalies": 1,
+      "hudBanked": 2,
+      "bestStored": 2,
+      "loreVisible": true
+    },
+    {
+      "name": "settlement dialog score and stats include authoritative curio and phase rating",
+      "ok": true,
+      "resultScore": 2,
+      "banked": 2,
+      "resultStats": "冒险成功 0 次 · 点亮机关 0 次 · 收录奇物 1 件 · 完美同频 0 次 · 刹那折光 0 次 · 共鸣评级 B"
+    },
+    {
+      "name": "restarting resets curio progress, phase resonance and lore box",
+      "ok": true,
+      "banked": 0,
+      "anomalies": 0,
+      "rank": "B",
+      "loreHiddenAfterRestart": true
+    },
+    {
       "name": "no page or console errors",
       "ok": true,
       "errors": []

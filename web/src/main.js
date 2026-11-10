@@ -403,25 +403,37 @@ function handleAnomalySelect(anomaly) {
   const res = scene.explorationRadar.interact(s, anomaly.key || anomaly.id);
   if (!res) return;
   if (res.status === 'off_layer') {
-    scene.pendingLayerPrompt = { targetId: null, targetLayer: res.targetLayer };
-    transient = `${res.message} 请亲手滚动滚轮（或点左上角 ${layerSymbols[res.targetLayer]}）切至该层！`;
-    transientTime = 3.4;
-    actionFeedback = transient;
-    $('announcement').textContent = transient;
+    const currentNode = s.nodes.find(n => n.id === s.node);
+    const hasSameSpotPartner = !currentNode?.anchor && s.nodes.some(n =>
+      !n.anchor && n.id !== currentNode?.id && n.layer === res.targetLayer && n.world && currentNode?.world &&
+      Math.abs(n.world.x - currentNode.world.x) < 1e-4 &&
+      Math.abs(n.world.y - currentNode.world.y) < 1e-4 &&
+      Math.abs(n.world.z - currentNode.world.z) < 1e-4
+    );
+    const dir = res.targetLayer > s.layer ? '上滚' : '下滚';
+    if (currentNode && !currentNode.anchor && !hasSameSpotPartner) {
+      const anchorId = ['hub', 'relay'].find(id => findCurrentLayerRoute(s, id)?.length) || 'hub';
+      const anchorName = s.nodes.find(n => n.id === anchorId)?.name || '归响台';
+      showTransient(`${res.message} 外圈平台不能直接换层：先回「⚓ ${anchorName}」，再【滚轮${dir}】切到【${layerSymbols[res.targetLayer]} ${s.layers[res.targetLayer]?.name}】收录！`, 3.8, 'prompt');
+      updateUI();
+      return;
+    }
+    const msg = `${res.message} 请亲手【滚轮${dir}】（或点左上角 ${layerSymbols[res.targetLayer]}）切至该层！`;
+    scene.pendingLayerPrompt = { targetId: null, targetLayer: res.targetLayer, atNode: s.node, kind: 'anomaly', message: msg };
+    showTransient(msg, 3.4, 'prompt');
     updateUI();
     return;
   }
   if (res.status === 'collected') {
+    model.collectAnomaly(res.item.id);
     scene.spawnBurst(res.item.x, res.item.y, '#fbbf24', 26, 1.15);
-    transient = res.message;
-    transientTime = 4.0;
-    actionFeedback = res.message;
-    $('announcement').textContent = res.message;
+    showTransient(res.message, 4.0, 'anomaly');
     if ($('anomaly-lore-box')) {
       $('anomaly-lore-box').hidden = false;
       setText('anomaly-lore-title', `✦ 已收录四维奇物：【${res.item.name}】 (+${res.bonus}◆)`);
       setText('anomaly-lore-text', res.item.lore);
     }
+    consumeEvents();
     updateUI();
   }
 }
@@ -597,8 +609,8 @@ function showResult(state) {
   $('result-title').textContent = won ? '庭院记住了你的回响。' : '这一程，先到这里。';
   $('result-description').textContent = won ? '你让回响穿过了三层空间，也把这一路的能力组合带到了终点。' : '回程结已用完，之前存下的回响仍计入本次成绩。';
   $('result-score').textContent = state.banked;
-  const pr = scene.phaseResonance.summary();
-  $('result-stats').textContent = `冒险成功 ${state.stats.risks} 次 · 点亮机关 ${state.stats.chains} 次 · 完美同频 ${pr.perfectBeats} 次 · 刹那折光 ${pr.grazes} 次 · 共鸣评级 ${pr.rank}`;
+  const pr = state.phaseResonance || scene.phaseResonance.summary();
+  $('result-stats').textContent = `冒险成功 ${state.stats.risks} 次 · 点亮机关 ${state.stats.chains} 次 · 收录奇物 ${state.stats.anomalies || 0} 件 · 完美同频 ${pr.perfectBeats} 次 · 刹那折光 ${pr.grazes} 次 · 共鸣评级 ${pr.rank}`;
   $('result-dialog').showModal();
 }
 
@@ -1059,7 +1071,6 @@ function updateUI() {
 
     const totalSecretsDone = (anomDone ? 1 : 0) + (flowerDone ? 1 : 0) + (vaultDone ? 1 : 0) + (riftCleared || riftUnlocked ? 1 : 0);
     setText('radar-progress', `${totalSecretsDone} / 4 已解锁`);
-    $('banked').textContent = state.banked + anomProg.bonusScore;
 
     // 1. Anomaly Card
     $('radar-anomaly-card').className = `radar-card ${anomDone ? 'radar-done' : nextAnom?.materialized ? 'radar-ready' : ''}`;
@@ -1162,10 +1173,10 @@ function updateUI() {
   updateResonance(state);
   updateSecrets(state);
   if ($('phase-resonance-badge')) {
-    const pr = scene.phaseResonance.summary();
+    const pr = state.phaseResonance || scene.phaseResonance.summary();
     const corridor = scene.phaseResonance.corridor(state);
     const activeRisk = !!(corridor?.traversing && corridor.risky);
-    const hasActivity = activeRisk || pr.streak > 0 || pr.grazes > 0;
+    const hasActivity = activeRisk || pr.streak > 0 || pr.grazes > 0 || pr.perfectBeats > 0;
     $('phase-resonance-badge').hidden = stageInfo.stage < 3 || !hasActivity;
     if (!($('phase-resonance-badge').hidden)) {
       const syncPct = activeRisk ? Math.round(corridor.accuracy * 100) : Math.round((state.travel?.stability ?? state.phaseStability) * 100);
@@ -1370,6 +1381,7 @@ $('radar-anomaly-card')?.addEventListener('click', () => {
   const prog = scene.explorationRadar.roomProgress(s);
   const nextAnom = prog.items.find(a => !a.collected);
   if (nextAnom) {
+    revealScene();
     handleAnomalySelect(nextAnom);
   } else {
     if ($('anomaly-lore-box')) $('anomaly-lore-box').hidden = false;
@@ -1424,7 +1436,7 @@ $('close-help').addEventListener('click',closeHelp);$('help-done').addEventListe
 $('restart').addEventListener('click',()=>{if(!isModal()){paused=true;$('restart-dialog').showModal();syncAudio();}});
 function cancelRestart() {$('restart-dialog').close();paused=false;lastFrame=performance.now();syncAudio();}
 $('cancel-restart').addEventListener('click',cancelRestart);$('restart-dialog').addEventListener('cancel',e=>{e.preventDefault();cancelRestart();});
-function restart() {for(const id of dialogs)if($(id)?.open)$(id).close();paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';secretKey='';sealKey='';$('secret-panel').open=false;$('build-list').replaceChildren();$('ability-list').replaceChildren();const seed=newSeed();rememberSeed(seed);action(()=>{model.restart(seed);autoEquipFirstRun();});}
+function restart() {for(const id of dialogs)if($(id)?.open)$(id).close();paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';secretKey='';sealKey='';$('secret-panel').open=false;$('build-list').replaceChildren();$('ability-list').replaceChildren();if($('anomaly-lore-box'))$('anomaly-lore-box').hidden=true;scene.explorationRadar.reset();scene.phaseResonance.reset();const seed=newSeed();rememberSeed(seed);action(()=>{model.restart(seed);autoEquipFirstRun();});}
 $('confirm-restart').addEventListener('click',restart);$('play-again').addEventListener('click',restart);
 $('choice-dialog').addEventListener('cancel',e=>e.preventDefault());$('result-dialog').addEventListener('cancel',e=>e.preventDefault());
 
@@ -1542,6 +1554,9 @@ function frame(now) {
     const beforeTravel = beforeSnap.travel;
     model.update(dt);
     const afterSnap = model.snapshot();
+    if ((afterSnap.stats?.failures || 0) > (beforeSnap.stats?.failures || 0)) {
+      autoPilot = null;
+    }
     if (oneShotRiskCrossing && beforeTravel?.risky && !afterSnap.travel) {
       oneShotRiskCrossing = false;
       model.setRisk(false);
@@ -1555,11 +1570,9 @@ function frame(now) {
   const prEvents = scene.phaseResonance.update(dt, model.snapshot(), { active });
   for (const pe of prEvents) {
     if (pe.type === 'phase_graze') {
-      transient = `⚡ 刹那折光！在回流抵达前 ${pe.remaining.toFixed(2)}s 切入安全层 · 连击 ×${pe.streak}`;
-      transientTime = 2.4; transientType = 'phase_graze'; $('announcement').textContent = transient;
+      showTransient(`⚡ 刹那折光（+1◆）！在回流抵达前 ${pe.remaining.toFixed(2)}s 切入安全层 · 连击 ×${pe.streak}`, 2.4, 'phase_graze');
     } else if (pe.type === 'phase_beat' && pe.rating === 'perfect') {
-      transient = `✦ 完美同频 ×${pe.streak} · 黄金相位锁定`;
-      transientTime = 1.8; transientType = 'phase_beat'; $('announcement').textContent = transient;
+      showTransient(pe.gateIndex === 2 && pe.streak >= 3 ? `✦ 完美同频 ×${pe.streak}（+1◆）· 黄金相位锁定` : `✦ 完美同频 ×${pe.streak} · 黄金相位锁定`, 1.8, 'phase_beat');
     }
   }
   guide.update(dt, model.snapshot(), active, scene.friends.length > 0 && !momentum.firstEntry);

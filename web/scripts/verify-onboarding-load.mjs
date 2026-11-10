@@ -143,6 +143,65 @@ try {
     await context.close();
   }
 
+  // 9. 4D curiosities and phase rating are authoritative in GameModel, best score, result settlement and restart.
+  {
+    const { context, page, w } = await open({ seed: 123 });
+    await page.click('#unlock-all-btn');
+    await page.waitForSelector('#radar-anomaly-card:visible');
+    const s0 = await w();
+    const offAnom = s0.anomalies.find(a => a.layer !== s0.layer);
+    const onAnom = s0.anomalies.find(a => a.layer === s0.layer) || s0.anomalies[0];
+    if (offAnom && !s0.anomalies[0].materialized) {
+      await page.click('#radar-anomaly-card');
+      const afterOff = await w();
+      check('off-layer curio click prompts layer shift without awarding score',
+        afterOff.banked === 0 && afterOff.stats.anomalies === 0,
+        { banked: afterOff.banked, anomalies: afterOff.stats.anomalies });
+    }
+    const targetAnom = (await w()).anomalies.find(a => !a.collected);
+    await page.click(`.layer-controls [data-layer="${targetAnom.layer}"]`);
+    await page.click('#radar-anomaly-card');
+    const afterCollect = await w();
+    const hudBanked = Number(await page.$eval('#banked', el => el.textContent));
+    const bestStored = Number(await page.evaluate(() => localStorage.getItem('wslice-best')));
+    const loreVisible = !(await page.$eval('#anomaly-lore-box', el => el.hidden));
+    check('collecting a materialized curio credits model.banked (+2), HUD and best score',
+      afterCollect.banked === 2 && afterCollect.stats.anomalies === 1 && hudBanked === 2 && bestStored >= 2 && loreVisible,
+      { banked: afterCollect.banked, anomalies: afterCollect.stats.anomalies, hudBanked, bestStored, loreVisible });
+
+    // Switch back to ①'s layer on hub and exhaust remaining lives via hands-off risky crossings to verify settlement dialog
+    const mech1 = afterCollect.nodes.find(n => n.id === afterCollect.mechanismOrder[0]);
+    await page.click(`.layer-controls [data-layer="${mech1.layer}"]`);
+    await page.waitForSelector('#risk-go-btn:visible');
+    for (let attempt = 0; attempt < 5 && (await w()).phase === 'playing'; attempt++) {
+      const prevFailures = (await w()).stats.failures;
+      await page.click('#risk-go-btn');
+      await page.waitForFunction(prev => window.__w().stats.failures > prev || window.__w().phase !== 'playing',
+        prevFailures, { timeout: 6000 });
+    }
+    await page.waitForFunction(() => window.__w().phase === 'lost', null, { timeout: 5000 });
+    const lostState = await w();
+    const resultScore = Number(await page.$eval('#result-score', el => el.textContent));
+    const resultStats = await page.$eval('#result-stats', el => el.textContent);
+    check('settlement dialog score and stats include authoritative curio and phase rating',
+      resultScore === lostState.banked && resultScore >= 2 &&
+      resultStats.includes('收录奇物 1 件') && resultStats.includes('共鸣评级'),
+      { resultScore, banked: lostState.banked, resultStats });
+
+    await page.click('#play-again');
+    await page.waitForTimeout(300);
+    if (await page.$eval('#choice-dialog', d => d.open)) {
+      await page.locator('#choice-dialog .relic-choice').first().click();
+    }
+    const resetState = await w();
+    const loreHiddenAfterRestart = await page.$eval('#anomaly-lore-box', el => el.hidden);
+    check('restarting resets curio progress, phase resonance and lore box',
+      resetState.banked === 0 && resetState.stats.anomalies === 0 &&
+      resetState.anomalyProgress.done === 0 && resetState.phaseResonance.rank === 'B' && loreHiddenAfterRestart,
+      { banked: resetState.banked, anomalies: resetState.stats.anomalies, rank: resetState.phaseResonance.rank, loreHiddenAfterRestart });
+    await context.close();
+  }
+
   check('no page or console errors', receipt.errors.length === 0, { errors: receipt.errors });
   receipt.status = 'passed';
 } catch (error) {

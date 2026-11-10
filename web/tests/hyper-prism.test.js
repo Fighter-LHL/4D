@@ -581,3 +581,130 @@ test('Risk decision preview and Relic HUD surface novel bridge rewards, charging
   assert.ok(m.snapshot().activated.includes(sReady.mechanismOrder[1]), 'prism remotely activated mechanism ②');
   renderer.destroy();
 });
+
+test('GameModel authoritatively scores 4D curiosities, perfect risky crossings and last-second wave grazes without farming, and resets on restart', () => {
+  const m = new GameModel(42);
+  assert.equal(m.collectAnomaly('tesseract_shard'), false, 'cannot collect before run starts');
+  m.chooseRelic('shell');
+
+  const s0 = m.snapshot();
+  assert.equal(s0.anomalies.length, 2);
+  assert.equal(s0.anomalyProgress.done, 0);
+  assert.equal(s0.banked, 0);
+
+  // 1. Off-layer curio is rejected with an anomaly_off_layer event and no score change
+  const offItem = s0.anomalies.find(a => a.layer !== s0.layer) || s0.anomalies[0];
+  if (offItem.layer !== s0.layer) {
+    m.drainEvents();
+    assert.equal(m.collectAnomaly(offItem.id), false);
+    assert.equal(m.snapshot().banked, 0);
+    assert.ok(m.drainEvents().some(e => e.type === 'anomaly_off_layer' && e.targetLayer === offItem.layer));
+  }
+
+  // Materialize and collect both curiosities in room 0 (+2◆ each -> +4◆ banked)
+  for (const item of s0.anomalies) {
+    m.setW(s0.layers[item.layer].center);
+    assert.equal(m.collectAnomaly(item.key), true);
+    assert.equal(m.collectAnomaly(item.id), false, 'cannot collect the same curio twice');
+  }
+  const sAfterCurios = m.snapshot();
+  assert.equal(sAfterCurios.banked, 4);
+  assert.equal(sAfterCurios.roomScore, 4);
+  assert.equal(sAfterCurios.stats.anomalies, 2);
+  assert.equal(sAfterCurios.anomalyProgress.done, 2);
+  assert.equal(sAfterCurios.anomalyProgress.totalCollected, 2);
+  assert.equal(sAfterCurios.anomalyProgress.bonusScore, 4);
+
+  // 2. Novel risky crossing hitting all 3 rhythm gates in sweetSpot awards +3◇ carried AND +1◆ banked phase_sync bonus
+  const firstId = s0.mechanismOrder[0];
+  const firstNode = s0.nodes.find(n => n.id === firstId);
+  m.setW(s0.layers[firstNode.layer].center);
+  m.setRisk(true);
+  assert.equal(m.select(firstId), true);
+  assert.equal(m.move(), true);
+  m.drainEvents();
+  while (m.snapshot().travel) {
+    m.setW(m.snapshot().range.center);
+    m.update(1 / 60);
+  }
+  const riskEvents = m.drainEvents();
+  assert.equal(riskEvents.filter(e => e.type === 'phase_beat' && e.rating === 'perfect').length, 3);
+  assert.equal(riskEvents.filter(e => e.type === 'phase_sync').length, 1);
+  const sAfterPerfectRisk = m.snapshot();
+  assert.equal(sAfterPerfectRisk.carried, 3, 'novel risky bridge still awards 3 carried echoes');
+  assert.equal(sAfterPerfectRisk.banked, 5, '4 from curios + 1 from 3/3 perfect rhythm gates');
+  assert.equal(sAfterPerfectRisk.stats.perfectBeats, 3);
+  assert.equal(sAfterPerfectRisk.stats.perfectCrossings, 1);
+  assert.equal(sAfterPerfectRisk.phaseResonance.rank, 'S+');
+
+  // Repeating the same directed risky crossing after returning cannot farm another phase_sync bonus
+  m.setRisk(false);
+  assert.equal(m.select('hub'), true);
+  assert.equal(m.move(), true);
+  while (m.snapshot().travel) m.update(0.05);
+  m.interact(); // bank carried (3 + 1 = 4 -> banked becomes 9)
+  const bankedBeforeRepeat = m.snapshot().banked;
+  m.setRisk(true);
+  assert.equal(m.select(firstId), true);
+  assert.equal(m.move(), true);
+  while (m.snapshot().travel) {
+    m.setW(m.snapshot().range.center);
+    m.update(1 / 60);
+  }
+  assert.equal(m.snapshot().banked, bankedBeforeRepeat, 'already-claimed route cannot farm phase_sync banked bonus');
+  assert.equal(m.snapshot().carried, 0);
+  m.setRisk(false);
+
+  // 3. Last-second wave graze (entering safe layer with <= 0.82s remaining) awards +1◆ banked once per wave step
+  for (const id of m.snapshot().mechanismOrder) {
+    assert.equal(obedientReach(m, id), null);
+    if (!m.snapshot().activated.includes(id)) assert.equal(m.interact(), true);
+    for (let i = 0; i < 12; i++) m.update(0.05);
+  }
+  assert.equal(obedientReach(m, 'vault'), null);
+  const entryLayer = m.snapshot().roomChallenge.entryLayer;
+  m.setW(s0.layers[entryLayer].center);
+  assert.equal(m.interact(), true);
+  const wave0 = m.snapshot().wave;
+  assert.ok(wave0);
+  // Stay in danger layer until remaining <= 0.70s to arm graze, then shift into safe layer
+  const dangerLayer = wave0.dangerLayers[0];
+  const safeLayer = wave0.safeLayers[0];
+  m.setW(s0.layers[dangerLayer].center);
+  while (m.snapshot().wave && m.snapshot().wave.remaining > 0.65) {
+    m.update(0.05);
+  }
+  const bankedBeforeGraze = m.snapshot().banked;
+  m.drainEvents();
+  m.setW(s0.layers[safeLayer].center);
+  const grazeEvents = m.drainEvents().filter(e => e.type === 'phase_graze');
+  assert.equal(grazeEvents.length, 1, 'shifting into safe layer at <= 0.82s triggers phase_graze');
+  assert.equal(m.snapshot().banked, bankedBeforeGraze + 1, 'phase_graze awards +1◆ banked');
+  assert.equal(m.snapshot().stats.grazes, 1);
+
+  // Bouncing out and back in on the same wave step cannot trigger a second graze bonus
+  m.setW(s0.layers[dangerLayer].center);
+  m.setW(s0.layers[safeLayer].center);
+  assert.equal(m.snapshot().banked, bankedBeforeGraze + 1, 'same wave step cannot be grazed twice');
+
+  // Snapshot isolation check for new fields
+  const snapMut = m.snapshot();
+  snapMut.anomalies[0].collected = false;
+  snapMut.anomalyProgress.bonusScore = 999;
+  snapMut.phaseResonance.rank = 'Z';
+  assert.equal(m.snapshot().anomalies[0].collected, true);
+  assert.equal(m.snapshot().anomalyProgress.bonusScore, 4);
+  assert.notEqual(m.snapshot().phaseResonance.rank, 'Z');
+
+  // 4. Restart clears curiosities, phase resonance, banked score and stats
+  m.restart(42);
+  m.chooseRelic('shell');
+  const sReset = m.snapshot();
+  assert.equal(sReset.banked, 0);
+  assert.equal(sReset.stats.anomalies, 0);
+  assert.equal(sReset.stats.perfectBeats, 0);
+  assert.equal(sReset.stats.grazes, 0);
+  assert.equal(sReset.stats.perfectCrossings, 0);
+  assert.equal(sReset.anomalyProgress.done, 0);
+  assert.equal(sReset.phaseResonance.rank, 'B');
+});
