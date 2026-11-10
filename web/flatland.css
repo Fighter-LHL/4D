@@ -113,3 +113,32 @@ kbd{font:10px GameSans,sans-serif;opacity:.6;border:1px solid currentColor;borde
 .scene-wrap{position:relative}
 .visitor-goal{position:absolute;top:16px;left:24px;max-width:calc(100% - 48px);margin:0;padding:8px 12px;border:1px solid #b8d0c4;border-radius:8px;background:#f7f9eff2;color:#285a4b;font-size:13px;line-height:1.5;pointer-events:none}
 @media(max-width:600px){.visitor-goal{top:12px;left:16px;max-width:calc(100% - 32px);font-size:12px;padding:7px 9px}}
+
+/* 4D Holographic Prism & Hyper-Scanner Upgrades */
+.prism-button{border:1px solid #91c2cc;background:linear-gradient(135deg,#e4f2f5 0%,#ece6f6 52%,#f6eedb 100%);color:#245768;font-weight:600}
+.prism-button:hover{background:linear-gradient(135deg,#d6ecf1 0%,#e3daf2 52%,#f1e3c6 100%)}
+.hyper-lab-dialog{width:min(860px,calc(100vw - 28px));padding:26px 28px;border-radius:16px;background:linear-gradient(165deg,#0c1622 0%,#101f2d 100%);color:#e6f4f1;border:1px solid rgba(114,229,242,.28);box-shadow:0 28px 90px rgba(5,12,20,.68)}
+.hyper-lab-dialog .eyebrow{color:#72e5f2}
+.hyper-lab-dialog h2{font-size:23px;margin:6px 0 8px;color:#f1fbf9}
+.hyper-lab-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.hyper-lab-header .text-button{color:#93b8c4;font-size:26px;line-height:1;padding:2px 8px}
+.hyper-lab-desc{font-size:12px;color:#9cb7c2;line-height:1.65;margin-bottom:14px}
+.hyper-lab-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.polytope-tabs{display:flex;gap:8px;flex-wrap:wrap}
+.hyper-lab-dialog .icon-button{background:rgba(22,40,56,.75);border:1px solid rgba(130,185,205,.24);color:#cbe4ec;padding:7px 12px;border-radius:999px;font-size:11px}
+.hyper-lab-dialog .icon-button[aria-pressed="true"]{background:rgba(57,125,147,.42);border-color:#72e5f2;color:#ffffff;box-shadow:0 0 14px rgba(114,229,242,.25)}
+.hyper-lab-canvas{display:block;width:100%;height:330px;border-radius:12px;border:1px solid rgba(114,229,242,.2);background:#081019;cursor:grab;touch-action:none}
+.hyper-lab-canvas:active{cursor:grabbing}
+.hyper-lab-controls{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:14px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(130,185,205,.18);font-size:12px}
+.hyper-lab-controls label{display:flex;align-items:center;gap:8px;color:#d6ece9;white-space:nowrap}
+.hyper-lab-controls .w-symbol{color:#72e5f2;font-weight:700;font-style:italic}
+.hyper-lab-controls output{color:#ffd269;font-size:14px;min-width:48px;font-variant-numeric:tabular-nums}
+.hyper-lab-controls .primary-button{padding:9px 16px;background:linear-gradient(135deg,#2a8ca2,#2b6b59);border:1px solid rgba(114,229,242,.4)}
+
+body[data-theme="astral"]{--paper:#091119;--card:#0f1c28;--ink:#e5f2ee;--muted:#88a4b0;--green:#45c4a0;--line:#1f3647;--amber:#f0b24a;--slice:#63d2e8;--danger:#ea6c52;--gold:#ffd269;color-scheme:dark;background:radial-gradient(circle at 20% 0%,#112434 0%,#091119 65%)}
+body[data-theme="astral"] .icon-button:hover,body[data-theme="astral"] .levels button:hover:not(:disabled),body[data-theme="astral"] .hold-button:hover,body[data-theme="astral"] .action-button:hover:not(:disabled){background:#172a3a}
+body[data-theme="astral"] .prism-button{background:linear-gradient(135deg,#153142 0%,#261e3d 52%,#332714 100%);border-color:#499eb0;color:#8be8f5}
+body[data-theme="astral"] .visitor-goal,body[data-theme="astral"] .hint{background:rgba(15,29,41,.92);border-color:#2d5d6e;color:#9be7f2}
+body[data-theme="astral"] .friend-card{background:#132230;border-color:#243e52}
+body[data-theme="astral"] .friend-card.found{background:#172a3a}
+@media(max-width:640px){.hyper-lab-dialog{padding:18px}.hyper-lab-canvas{height:230px}.hyper-lab-controls{grid-template-columns:1fr auto;gap:8px}.hyper-lab-controls .primary-button{grid-column:1/-1}}

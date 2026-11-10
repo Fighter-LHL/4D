@@ -9,6 +9,7 @@ import { COURTYARD_ENTRY } from './handoff.js';
 import { parseSeed, randomSeed } from './random.js';
 import { FRIENDS, friendPortrait } from './discoveries.js';
 import { COMPANION_HELP, GARDEN_SEEDS, gardenCollection, gardenSeedList } from './companions.js';
+import { initThemeToggle, initHyperLab } from '../hyper-lab-ui.js';
 
 const $ = id => document.getElementById(id);
 const setText = (id, text) => { const el = $(id), value = String(text); if (el.textContent !== value) el.textContent = value; };
@@ -55,8 +56,8 @@ let lastFrame = performance.now();
 let fineControl = false;
 let previousRun = null;
 let albumWasPaused = false;
-const dialogs = ['intro-dialog', 'result-dialog', 'pause-dialog', 'collection-dialog'];
-const isModal = () => dialogs.some(id => $(id).open);
+const dialogs = ['intro-dialog', 'result-dialog', 'pause-dialog', 'collection-dialog', 'hyper-lab-dialog'];
+const isModal = () => dialogs.some(id => $(id)?.open);
 function syncChallengeURL() {
   const url = new URL(location.href);
   url.searchParams.set('level', model.level.id); url.searchParams.set('seed', model.seed);
@@ -307,7 +308,7 @@ function consumeEvents() {
 function action(fn) { unlockAudio(); fn(); consumeEvents(); updateUI(); }
 function loadLevel(index, quick = false, seed = index === model.index ? model.seed : randomSeed()) {
   if (!unlocked(index) && index !== model.index) return;
-  dialogs.forEach(id => $(id).open && $(id).close());
+  dialogs.forEach(id => $(id)?.open && $(id).close());
   resultTimer = 0;
   clearInputs();
   fineControl = false;
@@ -399,6 +400,39 @@ $('sound').addEventListener('click', () => { soundEnabled = !soundEnabled; audio
 $('rotate-key').addEventListener('click', () => action(() => model.rotateKey()));
 $('flip-key').addEventListener('click', () => action(() => model.requestFlip()));
 $('reveal').addEventListener('click', () => action(() => model.reveal()));
+
+let hyperLabWasPaused = false;
+initThemeToggle($('theme-toggle'), theme => {
+  scene.astralMode = theme === 'astral';
+  scene.render(0);
+});
+initHyperLab({
+  openButton: $('open-hyper-lab'),
+  dialog: $('hyper-lab-dialog'),
+  canvas: $('hyper-lab-canvas'),
+  wSlider: $('hyper-lab-w'),
+  wValue: $('hyper-lab-w-value'),
+  polytopeButtons: document.querySelectorAll('[data-polytope]'),
+  autoSpinButton: $('hyper-lab-spin'),
+  syncButton: $('hyper-lab-sync'),
+  closeButtons: document.querySelectorAll('[data-close-hyper-lab]'),
+  getW: () => {
+    const snap = model.snapshot();
+    const span = snap.slice.max - snap.slice.min || 1;
+    return (snap.s - snap.slice.min) / span;
+  },
+  setW: w => {
+    if (model.canSlice()) {
+      const snap = model.snapshot();
+      action(() => {
+        model.setSlice(snap.slice.min + w * (snap.slice.max - snap.slice.min));
+        model.endSliceGesture();
+      });
+    }
+  },
+  onOpen: () => { hyperLabWasPaused = model.paused; clearInputs(); action(() => model.setPaused(true)); },
+  onClose: () => { if (!hyperLabWasPaused) action(() => model.setPaused(false)); lastFrame = performance.now(); $('scene').focus({ preventScroll: true }); },
+});
 
 const slider = $('s-slider');
 slider.addEventListener('pointerdown', () => { sliderDragging = true; unlockAudio(); });

@@ -203,7 +203,7 @@ test('complete supply keeps one remote cue and yields to the receiver activation
   const m = start('shell', 2), before = m.snapshot();
   const event = { type: 'power', to: 'bell', complete: true, received: 2, required: 2 };
   for (const hasSupplySlots of [false, true]) {
-    assert.match(mechanismFeedback(event, before, { hasSupplySlots }), /供能到齐 · 到台上按 E/);
+    assert.match(mechanismFeedback(event, before, { hasSupplySlots }), /供能到齐 · 点它走过去即可点亮/);
     assert.equal(mechanismFeedback(event, { ...before, node: 'bell', interactAvailable: true }, { hasSupplySlots }), '');
   }
   assert.deepEqual(m.snapshot(), before);

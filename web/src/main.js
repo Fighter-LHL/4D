@@ -6,10 +6,13 @@ import { courtyardFriends, friendGuideText } from './courtyard-friends.js';
 import { FriendGuide } from './friend-guide.js';
 import { CourtyardMomentum } from './courtyard-momentum.js';
 import { STARTER_RELICS, mechanismFeedback, contextualHelp, courtyardActions } from './play-feedback.js';
+import { initThemeToggle, initHyperLab } from './hyper-lab-ui.js';
+import { ProgressiveOnboarding, planLayerRoute, computeRiskDecisionPreview, computeRelicHudStatus } from './progressive-onboarding.js';
 
 const $ = id => document.getElementById(id);
+const onboarding = new ProgressiveOnboarding({ skillGated: true });
 const compactProgress = matchMedia('(max-width:480px)');
-const syncProgressDetails = () => { $('run-details').open = !compactProgress.matches; };
+const syncProgressDetails = () => { if ($('run-details')) $('run-details').open = false; };
 compactProgress.addEventListener('change', syncProgressDetails);
 syncProgressDetails();
 const hasSupplySlots = id => [...$('mechanisms').children].some(row =>
@@ -30,6 +33,10 @@ const model = new GameModel(initialSeed);
 const fromFlatland = isFlatlandArrival(location.search, readJSON('wslice-flatland-stars'), readJSON('wslice-flatland-visits'));
 $('chapter-arrival').hidden = !fromFlatland;
 rememberSeed(initialSeed);
+// Auto-equip starter shell on initial load so new players land directly in the playable courtyard without a modal wall.
+if (model.snapshot().phase === 'choose' && !fromFlatland) {
+  model.chooseRelic('shell');
+}
 const audio = new GameAudio();
 let soundEnabled = readPreference('wslice-sound','on') === 'on';
 let best = Math.max(0, Number(readPreference('wslice-best','0')) || 0);
@@ -47,8 +54,8 @@ let transient = null;
 let transientTime = 0;
 let transientType = '';
 let actionFeedback = '';
-const dialogs = ['choice-dialog','help-dialog','pause-dialog','result-dialog','restart-dialog'];
-const isModal = () => dialogs.some(id => $(id).open);
+const dialogs = ['choice-dialog','help-dialog','pause-dialog','result-dialog','restart-dialog','hyper-lab-dialog'];
+const isModal = () => dialogs.some(id => $(id)?.open);
 const canAct = () => !paused && !isModal() && model.snapshot().phase === 'playing';
 const guide = new FriendGuide();
 const firstDiscoveryArrival = new URLSearchParams(location.search).get('from') === 'discovery' &&
@@ -57,8 +64,341 @@ const momentum = new CourtyardMomentum({ arrival: firstDiscoveryArrival });
 let discoveryChoicePending = firstDiscoveryArrival;
 // Spend the entry attempt now, including an entry already occupied by guidance.
 if (firstDiscoveryArrival) savePreference('wslice-courtyard-welcome', 'seen');
-function askFriend() { if (canAct()) { momentum.cancel(); guide.request(model.snapshot()); updateUI(); } }
-const scene = new SceneRenderer($('scene'), { onSelect: id => { if (canAct()) action(() => model.selectOrMove(id)); }, onFriend: askFriend, hasSupplySlots });
+function askFriend() {
+  if (canAct()) {
+    momentum.cancel();
+    onboarding.requestExplicitHint();
+    guide.request(model.snapshot());
+    updateUI();
+  }
+}
+let autoPilot = null;
+let oneShotRiskCrossing = false;
+let relicHudKey = '';
+
+function showTransient(message, seconds = 3.2) {
+  transient = message;
+  transientTime = seconds;
+  actionFeedback = message;
+  $('announcement').textContent = message;
+}
+
+function buildLayerShiftPromptMessage(s, { targetId, targetLayer, atNode, toNode, kind }, revealExplicit) {
+  const layerLabel = `${layerSymbols[targetLayer]} ${s.layers[targetLayer]?.name || '目标层'}`;
+  const atName = s.nodes.find(n => n.id === atNode)?.name || '安全台';
+  const targetName = s.nodes.find(n => n.id === targetId)?.name || '目标';
+  const toName = s.nodes.find(n => n.id === toNode)?.name || targetName;
+  const how = `亲手【滚动滚轮】（或点左上角 ${layerSymbols[targetLayer]}）切到【${layerLabel}】`;
+  if (kind === 'recover') return `⚠️ 脚下平台只在【${layerLabel}】存在！${how}站稳`;
+  if (!revealExplicit) {
+    if (kind === 'same_xyz') {
+      return `🌀 脚下与「${toName}」四维同位叠合！观察重影颜色与菱形层标，亲手【滚动滚轮】原地切过去（按 H 可看层提示）`;
+    }
+    if (atNode === targetId) {
+      return `🌀 已到「${atName}」！观察相位锁颜色与层标，亲手【滚动滚轮】调谐至对应层再开启`;
+    }
+    return `🌀 已到「${atName}」！观察通往「${targetName}」的虚线桥颜色与上下偏移，亲手【滚动滚轮】对准显桥（按 H 可看层提示）`;
+  }
+  if (kind === 'same_xyz') return `🌀 脚下与「${toName}」在同一位置！${how}，原地换到它上面`;
+  if (atNode === targetId) return `🌀 已到「${atName}」！${how}再开启`;
+  return `🌀 已到「${atName}」！${how}，让通往「${targetName}」的桥显形`;
+}
+
+// Stops the autopilot where the plan needs a W change and hands that change to the player.
+function promptLayerShift(s, targetId, shift, finalLayer = null) {
+  const anomProg = scene.explorationRadar.roomProgress(s);
+  const revealExplicit = onboarding.shouldRevealExplicitLayerHint(s, {
+    hintRequested: !!guide.present(s).companionGuide,
+    totalAnomaliesCollected: anomProg.totalCollected,
+  });
+  const promptInfo = {
+    targetId,
+    targetLayer: shift.layer,
+    atNode: shift.at,
+    toNode: shift.to,
+    kind: shift.kind,
+    finalLayer,
+  };
+  const promptMsg = buildLayerShiftPromptMessage(s, promptInfo, revealExplicit);
+  scene.pendingLayerPrompt = { ...promptInfo, message: promptMsg };
+  showTransient(promptMsg, shift.kind === 'recover' ? 3.6 : 4.2);
+  updateUI();
+}
+
+function stepAutoPilot() {
+  if (!canAct()) { autoPilot = null; return; }
+  const s = model.snapshot();
+  if (s.travel || s.wave) return;
+  const currentNode = s.nodes.find(n => n.id === s.node);
+
+  // Auto-activate mechanism as soon as player stands on a powered unlit mechanism on its matching layer
+  if (currentNode?.kind === 'mechanism' && currentNode.layer === s.layer && s.interactAvailable) {
+    action(() => model.interact());
+    if (autoPilot?.targetNode === s.node) {
+      autoPilot = null;
+      return;
+    }
+  }
+
+  if (!autoPilot) return;
+  // Give the freshly materialised bridge a moment on screen before walking onto it.
+  if (autoPilot.resumeAt && performance.now() < autoPilot.resumeAt) return;
+
+  const { targetNode: targetId, finalLayer = null } = autoPilot;
+  const plan = planLayerRoute(s, targetId, { finalLayer });
+  if (!plan) {
+    autoPilot = null;
+    const name = s.nodes.find(n => n.id === targetId)?.name || '目标';
+    showTransient(`🔒 暂时还没有通往「${name}」的路：先点亮前序机关，让桥接通`, 3.2);
+    return;
+  }
+
+  if (plan.walk.length) {
+    // Only walk along bridges that are open on the CURRENT layer. Never switch layers for the player.
+    const nextStep = plan.walk[0];
+    action(() => {
+      if (Math.abs(s.w - s.layers[s.layer].center) > .08) model.setW(s.layers[s.layer].center);
+      model.select(nextStep.to);
+      model.move();
+    });
+    if (!model.snapshot().travel) autoPilot = null;
+    return;
+  }
+
+  if (plan.shift) {
+    autoPilot = null;
+    promptLayerShift(s, targetId, plan.shift, finalLayer);
+    return;
+  }
+
+  // Arrived at the target in the right layer.
+  autoPilot = null;
+  if (s.interactAvailable && s.node !== 'hub') action(() => model.interact());
+}
+
+function manualSwitchLayer(layerIdx, source = 'manual') {
+  if (!canAct()) return;
+  onboarding.recordActivity();
+  const s = model.snapshot();
+  if (layerIdx < 0 || layerIdx >= s.layers.length) return;
+
+  // During a wave, switch directly to the player's chosen layer (requiring real judgment!)
+  if (s.wave) {
+    autoPilot = null;
+    if (s.layer === layerIdx && s.wave.variant === 'rift' && !s.wave.entered) {
+      model.setW(s.layers[layerIdx === 1 ? 0 : 1].center);
+    }
+    action(() => model.setW(s.layers[layerIdx].center));
+    const afterWave = model.snapshot();
+    const isNowSafe = afterWave.wave?.safeLayers?.includes(layerIdx);
+    if (isNowSafe) {
+      onboarding.recordWaveDodge();
+      transient = `🛡️ 选对安全层！已躲进【${s.layers[layerIdx].name}】四维夹缝！`;
+    } else {
+      const safeNames = (s.wave.safeLayers || []).map(i => `${layerSymbols[i]} ${s.layers[i].name}`).join(' / ');
+      transient = `⚠️ 【${s.layers[layerIdx].name}】仍有冲击波！快看绿圈提示切往【${safeNames}】！`;
+    }
+    transientTime = 2.4;
+    actionFeedback = transient;
+    $('announcement').textContent = transient;
+    updateUI();
+    return;
+  }
+
+  const prevLayer = s.layer;
+  const here = s.nodes.find(n => n.id === s.node);
+  // Stage 1 has not taught layers yet: an outer platform only exists in its own layer,
+  // so a stray wheel / swipe / key there must not drop a new player into the void.
+  if ((scene.onboardingStage ?? 4) < 2 && here && !here.anchor && layerIdx !== prevLayer && source !== 'assist') {
+    const partner = s.nodes.find(n => !n.anchor && n.id !== here.id && n.layer === layerIdx && n.world && here.world &&
+      Math.abs(n.world.x - here.world.x) < 1e-4 && Math.abs(n.world.y - here.world.y) < 1e-4 && Math.abs(n.world.z - here.world.z) < 1e-4);
+    if (!partner) {
+      showTransient('⚓ 外圈平台只存在于当前层，现在换层会踩空。先点亮 ①，之后会教你在中央安全台换层', 3.2);
+      updateUI();
+      return;
+    }
+  }
+  const order = s.mechanismOrder || s.nodes.filter(n => n.kind === 'mechanism').map(n => n.id);
+  const nextMechId = order.find(id => {
+    const n = s.nodes.find(item => item.id === id);
+    return n && n.powered && !s.activated.includes(id);
+  });
+  const prompt = scene.pendingLayerPrompt;
+  const targetId = prompt?.targetId || (s.activated.length >= 3 ? 'exit' : nextMechId);
+  const prevOpenCurrent = new Set(
+    (s.edges || []).filter(e => e.open && e.layer === prevLayer).map(e => e.id)
+  );
+
+  autoPilot = null;
+  action(() => model.setW(s.layers[layerIdx].center));
+
+  const after = model.snapshot();
+  if (after.layer !== prevLayer) {
+    const newlyVisibleEdges = (after.edges || []).filter(
+      e => e.open && e.layer === after.layer && !prevOpenCurrent.has(e.id) &&
+      (e.from === after.node || e.to === after.node || (targetId && (e.from === targetId || e.to === targetId)))
+    );
+    const targetNode = targetId ? after.nodes.find(n => n.id === targetId) : null;
+    const revealedTarget = newlyVisibleEdges.length > 0 || (targetNode && targetNode.layer === after.layer && !targetNode.anchor);
+    onboarding.recordManualLayerShift({ revealedBridge: revealedTarget });
+
+    // The player made the prompted change themselves: resume the walk to the clicked target.
+    // (phaseStability only decays on the next tick, so check the footing directly.)
+    const footing = after.nodes.find(n => n.id === after.node);
+    const stable = !!footing && (footing.anchor || footing.layer === after.layer);
+    const prismReady = !!after.abilities?.some(a => a.id === 'prism' && a.available);
+    const resume = !!prompt && prompt.targetLayer === after.layer && stable;
+    if (prompt && (resume || after.node !== prompt.atNode)) scene.pendingLayerPrompt = null;
+    if (resume && prompt.targetId && !prismReady) {
+      autoPilot = { targetNode: prompt.targetId, finalLayer: prompt.finalLayer ?? null, resumeAt: performance.now() + 700 };
+    }
+
+    if (revealedTarget && stable) {
+      scene.triggerMaterializeAha(after.layer, newlyVisibleEdges, targetNode);
+      if (targetNode) {
+        const layerName = after.layers[after.layer].name;
+        if (prismReady) showTransient(`✨ 桥在【${layerName}】显形，且 ◇ 回流棱镜已就绪！点下方紫色按钮（或按 Q）可直接远程点亮「${targetNode.name}」`, 4.0);
+        else if (resume && prompt.targetId) showTransient(`✨ 桥在【${layerName}】显形了！继续前往「${targetNode.name}」…`, 3.0);
+        else if (targetNode.layer === after.layer) showTransient(`✨ 隐形的桥与「${targetNode.name}」在【${layerName}】显形了！点击它即可顺桥走过去`, 3.6);
+      }
+    }
+  }
+  updateUI();
+}
+
+function handleCanvasSelect(id) {
+  if (!canAct()) return;
+  onboarding.recordActivity();
+  const s = model.snapshot();
+  if (s.wave) {
+    const safeNames = (s.wave.safeLayers || []).map(i => `${layerSymbols[i]} ${s.layers[i].name}`).join(' / ');
+    transient = `⚡ 冲击波来袭！请亲手滚动滚轮（或点左上角三层图）切入【${safeNames}】躲避！`;
+    transientTime = 2.5;
+    actionFeedback = transient;
+    $('announcement').textContent = transient;
+    updateUI();
+    return;
+  }
+  const currentNode = s.nodes.find(n => n.id === s.node);
+  const targetNode = s.nodes.find(n => n.id === id);
+  if (id === 'rift' && targetNode?.locked) {
+    const eligible = (s.hiddenRoutes || []).find(r => r.eligible && !r.unlocked);
+    if (eligible) {
+      const entryNode = s.nodes.find(n => n.id === eligible.entry);
+      const seqStr = (eligible.sequence || []).map(l => layerSymbols[l]).join(' → ');
+      transient = `🔮 秘境封印已松动！前往「${entryNode?.name || '安全台'}」依次滚轮切入 ${seqStr} 层即可开启隐星秘境！`;
+      transientTime = 3.6;
+      actionFeedback = transient;
+      $('announcement').textContent = transient;
+      handleCanvasSelect(eligible.entry);
+      return;
+    }
+    if ($('run-details')) $('run-details').open = true;
+    if ($('secret-panel')) $('secret-panel').open = true;
+    transient = '🌌 隐藏秘境「隐星台」：跨庭集齐 2 件共鸣遗物并在安全台完成三印换层，即可开启隐藏第四岛 (+9◆)！已在右侧展开秘印配方。';
+    transientTime = 3.8;
+    actionFeedback = transient;
+    $('announcement').textContent = transient;
+    updateUI();
+    return;
+  }
+  if (id === 'vault' && targetNode?.locked) {
+    transient = `✨ 花匣被相位锁保护：先点亮前序机关解锁通路，即可前来开启夺取 +${s.roomChallenge?.reward || 4}◆！`;
+    transientTime = 3.2;
+    actionFeedback = transient;
+    $('announcement').textContent = transient;
+    updateUI();
+    return;
+  }
+  if (id === s.node) {
+    if (s.phaseStability < .99 && currentNode && !currentNode.anchor) {
+      autoPilot = null;
+      action(() => model.setW(s.layers[currentNode.layer].center));
+      return;
+    }
+    if (id === 'vault' && !targetNode?.locked && s.vaultStatus !== 'escaped') {
+      const entryLayer = s.roomChallenge?.entryLayer ?? targetNode.layer;
+      if (s.layer !== entryLayer) {
+        promptLayerShift(s, 'vault', { type: 'shift', at: 'vault', to: 'vault', layer: entryLayer, kind: 'anchor' }, entryLayer);
+        return;
+      }
+    }
+    if (scene.relicHud?.readyAbility) {
+      $('quick-ability-btn')?.click();
+      return;
+    }
+    if (s.interactAvailable) {
+      autoPilot = null;
+      action(() => model.interact());
+      return;
+    }
+    return;
+  }
+
+  // Plan over (platform, layer): the autopilot walks bridges on the CURRENT layer only and stops
+  // exactly where a W change is needed, so the player always rolls the layer that reveals the bridge.
+  const finalLayer = id === 'vault' && s.vaultStatus === 'available' ? (s.roomChallenge?.entryLayer ?? null) : null;
+  const plan = planLayerRoute(s, id, { finalLayer });
+  scene.pendingLayerPrompt = null;
+  if (!plan) {
+    autoPilot = null;
+    const hint = targetNode?.kind === 'mechanism' && !targetNode.powered ? '先点亮前序机关为它供能' : '先点亮前序机关，让桥接通';
+    showTransient(`🔒 暂时还没有通往「${targetNode?.name || '目标'}」的路：${hint}`, 3.2);
+    updateUI();
+    return;
+  }
+  if (targetNode) scene.addEffect('ring', targetNode, { duration: .8, radius: 78, color: plan.shift ? '#5eead4' : '#fbbf24' });
+  if (plan.shift && !plan.walk.length) {
+    autoPilot = null;
+    promptLayerShift(s, id, plan.shift, finalLayer);
+    return;
+  }
+  autoPilot = { targetNode: id, finalLayer };
+  if (plan.shift) {
+    const atName = s.nodes.find(n => n.id === plan.shift.at)?.name || '安全台';
+    showTransient(`⚓「${targetNode?.name || '目标'}」的桥不在这一层：先带你走到「${atName}」，到了请亲手滚轮换层`, 3.4);
+  }
+  stepAutoPilot();
+}
+
+function handleAnomalySelect(anomaly) {
+  if (!canAct() || !anomaly) return;
+  onboarding.recordActivity();
+  const s = model.snapshot();
+  const res = scene.explorationRadar.interact(s, anomaly.key || anomaly.id);
+  if (!res) return;
+  if (res.status === 'off_layer') {
+    scene.pendingLayerPrompt = { targetId: null, targetLayer: res.targetLayer };
+    transient = `${res.message} 请亲手滚动滚轮（或点左上角 ${layerSymbols[res.targetLayer]}）切至该层！`;
+    transientTime = 3.4;
+    actionFeedback = transient;
+    $('announcement').textContent = transient;
+    updateUI();
+    return;
+  }
+  if (res.status === 'collected') {
+    scene.spawnBurst(res.item.x, res.item.y, '#fbbf24', 26, 1.15);
+    transient = res.message;
+    transientTime = 4.0;
+    actionFeedback = res.message;
+    $('announcement').textContent = res.message;
+    if ($('anomaly-lore-box')) {
+      $('anomaly-lore-box').hidden = false;
+      setText('anomaly-lore-title', `✦ 已收录四维奇物：【${res.item.name}】 (+${res.bonus}◆)`);
+      setText('anomaly-lore-text', res.item.lore);
+    }
+    updateUI();
+  }
+}
+
+const scene = new SceneRenderer($('scene'), {
+  onSelect: handleCanvasSelect,
+  onFriend: askFriend,
+  onAnomaly: handleAnomalySelect,
+  onLayerSelect: layerIdx => manualSwitchLayer(layerIdx, 'wstack'),
+  hasSupplySlots,
+});
+scene.visualGuide = true;
 function refreshFriends() { scene.friends = courtyardFriends(readJSON('wslice-flatland-friends'), readJSON('wslice-flatland-gardens')); }
 refreshFriends();
 window.addEventListener('storage', event => {
@@ -81,6 +421,7 @@ function consumeEvents() {
   const snapshot = model.snapshot();
   const state = guide.present(snapshot);
   state.courtyardMomentum = momentum.view(snapshot, guide);
+  scene.liveGuide = snapshot.companionGuide;
   scene.setState(state);
   scene.pushEvents(events);
   audio.handle(events);
@@ -95,7 +436,13 @@ function consumeEvents() {
     if (event.type === 'activate' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       $('mechanism-count').animate([{ transform: 'scale(1.3)', color: '#a06c24' }, { transform: 'scale(1)' }], { duration: 550 });
     }
-    if (event.type === 'fail') message = event.protected ? '缓落壳接住了你，随身回响保留。' : `失稳回退，失去 ${event.value} 枚未存回响。`;
+    if (event.type === 'fail') {
+      onboarding.recordFailure();
+      message = event.protected ? '缓落壳接住了你，随身回响保留。' : `失稳回退，失去 ${event.value} 枚未存回响。`;
+    }
+    if (event.type === 'evade' || event.type === 'dodge') {
+      onboarding.recordWaveDodge();
+    }
     if (event.type === 'bank') message = `已存入 ${event.value} 枚回响。`;
     if (event.type === 'unlock') message = '机关共鸣，通往庭门的实体桥已打开。';
     if (event.type === 'reward' && event.risky) message = `冒险成功，收获 ${event.value} 枚回响。`;
@@ -182,7 +529,18 @@ function showChoice(state) {
       button.setAttribute('aria-label', '带缓落壳出发');
       button.querySelector('h3').textContent = '带缓落壳出发 ↗';
     }
-    button.addEventListener('click', () => { $('choice-dialog').close(); paused = false; action(() => { model.chooseRelic(relic.id); if (!next && !momentum.firstEntry) guide.request(model.snapshot()); }); $('w-slider').focus({preventScroll:true}); });
+    button.addEventListener('click', () => {
+      $('choice-dialog').close();
+      paused = false;
+      action(() => {
+        if (model.snapshot().phase === 'playing') {
+          model.restart(model.snapshot().seed);
+        }
+        model.chooseRelic(relic.id);
+        if (!next && !momentum.firstEntry) guide.request(model.snapshot());
+      });
+      $('w-slider').focus({preventScroll:true});
+    });
     return button;
   });
   if (discoveryStart) {
@@ -207,7 +565,8 @@ function showResult(state) {
   $('result-title').textContent = won ? '庭院记住了你的回响。' : '这一程，先到这里。';
   $('result-description').textContent = won ? '你让回响穿过了三层空间，也把这一路的能力组合带到了终点。' : '回程结已用完，之前存下的回响仍计入本次成绩。';
   $('result-score').textContent = state.banked;
-  $('result-stats').textContent = `冒险成功 ${state.stats.risks} 次 · 点亮机关 ${state.stats.chains} 次 · 失稳 ${state.stats.failures} 次`;
+  const pr = scene.phaseResonance.summary();
+  $('result-stats').textContent = `冒险成功 ${state.stats.risks} 次 · 点亮机关 ${state.stats.chains} 次 · 完美同频 ${pr.perfectBeats} 次 · 刹那折光 ${pr.grazes} 次 · 共鸣评级 ${pr.rank}`;
   $('result-dialog').showModal();
 }
 
@@ -311,13 +670,17 @@ function updateRoom(state) {
   const key=`${state.seed}:${state.room}:${state.roomSignature}`;
   if(roomKey===key)return;
   roomKey=key;destinationKey='';
-  setText('room-description',state.roomDescription || '观察各层机关，让能量接力。');
+  scene.pendingLayerPrompt = null;
+  setText('room-description', '🎯 核心玩法：左键点击发光的「① → ② → ③」号机关走过去点亮；当目标在另一层时，站上「⚓ 安全台」滚动鼠标滚轮切换四维层，让隐形的桥显形！');
   renderItinerary('room-itinerary',state,state.room);
   const order=state.mechanismOrder || state.nodes.filter(n=>n.kind==='mechanism').map(n=>n.id);
-  $('mechanisms').replaceChildren(...order.map(id=>{
+  const numBadges = ['①', '②', '③'];
+  $('mechanisms').replaceChildren(...order.map((id, idx)=>{
     const node=state.nodes.find(n=>n.id===id);
     const row=document.createElement('div');row.className='mechanism-item';row.dataset.mechanism=id;
-    row.innerHTML=`<span class="node-light" aria-hidden="true">◇</span><span class="mechanism-name">${node.name}<span class="supply-slots">${(node.required || []).map(source=>{const from=state.nodes.find(n=>n.id===source);return `<i data-source="${source}" title="来自${from.name}" style="--supply-color:${state.layers[from.layer].color}">○</i>`;}).join('')}</span></span><small></small>`;
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', () => handleCanvasSelect(id));
+    row.innerHTML=`<span class="node-light" aria-hidden="true">${numBadges[idx] || '◇'}</span><span class="mechanism-name"><b>${numBadges[idx] || ''}</b> ${node.name}<span class="supply-slots">${(node.required || []).map(source=>{const from=state.nodes.find(n=>n.id===source);return `<i data-source="${source}" title="来自${from.name}" style="--supply-color:${state.layers[from.layer].color}">○</i>`;}).join('')}</span></span><small></small>`;
     return row;
   }));
   setText('challenge-name',state.roomChallenge?.name || '裂隙花匣');
@@ -329,6 +692,7 @@ function updateUI() {
   const snapshot = model.snapshot();
   const state = guide.present(snapshot);
   state.courtyardMomentum = momentum.view(snapshot, guide);
+  scene.liveGuide = snapshot.companionGuide;
   const firstAction = momentum.firstAction(snapshot, guide);
   const firstTarget = state.nodes.find(node => node.id === firstAction?.node);
   // Keep the first activation and hub/anchor crossings actionable, including
@@ -366,35 +730,344 @@ function updateUI() {
   $('mechanism-count').textContent = `${state.activated.length} / 3`;
   const currentLayer = state.layers?.[state.layer];
   const currentNode = state.nodes.find(n=>n.id===state.node);
+  const anomProg = scene.explorationRadar.roomProgress(state);
+  const stageInfo = onboarding.computeStage(state, anomProg.totalCollected);
+  const revealExplicit = onboarding.shouldRevealExplicitLayerHint(state, {
+    hintRequested: !!state.companionGuide,
+    totalAnomaliesCollected: anomProg.totalCollected,
+  });
+  scene.onboardingStage = stageInfo.stage;
+  scene.explicitLayerHint = revealExplicit;
+  if (scene.pendingLayerPrompt && Number.isInteger(scene.pendingLayerPrompt.targetLayer)) {
+    scene.pendingLayerPrompt.message = buildLayerShiftPromptMessage(state, scene.pendingLayerPrompt, revealExplicit);
+  }
   setText('layer-name',currentLayer?.name || '层间隙');
   setText('layer-symbol',layerSymbols[state.layer] || '◇');
   if(currentNode?.world)setText('position-readout',`位置 ${Number(currentNode.world.x.toFixed(1))}, ${Number(currentNode.world.y.toFixed(1))}, ${Number(currentNode.world.z.toFixed(1))} · W ${state.w.toFixed(2)}`);
   document.body.dataset.layer = String(state.layer);
+  const liveGuide = snapshot.companionGuide;
+  const activePrompt = !state.wave && !state.travel && scene.pendingLayerPrompt &&
+    Number.isInteger(scene.pendingLayerPrompt.targetLayer) &&
+    scene.pendingLayerPrompt.targetLayer !== state.layer &&
+    (!scene.pendingLayerPrompt.atNode || scene.pendingLayerPrompt.atNode === state.node)
+      ? scene.pendingLayerPrompt
+      : null;
+  const effectiveTargetLayer = activePrompt
+    ? activePrompt.targetLayer
+    : (liveGuide && !liveGuide.aligned && (currentNode?.anchor || liveGuide.kind === 'shift' || currentNode?.layer === liveGuide.layer) ? liveGuide.layer : null);
+  const sameSpotNodeOnLayer = layerIdx => currentNode && !currentNode.anchor
+    ? state.nodes.find(n => !n.anchor && n.id !== currentNode.id && n.layer === layerIdx &&
+        n.world && currentNode.world &&
+        Math.abs(n.world.x - currentNode.world.x) < 1e-4 &&
+        Math.abs(n.world.y - currentNode.world.y) < 1e-4 &&
+        Math.abs(n.world.z - currentNode.world.z) < 1e-4)
+    : null;
   for(const [i,button] of [...document.querySelectorAll('.layer-controls [data-layer]')].entries()){
     button.setAttribute('aria-pressed',String(i===state.layer));
     button.disabled=state.phase!=='playing'||paused;
     button.classList.toggle('danger-layer',!!state.wave?.dangerLayers?.includes(i));
     button.classList.toggle('safe-layer',!!state.wave?.safeLayers?.includes(i));
-    button.classList.toggle('attention-action', !!onwardShift && onward.layer === i);
-    button.title=state.wave?`${state.layers[i].name} · ${state.wave.safeLayers.includes(i)?'安全切片':'回流危险'}`:state.layers[i].name;
+    const isTargetLayer = revealExplicit && !state.wave && !state.travel && effectiveTargetLayer === i;
+    button.classList.toggle('attention-action', revealExplicit && (!!onwardShift && onward.layer === i || !!isTargetLayer));
+    const sameSpot = sameSpotNodeOnLayer(i);
+    const isVoidHere = !state.wave && !state.travel && currentNode && !currentNode.anchor && currentNode.layer !== i && !sameSpot;
+    button.classList.toggle('void-warning-layer', !!isVoidHere);
+    const pill = $('layer-pill-' + i);
+    if (pill) {
+      if (state.wave) {
+        const waveSafe = state.wave.safeLayers?.includes(i);
+        setText('layer-pill-' + i, waveSafe ? '🛡️ 安全躲避' : '⚡ 回流危险');
+        pill.className = `layer-safety-pill ${waveSafe ? 'pill-safe' : 'pill-void'}`;
+      } else if (isVoidHere) {
+        setText('layer-pill-' + i, '⚠️ 悬空无地');
+        pill.className = 'layer-safety-pill pill-void';
+      } else if (isTargetLayer) {
+        setText('layer-pill-' + i, '✨ 点此切入');
+        pill.className = 'layer-safety-pill pill-target';
+      } else if (sameSpot) {
+        setText('layer-pill-' + i, `🌀 同位→${sameSpot.name}`);
+        pill.className = 'layer-safety-pill pill-portal';
+      } else {
+        setText('layer-pill-' + i, currentNode?.anchor ? '⚓ 安全台' : '● 本层平台');
+        pill.className = 'layer-safety-pill pill-safe';
+      }
+    }
+    button.title=state.wave?`${state.layers[i].name} · ${state.wave.safeLayers.includes(i)?'安全切片':'回流危险'}`:isVoidHere?`${state.layers[i].name} · 当前圆盘不在此层，请先走回安全台再换层`:state.layers[i].name;
+  }
+  if ($('void-rescue-banner')) {
+    const voidDanger = state.phase === 'playing' && !state.travel && state.phaseStability < .99 && currentNode && !currentNode.anchor;
+    $('void-rescue-banner').hidden = !voidDanger;
+    if (voidDanger) {
+      const safeName = state.layers[currentNode.layer]?.name || '原切片';
+      setText('void-rescue-title', `⚠️ 脚下悬空（剩余 ${(state.phaseStability * 2.2).toFixed(1)}s）！当前圆盘不在这一层`);
+      setText('void-rescue-sub', `「${currentNode.name}」只存在于${safeName}，需先走回「安全台」才能安全换层`);
+      setText('void-rescue-btn', `🛡️ 一键切回${safeName}`);
+    }
+  }
+  if ($('visual-stepper')) {
+    const voidDanger = state.phase === 'playing' && !state.travel && state.phaseStability < .99 && currentNode && !currentNode.anchor;
+    const g = liveGuide;
+    const gTarget = state.nodes.find(n => n.id === (activePrompt?.targetId || g?.node));
+    const shiftLayerIdx = activePrompt ? activePrompt.targetLayer : g?.layer;
+    const step1Active = voidDanger || !!activePrompt || (!!g && !g.aligned);
+    const step2Active = !voidDanger && !activePrompt && !!g && g.kind === 'move' && g.aligned;
+    const step3Active = !voidDanger && !activePrompt && !!g && g.kind === 'activate' && g.aligned;
+
+    $('vstep-shift').className = `vstep-card ${voidDanger ? 'danger-vstep' : step1Active ? 'active-vstep' : (step2Active || step3Active) ? 'done-vstep' : ''}`;
+    $('vstep-move').className = `vstep-card ${step2Active ? 'active-vstep' : step3Active ? 'done-vstep' : ''}`;
+    $('vstep-act').className = `vstep-card ${step3Active ? 'active-vstep' : ''}`;
+
+    if (voidDanger) {
+      const safeLayer = state.layers[currentNode.layer];
+      setText('vstep-shift-icon', '🛡️');
+      setText('vstep-shift-title', `切回${safeLayer?.name}`);
+      setText('vstep-shift-sub', '点此立即解除悬空 ✨');
+    } else if (step1Active && Number.isInteger(shiftLayerIdx)) {
+      if (revealExplicit) {
+        setText('vstep-shift-icon', layerSymbols[shiftLayerIdx] || '🔀');
+        setText('vstep-shift-title', `切到${state.layers[shiftLayerIdx]?.name}`);
+        setText('vstep-shift-sub', '在安全台滚轮或点此切层 ✨');
+      } else {
+        setText('vstep-shift-icon', '🌀');
+        setText('vstep-shift-title', '看虚线桥滚轮调谐');
+        setText('vstep-shift-sub', '看桥颜色与偏移滚轮（点此揭晓层提示）');
+      }
+    } else {
+      setText('vstep-shift-icon', '✓');
+      setText('vstep-shift-title', `${currentLayer?.name || '当前层'}已对准`);
+      setText('vstep-shift-sub', currentNode?.anchor ? '安全台可自由滚轮换层' : '已在当前机关所在层');
+    }
+
+    if (step2Active && gTarget) {
+      const returning = !currentNode?.anchor && gTarget.anchor;
+      setText('vstep-move-icon', returning ? '⚓' : '🏃');
+      setText('vstep-move-title', returning ? '先回安全台' : `走向${gTarget.name}`);
+      setText('vstep-move-sub', returning ? '点此回安全台再换层 ✨' : '点目标顺桥走过去 ✨');
+    } else if (step3Active) {
+      setText('vstep-move-icon', '✓');
+      setText('vstep-move-title', `已登岛 · ${currentNode?.name}`);
+      setText('vstep-move-sub', '已到达目标机关');
+    } else {
+      setText('vstep-move-icon', '🏃');
+      setText('vstep-move-title', gTarget ? `目标：${gTarget.name}` : '踏桥登岛');
+      setText('vstep-move-sub', '切对层后点机关过桥');
+    }
+
+    if (step3Active) {
+      setText('vstep-act-icon', '⚡');
+      setText('vstep-act-title', `点亮${currentNode?.name}`);
+      setText('vstep-act-sub', '点此立即点亮机关 ✨');
+    } else {
+      setText('vstep-act-icon', state.activated.length === 3 ? '🚪' : '⚡');
+      setText('vstep-act-title', `点亮机关 (${state.activated.length}/3)`);
+      setText('vstep-act-sub', state.activated.length === 3 ? '三座全亮 · 点终点门过关' : '登岛自动点亮，再回安全台');
+    }
   }
   setText('footing',`${currentNode?.name || ''} · ${currentNode?.anchor?'跨层支撑':currentNode?.present?'本层平台':'离层失稳 · 换回有支撑的层'}`);
   $('footing').classList.toggle('unsafe',state.phaseStability<.99);
   setText('objective',firstTarget
-    ? firstAction.action === 'move' ? `先到${firstTarget.name} · 稳行过去` : `启动脚下的${firstTarget.name} · 按 E`
-    : onwardShift ? (onward.kind === 'shift'
-      ? `原地换到${layerSymbols[onward.layer]} ${state.layers[onward.layer].name} · 显现${onwardTarget.name}`
-      : `换到${layerSymbols[onward.layer]} ${state.layers[onward.layer].name} · 显现通往${onwardTarget.name}的桥`)
+    ? firstAction.action === 'move' ? `先到${firstTarget.name} · 点它顺桥走过去` : `点亮脚下的${firstTarget.name} · 点它即可（或按 E）`
+    : onwardShift ? (revealExplicit
+      ? (onward.kind === 'shift'
+        ? `原地换到${layerSymbols[onward.layer]} ${state.layers[onward.layer].name} · 显现${onwardTarget.name}`
+        : `换到${layerSymbols[onward.layer]} ${state.layers[onward.layer].name} · 显现通往${onwardTarget.name}的桥`)
+      : `观察通往${onwardTarget.name}的虚线桥颜色与偏移 · 滚轮调谐显桥`)
       : onwardMove ? `到${onwardTarget.name} · 沿桥稳行`
         : state.objective || '观察供能关系，切换 W 寻找这一庭的起点');
+  const orderList = state.mechanismOrder || state.nodes.filter(n => n.kind === 'mechanism').map(n => n.id);
+  const primaryMechId = orderList.find(id => {
+    const n = state.nodes.find(item => item.id === id);
+    return n && n.powered && !state.activated.includes(id);
+  });
   for (const node of state.nodes.filter(n => n.kind === 'mechanism')) {
     const row = document.querySelector(`[data-mechanism="${node.id}"]`);
     const active = state.activated.includes(node.id);
+    const idx = orderList.indexOf(node.id);
+    const numSym = ['①', '②', '③'][idx] || '◇';
+    const isPrimary = primaryMechId === node.id;
     row.classList.toggle('active', active);
-    row.querySelector('small').textContent = active ? '已启动' : node.powered ? (node.required?.length?'已供能':'起点') : `供能 ${node.received?.length || 0}/${node.required?.length || 1}`;
+    row.classList.toggle('primary-target', isPrimary);
+    const missingSyms = (node.required || [])
+      .filter(reqId => !(node.received || []).includes(reqId))
+      .map(reqId => ['①', '②', '③'][orderList.indexOf(reqId)] || '前序');
+    const layerTagText = (revealExplicit || node.layer === state.layer) ? `${layerSymbols[node.layer]}层` : '邻层虚影';
+    row.querySelector('small').textContent = active
+      ? '✓ 已点亮'
+      : node.powered
+        ? `${isPrimary ? '🎯 当前目标 · ' : '👉 '}点我前往 (${layerTagText})`
+        : `🔒 待解锁 · 需先点亮 ${missingSyms.join('+') || '前序'}`;
     row.title=node.mechanismHint || '';
-    row.querySelector('.node-light').textContent = active ? '✦' : '◇';
+    row.querySelector('.node-light').textContent = active ? '✓' : numSym;
     for(const slot of row.querySelectorAll('[data-source]')){const received=node.received?.includes(slot.dataset.source);slot.textContent=received?'●':'○';slot.classList.toggle('received',!!received);}
+  }
+  if ($('exit-step-card')) {
+    const exitOpen = state.activated.length >= 3;
+    const exitNode = state.nodes.find(n => n.id === 'exit');
+    $('exit-step-card').classList.toggle('exit-open', exitOpen);
+    setText('exit-step-title', `🚪 终点门 · ${exitNode?.name || '折光门'}`);
+    setText('exit-step-sub', exitOpen
+      ? '✨ 大门已开！点此直接过关 ↗'
+      : `🔒 待解锁 · 需先点亮 ①②③ (${state.activated.length}/3)`);
+  }
+  if (!transient || transientTime <= 0.4) {
+    const stageUp = onboarding.consumeStageUpBanner(state, anomProg.totalCollected);
+    if (stageUp) {
+      transient = `${stageUp.badge} · ${stageUp.title}`;
+      transientTime = 3.8;
+      actionFeedback = `${stageUp.badge}：${stageUp.instruction}`;
+      $('announcement').textContent = actionFeedback;
+    }
+  }
+
+  if ($('onboarding-banner')) {
+    $('onboarding-banner').dataset.stage = String(stageInfo.stage);
+    setText('onboarding-badge', stageInfo.badge);
+    setText('onboarding-title', stageInfo.title);
+    setText('onboarding-desc', stageInfo.instruction);
+    if ($('unlock-all-btn')) {
+      $('unlock-all-btn').hidden = stageInfo.stage >= 4;
+    }
+    if ($('open-hyper-lab')) {
+      $('open-hyper-lab').hidden = stageInfo.stage < 2;
+    }
+    if ($('theme-toggle')) {
+      $('theme-toggle').hidden = stageInfo.stage < 2;
+    }
+    if ($('layer-controls')) {
+      $('layer-controls').hidden = stageInfo.stage < 2;
+    }
+    if ($('chain-row')) {
+      $('chain-row').hidden = stageInfo.stage < 3;
+    }
+    if ($('visual-stepper')) {
+      $('visual-stepper').hidden = stageInfo.stage < 2;
+    }
+    if ($('quick-risk-btn')) {
+      $('quick-risk-btn').hidden = stageInfo.stage < 4;
+      $('quick-risk-btn').setAttribute('aria-pressed', String(!!state.riskMode));
+      $('quick-risk-btn').classList.toggle('risk-active', !!state.riskMode);
+      setText('quick-risk-btn', state.riskMode ? '⚡ 黄金冒险桥：已开启' : '⚡ 黄金冒险桥：关');
+    }
+    if ($('exploration-radar-section')) {
+      $('exploration-radar-section').hidden = stageInfo.stage < 2;
+    }
+    if ($('radar-flower-card')) $('radar-flower-card').hidden = stageInfo.stage < 4;
+    if ($('radar-vault-card')) $('radar-vault-card').hidden = stageInfo.stage < 3;
+    if ($('radar-rift-card')) $('radar-rift-card').hidden = stageInfo.stage < 4;
+    if ($('auto-next-btn')) {
+      $('auto-next-btn').hidden = !onboarding.shouldShowAssistButton();
+      if (state.activated.length >= 3) {
+        setText('auto-next-btn', '🧭 帮我前往终点 ↗');
+      } else if (primaryMechId) {
+        const pIdx = orderList.indexOf(primaryMechId);
+        const pSym = ['①', '②', '③'][pIdx] || '①';
+        setText('auto-next-btn', `🧭 卡住了？帮我推进 ${pSym} ↗`);
+      } else {
+        setText('auto-next-btn', '🧭 帮我走这一步 ↗');
+      }
+    }
+  }
+  const activeGoalId = activePrompt?.targetId || (state.activated.length >= 3 ? 'exit' : primaryMechId);
+  const riskPreview = computeRiskDecisionPreview(state, activeGoalId);
+  const relicHud = computeRelicHudStatus(state);
+  scene.relicHud = relicHud;
+  scene.riskPreview = riskPreview;
+  const hasNonStarterRelic = relicHud.items.some(item => item.id !== 'shell');
+  if ($('risk-decision-bar')) {
+    const showRiskDecision = (stageInfo.stage >= 3 || hasNonStarterRelic) &&
+      riskPreview.available && riskPreview.isNovel && !activePrompt &&
+      relicHud.readyAbility?.id !== 'prism';
+    $('risk-decision-bar').hidden = !showRiskDecision;
+    if (showRiskDecision) {
+      setText('risk-decision-title', `通往「${riskPreview.toName}」的新桥已连通：稳妥走 (+1◆) 还是冒险冲 (+3◆)？`);
+      setText('risk-decision-sub', `首次⚡冒险过桥可获：${riskPreview.bonusLabel}（过桥时顺着金色波浪微调滚轮）`);
+      const extraTag = riskPreview.chargesPrism ? ' · ◇蓄能+1' : riskPreview.chargesWeave ? ' · ❋桥种+1' : riskPreview.awakensFlowerBridge ? ' · 🌺唤醒花桥' : '';
+      setText('risk-go-btn', `⚡ 冒险冲过去 (+3◆${extraTag})`);
+      setText('safe-go-btn', '🛡️ 稳妥走 (+1◆)');
+    }
+  }
+  if ($('relic-hud-bar')) {
+    const showRelicHud = stageInfo.stage >= 3 || !!relicHud.readyAbility || !!relicHud.positioningHint || hasNonStarterRelic;
+    $('relic-hud-bar').hidden = !showRelicHud;
+    if (showRelicHud) {
+      const nextHudKey = JSON.stringify([relicHud.items, relicHud.positioningHint]);
+      if (relicHudKey !== nextHudKey && $('relic-chips')) {
+        relicHudKey = nextHudKey;
+        const chips = relicHud.items.map(item => {
+          const span = document.createElement('span');
+          span.className = `relic-chip${item.available ? ' ready' : item.charged ? ' charged' : ''}`;
+          span.innerHTML = `<span class="relic-chip-icon" aria-hidden="true">${item.icon}</span><strong>${item.name} ${item.rankSymbol}</strong><small>${item.statusText}</small>`;
+          return span;
+        });
+        if (relicHud.positioningHint) {
+          const hintChip = document.createElement('span');
+          hintChip.className = 'relic-chip charged';
+          hintChip.innerHTML = `<strong>${relicHud.positioningHint}</strong>`;
+          chips.push(hintChip);
+        }
+        $('relic-chips').replaceChildren(...chips);
+      }
+      if ($('quick-ability-btn')) {
+        $('quick-ability-btn').hidden = !relicHud.readyAbility;
+        if (relicHud.readyAbility) {
+          setText('quick-ability-btn', relicHud.readyAbility.ctaText);
+        }
+      }
+    }
+  }
+  if ($('radar-anomaly-card')) {
+    const nextAnom = anomProg.items.find(a => !a.collected);
+    const anomDone = anomProg.done >= anomProg.total && anomProg.total > 0;
+    const flowerDone = (state.resonance?.stage || 0) >= 3;
+    const vaultNode = state.nodes.find(n => n.id === 'vault');
+    const vaultDone = state.vaultStatus === 'escaped';
+    const vaultReady = vaultNode && !vaultNode.locked && !vaultDone;
+    const riftNode = state.nodes.find(n => n.id === 'rift');
+    const riftUnlocked = riftNode && !riftNode.locked;
+    const riftCleared = state.rift?.status === 'cleared';
+    const eligibleSecret = (state.hiddenRoutes || []).find(r => r.eligible && !r.unlocked);
+
+    const totalSecretsDone = (anomDone ? 1 : 0) + (flowerDone ? 1 : 0) + (vaultDone ? 1 : 0) + (riftCleared || riftUnlocked ? 1 : 0);
+    setText('radar-progress', `${totalSecretsDone} / 4 已解锁`);
+    $('banked').textContent = state.banked + anomProg.bonusScore;
+
+    // 1. Anomaly Card
+    $('radar-anomaly-card').className = `radar-card ${anomDone ? 'radar-done' : nextAnom?.materialized ? 'radar-ready' : ''}`;
+    setText('radar-anomaly-title', `✦ 异维奇物 (${anomProg.done}/${anomProg.total})`);
+    setText('radar-anomaly-sub', anomDone
+      ? '✓ 本庭四维奇物已全部收录！'
+      : nextAnom?.materialized
+        ? `✨「${nextAnom.name}」已显形！点此立即收录 (+2◆)`
+        : `🔭 侦测到「${nextAnom?.name || '奇物'}」在${nextAnom?.layerLabel || '异层'} · 点此切层寻宝`);
+
+    // 2. Flower Bridge Card
+    $('radar-flower-card').className = `radar-card ${flowerDone ? 'radar-done' : state.riskMode ? 'radar-ready' : ''}`;
+    setText('radar-flower-title', flowerDone ? '🌺 隐藏花径 (已绽放)' : '🌺 沉睡花桥 (隐藏捷径)');
+    setText('radar-flower-sub', flowerDone
+      ? `✓ 已在${state.layers[state.resonance?.edge?.layer]?.name || '庭院'}长出花匣↔锚台永久花桥！`
+      : state.riskMode
+        ? '⚡ 已开启黄金冒险！现在走任意一座桥即可唤醒花径'
+        : '点此开启⚡黄金冒险过桥 1 次，唤醒横跨虚空的花桥');
+
+    // 3. Vault Card
+    $('radar-vault-card').className = `radar-card ${vaultDone ? 'radar-done' : vaultReady ? 'radar-ready' : ''}`;
+    setText('radar-vault-title', vaultDone ? '✨ 秘宝花匣 (已夺宝)' : `✨ 秘宝花匣 (+${state.roomChallenge?.reward || 4}◆)`);
+    setText('radar-vault-sub', vaultDone
+      ? '✓ 已成功躲过四维回流，秘宝收入囊中！'
+      : vaultReady
+        ? '✨ 花匣封印已解开！点此自动前往开启夺宝 ↗'
+        : '🔒 点亮机关解锁通路后，可开启花匣挑战回流夺宝');
+
+    // 4. Rift Card
+    $('radar-rift-card').className = `radar-card ${riftCleared ? 'radar-done' : (riftUnlocked || eligibleSecret) ? 'radar-ready' : ''}`;
+    setText('radar-rift-title', riftCleared ? '🌌 隐星秘境 (已升庭)' : riftUnlocked ? '🌌 隐星秘境 (已显形！)' : '🌌 隐星秘境 (+9◆)');
+    setText('radar-rift-sub', riftCleared
+      ? '✓ 已渡过三重星环回流，升庭天桥直通终点！'
+      : riftUnlocked
+        ? '✨ 第四神秘岛已显现！点此登岛开启隐星试炼 ↗'
+        : eligibleSecret
+          ? `🔮 封印已松动！点此前往按 ${(eligibleSecret.sequence || []).map(l => layerSymbols[l]).join('→')} 换层开启`
+          : '点此查看 3 大隐藏秘印配方 / 切换本局遗物组合');
   }
   const routesTo = id => state.edges.filter(edge=>edge.open && ((edge.from===state.node && edge.to===id)||(edge.to===state.node && edge.from===id)));
   const nextKey = `${state.availableNodes.map(id=>`${id}:${routesTo(id).map(edge=>`${edge.id}/${edge.layer}`).join('|')}`).join(',')}:${state.selected}:${state.layer}`;
@@ -458,12 +1131,33 @@ function updateUI() {
   updateBuild(state);
   updateResonance(state);
   updateSecrets(state);
+  if ($('phase-resonance-badge')) {
+    const pr = scene.phaseResonance.summary();
+    const corridor = scene.phaseResonance.corridor(state);
+    const activeRisk = !!(corridor?.traversing && corridor.risky);
+    const hasActivity = activeRisk || pr.streak > 0 || pr.grazes > 0;
+    $('phase-resonance-badge').hidden = stageInfo.stage < 3 || !hasActivity;
+    if (!($('phase-resonance-badge').hidden)) {
+      const syncPct = activeRisk ? Math.round(corridor.accuracy * 100) : Math.round((state.travel?.stability ?? state.phaseStability) * 100);
+      setText('phase-resonance-badge', activeRisk
+        ? `◈ 同频 ${syncPct}% · 连击 ×${pr.streak} · 评级 ${pr.rank}`
+        : `◈ 相位连击 ×${pr.streak} · 折光 ${pr.grazes} · 评级 ${pr.rank}`);
+      $('phase-resonance-badge').classList.toggle('active-corridor', !!(activeRisk && corridor.sweetSpot));
+      $('phase-resonance-badge').classList.toggle('high-streak', pr.streak >= 2);
+    }
+  }
   $('pause').disabled = state.phase !== 'playing';
   setText('context-hint',state.objective || '切换空间，观察能量会传到哪一层。');
   // The action popup owns its result; the caption keeps the current place legible.
-  const status = (actionFeedback || transientType === 'power' ? null : transient) || (state.travel ? (state.travel.risky?'冒险中 · 留意移动光带':'沿当前切片前进') : `${currentNode?.name || '归响台'} · ${currentLayer?.name || '层间隙'}`);
-  $('action-feedback').hidden = !transient || !actionFeedback;
-  setText('action-feedback', transient ? actionFeedback : '');
+  // While a layer-shift prompt is still waiting on the player, keep its instruction visible even after the timer expires.
+  const activePromptMsg = !state.travel && !state.wave && scene.pendingLayerPrompt?.message &&
+    scene.pendingLayerPrompt.targetLayer !== state.layer &&
+    (!scene.pendingLayerPrompt.atNode || scene.pendingLayerPrompt.atNode === state.node)
+      ? scene.pendingLayerPrompt.message : '';
+  const visibleFeedback = (transient && actionFeedback) ? actionFeedback : activePromptMsg;
+  const status = (visibleFeedback || transientType === 'power' ? null : transient) || (state.travel ? (state.travel.risky?'冒险中 · 留意移动光带':'沿当前切片前进') : `${currentNode?.name || '归响台'} · ${currentLayer?.name || '层间隙'}`);
+  $('action-feedback').hidden = !visibleFeedback;
+  setText('action-feedback', visibleFeedback);
   if (status !== lastStatus) { $('scene-state').textContent = status; lastStatus = status; }
   if (state.phase !== lastPhase) {
     lastPhase = state.phase;
@@ -487,14 +1181,215 @@ $('interact').addEventListener('click',e=>{
     $('w-slider').focus({preventScroll:true});
 });
 $('ask-friend').addEventListener('click', askFriend);
-for(const button of document.querySelectorAll('.layer-controls [data-layer]'))button.addEventListener('click',()=>{if(canAct())action(()=>model.setW(model.snapshot().layers[Number(button.dataset.layer)].center));});
+$('void-rescue-btn')?.addEventListener('click', () => {
+  if (!canAct()) return;
+  const s = model.snapshot();
+  const currentNode = s.nodes.find(n => n.id === s.node);
+  if (currentNode) action(() => model.setW(s.layers[currentNode.layer].center));
+});
+$('vstep-shift')?.addEventListener('click', () => {
+  if (!canAct()) return;
+  const s = model.snapshot();
+  const currentNode = s.nodes.find(n => n.id === s.node);
+  if (s.phaseStability < .99 && currentNode && !currentNode.anchor) {
+    action(() => model.setW(s.layers[currentNode.layer].center));
+    return;
+  }
+  const activePrompt = !s.wave && !s.travel && scene.pendingLayerPrompt &&
+    Number.isInteger(scene.pendingLayerPrompt.targetLayer) &&
+    scene.pendingLayerPrompt.targetLayer !== s.layer &&
+    (!scene.pendingLayerPrompt.atNode || scene.pendingLayerPrompt.atNode === s.node)
+      ? scene.pendingLayerPrompt
+      : null;
+  const g = s.companionGuide;
+  const targetLayer = activePrompt ? activePrompt.targetLayer : (g && !g.aligned ? g.layer : null);
+  if (!Number.isInteger(targetLayer)) return;
+  const anomProg = scene.explorationRadar.roomProgress(s);
+  const revealExplicit = onboarding.shouldRevealExplicitLayerHint(s, {
+    hintRequested: !!guide.present(s).companionGuide,
+    totalAnomaliesCollected: anomProg.totalCollected,
+  });
+  if (!revealExplicit) {
+    onboarding.requestExplicitHint();
+    showTransient(`💡 层提示已揭晓：目标桥在【${layerSymbols[targetLayer]} ${s.layers[targetLayer]?.name}】，亲手滚轮切过去吧！`, 3.6);
+    updateUI();
+    return;
+  }
+  manualSwitchLayer(targetLayer, 'assist');
+});
+$('vstep-move')?.addEventListener('click', () => {
+  if (!canAct()) return;
+  const s = model.snapshot();
+  const currentNode = s.nodes.find(n => n.id === s.node);
+  const g = s.companionGuide;
+  if (g && g.kind === 'move') {
+    action(() => {
+      if (!g.aligned && currentNode?.anchor) model.setW(g.w);
+      model.select(g.node);
+      if (model.snapshot().canMove) model.move();
+    });
+  } else if (s.canMove) {
+    action(() => model.move());
+  }
+});
+$('vstep-act')?.addEventListener('click', () => {
+  if (!canAct()) return;
+  const s = model.snapshot();
+  if (s.interactAvailable) action(() => model.interact());
+  else if (s.companionGuide?.kind === 'activate' && !s.companionGuide.aligned) {
+    action(() => { model.setW(s.companionGuide.w); if (model.snapshot().interactAvailable) model.interact(); });
+  }
+});
+$('exit-step-card')?.addEventListener('click', () => {
+  if (canAct()) handleCanvasSelect('exit');
+});
+$('auto-next-btn')?.addEventListener('click', () => {
+  if (!canAct()) return;
+  const s = model.snapshot();
+  const pending = scene.pendingLayerPrompt;
+  if (pending && pending.targetLayer !== s.layer) {
+    // Only perform the prompted change where it is safe; otherwise re-plan from here.
+    if (!pending.atNode || pending.atNode === s.node) {
+      manualSwitchLayer(pending.targetLayer, 'assist');
+      return;
+    }
+    if (pending.targetId) {
+      handleCanvasSelect(pending.targetId);
+      return;
+    }
+  }
+  if (s.activated.length >= 3) {
+    handleCanvasSelect('exit');
+    return;
+  }
+  const order = s.mechanismOrder || s.nodes.filter(n => n.kind === 'mechanism').map(n => n.id);
+  const nextMech = order.find(id => {
+    const n = s.nodes.find(item => item.id === id);
+    return n && n.powered && !s.activated.includes(id);
+  });
+  if (nextMech) {
+    handleCanvasSelect(nextMech);
+  }
+});
+const toggleRiskExploration = () => {
+  if (!canAct()) return;
+  const s = model.snapshot();
+  if (s.travel || s.wave) return;
+  const nextRisk = !s.riskMode;
+  action(() => model.setRisk(nextRisk));
+  transient = nextRisk
+    ? '⚡ 已开启「黄金冒险桥」！过桥时滚轮微调保持在金色波浪中，即可获 3 倍回响并唤醒「🌺 沉睡花桥」！'
+    : '🛡️ 已切回「稳行过桥」模式。';
+  transientTime = 3.2;
+  actionFeedback = transient;
+  $('announcement').textContent = transient;
+  updateUI();
+};
+$('quick-risk-btn')?.addEventListener('click', toggleRiskExploration);
+$('radar-flower-card')?.addEventListener('click', toggleRiskExploration);
+$('risk-go-btn')?.addEventListener('click', () => {
+  if (!canAct()) return;
+  const s = model.snapshot();
+  const preview = computeRiskDecisionPreview(s);
+  if (!preview.available) return;
+  oneShotRiskCrossing = true;
+  action(() => {
+    model.setRisk(true);
+    if (Math.abs(s.w - s.layers[s.layer].center) > .04) model.setW(s.layers[s.layer].center);
+    model.select(preview.to);
+    model.move();
+  });
+  if (model.snapshot().travel) {
+    autoPilot = { targetNode: preview.goalId || preview.to };
+    showTransient(`⚡ 黄金冒险出发！顺着金色光带微调滚轮，冲向「${preview.toName}」赢取 ${preview.bonusLabel}！`, 3.4);
+  }
+  updateUI();
+});
+$('safe-go-btn')?.addEventListener('click', () => {
+  if (!canAct()) return;
+  const s = model.snapshot();
+  const preview = computeRiskDecisionPreview(s);
+  if (!preview.available) return;
+  oneShotRiskCrossing = false;
+  action(() => model.setRisk(false));
+  handleCanvasSelect(preview.goalId || preview.to);
+});
+$('quick-ability-btn')?.addEventListener('click', () => {
+  if (!canAct()) return;
+  const s = model.snapshot();
+  const hud = computeRelicHudStatus(s);
+  const abilityId = hud.readyAbility?.id;
+  if (!abilityId) return;
+  autoPilot = null;
+  scene.pendingLayerPrompt = null;
+  action(() => model.useAbility(abilityId));
+  if (abilityId === 'prism') {
+    showTransient('✨ 回流棱镜已释放！跨层脉冲直接点亮了本层机关（免过桥）！', 3.8);
+  } else if (abilityId === 'weave') {
+    showTransient('❋ 织桥种已生根！在当前机关与安全台之间长出了永久捷径桥！', 3.8);
+  } else if (abilityId === 'shadow') {
+    showTransient('◌ 留影扣已激活！分身留在原地持续压住跨层捷径桥！', 3.8);
+  }
+  updateUI();
+});
+$('switch-relic-btn')?.addEventListener('click', () => {
+  if (isModal()) return;
+  if (model.snapshot().phase === 'playing' && !window.confirm('切换遗物会重开本局，当前进度与回响将清零。确定要切换吗？')) return;
+  paused = true;
+  showChoice(model.snapshot());
+  syncAudio();
+});
+$('radar-anomaly-card')?.addEventListener('click', () => {
+  if (!canAct()) return;
+  const s = model.snapshot();
+  const prog = scene.explorationRadar.roomProgress(s);
+  const nextAnom = prog.items.find(a => !a.collected);
+  if (nextAnom) {
+    handleAnomalySelect(nextAnom);
+  } else {
+    if ($('anomaly-lore-box')) $('anomaly-lore-box').hidden = false;
+  }
+});
+$('radar-vault-card')?.addEventListener('click', () => {
+  if (canAct()) handleCanvasSelect('vault');
+});
+$('radar-rift-card')?.addEventListener('click', () => {
+  if (canAct()) handleCanvasSelect('rift');
+});
+$('unlock-all-btn')?.addEventListener('click', () => {
+  onboarding.unlockAllOverride = true;
+  transient = '🔓 已展开全部 4 阶四维操控与隐藏秘境图鉴！';
+  transientTime = 2.8;
+  actionFeedback = transient;
+  $('announcement').textContent = transient;
+  updateUI();
+});
+for(const button of document.querySelectorAll('.layer-controls [data-layer]'))button.addEventListener('click',()=>{if(canAct())manualSwitchLayer(Number(button.dataset.layer), 'button');});
 $('sound').addEventListener('click',()=>{ soundEnabled = !soundEnabled; audio.setEnabled(soundEnabled); unlockAudio(); savePreference('wslice-sound',soundEnabled?'on':'off'); updateSoundButton(); });
 function pauseGame() { if(model.snapshot().phase!=='playing'||isModal())return; paused=true; $('pause-dialog').showModal(); syncAudio(); }
 function resumeGame() { $('pause-dialog').close(); paused=false; lastFrame=performance.now(); syncAudio(); $('w-slider').focus({preventScroll:true}); }
 $('pause').addEventListener('click',pauseGame); $('resume').addEventListener('click',resumeGame);
 $('pause-dialog').addEventListener('cancel',e=>{e.preventDefault();resumeGame();});
 function selectHelp(topic) {
-  setText('help-tip', contextualHelp(model.snapshot(), topic));
+  const s = model.snapshot();
+  const node = s.nodes.find(n => n.id === s.node);
+  let tip = contextualHelp(s, topic);
+  if (!s.wave && !s.travel) {
+    if (topic === 'slice') {
+      tip = node?.anchor
+        ? '你正站在「⚓ 安全台」上：直接滚动鼠标滚轮（或点下方 Ⅰ/Ⅱ/Ⅲ 层按钮），就能切换四维层，看到隐藏的桥显形！'
+        : `外圈机关只存在于「${s.layers[node?.layer]?.name || '当前层'}」；想换层请先点击中央的「⚓ 安全台」走回去。`;
+    } else if (topic === 'action') {
+      tip = '无需按 E！只要在当前层看到发光的「① / ② / ③」号机关，直接用鼠标左键点击它，角色走上台就会自动点亮。';
+    } else if (topic === 'next') {
+      const g = s.companionGuide;
+      const target = s.nodes.find(n => n.id === g?.node)?.name || '下一座发光机关';
+      tip = g && !g.aligned
+        ? `下一座目标是「${target}」，但桥在【${s.layers[g.layer]?.name}】。请站在安全台滚动鼠标滚轮切到该层！`
+        : `直接用鼠标左键点击画面中发光的「${target}」，顺着桥走过去即可自动点亮。`;
+    }
+  }
+  setText('help-tip', tip);
   for (const button of document.querySelectorAll('[data-help]')) button.setAttribute('aria-pressed', String(button.dataset.help === topic));
 }
 for (const button of document.querySelectorAll('[data-help]')) button.addEventListener('click', () => selectHelp(button.dataset.help));
@@ -504,13 +1399,98 @@ $('close-help').addEventListener('click',closeHelp);$('help-done').addEventListe
 $('restart').addEventListener('click',()=>{if(!isModal()){paused=true;$('restart-dialog').showModal();syncAudio();}});
 function cancelRestart() {$('restart-dialog').close();paused=false;lastFrame=performance.now();syncAudio();}
 $('cancel-restart').addEventListener('click',cancelRestart);$('restart-dialog').addEventListener('cancel',e=>{e.preventDefault();cancelRestart();});
-function restart() {for(const id of dialogs)if($(id).open)$(id).close();paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';secretKey='';sealKey='';$('secret-panel').open=false;$('build-list').replaceChildren();$('ability-list').replaceChildren();const seed=newSeed();rememberSeed(seed);action(()=>model.restart(seed));}
+function restart() {for(const id of dialogs)if($(id)?.open)$(id).close();paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';secretKey='';sealKey='';$('secret-panel').open=false;$('build-list').replaceChildren();$('ability-list').replaceChildren();const seed=newSeed();rememberSeed(seed);action(()=>{model.restart(seed);if(model.snapshot().phase==='choose')model.chooseRelic('shell');});}
 $('confirm-restart').addEventListener('click',restart);$('play-again').addEventListener('click',restart);
 $('choice-dialog').addEventListener('cancel',e=>e.preventDefault());$('result-dialog').addEventListener('cancel',e=>e.preventDefault());
+
+initThemeToggle($('theme-toggle'), theme => {
+  scene.astralMode = theme === 'astral';
+  scene.render(0);
+});
+initHyperLab({
+  openButton: $('open-hyper-lab'),
+  dialog: $('hyper-lab-dialog'),
+  canvas: $('hyper-lab-canvas'),
+  wSlider: $('hyper-lab-w'),
+  wValue: $('hyper-lab-w-value'),
+  polytopeButtons: document.querySelectorAll('[data-polytope]'),
+  autoSpinButton: $('hyper-lab-spin'),
+  syncButton: $('hyper-lab-sync'),
+  closeButtons: document.querySelectorAll('[data-close-hyper-lab]'),
+  getW: () => model.snapshot().w,
+  setW: w => { if (model.snapshot().phase === 'playing') { model.setW(w); consumeEvents(); updateUI(); } },
+  onOpen: () => { paused = true; syncAudio(); },
+  onClose: () => { paused = false; lastFrame = performance.now(); syncAudio(); },
+});
+
+$('scene').addEventListener('wheel', e => {
+  if (!canAct()) return;
+  if (e.ctrlKey || e.metaKey) return;
+  const now = performance.now();
+  const s = model.snapshot();
+  // Take over the wheel only when the player is clearly playing: the canvas was clicked
+  // (focused), the game is explicitly asking for a layer change, a wave / risky crossing
+  // needs it, or the page has nothing to scroll anyway. Otherwise let the page scroll.
+  const scroller = document.scrollingElement || document.documentElement;
+  const pageScrollable = scroller.scrollHeight > window.innerHeight + 4;
+  const wantsWheel = document.activeElement === $('scene') || !!scene.pendingLayerPrompt ||
+    !!s.wave || !!s.travel?.risky || !pageScrollable;
+  if (!wantsWheel) return;
+
+  e.preventDefault();
+  if (s.travel?.risky) {
+    const delta = Math.sign(e.deltaY || e.deltaX) * -0.022;
+    if (delta) action(() => model.setW(s.w + delta));
+    return;
+  }
+  const nextLayer = onboarding.handleDiscreteWheel(e.deltaY || e.deltaX, s.layer, now, {
+    ctrlKey: e.ctrlKey,
+    metaKey: e.metaKey,
+    deltaMode: e.deltaMode,
+  });
+  if (nextLayer !== null) {
+    manualSwitchLayer(nextLayer, 'wheel');
+  }
+}, { passive: false });
+
+let sceneDrag = null;
+$('scene').addEventListener('pointerdown', e => {
+  if (!canAct()) return;
+  $('scene').focus?.({ preventScroll: true });
+  sceneDrag = { x: e.clientX, y: e.clientY, w: model.snapshot().w, moved: false };
+});
+window.addEventListener('pointermove', e => {
+  if (!sceneDrag || !canAct()) return;
+  const dx = e.clientX - sceneDrag.x;
+  const dy = e.clientY - sceneDrag.y;
+  if (Math.hypot(dx, dy) > 8) sceneDrag.moved = true;
+  if (sceneDrag.moved && model.snapshot().travel?.risky) {
+    const rect = $('scene').getBoundingClientRect();
+    const nextW = sceneDrag.w + (dx / Math.max(180, rect.width)) * 0.65;
+    action(() => model.setW(nextW));
+  }
+});
+window.addEventListener('pointerup', e => {
+  if (sceneDrag && sceneDrag.moved && canAct()) {
+    const s = model.snapshot();
+    const dx = e.clientX - sceneDrag.x;
+    const dy = e.clientY - sceneDrag.y;
+    if (!s.travel && Math.abs(dx) >= 48 && Math.abs(dy) < 42) {
+      const nextLayer = Math.max(0, Math.min(2, s.layer + (dx > 0 ? 1 : -1)));
+      if (nextLayer !== s.layer) manualSwitchLayer(nextLayer, 'swipe');
+    }
+  }
+  sceneDrag = null;
+});
+
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&!isModal()){e.preventDefault();pauseGame();return;}
   if(!canAct()||e.altKey||e.ctrlKey||e.metaKey)return;
   const key=e.key.toLowerCase();
+  if(key==='r'&&!e.repeat){
+    const s=model.snapshot();
+    if(!s.travel&&!s.wave){e.preventDefault();action(()=>model.setRisk(!s.riskMode));return;}
+  }
   if(key==='h'&&!e.repeat){e.preventDefault();askFriend();return;}
   // Preserve native arrows on the range and activation keys on focused buttons.
   // Other game shortcuts remain available after a click or slider adjustment.
@@ -522,7 +1502,7 @@ document.addEventListener('keydown',e=>{
   else if(key===' '||key==='enter'){e.preventDefault();action(()=>model.move());}
   else if(key==='e'){e.preventDefault();if(!e.repeat)action(()=>model.interact());}
   else if(key==='q'){e.preventDefault();action(()=>model.useAbility());}
-  else if(['z','x','c'].includes(key)){e.preventDefault();action(()=>model.setW(model.snapshot().layers[['z','x','c'].indexOf(key)].center));}
+  else if(['z','x','c'].includes(key)){e.preventDefault();manualSwitchLayer(['z','x','c'].indexOf(key), 'key');}
   else if(/^[1-9]$/.test(key)){e.preventDefault();const id=model.snapshot().availableNodes[Number(key)-1];if(id)action(()=>model.select(id));}
 });
 document.addEventListener('visibilitychange',()=>{lastFrame=performance.now();if(document.hidden&&model.snapshot().phase==='playing'&&!isModal())pauseGame();syncAudio();});
@@ -530,9 +1510,34 @@ window.addEventListener('pagehide',event=>{if(event.persisted)audio.setEnabled(f
 window.addEventListener('pageshow',event=>{if(event.persisted){audio.setEnabled(soundEnabled);lastFrame=performance.now();}});
 function frame(now) {
   const dt=Math.max(0,Math.min(.05,(now-lastFrame)/1000));lastFrame=now;
-  if(!paused&&!isModal()&&!document.hidden){model.update(dt);if(transientTime>0){transientTime-=dt;if(transientTime<=0)transient=null;}}
-  guide.update(dt, model.snapshot(), !paused && !isModal() && !document.hidden, scene.friends.length > 0 && !momentum.firstEntry);
-  momentum.update(dt, model.snapshot(), guide, !paused && !isModal() && !document.hidden);
+  const active=!paused&&!isModal()&&!document.hidden;
+  if(active){
+    const beforeSnap = model.snapshot();
+    const beforeTravel = beforeSnap.travel;
+    model.update(dt);
+    const afterSnap = model.snapshot();
+    if (oneShotRiskCrossing && beforeTravel?.risky && !afterSnap.travel) {
+      oneShotRiskCrossing = false;
+      model.setRisk(false);
+    }
+    onboarding.tickIdle(dt, afterSnap);
+    if(transientTime>0){transientTime-=dt;if(transientTime<=0)transient=null;}
+  }
+  if(active && !model.snapshot().travel && !model.snapshot().wave) {
+    stepAutoPilot();
+  }
+  const prEvents = scene.phaseResonance.update(dt, model.snapshot(), { active });
+  for (const pe of prEvents) {
+    if (pe.type === 'phase_graze') {
+      transient = `⚡ 刹那折光！在回流抵达前 ${pe.remaining.toFixed(2)}s 切入安全层 · 连击 ×${pe.streak}`;
+      transientTime = 2.4; transientType = 'phase_graze'; $('announcement').textContent = transient;
+    } else if (pe.type === 'phase_beat' && pe.rating === 'perfect') {
+      transient = `✦ 完美同频 ×${pe.streak} · 黄金相位锁定`;
+      transientTime = 1.8; transientType = 'phase_beat'; $('announcement').textContent = transient;
+    }
+  }
+  guide.update(dt, model.snapshot(), active, scene.friends.length > 0 && !momentum.firstEntry);
+  momentum.update(dt, model.snapshot(), guide, active);
   consumeEvents();updateUI();syncAudio();scene.render(paused||document.hidden?0:dt);requestAnimationFrame(frame);
 }
 updateSoundButton();consumeEvents();updateUI();requestAnimationFrame(frame);

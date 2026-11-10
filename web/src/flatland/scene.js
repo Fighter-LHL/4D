@@ -57,6 +57,8 @@ export class FlatlandRenderer {
     this.time = 0;
     this.lastS = null;
     this.squash = 0;
+    this.astralMode = false;
+    this.sliceRipples = [];
     const media = globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)');
     this.reducedMotion = !!media?.matches;
     media?.addEventListener?.('change', event => { this.reducedMotion = event.matches; });
@@ -82,7 +84,7 @@ export class FlatlandRenderer {
       if (['load', 'hurt', 'death', 'guard_alert', 'dimension_start'].includes(event.type)) this.discoveryEchoes = [];
       if (['load', 'dimension_start', 'dimension_ready'].includes(event.type)) { this.volumeOpacity = new Map(); this.dimensionView = null; }
       if (['load', 'guard_alert', 'respawn', 'lock_spawn'].includes(event.type)) { this.appear.clear(); this.exiting = []; this.shapes.clear(); this.trail = []; }
-      if (event.type === 'load') { this.flash.clear(); this.bursts = []; this.particles = []; this.popups = []; this.friendTrails = []; this.friendCheer = 0; this.shake = 0; this.shakeOffset = [0, 0]; this.hurtFlash = 0; this.lastS = null; }
+      if (event.type === 'load') { this.flash.clear(); this.bursts = []; this.particles = []; this.popups = []; this.friendTrails = []; this.friendCheer = 0; this.shake = 0; this.shakeOffset = [0, 0]; this.hurtFlash = 0; this.lastS = null; this.sliceRipples = []; }
       if (st?.endless && st.phase === 'playing' && st.collection?.companion && (event.type === 'graze' || (event.type === 'score' && event.combo >= 3))) this.friendCheer = 1.1;
       if (['hurt', 'death', 'complete'].includes(event.type)) this.friendCheer = 0;
       if (event.type === 'section_enter') this.appear.set(event.id, 0);
@@ -191,7 +193,15 @@ export class FlatlandRenderer {
     this.particles = this.particles.filter(p => p.age < p.life);
     this.shake = Math.max(0, this.shake - dt * 1.4);
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 2.2);
-    if (this.lastS !== null && dt > 0) this.squash += (clamp(Math.abs(s.s - this.lastS) / dt / 2.2) - this.squash) * Math.min(1, dt * 14);
+    if (this.lastS !== null && dt > 0) {
+      this.squash += (clamp(Math.abs(s.s - this.lastS) / dt / 2.2) - this.squash) * Math.min(1, dt * 14);
+      if (Math.abs(s.s - this.lastS) >= 0.03) {
+        this.sliceRipples.push({ x: s.player.x, y: s.player.y, age: 0, duration: 0.45, up: s.s > this.lastS });
+        this.sliceRipples = this.sliceRipples.slice(-6);
+      }
+    }
+    for (const r of this.sliceRipples) r.age += dt;
+    this.sliceRipples = this.sliceRipples.filter(r => r.age < r.duration);
     this.lastS = s.s;
     if (s.phase === 'playing' && !s.dying && dt > 0) {
       this.trail.push({ x: s.player.x, y: s.player.y, age: 0 });
@@ -200,7 +210,7 @@ export class FlatlandRenderer {
     }
     const view = this.view = this.layout(), ctx = this.ctx;
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-    ctx.fillStyle = COLORS.paper; ctx.fillRect(0, 0, view.width, view.height);
+    ctx.fillStyle = this.astralMode ? '#091119' : COLORS.paper; ctx.fillRect(0, 0, view.width, view.height);
     if (s.ascend && s.ascend.stage !== 'flat') { drawAscendScene(this, view, dt); return; }
     const amp = this.reducedMotion ? 0 : this.shake ** 2 * 26;
     if (dt > 0) this.shakeOffset = [(Math.random() - .5) * amp, (Math.random() - .5) * amp];
@@ -211,14 +221,17 @@ export class FlatlandRenderer {
     this.shapes = new Map(s.sections.map(section => [section.id, section]));
   }
 
-  card(box, fill = COLORS.card) {
+  card(box, fill = this.astralMode ? '#0f1c28' : COLORS.card) {
     const ctx = this.ctx;
-    ctx.fillStyle = fill; ctx.strokeStyle = COLORS.line; ctx.lineWidth = 1;
+    ctx.fillStyle = fill; ctx.strokeStyle = this.astralMode ? '#223e54' : COLORS.line; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.roundRect ? ctx.roundRect(box.x, box.y, box.w, box.h, 10) : ctx.rect(box.x, box.y, box.w, box.h); ctx.fill(); ctx.stroke();
   }
 
   // Paper tint follows height: warm near the floor, cool near the top.
-  tint() { const s = this.state, t = clamp((s.s - s.slice.min) / (s.slice.max - s.slice.min || 1)); return mixColor('#f9f3e6', '#e9f2f4', t); }
+  tint() {
+    const s = this.state, t = clamp((s.s - s.slice.min) / (s.slice.max - s.slice.min || 1));
+    return this.astralMode ? mixColor('#13222e', '#0d1d29', t) : mixColor('#f9f3e6', '#e9f2f4', t);
+  }
 
   drawDiscoveryEchoes(k) {
     const ctx = this.ctx, narrow = this.view.width <= 480;
@@ -251,10 +264,20 @@ export class FlatlandRenderer {
     const ctx = this.ctx, s = this.state, b = s.bounds, k = main.scale;
     this.card(main, this.tint());
     ctx.save(); ctx.translate(main.ox, main.oy); ctx.scale(k, k);
-    ctx.strokeStyle = COLORS.grid; ctx.lineWidth = 1 / k; ctx.globalAlpha = .8;
+    ctx.strokeStyle = this.astralMode ? '#1b3142' : COLORS.grid; ctx.lineWidth = 1 / k; ctx.globalAlpha = .8;
     for (let x = 0; x <= b.w; x++) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, b.h); ctx.stroke(); }
     for (let y = 0; y <= b.h; y++) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(b.w, y); ctx.stroke(); }
-    ctx.globalAlpha = 1; ctx.strokeStyle = COLORS.line; ctx.lineWidth = 2 / k; ctx.strokeRect(0, 0, b.w, b.h);
+    ctx.globalAlpha = 1; ctx.strokeStyle = this.astralMode ? '#294860' : COLORS.line; ctx.lineWidth = 2 / k; ctx.strokeRect(0, 0, b.w, b.h);
+    for (const r of this.sliceRipples) {
+      const p = clamp(r.age / r.duration);
+      const rad = .35 + (this.reducedMotion ? .25 : ease(p) * 1.45);
+      ctx.save();
+      ctx.globalAlpha = (1 - p) * .42;
+      ctx.strokeStyle = r.up ? COLORS.slice : COLORS.amber;
+      ctx.lineWidth = 2 / k;
+      ctx.beginPath(); ctx.ellipse(r.x, r.y, rad, rad, 0, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
     this.drawDiscoveryEchoes(k);
 
     for (const ghost of s.ghosts || []) this.drawGhost(ghost, k);
@@ -637,6 +660,8 @@ export class FlatlandRenderer {
       ctx.fillRect(shard.x - .22, shard.z[0], .44, shard.z[1] - shard.z[0]);
     }
     ctx.globalAlpha = 1;
+    ctx.fillStyle = this.astralMode ? 'rgba(114,229,242,0.16)' : 'rgba(57,125,147,0.12)';
+    ctx.fillRect(x0, s.s - .12, x1 - x0, .24);
     ctx.beginPath(); ctx.moveTo(x0, s.s); ctx.lineTo(x1, s.s); screenStroke(COLORS.slice, 2);
     ctx.beginPath(); ctx.moveTo(s.player.x - s.player.r, s.s); ctx.lineTo(s.player.x + s.player.r, s.s); screenStroke(COLORS.ink, 5);
     ctx.restore();

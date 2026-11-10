@@ -713,6 +713,7 @@ export class GameModel {
       rift: { status: this.riftStatus, stake: this.roomConfig.rift.stake, reward: this.roomConfig.rift.reward, canStart: this._riftAvailable(),
         sequence: [...this.roomConfig.rift.sequence], ascension: this.ascension, exitEdge: { ...this.roomConfig.rift.exitEdge } },
       charge: this.charge, shield: this.shieldUses > 0, shieldUses: this.shieldUses,
+      claimedRoutes: [...this.claims, ...this.bankedClaims],
       activated: [...this.activated], powered: [...this.powered], shortcut: !!this.ghost, shadowRemaining: this.ghost?.remaining || 0,
       ghost: this.ghost ? { ...this.ghost } : null, wave: this.wave ? { ...this.wave, dangerLayers: [...this.wave.dangerLayers], safeLayers: [...this.wave.safeLayers] } : null, vaultStatus: this.vaultStatus,
       phaseStability: this.phaseStability, lastAnchor: this.lastAnchor,
