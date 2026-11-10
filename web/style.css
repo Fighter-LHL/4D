@@ -277,8 +277,6 @@ body[data-theme="astral"] .safe-go-btn{background:#132330;color:#cbd5e1;border-c
 .relic-hud-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .quick-ability-btn{padding:6px 12px;border-radius:8px;background:linear-gradient(135deg,#7c3aed 0%,#6d28d9 100%);border:1px solid #5b21b6;color:#fff;font-size:11.5px;font-weight:700;white-space:nowrap;box-shadow:0 3px 12px rgba(124,58,237,.35);animation:vstep-pulse 1.5s ease-in-out infinite}
 .quick-ability-btn:hover{filter:brightness(1.08)}
-.switch-relic-btn{padding:5px 9px;border-radius:7px;border:1px dashed var(--line);background:rgba(255,255,255,.7);color:var(--muted);font-size:10.5px;white-space:nowrap}
-.switch-relic-btn:hover{border-color:var(--green);color:var(--ink)}
 body[data-theme="astral"] .relic-hud-bar{background:rgba(15,29,41,.75);border-color:#264156}
 body[data-theme="astral"] .relic-chip{background:#132330;border-color:#264156;color:#e2e8f0}
 body[data-theme="astral"] .relic-chip small{color:#94a3b8}
@@ -286,7 +284,6 @@ body[data-theme="astral"] .relic-chip.charged{background:linear-gradient(135deg,
 body[data-theme="astral"] .relic-chip.charged small{color:#fcd34d}
 body[data-theme="astral"] .relic-chip.ready{background:linear-gradient(135deg,#2e1a47 0%,#1a2438 100%);border-color:#a78bfa;color:#f3e8ff}
 body[data-theme="astral"] .relic-chip.ready small{color:#ddd6fe}
-body[data-theme="astral"] .switch-relic-btn{background:#132330;color:#94a3b8;border-color:#264156}
 
 .exploration-radar-section{display:flex;flex-direction:column;gap:7px}
 .radar-grid{display:grid;grid-template-columns:1fr;gap:6px}

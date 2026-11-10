@@ -33,10 +33,15 @@ const model = new GameModel(initialSeed);
 const fromFlatland = isFlatlandArrival(location.search, readJSON('wslice-flatland-stars'), readJSON('wslice-flatland-visits'));
 $('chapter-arrival').hidden = !fromFlatland;
 rememberSeed(initialSeed);
-// Auto-equip starter shell on initial load so new players land directly in the playable courtyard without a modal wall.
-if (model.snapshot().phase === 'choose' && !fromFlatland) {
-  model.chooseRelic('shell');
+// The very first run starts with the forgiving 缓落壳 so a new player meets zero decisions in
+// the tutorial courtyard; relic choices still arrive between rooms. Once a run reaches the
+// next room (or ends), every new run opens with the normal relic picker again.
+const FIRST_RUN_DONE_KEY = 'wslice-first-run-done';
+const isFirstRun = () => readPreference(FIRST_RUN_DONE_KEY, '') !== 'yes';
+function autoEquipFirstRun() {
+  if (model.snapshot().phase === 'choose' && !fromFlatland && isFirstRun()) model.chooseRelic('shell');
 }
+autoEquipFirstRun();
 const audio = new GameAudio();
 let soundEnabled = readPreference('wslice-sound','on') === 'on';
 let best = Math.max(0, Number(readPreference('wslice-best','0')) || 0);
@@ -534,9 +539,6 @@ function showChoice(state) {
       $('choice-dialog').close();
       paused = false;
       action(() => {
-        if (model.snapshot().phase === 'playing') {
-          model.restart(model.snapshot().seed);
-        }
         model.chooseRelic(relic.id);
         if (!next && !momentum.firstEntry) guide.request(model.snapshot());
       });
@@ -1068,7 +1070,7 @@ function updateUI() {
         ? '✨ 第四神秘岛已显现！点此登岛开启隐星试炼 ↗'
         : eligibleSecret
           ? `🔮 封印已松动！点此前往按 ${(eligibleSecret.sequence || []).map(l => layerSymbols[l]).join('→')} 换层开启`
-          : '点此查看 3 大隐藏秘印配方 / 切换本局遗物组合');
+          : '点此查看 3 大隐藏秘印配方');
   }
   const routesTo = id => state.edges.filter(edge=>edge.open && ((edge.from===state.node && edge.to===id)||(edge.to===state.node && edge.from===id)));
   const nextKey = `${state.availableNodes.map(id=>`${id}:${routesTo(id).map(edge=>`${edge.id}/${edge.layer}`).join('|')}`).join(',')}:${state.selected}:${state.layer}`;
@@ -1162,6 +1164,7 @@ function updateUI() {
   if (status !== lastStatus) { $('scene-state').textContent = status; lastStatus = status; }
   if (state.phase !== lastPhase) {
     lastPhase = state.phase;
+    if (['interlude','won','lost'].includes(state.phase)) savePreference(FIRST_RUN_DONE_KEY, 'yes');
     if (['choose','interlude'].includes(state.phase)) showChoice(state);
     else if (['won','lost'].includes(state.phase)) showResult(state);
   }
@@ -1333,13 +1336,6 @@ $('quick-ability-btn')?.addEventListener('click', () => {
   }
   updateUI();
 });
-$('switch-relic-btn')?.addEventListener('click', () => {
-  if (isModal()) return;
-  if (model.snapshot().phase === 'playing' && !window.confirm('切换遗物会重开本局，当前进度与回响将清零。确定要切换吗？')) return;
-  paused = true;
-  showChoice(model.snapshot());
-  syncAudio();
-});
 $('radar-anomaly-card')?.addEventListener('click', () => {
   if (!canAct()) return;
   const s = model.snapshot();
@@ -1400,7 +1396,7 @@ $('close-help').addEventListener('click',closeHelp);$('help-done').addEventListe
 $('restart').addEventListener('click',()=>{if(!isModal()){paused=true;$('restart-dialog').showModal();syncAudio();}});
 function cancelRestart() {$('restart-dialog').close();paused=false;lastFrame=performance.now();syncAudio();}
 $('cancel-restart').addEventListener('click',cancelRestart);$('restart-dialog').addEventListener('cancel',e=>{e.preventDefault();cancelRestart();});
-function restart() {for(const id of dialogs)if($(id)?.open)$(id).close();paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';secretKey='';sealKey='';$('secret-panel').open=false;$('build-list').replaceChildren();$('ability-list').replaceChildren();const seed=newSeed();rememberSeed(seed);action(()=>{model.restart(seed);if(model.snapshot().phase==='choose')model.chooseRelic('shell');});}
+function restart() {for(const id of dialogs)if($(id)?.open)$(id).close();paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';secretKey='';sealKey='';$('secret-panel').open=false;$('build-list').replaceChildren();$('ability-list').replaceChildren();const seed=newSeed();rememberSeed(seed);action(()=>{model.restart(seed);autoEquipFirstRun();});}
 $('confirm-restart').addEventListener('click',restart);$('play-again').addEventListener('click',restart);
 $('choice-dialog').addEventListener('cancel',e=>e.preventDefault());$('result-dialog').addEventListener('cancel',e=>e.preventDefault());
 
