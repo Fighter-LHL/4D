@@ -20,8 +20,8 @@ const OUT = process.env.OUT_DIR || '/tmp/wslice-first-game-playtest';
 await mkdir(OUT, { recursive: true });
 
 const VIEWPORTS = [
-  { label: 'desktop', width: 1280, height: 800, hasTouch: false },
-  { label: 'mobile', width: 390, height: 844, hasTouch: true },
+  { label: 'desktop', width: 1280, height: 800, hasTouch: false, isMobile: false },
+  { label: 'mobile', width: 390, height: 844, hasTouch: true, isMobile: true },
 ];
 const BADGES = ['①', '②', '③', '④'];
 
@@ -99,10 +99,11 @@ const browser = await chromium.launch({
 });
 receipt.browserVersion = browser.version();
 
-async function openCold(vp) {
+async function openCold(vp, seed = 2) {
   const context = await browser.newContext({
     viewport: { width: vp.width, height: vp.height },
     hasTouch: vp.hasTouch,
+    isMobile: Boolean(vp.isMobile),
   });
   await context.addInitScript(() => {
     localStorage.clear();
@@ -117,7 +118,7 @@ async function openCold(vp) {
   page.on('console', msg => {
     if (msg.type() === 'error') receipt.consoleErrors.push({ viewport: vpKey, message: msg.text() });
   });
-  await page.goto(`${server.baseUrl}/?seed=2`);
+  await page.goto(`${server.baseUrl}/?seed=${seed}`);
   await page.waitForFunction(() => window.__g?.()?.state?.phase === 'playing', null, { timeout: 10000 });
   await page.waitForTimeout(250);
   return { context, page };
@@ -138,12 +139,15 @@ const hintOf = page => page.evaluate(() => {
   };
 });
 
-async function clickNode(page, id) {
+async function clickNode(page, id, { tap = false } = {}) {
   const g = await read(page);
   const node = g.state.nodes.find(n => n.id === id);
   assert.ok(node, `node ${id} exists`);
   const box = await page.locator('#scene').boundingBox();
-  await page.mouse.click(box.x + g.view.offsetX + node.x * g.view.scale, box.y + g.view.offsetY + node.y * g.view.scale);
+  const x = box.x + g.view.offsetX + node.x * g.view.scale;
+  const y = box.y + g.view.offsetY + node.y * g.view.scale;
+  if (tap) await page.touchscreen.tap(x, y);
+  else await page.mouse.click(x, y);
 }
 
 async function wheelTo(page, targetLayer) {
@@ -175,7 +179,7 @@ async function waitSettled(page, timeoutMs = 12000) {
   throw new Error('timed out waiting for the hint follower to settle');
 }
 
-async function clearByHints(page, vp, { shot = false } = {}) {
+async function clearByHints(page, vp, { shot = false, tap = false } = {}) {
   const vpKey = `${vp.width}x${vp.height}`;
   let sawBellHint = false;
   let stuck = 0;
@@ -221,10 +225,12 @@ async function clearByHints(page, vp, { shot = false } = {}) {
     if (hint.action === 'shift') {
       const layer = Number(hint.layer);
       assert.ok(Number.isInteger(layer), `${vpKey}: shift hint has a layer`);
-      if (vp.hasTouch) await page.locator(`#layer-${layer}`).click();
-      else await wheelTo(page, layer);
+      if (vp.hasTouch) {
+        if (tap) await page.locator(`#layer-${layer}`).tap();
+        else await page.locator(`#layer-${layer}`).click();
+      } else await wheelTo(page, layer);
     } else if (hint.action === 'move' || hint.action === 'done') {
-      await clickNode(page, hint.target || hint.goal);
+      await clickNode(page, hint.target || hint.goal, { tap });
     } else if (hint.action === 'recover') {
       await page.keyboard.press(['z', 'x', 'c'][Number(hint.layer)] || 'c');
     } else if (hint.action === 'activate') {
@@ -441,6 +447,22 @@ try {
       const { context, page } = await openCold(vp);
       await clearByHints(page, vp, { shot: true });
       receipt.checks.push({ viewport: vpKey, check: 'hint-follower-clears-room0', passed: true });
+      await context.close();
+    }
+
+    // Seed 4097396765 (同位接力庭, cascade): ③ bloom at (292, 192) sits near the scaled top-left
+    // WStack on mobile; tapping/clicking ③ must walk & light ③ instead of shifting WStack to layer 0.
+    {
+      const { context, page } = await openCold(vp, 4097396765);
+      const initial = await read(page);
+      assert.equal(initial.state.roomId, 'cascade', `${vpKey}: seed 4097396765 is 同位接力庭`);
+      await clearByHints(page, vp, { tap: vp.hasTouch });
+      receipt.checks.push({
+        viewport: vpKey,
+        check: 'seed-4097396765-cascade-hint-clear',
+        tap: vp.hasTouch,
+        passed: true,
+      });
       await context.close();
     }
   }

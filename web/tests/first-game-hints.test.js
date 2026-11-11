@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { describeNextStep, planLayerRoute, clampIntroductoryW } from '../src/progressive-onboarding.js';
+import { SceneRenderer } from '../src/scene.js';
 import { start, reach, advance } from './model-helpers.js';
 
 const badgeOf = (state, id) => {
@@ -255,4 +256,100 @@ test('seed 5 drifting W after lighting ① never claims an off-layer goal is on 
 
   model.setW(originW);
   assert.equal(describeNextStep(model.snapshot()).banner, '去归响台换层点②');
+});
+
+test('seed 4097396765 mobile canvas tap on ③ (bloom) selects bloom instead of hitting WStack layer 0', () => {
+  const prevWindow = globalThis.window;
+  const listeners = new Map();
+  const selected = [];
+  const layerSelected = [];
+  let rectWidth = 390;
+  let rectHeight = 670;
+  const ctx = new Proxy({}, {
+    get: () => () => ({ width: 20, addColorStop() {} }),
+    set: () => true,
+  });
+  globalThis.window = {
+    devicePixelRatio: 2,
+    addEventListener() {},
+    removeEventListener() {},
+    matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }),
+  };
+  const canvas = {
+    style: {},
+    getContext: () => ctx,
+    getBoundingClientRect: () => ({ width: rectWidth, height: rectHeight, left: 0, top: 0 }),
+    addEventListener(type, fn) { listeners.set(type, fn); },
+    removeEventListener(type) { listeners.delete(type); },
+  };
+  const renderer = new SceneRenderer(canvas, {
+    onSelect: id => selected.push(id),
+    onLayerSelect: layerIdx => layerSelected.push(layerIdx),
+  });
+  try {
+    renderer.visualGuide = true;
+    const model = start('shell', 4097396765);
+    assert.equal(model.snapshot().roomId, 'cascade');
+
+    // Follow hint sequence: ① dew -> ② bell -> hub -> relay -> shift to layer 2 (Ⅲ)
+    light(model, 'dew');
+    light(model, 'bell');
+    reach(model, 'hub');
+    assert.equal(describeNextStep(model.snapshot()).targetId, 'relay');
+    reach(model, 'relay');
+    const shiftStep = describeNextStep(model.snapshot());
+    assert.equal(shiftStep.action, 'shift');
+    assert.equal(shiftStep.layer, 2);
+    assert.equal(shiftStep.goalId, 'bloom');
+
+    model.setW(model.snapshot().layers[2].center);
+    const atRelayLayer2 = model.snapshot();
+    assert.equal(atRelayLayer2.node, 'relay');
+    assert.equal(atRelayLayer2.layer, 2);
+    const clickBloomStep = describeNextStep(atRelayLayer2);
+    assert.equal(clickBloomStep.action, 'move');
+    assert.equal(clickBloomStep.targetId, 'bloom');
+    assert.equal(clickBloomStep.banner, '点击③，走过去点亮');
+
+    const bloom = atRelayLayer2.nodes.find(node => node.id === 'bloom');
+    assert.deepEqual({ x: bloom.x, y: bloom.y, present: bloom.present }, { x: 292, y: 192, present: true });
+
+    const tapWorld = (wx, wy) => {
+      const clientX = renderer.offsetX + wx * renderer.scale;
+      const clientY = renderer.offsetY + wy * renderer.scale;
+      listeners.get('pointerdown')({ pointerId: 1, pointerType: 'touch', button: 0, clientX, clientY });
+      listeners.get('pointerup')({ pointerId: 1, pointerType: 'touch', button: 0, clientX, clientY });
+    };
+
+    for (const [w, h] of [[390, 670], [320, 568]]) {
+      rectWidth = w;
+      rectHeight = h;
+      renderer.resize();
+      renderer.onboardingStage = 3;
+      renderer.setState(atRelayLayer2);
+      assert.ok(0.45 / renderer.scale > 1.1, `${w}x${h} scales up WStack on mobile`);
+
+      // Tapping bloom center (292, 192) and its upper-left rim (266, 183) must select bloom, never WStack layer 0.
+      for (const [dx, dy] of [[0, 0], [-26, -9]]) {
+        selected.length = 0;
+        layerSelected.length = 0;
+        tapWorld(bloom.x + dx, bloom.y + dy);
+        assert.deepEqual(layerSelected, [], `${w}x${h} offset (${dx},${dy}) does not trigger WStack layer switch`);
+        assert.deepEqual(selected, ['bloom'], `${w}x${h} offset (${dx},${dy}) selects bloom`);
+      }
+
+      // Tapping the actual WStack plane diamonds still selects layers 0, 1, 2 cleanly.
+      const miniScale = Math.min(1.2, Math.max(1, 0.45 / renderer.scale));
+      for (const layerIdx of [0, 1, 2]) {
+        selected.length = 0;
+        layerSelected.length = 0;
+        tapWorld(62 + 64 * miniScale, 88 + (24 + (2 - layerIdx) * 29) * miniScale);
+        assert.deepEqual(layerSelected, [layerIdx], `${w}x${h} WStack diamond ${layerIdx} selects layer ${layerIdx}`);
+        assert.deepEqual(selected, []);
+      }
+    }
+  } finally {
+    renderer.destroy();
+    globalThis.window = prevWindow;
+  }
 });
