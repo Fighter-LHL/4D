@@ -334,7 +334,7 @@ export class FlatlandRenderer {
         const r = .8 + (this.reducedMotion ? 0 : .12 * Math.sin(p * TAU));
         ctx.beginPath(); ctx.ellipse(pop.near.x, pop.near.y, r, r, 0, 0, TAU); ctx.stroke();
       }
-      ctx.globalAlpha = 1 - p ** 2; ctx.fillStyle = pop.color;
+      ctx.globalAlpha = 1 - p ** 2; ctx.fillStyle = this.astralMode && pop.color === COLORS.ink ? '#eaf6f3' : pop.color;
       ctx.font = `700 ${(pop.big ? 20 : 14) / k * (1 + (this.reducedMotion ? 0 : .25 * (1 - ease(pop.age * 5))))}px system-ui, sans-serif`; ctx.textAlign = 'center';
       const maxWidth = b.w - 8 / k, halfWidth = Math.min(maxWidth, ctx.measureText(pop.text).width) / 2;
       const x = clamp(pop.x, halfWidth + 4 / k, b.w - halfWidth - 4 / k);
@@ -342,7 +342,7 @@ export class FlatlandRenderer {
       // Hold that small offset still so it never floats back into those labels.
       const below = (pop.discovery || pop.garden) && this.view.width <= 480;
       const y = clamp(below ? pop.y + (pop.garden ? .8 : .9) + 24 / k : pop.y - (this.reducedMotion ? 0 : ease(p) * .9), 22 / k, b.h - 6 / k);
-      ctx.strokeStyle = COLORS.card; ctx.lineWidth = 4 / k; ctx.lineJoin = 'round';
+      ctx.strokeStyle = this.astralMode ? '#0d1a26' : COLORS.card; ctx.lineWidth = 4 / k; ctx.lineJoin = 'round';
       ctx.strokeText(pop.text, x, y, maxWidth);
       ctx.fillText(pop.text, x, y, maxWidth);
     }
@@ -358,22 +358,26 @@ export class FlatlandRenderer {
 
   drawHud(main) {
     const ctx = this.ctx, s = this.state, x = main.x + 16, y = main.y + 14;
+    const ink = this.astralMode ? '#eaf6f3' : COLORS.ink;
+    const muted = this.astralMode ? '#9ab6c2' : COLORS.muted;
+    const sliceCol = this.astralMode ? '#69d8ee' : COLORS.slice;
+    const lineCol = this.astralMode ? '#233c50' : COLORS.line;
     ctx.save(); ctx.textBaseline = 'top'; ctx.textAlign = 'left';
     if (s.exploration) {
       ctx.font = '600 15px system-ui, sans-serif';
       (s.collection?.found || []).forEach((id, i) => { const friend = FRIENDS.find(f => f.id === id); ctx.fillStyle = friend.color; ctx.fillText(friend.icon, x + i * 23, y); });
-      ctx.textAlign = 'right'; ctx.fillStyle = COLORS.slice; ctx.font = '600 11px system-ui, sans-serif';
+      ctx.textAlign = 'right'; ctx.fillStyle = sliceCol; ctx.font = '600 11px system-ui, sans-serif';
       ctx.fillText(`S ${s.s.toFixed(2)}`, main.x + main.w - 16, main.y + main.h - 24);
       ctx.restore(); return;
     }
-    ctx.fillStyle = COLORS.ink; ctx.font = '700 22px system-ui, sans-serif';
+    ctx.fillStyle = ink; ctx.font = '700 22px system-ui, sans-serif';
     ctx.fillText(String(s.score), x, y);
     const scoreWidth = ctx.measureText(String(s.score)).width;
     if (s.combo.count > 1) {
       ctx.fillStyle = s.combo.mult >= 2 ? COLORS.gold : COLORS.done; ctx.font = '700 14px system-ui, sans-serif';
       ctx.fillText(`×${s.combo.mult}`, x + scoreWidth + 8, y + 5);
       if (s.combo.remaining !== null) {
-        ctx.fillStyle = COLORS.line; ctx.fillRect(x, y + 28, 70, 3);
+        ctx.fillStyle = lineCol; ctx.fillRect(x, y + 28, 70, 3);
         ctx.fillStyle = s.combo.mult >= 2 ? COLORS.gold : COLORS.done; ctx.fillRect(x, y + 28, 70 * clamp(s.combo.remaining / 4), 3);
       }
     }
@@ -387,17 +391,17 @@ export class FlatlandRenderer {
     pips.forEach((pip, i) => {
       const px = right - (pips.length - 1 - i) * 18, py = y + 10;
       ctx.beginPath();
-      if (pip === 'heart' || pip === 'lost') { ctx.fillStyle = pip === 'heart' ? COLORS.danger : COLORS.line; ctx.ellipse(px, py, 6, 6, 0, 0, TAU); ctx.fill(); return; }
+      if (pip === 'heart' || pip === 'lost') { ctx.fillStyle = pip === 'heart' ? COLORS.danger : lineCol; ctx.ellipse(px, py, 6, 6, 0, 0, TAU); ctx.fill(); return; }
       if (s.shards.length && !s.rings && !s.locks && !s.mirror) diamond(ctx, px, py, 7); else ctx.ellipse(px, py, 6, 6, 0, 0, TAU);
-      ctx.fillStyle = pip === 'on' ? (s.rings ? COLORS.done : s.locks || s.mirror ? COLORS.amber : COLORS.shard) : pip === 'off' ? '#e8c9bf' : 'transparent';
-      ctx.fill(); ctx.strokeStyle = pip === 'off' ? COLORS.danger : COLORS.muted; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.fillStyle = pip === 'on' ? (s.rings ? COLORS.done : s.locks || s.mirror ? COLORS.amber : COLORS.shard) : pip === 'off' ? (this.astralMode ? '#4a2420' : '#e8c9bf') : 'transparent';
+      ctx.fill(); ctx.strokeStyle = pip === 'off' ? COLORS.danger : muted; ctx.lineWidth = 1.2; ctx.stroke();
     });
     if (s.storm) {
-      ctx.textAlign = 'right'; ctx.fillStyle = COLORS.muted; ctx.font = '600 11px system-ui, sans-serif'; ctx.fillText(`第 ${s.storm.level} 波`, right - pips.length * 18 - 4, y + 4);
+      ctx.textAlign = 'right'; ctx.fillStyle = muted; ctx.font = '600 11px system-ui, sans-serif'; ctx.fillText(`第 ${s.storm.level} 波`, right - pips.length * 18 - 4, y + 4);
       if (s.storm.grazes) { ctx.fillStyle = COLORS.amber; ctx.fillText(`险过 ${s.storm.grazes}`, right, y + 29); }
     }
-    if (s.mirror) { ctx.textAlign = 'right'; ctx.fillStyle = s.mirror.actions > s.mirror.par ? COLORS.danger : COLORS.muted; ctx.font = '600 11px system-ui, sans-serif'; ctx.fillText(`操作 ${s.mirror.actions} / ${s.mirror.par}`, right - pips.length * 18 - 4, y + 4); }
-    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillStyle = COLORS.slice; ctx.font = '600 12px system-ui, sans-serif';
+    if (s.mirror) { ctx.textAlign = 'right'; ctx.fillStyle = s.mirror.actions > s.mirror.par ? COLORS.danger : muted; ctx.font = '600 11px system-ui, sans-serif'; ctx.fillText(`操作 ${s.mirror.actions} / ${s.mirror.par}`, right - pips.length * 18 - 4, y + 4); }
+    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillStyle = sliceCol; ctx.font = '600 12px system-ui, sans-serif';
     ctx.fillText(`S ${s.s.toFixed(2)}`, right, main.y + main.h - 12);
     ctx.restore();
   }
@@ -457,10 +461,10 @@ export class FlatlandRenderer {
     ctx.setLineDash(closeness > .86 ? [] : [.25, .18]);
     ctx.beginPath(); ctx.ellipse(x, y, r.radius * spawn, r.radius * spawn, 0, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
     // Countdown arc just outside, hold progress on the ring itself.
-    ctx.globalAlpha = .9; ctx.strokeStyle = left < .3 ? COLORS.danger : COLORS.muted; ctx.lineWidth = 2.5 / k;
+    ctx.globalAlpha = .9; ctx.strokeStyle = left < .3 ? COLORS.danger : (this.astralMode ? '#9ab6c2' : COLORS.muted); ctx.lineWidth = 2.5 / k;
     if (r.window !== null) { ctx.beginPath(); ctx.ellipse(x, y, r.radius + .35, r.radius + .35, 0, -Math.PI / 2, -Math.PI / 2 + TAU * left); ctx.stroke(); }
     if (r.hold > 0) { ctx.strokeStyle = COLORS.done; ctx.lineWidth = 6 / k; ctx.beginPath(); ctx.ellipse(x, y, r.radius, r.radius, 0, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(r.hold)); ctx.stroke(); }
-    if (this.state.exploration && !this.popups.some(p => p.discovery && p.age < 1)) { ctx.fillStyle = COLORS.ink; ctx.font = `${12 / k}px system-ui`; ctx.textAlign = 'center'; ctx.fillText(r.near ? '换层接住' : '走到光环边', x, y - r.radius - .6); }
+    if (this.state.exploration && !this.popups.some(p => p.discovery && p.age < 1)) { ctx.fillStyle = this.astralMode ? '#eaf6f3' : COLORS.ink; ctx.font = `${12 / k}px system-ui`; ctx.textAlign = 'center'; ctx.fillText(r.near ? '换层接住' : '走到光环边', x, y - r.radius - .6); }
     ctx.restore();
   }
 
@@ -487,7 +491,7 @@ export class FlatlandRenderer {
     ctx.fillStyle = COLORS.amber; ctx.globalAlpha = .08 + clamp(l.hold) * .4; ctx.fill();
     ctx.globalAlpha = .55 + c * .45; ctx.strokeStyle = c > .9 ? COLORS.done : COLORS.amber; ctx.lineWidth = (2 + c * 3 + wobble * 40) / k;
     ctx.setLineDash(c > .9 ? [] : [.22, .14]); ctx.stroke();
-    if (l.stamp) { const [x, y] = l.stamp; ctx.globalAlpha = 1; ctx.fillStyle = COLORS.ink; ctx.font = `${11 / k}px system-ui`; ctx.textAlign = 'center'; ctx.fillText('拓印点', x, y + 2.3); }
+    if (l.stamp) { const [x, y] = l.stamp; ctx.globalAlpha = 1; ctx.fillStyle = this.astralMode ? '#eaf6f3' : COLORS.ink; ctx.font = `${11 / k}px system-ui`; ctx.textAlign = 'center'; ctx.fillText('拓印点', x, y + 2.3); }
     ctx.restore();
   }
 
@@ -524,15 +528,15 @@ export class FlatlandRenderer {
     this.card(box);
     const cx = box.x + box.w / 2, cy = box.y + box.h / 2, k = Math.max(1, Math.min((box.w - 48) / 4, (box.h - 60) / 4));
     ctx.save(); ctx.translate(cx, cy);
-    ctx.strokeStyle = COLORS.grid; ctx.lineWidth = 1;
+    ctx.strokeStyle = this.astralMode ? '#1c3244' : COLORS.grid; ctx.lineWidth = 1;
     for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(-2 * k, i * k); ctx.lineTo(2 * k, i * k); ctx.stroke(); }
-    ctx.strokeStyle = COLORS.slice; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-2 * k, 0); ctx.lineTo(2 * k, 0); ctx.stroke();
+    ctx.strokeStyle = this.astralMode ? '#69d8ee' : COLORS.slice; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-2 * k, 0); ctx.lineTo(2 * k, 0); ctx.stroke();
     if (s.carrying) {
-      ctx.setLineDash([4, 4]); ctx.strokeStyle = '#c7b7a0'; ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]); ctx.strokeStyle = this.astralMode ? '#6b8594' : '#c7b7a0'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.ellipse(0, 0, 1.4 * k, 1.4 * k, 0, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
       const points = this.mirrorVertices().map(([, y, z]) => [y * k, -z * k]);
       shapePath(ctx, { type: 'polygon', points }); ctx.strokeStyle = COLORS.amber; ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.stroke();
-      ctx.fillStyle = COLORS.ink; ctx.beginPath(); ctx.ellipse(0, 0, 3, 3, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = this.astralMode ? '#eaf6f3' : COLORS.ink; ctx.beginPath(); ctx.ellipse(0, 0, 3, 3, 0, 0, TAU); ctx.fill();
     }
     ctx.restore();
   }
@@ -540,7 +544,7 @@ export class FlatlandRenderer {
   drawLabel(label, shape, k) {
     const ctx = this.ctx, [x] = shapeCentroid(shape);
     const top = shape.type === 'circle' ? shape.cy - shape.r : Math.min(...shape.points.map(point => point[1]));
-    ctx.save(); ctx.fillStyle = COLORS.ink; ctx.font = `600 ${11 / k}px system-ui, sans-serif`; ctx.textAlign = 'center';
+    ctx.save(); ctx.fillStyle = this.astralMode ? '#eaf6f3' : COLORS.ink; ctx.font = `600 ${11 / k}px system-ui, sans-serif`; ctx.textAlign = 'center';
     ctx.fillText(label, x, top - .25); ctx.restore();
   }
   drawGhost(ghost, k) {
@@ -584,8 +588,10 @@ export class FlatlandRenderer {
     const ctx = this.ctx, s = this.state, p = s.player;
     if (s.dying) return;
     if (s.safe > 0 && Math.floor(this.time * 12) % 2 && !this.reducedMotion) return;
+    const bodyFill = this.astralMode ? '#d8f3ee' : COLORS.ink;
+    const bodyStroke = this.astralMode ? '#4da8be' : '#ffffff';
     for (const t of this.trail) {
-      ctx.globalAlpha = (1 - t.age / .35) * .18; ctx.fillStyle = COLORS.ink;
+      ctx.globalAlpha = (1 - t.age / .35) * .22; ctx.fillStyle = bodyFill;
       ctx.beginPath(); ctx.ellipse(t.x, t.y, p.r * (1 - t.age), p.r * (1 - t.age), 0, 0, TAU); ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -595,11 +601,11 @@ export class FlatlandRenderer {
     }
     const bob = this.reducedMotion ? 0 : Math.sin(this.time * 3) * .03, squash = this.reducedMotion ? 0 : this.squash * .22;
     ctx.save(); ctx.translate(p.x, p.y);
-    ctx.fillStyle = COLORS.ink; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 / k;
+    ctx.fillStyle = bodyFill; ctx.strokeStyle = bodyStroke; ctx.lineWidth = 2 / k;
     ctx.beginPath(); ctx.ellipse(0, 0, (p.r + bob) * (1 + squash), (p.r + bob) * (1 - squash), 0, 0, TAU); ctx.fill(); ctx.stroke();
     const ex = Math.cos(p.facing) * p.r * .42, ey = Math.sin(p.facing) * p.r * .42;
-    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(ex, ey, p.r * .24, p.r * .24, 0, 0, TAU); ctx.fill();
-    ctx.fillStyle = COLORS.ink; ctx.beginPath(); ctx.ellipse(ex + Math.cos(p.facing) * .04, ey + Math.sin(p.facing) * .04, p.r * .1, p.r * .1, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = this.astralMode ? '#0b1722' : '#ffffff'; ctx.beginPath(); ctx.ellipse(ex, ey, p.r * .24, p.r * .24, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = this.astralMode ? '#69d8ee' : COLORS.ink; ctx.beginPath(); ctx.ellipse(ex + Math.cos(p.facing) * .04, ey + Math.sin(p.facing) * .04, p.r * .1, p.r * .1, 0, 0, TAU); ctx.fill();
     ctx.restore();
     if (s.returning > 0) {
       ctx.strokeStyle = COLORS.danger; ctx.lineWidth = 3 / k;
@@ -629,17 +635,17 @@ export class FlatlandRenderer {
     const toY = z => base - (z - s.slice.min) * kz;
     const screenStroke = (style, width) => { ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.strokeStyle = style; ctx.lineWidth = width; ctx.stroke(); ctx.restore(); };
     ctx.save();
-    ctx.fillStyle = COLORS.muted; ctx.font = '500 9px system-ui, sans-serif'; ctx.textAlign = 'right';
+    ctx.fillStyle = this.astralMode ? '#9ab6c2' : COLORS.muted; ctx.font = '500 9px system-ui, sans-serif'; ctx.textAlign = 'right';
     const tickStep = kz < 10 ? 2 : 1;
     for (let z = s.slice.min; z <= s.slice.max + 1e-9; z++) {
-      ctx.strokeStyle = COLORS.grid; ctx.lineWidth = 1;
+      ctx.strokeStyle = this.astralMode ? '#1c3244' : COLORS.grid; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(ox + x0 * kx, toY(z)); ctx.lineTo(ox + x1 * kx, toY(z)); ctx.stroke();
       if (Math.round(z - s.slice.min) % tickStep === 0 || Math.abs(z - s.slice.max) < 1e-6) {
         ctx.fillText(String(z), ox + x0 * kx - 6, toY(z) + 3);
       }
     }
     if (s.locks && !s.locks.revealed) {
-      ctx.fillStyle = COLORS.line; ctx.font = `700 ${Math.round(range * kz * .45)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = this.astralMode ? '#294860' : COLORS.line; ctx.font = `700 ${Math.round(range * kz * .45)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('?', ox + 10 * kx, toY(s.slice.min + range / 2)); ctx.textBaseline = 'alphabetic';
     }
     ctx.beginPath(); ctx.rect(ox + x0 * kx, toY(s.slice.max) - 4, (x1 - x0) * kx, range * kz + 8); ctx.clip();
@@ -662,8 +668,8 @@ export class FlatlandRenderer {
     ctx.globalAlpha = 1;
     ctx.fillStyle = this.astralMode ? 'rgba(114,229,242,0.16)' : 'rgba(57,125,147,0.12)';
     ctx.fillRect(x0, s.s - .12, x1 - x0, .24);
-    ctx.beginPath(); ctx.moveTo(x0, s.s); ctx.lineTo(x1, s.s); screenStroke(COLORS.slice, 2);
-    ctx.beginPath(); ctx.moveTo(s.player.x - s.player.r, s.s); ctx.lineTo(s.player.x + s.player.r, s.s); screenStroke(COLORS.ink, 5);
+    ctx.beginPath(); ctx.moveTo(x0, s.s); ctx.lineTo(x1, s.s); screenStroke(this.astralMode ? '#69d8ee' : COLORS.slice, 2);
+    ctx.beginPath(); ctx.moveTo(s.player.x - s.player.r, s.s); ctx.lineTo(s.player.x + s.player.r, s.s); screenStroke(this.astralMode ? '#eaf6f3' : COLORS.ink, 5);
     ctx.restore();
   }
 }

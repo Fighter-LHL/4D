@@ -207,6 +207,17 @@ test('complete supply keeps one remote cue and yields to the receiver activation
     assert.equal(mechanismFeedback(event, { ...before, node: 'bell', interactAvailable: true }, { hasSupplySlots }), '');
   }
   assert.deepEqual(m.snapshot(), before);
+
+  // Same-XYZ folding room (seed 42: dew and bell share XYZ on different W slices):
+  // when standing on dew, complete supply tells the player to wheel-shift in place rather than "点它前往".
+  const sameM = start('shell', 42);
+  reach(sameM, sameM.snapshot().selected);
+  sameM.interact();
+  advance(sameM, .51);
+  const sameSnap = sameM.snapshot();
+  const samePower = sameM.drainEvents().find(e => e.type === 'power' && e.complete);
+  assert.ok(samePower, 'same-XYZ room emits complete power event');
+  assert.match(mechanismFeedback(samePower, sameSnap, { hasSupplySlots: true }), /供能到齐 · 原地滚轮换层即可点亮/);
 });
 
 test('both second beats suppress partial and complete power text', () => {

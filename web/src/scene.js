@@ -14,9 +14,9 @@ const COLORS = {
   secret: '#8563b3', ascension: '#c5942e',
 };
 const LAYER_PALETTES = [
-  { color: '#378d9c', pale: '#dbf0ef', glow: '#a0f1f1', stone: '#e1e9dd', side: '#96b7ad' },
-  { color: '#8c6bb4', pale: '#eee5f4', glow: '#e2c5ff', stone: '#e8e2df', side: '#aaa4bf' },
-  { color: '#b28b32', pale: '#f7efd9', glow: '#fff0ae', stone: '#eee9d4', side: '#bdb592' },
+  { color: '#378d9c', astralColor: '#5ad4ea', pale: '#dbf0ef', glow: '#a0f1f1', stone: '#e1e9dd', side: '#96b7ad', astralStone: '#18313f', astralSide: '#0f202b', astralPlane: '#112b38d9' },
+  { color: '#8c6bb4', astralColor: '#be98f8', pale: '#eee5f4', glow: '#e2c5ff', stone: '#e8e2df', side: '#aaa4bf', astralStone: '#241e38', astralSide: '#171226', astralPlane: '#1f1833d9' },
+  { color: '#b28b32', astralColor: '#f2c15a', pale: '#f7efd9', glow: '#fff0ae', stone: '#eee9d4', side: '#bdb592', astralStone: '#2c2517', astralSide: '#1d170e', astralPlane: '#2a2013d9' },
 ];
 const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
 const mix = (a, b, t) => a + (b - a) * t;
@@ -66,6 +66,9 @@ export class SceneRenderer {
     this.effects = [];
     this.particles = [];
     this.hover = null;
+    this.hoverWLayer = null;
+    this.hoverAnomaly = null;
+    this.previewLayer = null;
     this.shake = 0;
     this.flash = 0;
     this.flashColor = COLORS.mint;
@@ -108,12 +111,18 @@ export class SceneRenderer {
         this.targetTiltX = clamp(nx, -1, 1);
         this.targetTiltY = clamp(ny, -1, 1);
       }
-      const node = this.hitTest(event);
+      const wLayer = this.hitWStackLayer(event);
+      const anom = wLayer === null ? this.hitAnomaly(event) : null;
+      const node = (wLayer === null && !anom) ? this.hitTest(event) : null;
+      this.hoverWLayer = wLayer;
+      this.hoverAnomaly = anom?.id ?? null;
       this.hover = node?.id ?? null;
-      canvas.style.cursor = node || this.hitFriend(event) || this.hitAnomaly(event) || this.hitWStackLayer(event) !== null ? 'pointer' : 'default';
+      canvas.style.cursor = node || this.hitFriend(event) || anom || wLayer !== null ? 'pointer' : 'default';
     };
     this.pointerLeave = () => {
       this.hover = null;
+      this.hoverWLayer = null;
+      this.hoverAnomaly = null;
       this.downPoint = null;
       this.targetTiltX = 0;
       this.targetTiltY = 0;
@@ -638,12 +647,21 @@ export class SceneRenderer {
     glow.addColorStop(0, this.astralMode ? `${this.palette().color}38` : '#ffffff70');
     glow.addColorStop(1, '#ffffff00');
     ctx.fillStyle = glow; ctx.fillRect(0, 0, WORLD_W, WORLD_H);
-    for (let i = 0; i < 23; i++) {
+    for (let i = 0; i < 26; i++) {
       const depth = .4 + (i % 4) * .25;
       const x = clamp(hash(i + 11) * WORLD_W + px * depth, 0, WORLD_W);
       const y = clamp(30 + hash(i + 78) * 560 + py * depth, 0, WORLD_H);
       const offset = this.reducedMotion ? 0 : Math.sin(this.time * .35 + i) * 5;
-      ellipse(ctx, x, y + offset, this.astralMode ? 1.9 : 1.5, this.astralMode ? 1.9 : 1.5, this.astralMode ? this.palette(i % 3).glow : '#ffffffa8');
+      const r = this.astralMode ? (i % 5 === 0 ? 2.4 : 1.7) : 1.5;
+      const starCol = this.astralMode ? this.palette(i % 3).glow : '#ffffffa8';
+      ellipse(ctx, x, y + offset, r, r, starCol);
+      if (this.astralMode && i % 5 === 0) {
+        ctx.save();
+        ctx.globalAlpha = this.reducedMotion ? .45 : .3 + .3 * Math.sin(this.time * 1.4 + i);
+        line(ctx, x - 5.5, y + offset, x + 5.5, y + offset, starCol, .9);
+        line(ctx, x, y + offset - 5.5, x, y + offset + 5.5, starCol, .9);
+        ctx.restore();
+      }
     }
     this.drawDistantStone(96 + px * .7, 147 + py * .7, .65, .32);
     this.drawDistantStone(872 + px * 1.1, 420 + py * 1.1, .9, .25);
@@ -699,9 +717,10 @@ export class SceneRenderer {
     const ctx = this.ctx;
     ctx.save(); ctx.translate(x, y); ctx.scale(size, size); ctx.globalAlpha = opacity;
     path(ctx, [[-45, 0], [12, -20], [45, -6], [38, 20], [-18, 26]]);
-    ctx.fillStyle = '#abc5b1'; ctx.fill();
+    ctx.fillStyle = this.astralMode ? '#1e3948' : '#abc5b1'; ctx.fill();
+    if (this.astralMode) { ctx.strokeStyle = this.palette().astralColor + '48'; ctx.lineWidth = 1.2; ctx.stroke(); }
     path(ctx, [[-45, 0], [-18, 26], [38, 20], [10, 53], [-20, 38]]);
-    ctx.fillStyle = '#8cae9b'; ctx.fill(); ctx.restore();
+    ctx.fillStyle = this.astralMode ? '#122430' : '#8cae9b'; ctx.fill(); ctx.restore();
   }
 
   connections() {
@@ -957,9 +976,12 @@ export class SceneRenderer {
           const vx = dx / distance * length, vy = dy / distance * length;
           ctx.globalAlpha = relevant ? .95 : .7;
           path(ctx, [[x + nx * width - vx, y + ny * width - vy], [x + nx * width + vx, y + ny * width + vy], [x - nx * width + vx, y - ny * width + vy], [x - nx * width - vx, y - ny * width - vy]]);
-          ctx.fillStyle = astral ? edge.kind === 'secret' ? '#e9dafa' : '#fff0b8'
-            : grown ? edge.kind === 'weave' ? '#e3f0cc' : '#f9eab6' : '#f7f4e5';
-          ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = relevant ? 1.5 : .8; ctx.stroke();
+          ctx.fillStyle = this.astralMode
+            ? (astral ? (edge.kind === 'secret' ? '#291c40' : '#352a15')
+              : grown ? (edge.kind === 'weave' ? '#17362c' : '#332815') : '#193140')
+            : (astral ? (edge.kind === 'secret' ? '#e9dafa' : '#fff0b8')
+              : grown ? (edge.kind === 'weave' ? '#e3f0cc' : '#f9eab6') : '#f7f4e5');
+          ctx.fill(); ctx.strokeStyle = this.astralMode && !astral && !grown ? this.palette(edge.layer).astralColor : color; ctx.lineWidth = relevant ? 1.6 : .95; ctx.stroke();
           if (grown && i % 2 === 0) {
             for (const side of [-1, 1]) {
               const px = x + nx * width * side, py = y + ny * width * side;
@@ -995,10 +1017,15 @@ export class SceneRenderer {
           const from = s.node === b.id ? b : a, to = s.node === b.id ? a : b;
           ellipse(ctx, mix(from.x, to.x, t), mix(from.y, to.y, t), 3, 3, this.palette(edge.layer).glow);
         }
+      } else if (solid && !this.reducedMotion) {
+        // Delicate ambient energy mote drifting along open current-slice bridges
+        const t = ((this.time * .24 + hash(a.x + b.y)) % 1);
+        ctx.globalAlpha = this.astralMode ? .62 : .42;
+        diamond(ctx, mix(a.x, b.x, t), mix(a.y, b.y, t), 2.4, this.palette(edge.layer).glow, color);
       } else if (!edge.open && edge.visible) {
         ctx.globalAlpha = .65;
         const x = mix(a.x, b.x, .5), y = mix(a.y, b.y, .5);
-        ellipse(ctx, x, y, 10, 10, '#edf1e5', color);
+        ellipse(ctx, x, y, 10, 10, this.astralMode ? '#122330' : '#edf1e5', color);
         line(ctx, x - 4, y - 4, x + 4, y + 4, color, 1.5);
         line(ctx, x + 4, y - 4, x - 4, y + 4, color, 1.5);
       }
@@ -1011,8 +1038,10 @@ export class SceneRenderer {
     const w = this.currentW();
     const currentNode = this.node(s.node);
     const onAnchor = !!currentNode?.anchor;
+    const activePreviewLayer = this.hoverWLayer ?? this.previewLayer;
     // 1. Neighboring W-volume bridge silhouettes: vertical offset (delta * 95) shows whether
-    // the invisible bridge lies in a higher or lower W slice, brightened when standing on an anchor.
+    // the invisible bridge lies in a higher or lower W slice, brightened when standing on an anchor
+    // or hovering a layer button / W-Stack plane.
     for (const edge of this.connections()) {
       if (!edge.open || edge.visible) continue;
       const { a, b } = edge;
@@ -1023,45 +1052,48 @@ export class SceneRenderer {
       const layerCenter = s.layers?.[edge.layer]?.center ?? .5;
       const delta = layerCenter - w;
       const lift = delta * 95;
-      const color = this.bridgeColor(edge);
+      const isPreviewed = activePreviewLayer === edge.layer;
+      const color = this.astralMode && edge.kind === 'normal' ? this.palette(edge.layer).astralColor : this.bridgeColor(edge);
       const touchesHere = edge.from === s.node || edge.to === s.node;
-      const alpha = onAnchor ? (touchesHere ? .56 : .34) : .20;
+      const alpha = isPreviewed ? .84 : (onAnchor ? (touchesHere ? .58 : .36) : .22);
       const ay = a.y - lift, by = b.y - lift;
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.setLineDash([5, 6]);
+      ctx.setLineDash(isPreviewed ? [7, 4] : [5, 6]);
       for (const side of [-1, 1]) {
-        line(ctx, a.x + nx * 8 * side, ay + ny * 8 * side, b.x + nx * 8 * side, by + ny * 8 * side, color, touchesHere && onAnchor ? 1.8 : 1.2);
+        line(ctx, a.x + nx * 8 * side, ay + ny * 8 * side, b.x + nx * 8 * side, by + ny * 8 * side, color, isPreviewed ? 2.4 : (touchesHere && onAnchor ? 1.8 : 1.2));
       }
       const planks = Math.max(4, Math.floor(dist / 36));
       for (let i = 1; i < planks; i++) {
         const t = i / planks;
         const px = mix(a.x, b.x, t), py = mix(ay, by, t);
-        line(ctx, px - nx * 7, py - ny * 7, px + nx * 7, py + ny * 7, color, 1);
+        line(ctx, px - nx * 7, py - ny * 7, px + nx * 7, py + ny * 7, color, isPreviewed ? 1.5 : 1);
       }
       ctx.setLineDash([]);
       const mx = mix(a.x, b.x, .5), my = mix(ay, by, .5);
       for (let pip = 0; pip <= edge.layer; pip++) {
-        ellipse(ctx, mx + (pip - edge.layer / 2) * 7, my - 10, 1.8, 1.8, color);
+        if (isPreviewed) diamond(ctx, mx + (pip - edge.layer / 2) * 8, my - 10, 3.2, this.palette(edge.layer).glow, color);
+        else ellipse(ctx, mx + (pip - edge.layer / 2) * 7, my - 10, 1.8, 1.8, color);
       }
       ctx.restore();
     }
     // 2. Neighboring W-volume island silhouettes, never playable platforms.
     for (const node of s.nodes) {
       if (node.anchor) continue;
-      const color = this.palette(node.layer).color;
+      const isPreviewed = activePreviewLayer === node.layer && !node.present;
+      const color = this.astralMode ? this.palette(node.layer).astralColor : this.palette(node.layer).color;
       const delta = (node.world?.w ?? node.center) - w;
       const lift = delta * 95;
       ctx.save(); ctx.translate(node.x, node.y - lift);
-      ctx.globalAlpha = node.present ? .1 : (onAnchor ? .36 : .25);
-      ctx.setLineDash([4, 7]);
-      ellipse(ctx, 0, 0, 86, 46, null, color, 1.2);
-      ellipse(ctx, 0, -50, 48, 25, null, color, 1);
+      ctx.globalAlpha = node.present ? .1 : (isPreviewed ? .74 : (onAnchor ? .38 : .26));
+      ctx.setLineDash(isPreviewed ? [6, 5] : [4, 7]);
+      ellipse(ctx, 0, 0, 86, 46, isPreviewed ? color + '18' : null, color, isPreviewed ? 2 : 1.2);
+      ellipse(ctx, 0, -50, 48, 25, null, color, isPreviewed ? 1.4 : 1);
       for (const side of [-1, 1]) line(ctx, side * 86, 0, side * 48, -50, color, 1);
       ctx.setLineDash([]);
       // A hollow layer token distinguishes an out-of-slice silhouette from a destination.
       if (!node.present) {
-        diamond(ctx, 0, -66, 6, null, color);
+        diamond(ctx, 0, -66, isPreviewed ? 7.5 : 6, isPreviewed ? this.palette(node.layer).glow : null, color);
         for (let i = 0; i <= node.layer; i++) ellipse(ctx, (i - node.layer / 2) * 8, -78, 1.7, 1.7, color);
         if (s.coilArmed?.includes(node.id)) {
           ctx.setLineDash([]); ctx.globalAlpha = .65;
@@ -1391,6 +1423,10 @@ export class SceneRenderer {
     const hoverId = this.hover;
 
     let hint = null;
+    const pending = this.pendingLayerPrompt;
+    if (pending && pending.targetLayer !== s.layer && (!pending.atNode || pending.atNode === s.node)) {
+      hint = { layer: pending.targetLayer, here: true, kind: pending.kind || 'anchor' };
+    }
     if (primaryTarget && s.node !== primaryTarget.id) {
       const pos = this.playerPosition();
       ctx.save();
@@ -1399,12 +1435,9 @@ export class SceneRenderer {
       line(ctx, pos.x, pos.y - 14, primaryTarget.x, primaryTarget.y - 18, COLORS.lightGold, 2.2);
       ctx.setLineDash([]);
       ctx.restore();
-      const pending = this.pendingLayerPrompt;
-      if (pending && pending.targetLayer !== s.layer && (!pending.atNode || pending.atNode === s.node)) {
-        hint = { layer: pending.targetLayer, here: true };
-      } else {
+      if (!hint) {
         const plan = planLayerRoute(s, primaryTarget.id);
-        if (plan?.shift) hint = { layer: plan.shift.layer, here: plan.walk.length === 0, at: this.node(plan.shift.at) };
+        if (plan?.shift) hint = { layer: plan.shift.layer, here: plan.walk.length === 0, at: this.node(plan.shift.at), kind: plan.shift.kind };
       }
     }
 
@@ -1416,15 +1449,21 @@ export class SceneRenderer {
       const pos = this.playerPosition();
       const dirArrow = (s.layers?.[hint.layer]?.center ?? .5) > this.currentW() ? '上滚 ▲' : '下滚 ▼';
       const shiftPillText = explicitHint
-        ? `🌀 在此【${dirArrow}】切至 ${layerShort[hint.layer]} 显桥`
-        : '🌀 看虚线桥颜色与偏移，在此【滚轮】对准显桥';
+        ? (hint.kind === 'same_xyz'
+          ? `🌀 在此【${dirArrow}】切至 ${layerShort[hint.layer]} 原地换台`
+          : hint.kind === 'anomaly'
+            ? `✦ 在此【${dirArrow}】切至 ${layerShort[hint.layer]} 收录奇物`
+            : `🌀 在此【${dirArrow}】切至 ${layerShort[hint.layer]} 显桥`)
+        : (hint.kind === 'anomaly'
+          ? '✦ 看奇物波纹色彩，在此【滚轮】对准收录'
+          : '🌀 看虚线桥颜色与偏移，在此【滚轮】对准显桥');
       drawCalloutPill(
         pos.x,
         pos.y - 68,
         shiftPillText,
-        '#152b34ee',
-        '#5eead4',
-        '#ccfbf1'
+        hint.kind === 'anomaly' ? '#36240bee' : '#152b34ee',
+        hint.kind === 'anomaly' ? '#fbbf24' : '#5eead4',
+        hint.kind === 'anomaly' ? '#fffbeb' : '#ccfbf1'
       );
     } else if (this.relicHud?.readyAbility) {
       const pos = this.playerPosition();
@@ -1538,19 +1577,21 @@ export class SceneRenderer {
           ctx.save();
           ellipse(ctx, currentNode.x, currentNode.y, 92, 50, '#8563b318', '#c084fc', 2.2);
           ctx.restore();
-          const portalText = explicitHint
-            ? `🌀 四维同位叠合：直接滚轮切至${layerShort[sameSpot.layer]}可原地变成「${sameSpot.name}」！`
-            : `🌀 四维同位叠合：看重影色彩与层标，直接滚轮原地切至「${sameSpot.name}」！`;
-          drawNodeTag(
-            sameSpot.id,
-            currentNode.x,
-            currentNode.y + 56,
-            portalText,
-            '🌀同位',
-            '#281840ee',
-            '#c084fc',
-            '#f3e8ff'
-          );
+          if (!(waitingForShiftHere && hint?.kind === 'same_xyz')) {
+            const portalText = explicitHint
+              ? `🌀 四维同位叠合：直接滚轮切至${layerShort[sameSpot.layer]}可原地变成「${sameSpot.name}」！`
+              : `🌀 四维同位叠合：看重影色彩与层标，直接滚轮原地切至「${sameSpot.name}」！`;
+            drawNodeTag(
+              sameSpot.id,
+              currentNode.x,
+              currentNode.y + 56,
+              portalText,
+              '🌀同位',
+              '#281840ee',
+              '#c084fc',
+              '#f3e8ff'
+            );
+          }
         }
       }
     }
@@ -1626,38 +1667,51 @@ export class SceneRenderer {
       for (const item of anomalies) {
         if (item.collected) continue;
         const itemPalette = this.palette(item.layer);
+        const itemColor = this.astralMode ? (itemPalette.astralColor || itemPalette.color) : itemPalette.color;
+        const isHovered = this.hoverAnomaly === item.id;
         const pulse = this.reducedMotion ? .7 : .5 + .5 * Math.sin(this.time * 4.5 + item.x);
         const proj = projectPolytope4D(item.polytope, {
           w: this.currentW(),
           time: this.reducedMotion ? 0 : this.time * 1.4,
-          radius: item.materialized ? 24 : 16,
+          radius: item.materialized ? (isHovered ? 27 : 24) : (isHovered ? 19 : 16),
         });
         ctx.save();
         ctx.translate(item.x, item.y);
+        if (isHovered) {
+          ellipse(ctx, 0, 0, 44, 25, item.materialized ? '#fbbf2420' : `${itemColor}1c`, item.materialized ? '#fde68a' : itemColor, 2);
+        }
         if (item.materialized) {
           ellipse(ctx, 0, 0, 34 + pulse * 7, 20 + pulse * 4, '#fbbf2428', '#fbbf24', 2.2);
           ellipse(ctx, 0, 0, 22, 12, null, itemPalette.glow, 1.4);
           for (const [aIdx, bIdx] of proj.edges) {
             const a = proj.vertices[aIdx], b = proj.vertices[bIdx];
-            ctx.globalAlpha = .78;
+            ctx.globalAlpha = .82;
             line(ctx, a.x, a.y, b.x, b.y, '#fbbf24', 1.6);
           }
           diamond(ctx, 0, 0, 6 + pulse * 2, '#fffbeb', '#f59e0b');
           ctx.restore();
-          drawCompactBadge(item.x, item.y - 36, `✦+${item.bonus}`, '#3b2609f2', '#fbbf24', '#fffbeb');
+          if (isHovered && fullPillCount < MAX_FULL_PILLS) {
+            drawCalloutPill(item.x, item.y - 44, `✦ 点击收录「${item.name}」(+${item.bonus}◆)`, '#3b2609f4', '#fbbf24', '#fffbeb');
+          } else {
+            drawCompactBadge(item.x, item.y - 36, `✦+${item.bonus}`, '#3b2609f2', '#fbbf24', '#fffbeb');
+          }
         } else {
-          ctx.globalAlpha = .55 + pulse * .25;
+          ctx.globalAlpha = (isHovered ? .82 : .55) + pulse * .22;
           ctx.setLineDash([4, 5]);
-          ellipse(ctx, 0, 0, 26 + pulse * 5, 15 + pulse * 3, null, itemPalette.color, 1.6);
+          ellipse(ctx, 0, 0, 26 + pulse * 5, 15 + pulse * 3, null, itemColor, isHovered ? 2.1 : 1.6);
           ctx.setLineDash([]);
           for (const [aIdx, bIdx] of proj.edges) {
             const a = proj.vertices[aIdx], b = proj.vertices[bIdx];
-            ctx.globalAlpha = .32;
-            line(ctx, a.x, a.y, b.x, b.y, itemPalette.color, 1);
+            ctx.globalAlpha = isHovered ? .55 : .36;
+            line(ctx, a.x, a.y, b.x, b.y, itemColor, 1.15);
           }
-          diamond(ctx, 0, 0, 4, itemPalette.glow, itemPalette.color);
+          diamond(ctx, 0, 0, 4.4, itemPalette.glow, itemColor);
           ctx.restore();
-          drawCompactBadge(item.x, item.y - 32, '◌', '#16222ecc', itemPalette.color, '#e2e8f0');
+          if (isHovered && fullPillCount < MAX_FULL_PILLS) {
+            drawCalloutPill(item.x, item.y - 42, `✦「${item.name}」在异层 · 点击自动寻路切层`, '#162634f2', itemColor, '#e6f6ff');
+          } else {
+            drawCompactBadge(item.x, item.y - 32, '◌', '#16222ecc', itemColor, '#e2e8f0');
+          }
         }
       }
     }
@@ -1717,42 +1771,46 @@ export class SceneRenderer {
     const corners = [[0, 25], [67, -5], [128, 22], [60, 53]];
     const at = (point, layer) => ({ x: 63 + (point.x - 500) * .105, y: 24 + (point.y - 340) * .06 + (2 - layer) * 29 });
     const danger = s.wave?.dangerLayers || (s.wave ? [s.wave.layer] : []);
+    const activePreview = this.hoverWLayer ?? this.previewLayer;
     for (let i = 0; i < s.layers.length; i++) {
-      const y = (2 - i) * 29, color = danger.includes(i) ? COLORS.danger : this.palette(i).color;
-      ctx.globalAlpha = i === s.layer ? .88 : .36;
+      const pal = this.palette(i);
+      const baseColor = this.astralMode ? (pal.astralColor || pal.color) : pal.color;
+      const y = (2 - i) * 29, color = danger.includes(i) ? COLORS.danger : baseColor;
+      const isPreview = activePreview === i && i !== s.layer;
+      ctx.globalAlpha = i === s.layer ? .92 : isPreview ? .78 : (this.astralMode ? .48 : .36);
       path(ctx, corners.map(([x, cy]) => [x, cy + y]));
-      ctx.fillStyle = this.palette(i).pale; ctx.fill(); ctx.strokeStyle = color;
-      ctx.lineWidth = danger.includes(i) ? 2.5 : i === s.layer ? 2 : 1; ctx.stroke();
+      ctx.fillStyle = this.astralMode ? (pal.astralPlane || '#162d3d99') : pal.pale; ctx.fill(); ctx.strokeStyle = isPreview ? '#fef08a' : color;
+      ctx.lineWidth = danger.includes(i) ? 2.5 : i === s.layer ? 2.2 : isPreview ? 1.8 : 1; ctx.stroke();
       // Actual mirrored room geometry appears on each W plane, including its bridges.
       for (const edge of this.connections().filter(edge => edge.layer === i && edge.open)) {
         const a = at(edge.a, i), b = at(edge.b, i);
         const grown = ['weave', 'resonance', 'secret', 'ascension'].includes(edge.kind);
-        line(ctx, a.x, a.y, b.x, b.y, grown ? this.bridgeColor(edge) : color, grown ? 2.3 : .75);
+        line(ctx, a.x, a.y, b.x, b.y, grown ? this.bridgeColor(edge) : color, grown ? 2.3 : (isPreview ? 1.15 : .75));
         if (grown) diamond(ctx, mix(a.x, b.x, .5), mix(a.y, b.y, .5), 2.7, this.bridgeColor(edge));
       }
       for (const node of s.nodes.filter(node => node.anchor || node.layer === i)) {
         const point = at(node, i);
         if (node.id === 'rift') {
-          diamond(ctx, point.x, point.y, node.locked ? 2.6 : 4, node.locked ? null : this.palette(i).glow,
+          diamond(ctx, point.x, point.y, node.locked ? 2.6 : 4, node.locked ? null : pal.glow,
             s.rift?.ascension ? COLORS.ascension : COLORS.secret);
           continue;
         }
         ellipse(ctx, point.x, point.y, node.anchor ? 2 : 2.6, node.anchor ? 1.3 : 2.6,
-          node.anchor || s.activated.includes(node.id) ? color : this.palette(i).pale, color, .8);
+          node.anchor || s.activated.includes(node.id) ? color : (this.astralMode ? '#142736' : pal.pale), color, .8);
         if (s.coilArmed?.includes(node.id) && node.layer === i) this.drawCoilMark(point.x, point.y, 5, COLORS.coil);
         if (s.woven?.some(item => item.node === node.id) && node.layer === i) diamond(ctx, point.x, point.y - 4, 3, COLORS.weave, '#ffffff');
       }
       const player = at(this.playerPosition(), i);
       if (i === s.layer) { ctx.globalAlpha = 1; diamond(ctx, player.x, player.y, 5, color, '#ffffff'); }
-      ctx.globalAlpha = .8;
+      ctx.globalAlpha = .85;
       for (let dot = 0; dot <= i; dot++) ellipse(ctx, 140 + dot * 7, 22 + y, 2, 2, color);
       if (this.visualGuide) {
         // Relative to the current layer: wheel up climbs towards Ⅲ (drawn on top).
         const dirHint = `${['Ⅰ 潮汐', 'Ⅱ 回声', 'Ⅲ 绽放'][i]} ${i > s.layer ? '▲上滚' : i < s.layer ? '▼下滚' : '● 当前'}`;
         const isPrompted = this.isExplicitLayerHint() && this.pendingLayerPrompt?.targetLayer === i && s.layer !== i;
-        ctx.font = `${i === s.layer || isPrompted ? 700 : 500} 9.5px system-ui, sans-serif`;
+        ctx.font = `${i === s.layer || isPrompted || isPreview ? 700 : 500} 9.5px system-ui, sans-serif`;
         ctx.textAlign = 'left';
-        ctx.fillStyle = isPrompted ? COLORS.gold : color;
+        ctx.fillStyle = isPrompted ? (this.astralMode ? '#ffd86b' : COLORS.gold) : isPreview ? '#fef08a' : color;
         ctx.fillText(isPrompted ? `👉 ${dirHint}` : dirHint, 162, 25 + y);
       }
       if (danger.includes(i)) {
@@ -1782,13 +1840,16 @@ export class SceneRenderer {
       const node = this.node(s.ghost.node);
       if (node) { const point = at(node, s.ghost.layer); ctx.globalAlpha = .7; diamond(ctx, point.x, point.y, 4, null, this.palette(s.ghost.layer).color); }
     }
-    ctx.globalAlpha = .75;
+    ctx.globalAlpha = .82;
     const w = this.currentW();
     const cutY = 58 * (1 - w);
     ctx.setLineDash([4, 3]);
-    path(ctx, corners.map(([x, y]) => [x, y + cutY])); ctx.strokeStyle = this.palette().color; ctx.lineWidth = 1.2; ctx.stroke(); ctx.setLineDash([]);
+    path(ctx, corners.map(([x, y]) => [x, y + cutY]));
+    ctx.strokeStyle = this.astralMode ? (this.palette().astralColor || '#69d8ee') : this.palette().color;
+    ctx.lineWidth = 1.3; ctx.stroke(); ctx.setLineDash([]);
     const labelSize = clamp(10 / (this.scale * miniScale), 12, 22);
-    ctx.font = `500 ${labelSize}px system-ui, sans-serif`; ctx.textAlign = 'left'; ctx.fillStyle = COLORS.ink;
+    ctx.font = `600 ${labelSize}px system-ui, sans-serif`; ctx.textAlign = 'left';
+    ctx.fillStyle = this.astralMode ? '#d8f3ee' : COLORS.ink;
     ctx.fillText(`W  ${w.toFixed(2)}`, 10, 128);
     ctx.restore();
   }
@@ -1941,16 +2002,31 @@ export class SceneRenderer {
     if (node.anchor) {
       // An anchored column spans the W stack; its top remains solid while slices change.
       path(ctx, [[-width * .52, 9], [-width * .4, 81], [0, 104], [width * .4, 81], [width * .52, 9]]);
-      ctx.fillStyle = '#9db5a14a'; ctx.fill();
+      ctx.fillStyle = this.astralMode ? '#18314285' : '#9db5a14a'; ctx.fill();
       for (let i = 0; i < 3; i++) {
-        ellipse(ctx, 0, 40 + i * 22, width * (.49 - i * .05), 19 - i * 2, null, this.palette(i).color + '70', 1.5);
+        const ringColor = this.astralMode ? (this.palette(i).astralColor || this.palette(i).color) : this.palette(i).color;
+        ellipse(ctx, 0, 40 + i * 22, width * (.49 - i * .05), 19 - i * 2, null, ringColor + '78', 1.5);
       }
-      for (const side of [-1, 1]) line(ctx, side * width * .5, 10, side * width * .4, 81, '#96aa9270', 1);
+      for (const side of [-1, 1]) line(ctx, side * width * .5, 10, side * width * .4, 81, this.astralMode ? '#2f587080' : '#96aa9270', 1);
     }
-    ellipse(ctx, 4, 57, width * 1.1, height * .62, '#3f756712');
-    ellipse(ctx, 4, 51, width * .8, height * .42, '#34655212');
+    ellipse(ctx, 4, 57, width * 1.1, height * .62, this.astralMode ? '#040a1048' : '#3f756712');
+    ellipse(ctx, 4, 51, width * .8, height * .42, this.astralMode ? '#050d1538' : '#34655212');
     if (selected || this.hover === node.id) {
-      ellipse(ctx, 0, 2, width + 12, height + 8, selected ? '#d7994310' : '#24968d0b', selected ? '#d7994385' : '#24968d45', 1.7);
+      const accent = this.astralMode ? (palette.astralColor || palette.color) : '#24968d';
+      ellipse(ctx, 0, 2, width + 12, height + 8, selected ? '#d7994318' : `${accent}14`, selected ? '#f0b85a98' : `${accent}70`, 1.8);
+      if (this.hover === node.id && !s.travel) {
+        const spin = this.reducedMotion ? .2 : this.time * .7;
+        ctx.save();
+        ctx.strokeStyle = selected ? '#f7ca6d' : accent;
+        ctx.lineWidth = 2;
+        for (let q = 0; q < 4; q++) {
+          const a0 = spin + q * (Math.PI / 2) + .22;
+          ctx.beginPath();
+          ctx.ellipse(0, 2, width + 18, height + 12, 0, a0, a0 + .34);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
       if (selected) {
         const float = this.reducedMotion ? 0 : Math.sin(this.time * 3) * 3;
         path(ctx, [[-6, -height - 17 + float], [6, -height - 17 + float], [0, -height - 10 + float]]);
@@ -1962,25 +2038,30 @@ export class SceneRenderer {
       const p = points[i], q = points[(i + 1) % points.length];
       if (p[1] < 0 && q[1] < 0) continue;
       path(ctx, [p, q, [q[0] * .85, q[1] + thickness], [p[0] * .85, p[1] + thickness]]);
-      ctx.fillStyle = i % 2 ? palette.side : '#b8c6b2'; ctx.fill();
-      line(ctx, p[0], p[1] + 2, p[0] * .85, p[1] + thickness, '#7fa28e70', 1);
+      ctx.fillStyle = this.astralMode
+        ? (i % 2 ? (palette.astralSide || '#183040') : '#132534')
+        : (i % 2 ? palette.side : '#b8c6b2');
+      ctx.fill();
+      line(ctx, p[0], p[1] + 2, p[0] * .85, p[1] + thickness, this.astralMode ? '#2f587070' : '#7fa28e70', 1);
     }
-    path(ctx, points); ctx.fillStyle = palette.stone; ctx.fill();
-    ctx.strokeStyle = '#faffee'; ctx.lineWidth = 2; ctx.stroke();
+    path(ctx, points); ctx.fillStyle = this.astralMode ? (palette.astralStone || '#1f384a') : palette.stone; ctx.fill();
+    ctx.strokeStyle = this.astralMode ? `${palette.astralColor || palette.color}88` : '#faffee'; ctx.lineWidth = 2; ctx.stroke();
     path(ctx, points.map(([x, y]) => [x * .89, y * .84]));
-    ctx.strokeStyle = '#c4d0b7'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = this.astralMode ? '#2a4a62' : '#c4d0b7'; ctx.lineWidth = 1; ctx.stroke();
     // Small paving seams, moss, and botanics preserve a crafted garden character.
-    line(ctx, -width * .9, 5, width * .89, 5, '#bdccb257', 1);
-    line(ctx, -width * .45, -height * .8, -width * .33, height * .85, '#bdccb257', 1);
-    line(ctx, width * .4, -height * .77, width * .32, height * .8, '#bdccb257', 1);
+    const seamColor = this.astralMode ? '#2a4b6366' : '#bdccb257';
+    line(ctx, -width * .9, 5, width * .89, 5, seamColor, 1);
+    line(ctx, -width * .45, -height * .8, -width * .33, height * .85, seamColor, 1);
+    line(ctx, width * .4, -height * .77, width * .32, height * .8, seamColor, 1);
     for (let i = 0; i < 5; i++) {
       const angle = i * 1.39 + (hub ? .3 : 1);
       const x = Math.cos(angle) * width * .77, y = Math.sin(angle) * height * .7;
-      ellipse(ctx, x, y, 11 + hash(i + node.x) * 10, 4, '#6da48440');
+      ellipse(ctx, x, y, 11 + hash(i + node.x) * 10, 4, this.astralMode ? '#296c5d42' : '#6da48440');
       this.drawPlant(x, y, active, i + node.x);
     }
     // The rim belongs to this W section, making the same XYZ visibly change material.
-    ellipse(ctx, 0, 1, width * .82, height * .76, null, palette.color + '60', 1.5);
+    const rimAccent = this.astralMode ? (palette.astralColor || palette.color) : palette.color;
+    ellipse(ctx, 0, 1, width * .82, height * .76, null, rimAccent + '68', 1.5);
     this.drawGardenGrowth(node, width, height);
     this.drawAscendedArchitecture(node, width);
     if (hub) this.drawHub();
@@ -2021,12 +2102,21 @@ export class SceneRenderer {
     // ⚓ marks every cross-layer platform, so the '⚓ 安全台' wording always maps to a visible label.
     const name = (node.anchor ? '⚓ ' : '') + (node.name || { hub: '归息台', dew: '凝露坛', bell: '回声铃', bloom: '映光花', exit: '折光门' }[node.id] || node.id);
     const textWidth = ctx.measureText(name).width;
-    ctx.fillStyle = '#edf2e9dd';
+    ctx.fillStyle = this.astralMode ? '#0c1925eb' : '#edf2e9dd';
     const labelHeight = labelSize + 8;
     this.labelZones?.push({ left: node.x - textWidth / 2 - 8, right: node.x + textWidth / 2 + 8, top: node.y + labelY - labelHeight / 2, bottom: node.y + labelY + labelHeight / 2 });
     ctx.beginPath(); ctx.roundRect?.(-textWidth / 2 - 8, labelY - labelHeight / 2, textWidth + 16, labelHeight, 8);
     if (!ctx.roundRect) ctx.rect(-textWidth / 2 - 8, labelY - labelHeight / 2, textWidth + 16, labelHeight);
-    ctx.fill(); ctx.fillStyle = selected ? '#936125' : COLORS.ink; ctx.fillText(name, 0, labelY);
+    ctx.fill();
+    if (this.astralMode) {
+      ctx.strokeStyle = selected ? '#f0b85aa8' : '#2c5068b8';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+    ctx.fillStyle = this.astralMode
+      ? (selected ? '#ffd982' : '#e8f6f2')
+      : (selected ? '#936125' : COLORS.ink);
+    ctx.fillText(name, 0, labelY);
     ctx.restore();
   }
 
@@ -2098,14 +2188,20 @@ export class SceneRenderer {
 
   drawHub() {
     const ctx = this.ctx, s = this.state;
-    ellipse(ctx, 0, 0, 64, 35, '#b9cdb9', '#eff6df', 2);
-    ellipse(ctx, 0, -2, 57, 29, '#dce5d0', '#a8c4ac', 1);
-    ellipse(ctx, 0, -3, 40, 21, '#d0e2cf', '#8cb5a0', 1);
+    if (this.astralMode) {
+      ellipse(ctx, 0, 0, 64, 35, '#193243', '#49829c', 2);
+      ellipse(ctx, 0, -2, 57, 29, '#213f52', '#396b82', 1);
+      ellipse(ctx, 0, -3, 40, 21, '#1a394b', '#4d92a8', 1);
+    } else {
+      ellipse(ctx, 0, 0, 64, 35, '#b9cdb9', '#eff6df', 2);
+      ellipse(ctx, 0, -2, 57, 29, '#dce5d0', '#a8c4ac', 1);
+      ellipse(ctx, 0, -3, 40, 21, '#d0e2cf', '#8cb5a0', 1);
+    }
     for (let i = 0; i < 12; i++) {
       const angle = i * TAU / 12;
-      line(ctx, Math.cos(angle) * 45, Math.sin(angle) * 24 - 2, Math.cos(angle) * 51, Math.sin(angle) * 27 - 2, '#699a84', i % 3 === 0 ? 2 : 1);
+      line(ctx, Math.cos(angle) * 45, Math.sin(angle) * 24 - 2, Math.cos(angle) * 51, Math.sin(angle) * 27 - 2, this.astralMode ? '#6cc7d8' : '#699a84', i % 3 === 0 ? 2 : 1);
     }
-    diamond(ctx, 0, -3, 14, '#a8cebb', '#779c87');
+    diamond(ctx, 0, -3, 14, this.astralMode ? '#377d8f' : '#a8cebb', this.astralMode ? '#7fe2ee' : '#779c87');
     const wAngle = this.currentW() * TAU - Math.PI / 2;
     ellipse(ctx, Math.cos(wAngle) * 51, Math.sin(wAngle) * 27 - 2, 4, 3, COLORS.gold, '#ffefbf', 1);
     if (s.banked > 0) {
@@ -2116,15 +2212,18 @@ export class SceneRenderer {
 
   drawAnchor() {
     const ctx = this.ctx;
-    ellipse(ctx, 0, 4, 39, 21, '#d0dbc5', '#f7f7df', 2);
+    ellipse(ctx, 0, 4, 39, 21, this.astralMode ? '#1a3345' : '#d0dbc5', this.astralMode ? '#4a859f' : '#f7f7df', 2);
     path(ctx, [[-11, 3], [-11, -48], [0, -57], [12, -48], [12, 3], [0, 10]]);
-    ctx.fillStyle = '#c5d6c2'; ctx.fill(); ctx.strokeStyle = '#90aa94'; ctx.lineWidth = 1.5; ctx.stroke();
-    line(ctx, 0, -56, 0, 8, '#f9fff0', 2);
+    ctx.fillStyle = this.astralMode ? '#224257' : '#c5d6c2'; ctx.fill();
+    ctx.strokeStyle = this.astralMode ? '#5596b0' : '#90aa94'; ctx.lineWidth = 1.5; ctx.stroke();
+    line(ctx, 0, -56, 0, 8, this.astralMode ? '#9be8f5' : '#f9fff0', 2);
     for (let i = 0; i < 3; i++) {
-      ellipse(ctx, 0, -7 - i * 18, 27 - i * 3, 12, null, this.palette(i).color, i === this.state.layer ? 3 : 1.2);
-      diamond(ctx, 27 - i * 3, -7 - i * 18, 3.2, this.palette(i).glow, this.palette(i).color);
+      const ringColor = this.astralMode ? (this.palette(i).astralColor || this.palette(i).color) : this.palette(i).color;
+      ellipse(ctx, 0, -7 - i * 18, 27 - i * 3, 12, null, ringColor, i === this.state.layer ? 3 : 1.3);
+      diamond(ctx, 27 - i * 3, -7 - i * 18, 3.2, this.palette(i).glow, ringColor);
     }
-    diamond(ctx, 0, -65, 6, this.palette().glow, this.palette().color);
+    const topColor = this.astralMode ? (this.palette().astralColor || this.palette().color) : this.palette().color;
+    diamond(ctx, 0, -65, 6, this.palette().glow, topColor);
   }
 
   drawVault(node) {
@@ -2337,6 +2436,16 @@ export class SceneRenderer {
     if (s.combo > 0) {
       for (let i = 0; i < Math.min(3, s.combo); i++) diamond(ctx, (i - (s.combo - 1) / 2) * 10, -48, 3.2, COLORS.gold);
     }
+    if ((s.carried || 0) > 0) {
+      const moteCount = Math.min(5, s.carried);
+      for (let i = 0; i < moteCount; i++) {
+        const a = (this.reducedMotion ? .35 : this.time * 1.85) + (i * TAU) / moteCount;
+        const mx = Math.cos(a) * 23;
+        const my = -17 + bob + Math.sin(a) * 8.5;
+        ellipse(ctx, mx, my, 5.5, 5.5, '#fbbf2424');
+        diamond(ctx, mx, my, 3.3, '#fffbeb', '#f59e0b');
+      }
+    }
     ctx.restore();
   }
 
@@ -2378,7 +2487,7 @@ export class SceneRenderer {
           }
           noteZones.push({ left: x - half, right: x + half, top: y - height / 2, bottom: y + height / 2 });
         }
-        ctx.lineWidth = 5; ctx.strokeStyle = '#f3f5ec'; ctx.fillStyle = effect.color;
+        ctx.lineWidth = 5; ctx.strokeStyle = this.astralMode ? '#08131d' : '#f3f5ec'; ctx.fillStyle = this.astralMode && effect.color === COLORS.ink ? '#eaf6f3' : effect.color;
         ctx.strokeText(effect.text, x, y); ctx.fillText(effect.text, x, y);
       } else if (effect.kind === 'seal_turn') {
         const radius = this.reducedMotion ? 42 : 24 + e * 55;
@@ -2493,7 +2602,9 @@ export class SceneRenderer {
       } else if (effect.kind === 'value') {
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.font = `700 ${clamp(14 / this.scale, 22, 42)}px system-ui, sans-serif`;
-        ctx.lineWidth = 4; ctx.strokeStyle = '#fff8dd'; ctx.fillStyle = '#9a691f';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = this.astralMode ? '#09141f' : '#fff8dd';
+        ctx.fillStyle = this.astralMode ? '#ffd86b' : '#9a691f';
         const y = effect.y - 66 - (this.reducedMotion ? 0 : ease(p) * 21);
         ctx.strokeText(`+${effect.value || 0}`, effect.x, y); ctx.fillText(`+${effect.value || 0}`, effect.x, y);
       } else if (effect.kind === 'collect') {
@@ -2606,7 +2717,11 @@ export class SceneRenderer {
     const ctx = this.ctx;
     ctx.save();
     const mist = ctx.createLinearGradient(0, 555, 0, 650);
-    mist.addColorStop(0, '#edf3e700'); mist.addColorStop(1, '#edf3e755');
+    if (this.astralMode) {
+      mist.addColorStop(0, '#07111a00'); mist.addColorStop(1, '#07111a78');
+    } else {
+      mist.addColorStop(0, '#edf3e700'); mist.addColorStop(1, '#edf3e755');
+    }
     ctx.fillStyle = mist; ctx.fillRect(0, 555, 1000, 95); ctx.restore();
   }
 

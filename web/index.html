@@ -85,8 +85,10 @@
         </div>
         <div id="risk-decision-bar" class="risk-decision-bar" hidden aria-live="polite">
           <div class="risk-decision-copy">
-            <span class="risk-decision-tag">⚡ 首通过桥决策</span>
-            <strong id="risk-decision-title">通往「目标」的新桥已连通</strong>
+            <div class="risk-decision-head">
+              <span class="risk-decision-tag">⚡ 首通决策</span>
+              <strong id="risk-decision-title">通往「目标」的新桥已连通</strong>
+            </div>
             <small id="risk-decision-sub">首次冒险过桥可获 3 倍回响 (+3◆) 并唤醒沉睡花桥 / 为遗物蓄能</small>
           </div>
           <div class="risk-decision-actions">
@@ -167,10 +169,10 @@
       </section>
       <div class="panel-rule"></div>
       <div id="room-itinerary" class="room-itinerary" aria-label="本局随机庭院"></div>
-      <div class="scoreboard"><div><span class="score-label">🏆 已存分数 <i>◆</i></span><strong id="banked">0</strong><small>过关总分</small></div><div><span class="score-label">💎 随身待存 <i class="amber">◇</i></span><strong id="carried">0</strong><small>到 ⚓ 归响台点它存入</small></div></div>
+      <div class="scoreboard"><div><span class="score-label">🏆 已存分数 <i>◆</i></span><strong id="banked">0</strong><small>过关总分</small></div><div><span class="score-label">💎 随身待存 <i class="amber">◇</i></span><strong id="carried">0</strong><small id="carried-hint">回 ⚓ 归响台自动存入</small></div></div>
       <div class="lives-row"><span>🛡️ 容错护盾</span><div id="lives" aria-label="剩余 3 次"><i></i><i></i><i></i></div></div>
       <div id="chain-row" class="chain-row"><span>⚡ 冒险连击</span><div id="combo" aria-label="0 层"><i></i><i></i><i></i></div></div>
-      <details class="journey-note"><summary>💡 什么是四维换层与安全台？</summary><p>名字前带 <b>⚓</b> 的台子（中央的归响台、维度锚台等）就是<b>安全台</b>：它们贯穿全部三层，站在上面可以随时换层，滚轮上滚去上层、下滚去下层（或点 Ⅰ/Ⅱ/Ⅲ）。外圈机关只存在于各自那一层，点亮后先回安全台再换层。随身回响要回到 ⚓ 归响台点它一下才会存入。</p></details>
+      <details class="journey-note"><summary>💡 什么是四维换层与安全台？</summary><p>名字前带 <b>⚓</b> 的台子（中央的归响台、维度锚台等）就是<b>安全台</b>：它们贯穿全部三层，站在上面可以随时换层，滚轮上滚去上层、下滚去下层（或点 Ⅰ/Ⅱ/Ⅲ）。外圈机关只存在于各自那一层，点亮后先回安全台再换层。随身回响在回到或路过 ⚓ 归响台时会自动存入。</p></details>
       <details id="run-details" class="run-details"><summary>🎒 展开查看遗物能力、可选宝箱与隐藏秘径</summary>
       <div class="challenge-card"><div><span class="challenge-symbol" aria-hidden="true">🎁</span><strong id="challenge-name">裂隙花匣</strong><span id="challenge-reward">+4</span></div><p id="challenge-description">可选加分宝箱（非必做）：开匣后切换 W 躲开回流。</p></div>
       <section id="resonance-panel" class="resonance-panel"><strong id="resonance-title">冒险，让庭院生长</strong><div id="resonance-track" class="resonance-track" aria-hidden="true"><span>◇</span><span>◎</span><span>❋</span><span>⌁</span></div><p id="resonance-detail">首次冒险成功，长出花匣与锚台之间的新桥</p><small id="woven-count"></small></section>

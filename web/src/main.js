@@ -7,7 +7,7 @@ import { FriendGuide } from './friend-guide.js';
 import { CourtyardMomentum } from './courtyard-momentum.js';
 import { STARTER_RELICS, mechanismFeedback, contextualHelp, courtyardActions } from './play-feedback.js';
 import { initThemeToggle, initHyperLab } from './hyper-lab-ui.js';
-import { ProgressiveOnboarding, planLayerRoute, computeRiskDecisionPreview, computeRelicHudStatus } from './progressive-onboarding.js';
+import { ProgressiveOnboarding, planLayerRoute, findCurrentLayerRoute, computeRiskDecisionPreview, computeRelicHudStatus } from './progressive-onboarding.js';
 
 const $ = id => document.getElementById(id);
 const onboarding = new ProgressiveOnboarding({ skillGated: true });
@@ -96,7 +96,7 @@ function showTransient(message, seconds = 3.2, type = 'hint') {
   $('announcement').textContent = message;
 }
 
-function buildLayerShiftPromptMessage(s, { targetId, targetLayer, atNode, toNode, kind }, revealExplicit) {
+function buildLayerShiftPromptMessage(s, { targetId, targetLayer, atNode, toNode, kind, anomalyName }, revealExplicit) {
   const layerLabel = `${layerSymbols[targetLayer]} ${s.layers[targetLayer]?.name || '目标层'}`;
   const atName = s.nodes.find(n => n.id === atNode)?.name || '安全台';
   const targetName = s.nodes.find(n => n.id === targetId)?.name || '目标';
@@ -104,6 +104,13 @@ function buildLayerShiftPromptMessage(s, { targetId, targetLayer, atNode, toNode
   const wheelDir = targetLayer > s.layer ? '上滚 ▲' : '下滚 ▼';
   const how = `亲手【滚轮${wheelDir}】（或点左上角 ${layerSymbols[targetLayer]}）切到【${layerLabel}】`;
   if (kind === 'recover') return `⚠️ 脚下平台只在【${layerLabel}】存在！${how}站稳`;
+  if (kind === 'anomaly') {
+    const cName = anomalyName || '异维奇物';
+    if (!revealExplicit) {
+      return `✦ 已到「${atName}」！观察「${cName}」波纹色彩，亲手【滚动滚轮】切至对应层即可自动收录`;
+    }
+    return `✦ 已到「${atName}」！${how}，即可自动收录「${cName}」(+2◆)`;
+  }
   if (!revealExplicit) {
     if (kind === 'same_xyz') {
       return `🌀 脚下与「${toName}」四维同位叠合！观察重影颜色与菱形层标，亲手【滚动滚轮】原地切过去（按 H 可看层提示）`;
@@ -116,6 +123,13 @@ function buildLayerShiftPromptMessage(s, { targetId, targetLayer, atNode, toNode
   if (kind === 'same_xyz') return `🌀 脚下与「${toName}」在同一位置！${how}，原地换到它上面`;
   if (atNode === targetId) return `🌀 已到「${atName}」！${how}再开启`;
   return `🌀 已到「${atName}」！${how}，让通往「${targetName}」的桥显形`;
+}
+
+function shouldHoldEchoesAtHub(s) {
+  if (!s) return false;
+  const riftWaiting = s.nodes?.some(n => n.id === 'rift' && !n.locked) && s.rift?.status === 'available';
+  const shadowWaiting = (s.relics?.shadow || 0) > 0 && !s.shadowUsed && (s.activated?.length || 0) < 3;
+  return !!(riftWaiting || shadowWaiting);
 }
 
 // Stops the autopilot where the plan needs a W change and hands that change to the player.
@@ -141,9 +155,23 @@ function promptLayerShift(s, targetId, shift, finalLayer = null) {
 
 function stepAutoPilot() {
   if (!canAct()) { autoPilot = null; return; }
-  const s = model.snapshot();
+  let s = model.snapshot();
   if (s.travel || s.wave) return;
-  const currentNode = s.nodes.find(n => n.id === s.node);
+  let currentNode = s.nodes.find(n => n.id === s.node);
+
+  // Auto-bank carried echoes upon stepping onto or passing through ⚓ 归响台 (hub),
+  // unless an unlocked隐星试炼 (rift) or unspent 留影扣 (shadow) needs unbanked echoes.
+  if (s.node === 'hub' && s.carried > 0 && s.interactAvailable && !shouldHoldEchoesAtHub(s)) {
+    const savedCarried = s.carried;
+    action(() => model.interact());
+    s = model.snapshot();
+    currentNode = s.nodes.find(n => n.id === s.node);
+    if (!autoPilot) {
+      showTransient(`💎 已自动存入 ${savedCarried} 枚随身回响 (+${savedCarried}◆)`, 2.6, 'bank');
+      updateUI();
+      return;
+    }
+  }
 
   // Auto-activate mechanism as soon as player stands on a powered unlit mechanism on its matching layer
   if (currentNode?.kind === 'mechanism' && currentNode.layer === s.layer && s.interactAvailable) {
@@ -158,7 +186,7 @@ function stepAutoPilot() {
   // Give the freshly materialised bridge a moment on screen before walking onto it.
   if (autoPilot.resumeAt && performance.now() < autoPilot.resumeAt) return;
 
-  const { targetNode: targetId, finalLayer = null } = autoPilot;
+  const { targetNode: targetId, finalLayer = null, anomalyTarget = null } = autoPilot;
   const plan = planLayerRoute(s, targetId, { finalLayer });
   if (!plan) {
     autoPilot = null;
@@ -176,6 +204,28 @@ function stepAutoPilot() {
       model.move();
     });
     if (!model.snapshot().travel) autoPilot = null;
+    return;
+  }
+
+  if (anomalyTarget) {
+    autoPilot = null;
+    const anomProg = scene.explorationRadar.roomProgress(s);
+    const revealExplicit = onboarding.shouldRevealExplicitLayerHint(s, {
+      hintRequested: !!guide.present(s).companionGuide,
+      totalAnomaliesCollected: anomProg.totalCollected,
+    });
+    const promptInfo = {
+      targetId: null,
+      anomalyId: anomalyTarget.id,
+      anomalyName: anomalyTarget.name,
+      targetLayer: anomalyTarget.targetLayer,
+      atNode: s.node,
+      kind: 'anomaly',
+    };
+    const promptMsg = buildLayerShiftPromptMessage(s, promptInfo, revealExplicit);
+    scene.pendingLayerPrompt = { ...promptInfo, message: promptMsg };
+    showTransient(promptMsg, 4.0, 'prompt');
+    updateUI();
     return;
   }
 
@@ -262,7 +312,18 @@ function manualSwitchLayer(layerIdx, source = 'manual') {
     const stable = !!footing && (footing.anchor || footing.layer === after.layer);
     const prismReady = !!after.abilities?.some(a => a.id === 'prism' && a.available);
     const resume = !!prompt && prompt.targetLayer === after.layer && stable;
-    if (prompt && (resume || after.node !== prompt.atNode)) scene.pendingLayerPrompt = null;
+    if (prompt && (resume || after.node !== prompt.atNode || ((source === 'button' || source === 'wstack') && prompt.kind === 'anomaly' && after.layer !== prompt.targetLayer))) {
+      scene.pendingLayerPrompt = null;
+    }
+    if (resume && prompt.kind === 'anomaly') {
+      const anomRes = scene.explorationRadar.interact(after, prompt.anomalyId);
+      if (collectMaterializedAnomaly(anomRes)) return;
+    }
+    if (after.node !== s.node && footing?.kind === 'mechanism' && footing.powered && !after.activated.includes(footing.id) && after.interactAvailable && !prismReady) {
+      scene.pendingLayerPrompt = null;
+      action(() => model.interact());
+      return;
+    }
     if (resume && prompt.targetId && !prismReady) {
       autoPilot = { targetNode: prompt.targetId, finalLayer: prompt.finalLayer ?? null, resumeAt: performance.now() + 700 };
     }
@@ -396,6 +457,22 @@ function revealScene() {
 }
 function selectFromPanel(id) { revealScene(); handleCanvasSelect(id); }
 
+function collectMaterializedAnomaly(res) {
+  if (!res || res.status !== 'collected') return false;
+  model.collectAnomaly(res.item.id);
+  scene.spawnBurst(res.item.x, res.item.y, '#fbbf24', 28, 1.2);
+  scene.addEffect('ring', { x: res.item.x, y: res.item.y }, { duration: .85, radius: 64, color: '#fbbf24', tier: 2 });
+  showTransient(res.message, 4.0, 'anomaly');
+  if ($('anomaly-lore-box')) {
+    $('anomaly-lore-box').hidden = false;
+    setText('anomaly-lore-title', `✦ 已收录四维奇物：【${res.item.name}】 (+${res.bonus}◆)`);
+    setText('anomaly-lore-text', res.item.lore);
+  }
+  consumeEvents();
+  updateUI();
+  return true;
+}
+
 function handleAnomalySelect(anomaly) {
   if (!canAct() || !anomaly) return;
   onboarding.recordActivity();
@@ -412,30 +489,46 @@ function handleAnomalySelect(anomaly) {
     );
     const dir = res.targetLayer > s.layer ? '上滚' : '下滚';
     if (currentNode && !currentNode.anchor && !hasSameSpotPartner) {
-      const anchorId = ['hub', 'relay'].find(id => findCurrentLayerRoute(s, id)?.length) || 'hub';
-      const anchorName = s.nodes.find(n => n.id === anchorId)?.name || '归响台';
+      const anchorId = ['hub', 'relay'].find(id => findCurrentLayerRoute(s, id)?.length)
+        || ['hub', 'relay'].find(id => planLayerRoute(s, id))
+        || 'hub';
+      const anchorNode = s.nodes.find(n => n.id === anchorId);
+      const anchorName = anchorNode?.name || '归响台';
+      if (findCurrentLayerRoute(s, anchorId)?.length) {
+        scene.pendingLayerPrompt = null;
+        if (anchorNode) scene.addEffect('ring', anchorNode, { duration: .8, radius: 74, color: '#5eead4' });
+        autoPilot = {
+          targetNode: anchorId,
+          anomalyTarget: { id: res.item.id, name: res.item.name, targetLayer: res.targetLayer },
+        };
+        showTransient(`⚓ 外圈平台不能直接换层：先带你走回「${anchorName}」，到了【滚轮${dir}】切到【${layerSymbols[res.targetLayer]} ${s.layers[res.targetLayer]?.name}】即可收录「${res.item.name}」！`, 3.8);
+        stepAutoPilot();
+        return;
+      }
       showTransient(`${res.message} 外圈平台不能直接换层：先回「⚓ ${anchorName}」，再【滚轮${dir}】切到【${layerSymbols[res.targetLayer]} ${s.layers[res.targetLayer]?.name}】收录！`, 3.8, 'prompt');
       updateUI();
       return;
     }
-    const msg = `${res.message} 请亲手【滚轮${dir}】（或点左上角 ${layerSymbols[res.targetLayer]}）切至该层！`;
-    scene.pendingLayerPrompt = { targetId: null, targetLayer: res.targetLayer, atNode: s.node, kind: 'anomaly', message: msg };
-    showTransient(msg, 3.4, 'prompt');
+    const anomProg = scene.explorationRadar.roomProgress(s);
+    const revealExplicit = onboarding.shouldRevealExplicitLayerHint(s, {
+      hintRequested: !!guide.present(s).companionGuide,
+      totalAnomaliesCollected: anomProg.totalCollected,
+    });
+    const promptInfo = {
+      targetId: null,
+      anomalyId: res.item.id,
+      anomalyName: res.item.name,
+      targetLayer: res.targetLayer,
+      atNode: s.node,
+      kind: 'anomaly',
+    };
+    const msg = buildLayerShiftPromptMessage(s, promptInfo, revealExplicit);
+    scene.pendingLayerPrompt = { ...promptInfo, message: msg };
+    showTransient(msg, 3.6, 'prompt');
     updateUI();
     return;
   }
-  if (res.status === 'collected') {
-    model.collectAnomaly(res.item.id);
-    scene.spawnBurst(res.item.x, res.item.y, '#fbbf24', 26, 1.15);
-    showTransient(res.message, 4.0, 'anomaly');
-    if ($('anomaly-lore-box')) {
-      $('anomaly-lore-box').hidden = false;
-      setText('anomaly-lore-title', `✦ 已收录四维奇物：【${res.item.name}】 (+${res.bonus}◆)`);
-      setText('anomaly-lore-text', res.item.lore);
-    }
-    consumeEvents();
-    updateUI();
-  }
+  collectMaterializedAnomaly(res);
 }
 
 const scene = new SceneRenderer($('scene'), {
@@ -724,7 +817,7 @@ function updateRoom(state) {
     const row=document.createElement('div');row.className='mechanism-item';row.dataset.mechanism=id;
     row.style.cursor = 'pointer';
     row.addEventListener('click', () => selectFromPanel(id));
-    row.innerHTML=`<span class="node-light" aria-hidden="true">${numBadges[idx] || '◇'}</span><span class="mechanism-name"><b>${numBadges[idx] || ''}</b> ${node.name}<span class="supply-slots">${(node.required || []).map(source=>{const from=state.nodes.find(n=>n.id===source);return `<i data-source="${source}" title="来自${from.name}" style="--supply-color:${state.layers[from.layer].color}">○</i>`;}).join('')}</span></span><small></small>`;
+    row.innerHTML=`<span class="node-light" aria-hidden="true">${numBadges[idx] || '◇'}</span><span class="mechanism-name">${node.name}<span class="supply-slots">${(node.required || []).map(source=>{const from=state.nodes.find(n=>n.id===source);return `<i data-source="${source}" title="来自${from.name}" style="--supply-color:${state.layers[from.layer].color}">○</i>`;}).join('')}</span></span><small></small>`;
     return row;
   }));
   setText('challenge-name',state.roomChallenge?.name || '裂隙花匣');
@@ -765,6 +858,10 @@ function updateUI() {
   setText('seed-label',`#${state.seed.toString(16).toUpperCase().padStart(8,'0')}`);
   $('banked').textContent = state.banked;
   $('carried').textContent = state.carried;
+  if ($('carried-hint')) {
+    setText('carried-hint', shouldHoldEchoesAtHub(state) ? '到 ⚓ 归响台按 E 存入' : '回 ⚓ 归响台自动存入');
+  }
+  document.body.classList.toggle('first-run-pending', isFirstRun());
   if (state.banked > best) { best = state.banked; savePreference('wslice-best',best); }
   setHTML('best-score',`${best} <small>回响</small>`);
   [...$('lives').children].forEach((el,i) => el.classList.toggle('empty',i >= state.lives));
@@ -1017,11 +1114,12 @@ function updateUI() {
   const hasNonStarterRelic = relicHud.items.some(item => item.id !== 'shell');
   if ($('risk-decision-bar')) {
     const showRiskDecision = (stageInfo.stage >= 3 || hasNonStarterRelic) &&
-      riskPreview.available && riskPreview.isNovel && !activePrompt &&
+      riskPreview.available && riskPreview.isNovel &&
+      (!activePrompt || activePrompt.kind === 'anomaly') &&
       relicHud.readyAbility?.id !== 'prism';
     $('risk-decision-bar').hidden = !showRiskDecision;
     if (showRiskDecision) {
-      setText('risk-decision-title', `通往「${riskPreview.toName}」的新桥已连通：稳妥走 (+1◆) 还是冒险冲 (+3◆)？`);
+      setText('risk-decision-title', `通往「${riskPreview.toName}」新桥 · 首通⚡冒险 ${riskPreview.bonusLabel}`);
       setText('risk-decision-sub', `首次⚡冒险过桥可获：${riskPreview.bonusLabel}（过桥时顺着金色波浪微调滚轮）`);
       const extraTag = riskPreview.chargesPrism ? ' · ◇蓄能+1' : riskPreview.chargesWeave ? ' · ❋桥种+1' : riskPreview.awakensFlowerBridge ? ' · 🌺唤醒花桥' : '';
       setText('risk-go-btn', `⚡ 冒险冲过去 (+3◆${extraTag})`);
@@ -1029,13 +1127,16 @@ function updateUI() {
     }
   }
   if ($('relic-hud-bar')) {
-    const showRelicHud = stageInfo.stage >= 3 || !!relicHud.readyAbility || !!relicHud.positioningHint || hasNonStarterRelic;
+    // Starter 缓落壳 shield is already displayed in #lives; only show #relic-hud-bar when
+    // active/relay relics, ready abilities, or tactical positioning hints are present.
+    const showRelicHud = hasNonStarterRelic || !!relicHud.readyAbility || !!relicHud.positioningHint;
     $('relic-hud-bar').hidden = !showRelicHud;
     if (showRelicHud) {
-      const nextHudKey = JSON.stringify([relicHud.items, relicHud.positioningHint]);
+      const visibleItems = hasNonStarterRelic ? relicHud.items.filter(item => item.id !== 'shell') : relicHud.items;
+      const nextHudKey = JSON.stringify([visibleItems, relicHud.positioningHint]);
       if (relicHudKey !== nextHudKey && $('relic-chips')) {
         relicHudKey = nextHudKey;
-        const chips = relicHud.items.map(item => {
+        const chips = visibleItems.map(item => {
           const span = document.createElement('span');
           span.className = `relic-chip${item.available ? ' ready' : item.charged ? ' charged' : ''}`;
           span.innerHTML = `<span class="relic-chip-icon" aria-hidden="true">${item.icon}</span><strong>${item.name} ${item.rankSymbol}</strong><small>${item.statusText}</small>`;
@@ -1401,7 +1502,20 @@ $('unlock-all-btn')?.addEventListener('click', () => {
   $('announcement').textContent = transient;
   updateUI();
 });
-for(const button of document.querySelectorAll('.layer-controls [data-layer]'))button.addEventListener('click',()=>{if(canAct())manualSwitchLayer(Number(button.dataset.layer), 'button');});
+for (const button of document.querySelectorAll('.layer-controls [data-layer]')) {
+  const idx = Number(button.dataset.layer);
+  button.addEventListener('click', () => { if (canAct()) manualSwitchLayer(idx, 'button'); });
+  button.addEventListener('pointerenter', () => {
+    if (!button.disabled) {
+      scene.previewLayer = idx;
+      button.classList.add('preview-hover');
+    }
+  });
+  button.addEventListener('pointerleave', () => {
+    if (scene.previewLayer === idx) scene.previewLayer = null;
+    button.classList.remove('preview-hover');
+  });
+}
 $('sound').addEventListener('click',()=>{ soundEnabled = !soundEnabled; audio.setEnabled(soundEnabled); unlockAudio(); savePreference('wslice-sound',soundEnabled?'on':'off'); updateSoundButton(); });
 function pauseGame() { if(model.snapshot().phase!=='playing'||isModal())return; paused=true; $('pause-dialog').showModal(); syncAudio(); }
 function resumeGame() { $('pause-dialog').close(); paused=false; lastFrame=performance.now(); syncAudio(); $('w-slider').focus({preventScroll:true}); }
@@ -1465,7 +1579,7 @@ initHyperLab({
 let lastPageScrollAt = -Infinity;
 window.addEventListener('scroll', () => { lastPageScrollAt = performance.now(); }, { passive: true });
 
-$('scene').addEventListener('wheel', e => {
+($('scene').parentElement || $('scene')).addEventListener('wheel', e => {
   if (!canAct()) return;
   if (e.ctrlKey || e.metaKey) return;
   const now = performance.now();

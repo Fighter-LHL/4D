@@ -135,10 +135,22 @@ kbd{font:10px GameSans,sans-serif;opacity:.6;border:1px solid currentColor;borde
 .hyper-lab-controls output{color:#ffd269;font-size:14px;min-width:48px;font-variant-numeric:tabular-nums}
 .hyper-lab-controls .primary-button{padding:9px 16px;background:linear-gradient(135deg,#2a8ca2,#2b6b59);border:1px solid rgba(114,229,242,.4)}
 
-body[data-theme="astral"]{--paper:#091119;--card:#0f1c28;--ink:#e5f2ee;--muted:#88a4b0;--green:#45c4a0;--line:#1f3647;--amber:#f0b24a;--slice:#63d2e8;--danger:#ea6c52;--gold:#ffd269;color-scheme:dark;background:radial-gradient(circle at 20% 0%,#112434 0%,#091119 65%)}
-body[data-theme="astral"] .icon-button:hover,body[data-theme="astral"] .levels button:hover:not(:disabled),body[data-theme="astral"] .hold-button:hover,body[data-theme="astral"] .action-button:hover:not(:disabled){background:#172a3a}
+body{color:var(--ink)}
+body[data-theme="astral"]{--paper:#091119;--card:#0f1c28;--ink:#eaf6f3;--muted:#9ab6c2;--green:#4dd2ac;--line:#223c4f;--amber:#f3b852;--slice:#69d8ee;--danger:#ef745a;--gold:#ffd269;color:var(--ink);color-scheme:dark;background:radial-gradient(circle at 20% 0%,#122738 0%,#091119 68%)}
+body[data-theme="astral"] .brand,body[data-theme="astral"] h1{color:#f2fbf9}
+body[data-theme="astral"] .topbar .icon-button,body[data-theme="astral"] .topbar a.icon-button{color:#d5ecf2;border:1px solid rgba(125,182,204,.22);background:rgba(16,31,44,.58)}
+body[data-theme="astral"] .topbar .icon-button:hover:not(:disabled),body[data-theme="astral"] .topbar a.icon-button:hover,body[data-theme="astral"] .icon-button:hover,body[data-theme="astral"] .levels button:hover:not(:disabled),body[data-theme="astral"] .hold-button:hover,body[data-theme="astral"] .action-button:hover:not(:disabled){background:#1a3246;border-color:#499eb0;color:#ffffff}
 body[data-theme="astral"] .prism-button{background:linear-gradient(135deg,#153142 0%,#261e3d 52%,#332714 100%);border-color:#499eb0;color:#8be8f5}
-body[data-theme="astral"] .visitor-goal,body[data-theme="astral"] .hint{background:rgba(15,29,41,.92);border-color:#2d5d6e;color:#9be7f2}
+body[data-theme="astral"] .control-guide,body[data-theme="astral"] .companion-hint,body[data-theme="astral"] .intro-text{color:#a8c5d1}
+body[data-theme="astral"] .fine-button[aria-pressed=true],body[data-theme="astral"] .hold-button.active{background:#143242;border-color:var(--slice);color:#9be7f5}
+body[data-theme="astral"] .action-button.accent{background:#221b38;border-color:#7c63ab;color:#dfd0ff}
+body[data-theme="astral"] .stars li.earned{background:#292010;border-color:#c89333;color:#fde68a}
+body[data-theme="astral"] .visitor-goal,body[data-theme="astral"] .hint{background:rgba(15,29,41,.92);border-color:#356f84;color:#9be7f2}
 body[data-theme="astral"] .friend-card{background:#132230;border-color:#243e52}
 body[data-theme="astral"] .friend-card.found{background:#172a3a}
+body[data-theme="astral"] .garden-memories span{background:#132432;color:#9ab6c2}
+body[data-theme="astral"] .garden-memories .sprouting{background:#2b2212;color:#f5c86b}
+body[data-theme="astral"] .garden-memories .bloomed{background:#123328;color:#8cf0cf}
+body[data-theme="astral"] .garden-keepsake{background:#112b24;border-color:#2d6e5e;color:#9ef5d8}
+body[data-theme="astral"] .garden-keepsake small{color:#8eb8ab}
 @media(max-width:640px){.hyper-lab-dialog{padding:18px}.hyper-lab-canvas{height:230px}.hyper-lab-controls{grid-template-columns:1fr auto;gap:8px}.hyper-lab-controls .primary-button{grid-column:1/-1}}

@@ -100,6 +100,14 @@ export function mechanismFeedback(event, state, { hasSupplySlots = false } = {})
     if (!event.complete) return hasSupplySlots ? '' : `${name}供能 ${event.received}/${event.required} · 还差一路`;
     // At the receiver, its activation CTA is enough; keep the remote arrival cue.
     if (state.node === event.to && courtyardActions(state).primary === 'interact') return '';
+    const current = state.nodes?.find(n => n.id === state.node);
+    const receiver = state.nodes?.find(n => n.id === event.to);
+    const sameSpot = current && receiver && !current.anchor && !receiver.anchor &&
+      current.world && receiver.world &&
+      Math.abs(current.world.x - receiver.world.x) < 1e-4 &&
+      Math.abs(current.world.y - receiver.world.y) < 1e-4 &&
+      Math.abs(current.world.z - receiver.world.z) < 1e-4;
+    if (sameSpot) return `${name}供能到齐 · 原地滚轮换层即可点亮`;
     return `${name}供能到齐 · 点它前往点亮`;
   }
   return '';
