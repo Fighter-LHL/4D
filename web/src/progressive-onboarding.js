@@ -284,6 +284,7 @@ export function describeNextStep(state) {
   const twinSym = litTwin ? stepBadge(state, litTwin.id) : '';
 
   if (state.node === goalId && goal && (goal.anchor || goal.layer === state.layer)) {
+    if (!goal.anchor && goal.present === false) return sliceRecover(state, sym, goalId);
     if (goalId === 'exit') {
       return { goalId, action: 'done', banner: '已到🚪，点击过关', detail: '三座机关都已点亮，点击出口即可过关。', targetId: goalId, layer: state.layer };
     }
@@ -298,13 +299,27 @@ export function describeNextStep(state) {
   const stackNote = litTwin
     ? `${sym}和${twinSym}叠在同一位置的不同层，换层后${sym}才会出现。`
     : '';
+  const goalReachableInCurrentLayer = !plan.shift && Boolean(goal && !goal.anchor && goal.layer === state.layer);
 
   const onShiftAnchor = plan.shift && plan.shift.at === state.node;
   if (plan.walk.length && !onShiftAnchor) {
     const step = plan.walk[0];
     const dest = byId(step.to);
-    if (sameLayerUnusable(state, dest)) return sliceRecover(state, sym, goalId);
     const goalVerb = sym === '🚪' ? '去🚪' : `点${sym}`;
+    if (sameLayerUnusable(state, dest)) {
+      if (goalReachableInCurrentLayer) return sliceRecover(state, sym, goalId);
+      if (dest && !dest.anchor) {
+        const key = STEP_LAYER_KEYS[state.layer] || '本层键';
+        return {
+          goalId,
+          action: 'recover',
+          banner: `按${key}回中心再去换层${goalVerb}`,
+          detail: `切片偏了，先按 ${key} 或点本层按钮回到本层中心，再前往换层点位${sym === '🚪' ? '走向🚪' : `点亮${sym}`}。${stackNote}`,
+          targetId: step.to,
+          layer: state.layer,
+        };
+      }
+    }
     if (dest?.anchor && dest.id !== state.node) {
       const place = anchorHintName(dest);
       const hereName = here?.anchor ? anchorHintName(here) : '';
@@ -341,6 +356,15 @@ export function describeNextStep(state) {
     const layer = plan.shift.layer;
     const arrow = dir(layer);
     const mark = roman(layer);
+    if (plan.shift.kind === 'recover') {
+      const goalVerb = sym === '🚪' ? '去🚪' : `点${sym}`;
+      return {
+        goalId, action: 'shift',
+        banner: `${arrow}回${mark}站稳，再${goalVerb}`,
+        detail: `脚下平台只在${mark}层存在。先${arrow}回${mark}层站稳，再继续换层前往${sym}。${stackNote}`,
+        targetId: state.node, layer,
+      };
+    }
     if (plan.shift.kind === 'same_xyz') {
       const fromSym = stepBadge(state, plan.shift.at) || twinSym || '①';
       return {
@@ -361,7 +385,7 @@ export function describeNextStep(state) {
     };
   }
 
-  if (sameLayerUnusable(state, goal)) return sliceRecover(state, sym, goalId);
+  if (goalReachableInCurrentLayer && sameLayerUnusable(state, goal)) return sliceRecover(state, sym, goalId);
   return {
     goalId, action: 'move',
     banner: goalId === 'exit' ? '点击🚪过关' : `点击${sym}，走过去点亮`,

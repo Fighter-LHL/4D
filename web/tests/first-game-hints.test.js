@@ -172,3 +172,87 @@ test('planLayerRoute still walks to the anchor that actually holds the bridge', 
   assert.ok(plan.walk.length > 0, 'walks on the current layer before switching at the wrong anchor');
   assert.equal(plan.shift.at, 'relay');
 });
+
+test('drifting W after lighting ① never claims an off-layer ② is still on the current layer', () => {
+  const model = start('shell', 2);
+  light(model, 'dew');
+  const baseline = describeNextStep(model.snapshot());
+  assert.equal(baseline.goalId, 'bloom');
+  assert.equal(baseline.banner, '去归响台换层点②');
+
+  for (const driftedW of [0.93, 0.99, 1.0, 0.70]) {
+    model.setW(driftedW);
+    const state = model.snapshot();
+    const bloom = state.nodes.find(node => node.id === 'bloom');
+    assert.equal(state.layer, 2, `w=${driftedW} stays in layer 2`);
+    assert.equal(bloom.layer, 1);
+    assert.equal(bloom.present, false, `bloom is not visible at w=${driftedW}`);
+    const step = describeNextStep(state);
+    assert.equal(step.goalId, 'bloom');
+    assert.notEqual(step.action, 'recover', `w=${driftedW} must not emit same-layer recover for off-layer ②: ${step.banner}`);
+    assert.doesNotMatch(step.banner, /回中心见②/);
+    assert.doesNotMatch(step.detail, /还在这一层/);
+    assert.equal(step.banner, '去归响台换层点②');
+    assert.equal(step.targetId, 'hub');
+    assert.equal(step.layer, bloom.layer);
+    assert.ok(step.banner.length <= 20, step.banner);
+    assert.ok(!step.banner.includes('①'), step.banner);
+  }
+
+  const centerW = model.snapshot().layers[model.snapshot().layer].center;
+  model.setW(centerW);
+  const centered = describeNextStep(model.snapshot());
+  assert.equal(centered.banner, '去归响台换层点②');
+  assert.equal(centered.action, 'move');
+  assert.equal(centered.targetId, 'hub');
+
+  // Once the player actually walks to the hub and enters ②'s own layer, drifting W within
+  // that layer DOES legitimately offer same-layer center recovery for ②.
+  reach(model, 'hub');
+  const bloomLayer = model.snapshot().nodes.find(node => node.id === 'bloom').layer;
+  model.setW(model.snapshot().layers[bloomLayer].center);
+  model.setW(0.35);
+  const onBloomLayerDrifted = model.snapshot();
+  assert.equal(onBloomLayerDrifted.layer, bloomLayer);
+  assert.equal(onBloomLayerDrifted.nodes.find(node => node.id === 'bloom').present, false);
+  const legitRecover = describeNextStep(onBloomLayerDrifted);
+  assert.equal(legitRecover.action, 'recover');
+  assert.equal(legitRecover.banner, '按X回中心见②');
+  assert.match(legitRecover.detail, /②还在这一层/);
+  model.setW(onBloomLayerDrifted.layers[onBloomLayerDrifted.layer].center);
+  assert.equal(model.snapshot().nodes.find(node => node.id === 'bloom').present, true);
+});
+
+test('seed 5 drifting W after lighting ① never claims an off-layer goal is on the current layer', () => {
+  const model = start('shell', 5);
+  const first = model.snapshot().mechanismOrder[0];
+  light(model, first);
+  const originW = model.snapshot().w;
+  assert.equal(model.snapshot().layer, 0);
+  assert.equal(describeNextStep(model.snapshot()).banner, '去归响台换层点②');
+
+  for (const driftedW of [0, 0.01, 0.07, 0.30, 0.339, 0.35, 0.70, 0.93, 1.0]) {
+    model.setW(originW);
+    model.setW(driftedW);
+    const state = model.snapshot();
+    const step = describeNextStep(state);
+    const goal = state.nodes.find(node => node.id === step.goalId);
+    const sym = badgeOf(state, step.goalId);
+    assert.ok(step.banner && step.banner.length <= 20, `w=${driftedW}: ${step.banner}`);
+    assert.equal(state.activated.includes(step.goalId), false);
+    assert.ok(step.banner.includes(sym), `w=${driftedW}: "${step.banner}" names ${sym}`);
+    if (goal.layer !== state.layer) {
+      assert.doesNotMatch(step.banner, /回中心见/, `w=${driftedW}: off-layer goal claimed at center (${step.banner})`);
+      assert.doesNotMatch(step.detail, /还在这一层/, `w=${driftedW}: off-layer goal claimed on current layer (${step.detail})`);
+    }
+    if (driftedW < 0.34) {
+      assert.equal(state.layer, 0);
+      assert.equal(step.banner, '去归响台换层点②');
+      assert.equal(step.action, 'move');
+      assert.equal(step.targetId, 'hub');
+    }
+  }
+
+  model.setW(originW);
+  assert.equal(describeNextStep(model.snapshot()).banner, '去归响台换层点②');
+});

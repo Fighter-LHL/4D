@@ -4,6 +4,7 @@
 // (c) Space after closing Help or cancelling Restart does not reopen the dialog
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import net from 'node:net';
@@ -90,9 +91,11 @@ const receipt = {
   consoleErrors: [],
   pageErrors: [],
 };
+const defaultChrome = existsSync('/usr/local/bin/google-chrome') ? '/usr/local/bin/google-chrome' : undefined;
+const executablePath = process.env.PLAYWRIGHT_EXECUTABLE_PATH || defaultChrome;
 const browser = await chromium.launch({
   headless: true,
-  executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH || '/usr/local/bin/google-chrome',
+  ...(executablePath ? { executablePath } : {}),
 });
 receipt.browserVersion = browser.version();
 
@@ -389,6 +392,47 @@ try {
       assert.ok(onHub.title.includes('②'), onHub.title);
       assert.match(onHub.desc, /就在归响台/);
       receipt.checks.push({ viewport: vpKey, check: 'named-anchor-hint', onRelay: onRelay.title, onHub: onHub.title, passed: true });
+      await context.close();
+    }
+
+    // Stage 2 drifted W: after lighting ①, pressing D past the bridge range (~0.93+) must NOT
+    // falsely claim off-layer ② is on the current layer, and clearByHints still clears Room 0.
+    {
+      const { context, page } = await openCold(vp);
+      const initial = await read(page);
+      const firstId = initial.state.mechanismOrder[0];
+      await clickNode(page, firstId);
+      await page.waitForFunction(id => {
+        const g = window.__g();
+        return g.state.activated.includes(id) && !g.state.travel && !g.autoPilot && g.stage >= 2;
+      }, firstId, { timeout: 15000 });
+      for (let i = 0; i < 9; i++) await page.keyboard.press('d');
+      await page.waitForTimeout(80);
+      const drifted = await read(page);
+      const driftedHint = await hintOf(page);
+      const secondId = drifted.state.mechanismOrder[1];
+      const secondNode = drifted.state.nodes.find(node => node.id === secondId);
+      assert.ok(drifted.stage >= 2, `${vpKey}: in Stage >= 2 after lighting ① (got ${drifted.stage})`);
+      assert.ok(drifted.state.w >= 0.93, `${vpKey}: repeated D pushed W >= 0.93 (got ${drifted.state.w})`);
+      assert.equal(drifted.state.layer, 2, `${vpKey}: still in layer 2 at w=${drifted.state.w}`);
+      assert.notEqual(secondNode.layer, drifted.state.layer, `${vpKey}: ② is on another layer (${secondNode.layer})`);
+      assert.equal(secondNode.present, false, `${vpKey}: ② is not present at w=${drifted.state.w}`);
+      assert.notEqual(driftedHint.action, 'recover', `${vpKey}: must not emit recover for off-layer ② ("${driftedHint.title}")`);
+      assert.doesNotMatch(driftedHint.title, /回中心见②/, `${vpKey}: title must not say 回中心见② ("${driftedHint.title}")`);
+      assert.doesNotMatch(driftedHint.desc, /②还在这一层|还在这一层/, `${vpKey}: desc must not claim ②还在这一层 ("${driftedHint.desc}")`);
+      assert.ok(driftedHint.title.includes('②'), `${vpKey}: hint still names ② ("${driftedHint.title}")`);
+      assert.ok(driftedHint.title.length <= 20, `${vpKey}: banner <= 20 chars ("${driftedHint.title}")`);
+      receipt.checks.push({
+        viewport: vpKey,
+        check: 'stage2-drifted-w-off-layer-goal',
+        w: +drifted.state.w.toFixed(3),
+        layer: drifted.state.layer,
+        title: driftedHint.title,
+        action: driftedHint.action,
+        passed: true,
+      });
+      await clearByHints(page, vp);
+      receipt.checks.push({ viewport: vpKey, check: 'stage2-drifted-w-then-clear', passed: true });
       await context.close();
     }
 
