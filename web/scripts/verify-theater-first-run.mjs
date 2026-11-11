@@ -250,12 +250,25 @@ try {
         .filter(el => !el.hidden && getComputedStyle(el).display !== 'none')
         .map(el => ({ id: el.id || el.tagName, ...rect(el) }));
       const openDialogs = [...document.querySelectorAll('dialog[open]')].map(d => d.id);
+      const descEl = document.getElementById('onboarding-desc');
+      const titleEl = document.getElementById('onboarding-title');
+      const posEl = document.getElementById('position-readout');
+      const captionEl = document.querySelector('.scene-caption');
       return {
         isTheater: document.documentElement.classList.contains('theater'),
         storedTheater: localStorage.getItem('wslice-theater'),
         storedFirstRunDone: localStorage.getItem('wslice-first-run-done'),
+        firstRunAttr: document.body.dataset.firstRun,
+        stageAttr: document.body.dataset.onboardingStage,
         openDialogs,
         runPanelInert: document.getElementById('run-panel').hasAttribute('inert'),
+        onboardingDescDisplay: getComputedStyle(descEl).display,
+        onboardingTitle: titleEl?.textContent?.trim() || '',
+        chaptersOffsetParent: document.getElementById('open-chapters')?.offsetParent ?? null,
+        codexOffsetParent: document.getElementById('open-codex')?.offsetParent ?? null,
+        sceneCaptionDisplay: captionEl ? getComputedStyle(captionEl).display : 'none',
+        posReadoutRect: rect(posEl),
+        posReadoutText: posEl?.textContent || '',
         topbar: rect(topbarEl),
         navItems,
         canvas: rect(document.getElementById('scene')),
@@ -268,6 +281,23 @@ try {
     assert.equal(coldBoot.storedTheater, null, `${vpKey}: wslice-theater is unset on cold boot`);
     assert.equal(coldBoot.storedFirstRunDone, null, `${vpKey}: wslice-first-run-done is unset on cold boot`);
     assert.equal(coldBoot.isTheater, true, `${vpKey}: cold boot lands in html.theater layout`);
+    assert.equal(coldBoot.firstRunAttr, 'true', `${vpKey}: body[data-first-run="true"] set on cold boot`);
+    assert.equal(coldBoot.stageAttr, '1', `${vpKey}: body[data-onboarding-stage="1"] set on cold boot`);
+    assert.equal(coldBoot.onboardingDescDisplay, 'none', `${vpKey}: #onboarding-desc is NOT auto-popped on cold boot`);
+    assert.ok(coldBoot.onboardingTitle.length > 0 && coldBoot.onboardingTitle.length <= 20,
+      `${vpKey}: #onboarding-title length (${coldBoot.onboardingTitle.length}) <= 20 ("${coldBoot.onboardingTitle}")`);
+    assert.ok(coldBoot.onboardingTitle.includes('①'), `${vpKey}: Stage 1 #onboarding-title references ①`);
+    assert.equal(coldBoot.chaptersOffsetParent, null, `${vpKey}: #open-chapters hidden on cold-boot Stage 1`);
+    assert.equal(coldBoot.codexOffsetParent, null, `${vpKey}: #open-codex hidden on cold-boot Stage 1`);
+    assert.deepEqual(
+      coldBoot.navItems.map(i => i.id),
+      ['panel-toggle', 'sound', 'help', 'restart'],
+      `${vpKey}: cold-boot Stage 1 topbar shows only 4 essential controls`,
+    );
+    assert.equal(coldBoot.sceneCaptionDisplay, 'none', `${vpKey}: .scene-caption hidden in theater mode`);
+    assert.ok(coldBoot.posReadoutRect.width <= 1 && coldBoot.posReadoutRect.height <= 1,
+      `${vpKey}: #position-readout visually clipped in theater mode`);
+    assert.ok(coldBoot.posReadoutText.includes('W '), `${vpKey}: #position-readout retains live textContent`);
     assert.deepEqual(coldBoot.openDialogs, [], `${vpKey}: zero modal blockers on first-run cold boot`);
     assert.equal(g0.state.phase, 'playing', `${vpKey}: state.phase is immediately 'playing'`);
     assert.equal(g0.state.room, 0, `${vpKey}: starts in Room 0`);
@@ -312,6 +342,20 @@ try {
       `${vpKey}: #layer-controls has hidden=true at Stage 1`);
     assert.equal(await page.locator('#layer-controls').isVisible(), false,
       `${vpKey}: #layer-controls is not visible at Stage 1`);
+
+    // Explicit click on .onboarding-main opens and closes #onboarding-desc cleanly
+    await page.locator('#onboarding-banner .onboarding-main').click();
+    assert.equal(
+      await page.evaluate(() => getComputedStyle(document.getElementById('onboarding-desc')).display),
+      'block',
+      `${vpKey}: clicking .onboarding-main explicitly opens #onboarding-desc`,
+    );
+    await page.locator('#onboarding-banner .onboarding-main').click();
+    assert.equal(
+      await page.evaluate(() => getComputedStyle(document.getElementById('onboarding-desc')).display),
+      'none',
+      `${vpKey}: second click on .onboarding-main closes #onboarding-desc`,
+    );
 
     const sceneBeforeDrawer = await sceneBox(page);
     await page.locator('#panel-toggle').click();
@@ -372,6 +416,13 @@ try {
 
     const gStage2 = await read(page);
     assert.ok(gStage2.stage >= 2, `${vpKey}: lighting mechanism ① advances onboarding to Stage >= 2 (got ${gStage2.stage})`);
+    const stage2Hud = await page.evaluate(() => ({
+      descDisplay: getComputedStyle(document.getElementById('onboarding-desc')).display,
+      title: document.getElementById('onboarding-title')?.textContent?.trim() || '',
+    }));
+    assert.equal(stage2Hud.descDisplay, 'none', `${vpKey}: Stage 2 transition does not auto-pop #onboarding-desc`);
+    assert.ok(stage2Hud.title.length > 0 && stage2Hud.title.length <= 20,
+      `${vpKey}: Stage 2 #onboarding-title length (${stage2Hud.title.length}) <= 20 ("${stage2Hud.title}")`);
     assert.equal(await page.locator('#layer-controls').evaluate(el => el.hidden), false,
       `${vpKey}: #layer-controls is unhidden at Stage 2`);
     assert.equal(await page.locator('#layer-controls').isVisible(), true,
