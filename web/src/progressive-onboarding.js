@@ -188,6 +188,15 @@ function stepBadge(state, id) {
   return index >= 0 ? (STEP_BADGES[index] || String(index + 1)) : '';
 }
 
+function anchorHintName(node) {
+  if (!node) return '⚓台';
+  if (node.id === 'hub') return '归响台';
+  if (node.id === 'relay') return '维度锚台';
+  if (node.id === 'vault') return '花匣台';
+  if (node.id === 'ferry') return '星舟';
+  return node.name || '⚓台';
+}
+
 function sharesSpot(a, b) {
   return !!(a?.world && b?.world &&
     Math.abs(a.world.x - b.world.x) < 1e-4 &&
@@ -242,21 +251,25 @@ export function describeNextStep(state) {
     ? `${sym}和${twinSym}叠在同一位置的不同层，换层后${sym}才会出现。`
     : '';
 
-  if (plan.walk.length) {
+  const onShiftAnchor = plan.shift && plan.shift.at === state.node;
+  if (plan.walk.length && !onShiftAnchor) {
     const step = plan.walk[0];
     const dest = byId(step.to);
     const goalVerb = sym === '🚪' ? '去🚪' : `点${sym}`;
-    if (dest?.anchor && plan.shift) {
+    if (dest?.anchor && dest.id !== state.node) {
+      const place = anchorHintName(dest);
+      const hereName = here?.anchor ? anchorHintName(here) : '';
+      const which = hereName && hereName !== place ? `脚下是${hereName}，要去${place}。` : `要去的是${place}。`;
+      if (plan.shift) {
+        return {
+          goalId, action: 'move', banner: `去${place}换层${goalVerb}`,
+          detail: `${which}到了${place}再换层，通往${sym}的桥才会出现。${stackNote}`,
+          targetId: step.to, layer: plan.shift.layer,
+        };
+      }
       return {
-        goalId, action: 'move', banner: `先回⚓台，再换层${goalVerb}`,
-        detail: `先走回⚓台，再换层让通往${sym}的桥显形。${stackNote}`,
-        targetId: step.to, layer: plan.shift.layer,
-      };
-    }
-    if (dest?.anchor) {
-      return {
-        goalId, action: 'move', banner: `前往⚓台，再${goalVerb}`,
-        detail: `先走到下一座⚓台，再前往${sym}。`,
+        goalId, action: 'move', banner: `去${place}，再${goalVerb}`,
+        detail: `${which}先走到${place}，再前往${sym}。`,
         targetId: step.to, layer: state.layer,
       };
     }
@@ -292,7 +305,9 @@ export function describeNextStep(state) {
     return {
       goalId, action: 'shift',
       banner: shiftBanner,
-      detail: `在⚓台${arrow}到${mark}层，或直接点${mark}。通往${sym}的桥会显形。${stackNote}`,
+      detail: here?.anchor
+        ? `就在${anchorHintName(here)}，${arrow}到${mark}层，或直接点${mark}。通往${sym}的桥会显形。${stackNote}`
+        : `在⚓台${arrow}到${mark}层，或直接点${mark}。通往${sym}的桥会显形。${stackNote}`,
       targetId: state.node, layer,
     };
   }

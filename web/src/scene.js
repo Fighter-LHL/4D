@@ -2820,6 +2820,12 @@ export class SceneRenderer {
     if (stage >= 2) {
       // Anchor labels already carry ⚓; their tags appear only when they are the next step or hovered.
       const anchorFocus = id => focusNodeId === id && hint?.at?.id === id;
+      const guideId = this.nextStepHint?.tutorial && this.nextStepHint.action === 'move' ? this.nextStepHint.targetId : null;
+      const guideAnchor = guideId && guideId !== s.node ? this.node(guideId) : null;
+      if (guideAnchor?.anchor) {
+        const place = guideAnchor.id === 'hub' ? '去归响台' : guideAnchor.id === 'relay' ? '去维度锚台' : `去${guideAnchor.name}`;
+        drawCompactBadge(guideAnchor.x, guideAnchor.y - 66, place, '#152b28ee', '#5eead4', '#ccfbf1');
+      }
       const hubNode = this.node('hub');
       if (hubNode && s.node !== 'hub' && (anchorFocus('hub') || hoverId === 'hub')) {
         const hubText = anchorFocus('hub')

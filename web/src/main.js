@@ -134,7 +134,7 @@ function handleScrubW(w, { phase = 'move', velocity = 0 } = {}) {
   }
   if (phase === 'move') {
     cancelScrubGlide();
-    action(() => model.scrubW(w));
+    action(() => model.scrubW(clampWToCurrentLayer(w)));
     return;
   }
   const session = scrubSession;
@@ -142,7 +142,7 @@ function handleScrubW(w, { phase = 'move', velocity = 0 } = {}) {
   if (!session) return;
   const s = model.snapshot();
   if (s.travel?.risky) { finishScrubSession(session); return; }
-  if (phase !== 'cancel') action(() => model.scrubW(w));
+  if (phase !== 'cancel') action(() => model.scrubW(clampWToCurrentLayer(w)));
   const after = model.snapshot();
   if (after.travel?.risky) { finishScrubSession(session); return; }
   const target = resolveScrubReleaseTarget(after, {
@@ -152,7 +152,7 @@ function handleScrubW(w, { phase = 'move', velocity = 0 } = {}) {
     beforeW: session.before.w,
   });
   if (scene.reducedMotion) {
-    action(() => model.scrubW(target));
+    action(() => model.scrubW(clampWToCurrentLayer(target)));
     finishScrubSession(session);
   } else {
     scrubGlide = { target, session };
@@ -353,11 +353,32 @@ function stepAutoPilot() {
   if (s.interactAvailable && s.node !== 'hub') action(() => model.interact());
 }
 
+function layerSwitchTaught() {
+  return (scene?.onboardingStage ?? 4) >= 2;
+}
+
+// Before layer switching is introduced, player W input may slide inside the
+// current slice but must not cross into another layer or count as the lesson.
+function clampWToCurrentLayer(nextW) {
+  if (layerSwitchTaught()) return nextW;
+  const s = model.snapshot();
+  const centers = (s.layers || []).map(layer => layer.center);
+  const index = s.layer;
+  if (!Number.isInteger(index) || centers[index] == null) return s.w;
+  const lo = index <= 0 ? 0 : (centers[index - 1] + centers[index]) / 2;
+  const hi = index >= centers.length - 1 ? 1 : (centers[index] + centers[index + 1]) / 2;
+  const eps = 0.001;
+  return Math.min(hi - eps, Math.max(lo + (index <= 0 ? 0 : eps), nextW));
+}
+
 function manualSwitchLayer(layerIdx, source = 'manual') {
   if (!canAct()) return;
   onboarding.recordActivity();
   const s = model.snapshot();
   if (layerIdx < 0 || layerIdx >= s.layers.length) return;
+  // Wheel, Z/X/C, layer buttons, the W stack, the lens and assist all come
+  // through here. None of them may change layer until the lesson starts.
+  if (!layerSwitchTaught() && !s.wave && layerIdx !== s.layer) return;
 
   // During a wave, switch directly to the player's chosen layer (requiring real judgment!)
   if (s.wave) {
@@ -1653,8 +1674,8 @@ function updateUI() {
   }
 }
 
-$('w-slider').addEventListener('input',e=>{ if(canAct()) { cancelScrubGlide(); action(()=>model.setW(Number(e.target.value))); } });
-$('align').addEventListener('click',()=>{ if(canAct()) { cancelScrubGlide(); action(()=>model.setW(model.snapshot().range?.center ?? .5)); } });
+$('w-slider').addEventListener('input',e=>{ if(canAct()) { cancelScrubGlide(); action(()=>model.setW(clampWToCurrentLayer(Number(e.target.value)))); } });
+$('align').addEventListener('click',()=>{ if(canAct()) { cancelScrubGlide(); action(()=>model.setW(clampWToCurrentLayer(model.snapshot().range?.center ?? .5))); } });
 $('safe-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(false)); if(e.detail>0) focusPlaySurface(); } });
 $('risk-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(true)); if(e.detail>0) focusPlaySurface(); } });
 $('move').addEventListener('click',()=>{ if(canAct()) { action(()=>model.move()); if(model.snapshot().travel) focusPlaySurface(); } });
@@ -1725,7 +1746,7 @@ $('vstep-move')?.addEventListener('click', () => {
   const g = s.companionGuide;
   if (g && g.kind === 'move') {
     action(() => {
-      if (!g.aligned && currentNode?.anchor) model.setW(g.w);
+      if (!g.aligned && currentNode?.anchor) model.setW(clampWToCurrentLayer(g.w));
       model.select(g.node);
       if (model.snapshot().canMove) model.move();
     });
@@ -1738,7 +1759,7 @@ $('vstep-act')?.addEventListener('click', () => {
   const s = model.snapshot();
   if (s.interactAvailable) action(() => model.interact());
   else if (s.companionGuide?.kind === 'activate' && !s.companionGuide.aligned) {
-    action(() => { model.setW(s.companionGuide.w); if (model.snapshot().interactAvailable) model.interact(); });
+    action(() => { model.setW(clampWToCurrentLayer(s.companionGuide.w)); if (model.snapshot().interactAvailable) model.interact(); });
   }
 });
 $('exit-step-card')?.addEventListener('click', () => {
@@ -2217,7 +2238,7 @@ initHyperLab({
   syncButton: $('hyper-lab-sync'),
   closeButtons: document.querySelectorAll('[data-close-hyper-lab]'),
   getW: () => model.snapshot().w,
-  setW: w => { if (model.snapshot().phase === 'playing') { model.setW(w); consumeEvents(); updateUI(); } },
+  setW: w => { if (model.snapshot().phase === 'playing') { model.setW(clampWToCurrentLayer(w)); consumeEvents(); updateUI(); } },
   onOpen: () => { paused = true; syncAudio(); },
   onClose: () => { paused = false; lastFrame = performance.now(); syncAudio(); },
 });
@@ -2314,7 +2335,7 @@ window.addEventListener('pointermove', e => {
   if (sceneDrag.moved && model.snapshot().travel?.risky) {
     const rect = $('scene').getBoundingClientRect();
     const nextW = sceneDrag.w + (dx / Math.max(180, rect.width)) * 0.65;
-    action(() => model.setW(nextW));
+    action(() => model.setW(clampWToCurrentLayer(nextW)));
   }
 });
 window.addEventListener('pointerup', () => {
@@ -2449,7 +2470,7 @@ document.addEventListener('keydown',e=>{
   }
   const activeModeToggle = (e.target === $('risk-mode') && model.snapshot().riskMode) || (e.target === $('safe-mode') && !model.snapshot().riskMode);
   if(e.target.matches('button,a')&&[' ','enter'].includes(key)&&!(key===' '&&activeModeToggle))return;
-  if(['a','d','arrowleft','arrowright'].includes(key)){e.preventDefault();cancelScrubGlide();action(()=>model.setW(model.snapshot().w+(['a','arrowleft'].includes(key)?-.015:.015)));}
+  if(['a','d','arrowleft','arrowright'].includes(key)){e.preventDefault();cancelScrubGlide();action(()=>model.setW(clampWToCurrentLayer(model.snapshot().w+(['a','arrowleft'].includes(key)?-.015:.015))));}
   else if(key===' '||key==='enter'){
     e.preventDefault();
     if (e.repeat) return;
@@ -2516,7 +2537,7 @@ function frame(now) {
       } else {
         const w = cur.w, target = scrubGlide.target;
         const next = Math.abs(target - w) < 1e-3 ? target : w + (target - w) * Math.min(1, dt * 14);
-        action(() => model.scrubW(next));
+        action(() => model.scrubW(clampWToCurrentLayer(next)));
         const applied = model.snapshot().w;
         const progressed = applied === target || Math.abs(applied - target) < Math.abs(w - target) - 1e-6;
         if (applied === target || !progressed) {

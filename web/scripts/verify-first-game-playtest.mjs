@@ -219,7 +219,82 @@ try {
       assert.ok(afterHint.badge.startsWith('1/4'), `${vpKey}: badge stays on step 1 (${afterHint.badge})`);
       assert.ok(afterHint.title.includes('①'), `${vpKey}: Stage 1 hint still targets ① ("${afterHint.title}")`);
       assert.equal(await page.locator('#layer-controls').evaluate(el => el.hidden), true, `${vpKey}: layer controls stay hidden`);
-      receipt.checks.push({ viewport: vpKey, check: 'stage1-wheel', layer: after.state.layer, stage: after.stage, passed: true });
+      for (const key of ['z', 'x', 'c']) {
+        await page.keyboard.press(key);
+        await page.waitForTimeout(120);
+      }
+      const keyed = await read(page);
+      const keyedHint = await hintOf(page);
+      assert.equal(keyed.state.layer, before.state.layer, `${vpKey}: Z/X/C do not change layer in Stage 1`);
+      assert.equal(keyed.state.w, before.state.w, `${vpKey}: Z/X/C do not change W in Stage 1`);
+      assert.equal(keyed.stage, 1, `${vpKey}: layer keys do not advance onboarding`);
+      assert.equal(keyedHint.stage, '1');
+      assert.ok(keyedHint.badge.startsWith('1/4'), keyedHint.badge);
+      for (let i = 0; i < 40; i++) await page.keyboard.press('a');
+      await page.waitForTimeout(80);
+      const nudged = await read(page);
+      assert.equal(nudged.state.layer, before.state.layer, `${vpKey}: holding A cannot cross into another layer in Stage 1`);
+      assert.equal(nudged.stage, 1, `${vpKey}: A does not advance onboarding`);
+      await page.keyboard.press('c');
+      await page.waitForTimeout(80);
+
+      await clickNode(page, before.state.mechanismOrder[0]);
+      await page.waitForFunction(id => {
+        const g = window.__g();
+        return g.state.activated.includes(id) && !g.state.travel && g.stage >= 2;
+      }, before.state.mechanismOrder[0], { timeout: 15000 });
+      if ((await read(page)).state.node !== 'hub') {
+        await clickNode(page, 'hub');
+        await page.waitForFunction(() => window.__g().state.node === 'hub' && !window.__g().state.travel, null, { timeout: 10000 });
+      }
+      const taught = await read(page);
+      await page.keyboard.press('z');
+      await page.waitForTimeout(250);
+      const switched = await read(page);
+      assert.equal(switched.state.layer, 0, `${vpKey}: after Stage 2, Z still switches to layer 0`);
+      assert.ok(switched.stage >= 2, `${vpKey}: Z after the lesson keeps stage ${switched.stage}`);
+      assert.notEqual(switched.state.layer, taught.state.layer);
+      receipt.checks.push({ viewport: vpKey, check: 'stage1-layer-inputs', stageBefore: 1, stageAfter: switched.stage, passed: true });
+      await context.close();
+    }
+
+    // Two anchors: the hint names the other one, and switches once you are standing on it.
+    {
+      const context = await browser.newContext({
+        viewport: { width: vp.width, height: vp.height },
+        hasTouch: vp.hasTouch,
+      });
+      await context.addInitScript(() => localStorage.clear());
+      await context.route('**/src/main.js', async route => {
+        const response = await route.fetch();
+        await route.fulfill({ response, body: await response.text() + observer });
+      });
+      const page = await context.newPage();
+      page.on('pageerror', err => receipt.pageErrors.push({ viewport: vpKey, message: err.message }));
+      await page.goto(`${server.baseUrl}/?seed=401491695`);
+      await page.waitForFunction(() => window.__g?.()?.state?.phase === 'playing', null, { timeout: 10000 });
+      await page.waitForTimeout(200);
+      const room = await read(page);
+      assert.equal(room.state.roomId, 'split', `${vpKey}: seed 401491695 is 分源架桥庭`);
+      const dew = room.state.mechanismOrder[0];
+      await clickNode(page, dew);
+      await page.waitForFunction(id => window.__g().state.activated.includes(id) && !window.__g().state.travel, dew, { timeout: 15000 });
+      await clickNode(page, 'relay');
+      await page.waitForFunction(() => window.__g().state.node === 'relay' && !window.__g().state.travel && !window.__g().autoPilot, null, { timeout: 15000 });
+      const onRelay = await hintOf(page);
+      assert.equal(onRelay.action, 'move', `${vpKey}: on 维度锚台 the next step is to leave (${onRelay.title})`);
+      assert.equal(onRelay.target, 'hub');
+      assert.ok(onRelay.title.includes('归响台'), `${vpKey}: hint names 归响台, got "${onRelay.title}"`);
+      assert.ok(!onRelay.title.includes('先回⚓台'), onRelay.title);
+      assert.ok(onRelay.title.includes('②'), onRelay.title);
+      await clickNode(page, 'hub');
+      await page.waitForFunction(() => window.__g().state.node === 'hub' && !window.__g().state.travel && !window.__g().autoPilot, null, { timeout: 15000 });
+      const onHub = await hintOf(page);
+      assert.equal(onHub.action, 'shift', `${vpKey}: on 归响台 the hint switches layers (${onHub.title})`);
+      assert.match(onHub.title, /上滚|下滚/);
+      assert.ok(onHub.title.includes('②'), onHub.title);
+      assert.match(onHub.desc, /就在归响台/);
+      receipt.checks.push({ viewport: vpKey, check: 'named-anchor-hint', onRelay: onRelay.title, onHub: onHub.title, passed: true });
       await context.close();
     }
 

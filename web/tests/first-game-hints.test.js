@@ -90,6 +90,43 @@ test('seed 2 next-step hint stays non-empty and never aims at a lit mechanism', 
   assert.ok(seen.length >= 7);
 });
 
+test('two anchors are named, and the anchor you already stand on says to switch there', () => {
+  const model = start('shell', 401491695);
+  assert.equal(model.snapshot().roomId, 'split');
+  light(model, 'dew');
+  reach(model, 'relay');
+  const onRelay = describeNextStep(model.snapshot());
+  assert.equal(onRelay.action, 'move');
+  assert.equal(onRelay.targetId, 'hub');
+  assert.equal(onRelay.goalId, 'bell');
+  assert.ok(onRelay.banner.includes('归响台'), `standing on 维度锚台 must name 归响台: ${onRelay.banner}`);
+  assert.ok(!onRelay.banner.includes('先回⚓台'), onRelay.banner);
+  assert.ok(onRelay.banner.length <= 20, onRelay.banner);
+  assert.match(onRelay.detail, /维度锚台/);
+  assert.match(onRelay.detail, /归响台/);
+
+  reach(model, 'hub');
+  const onHub = describeNextStep(model.snapshot());
+  assert.equal(onHub.action, 'shift', `already on 归响台 should switch here, got ${onHub.banner}`);
+  assert.equal(onHub.targetId, 'hub');
+  assert.match(onHub.banner, /滚/);
+  assert.ok(onHub.banner.includes('②'), onHub.banner);
+  assert.match(onHub.detail, /就在归响台/);
+
+  light(model, 'bell');
+  light(model, 'bloom');
+  reach(model, 'hub');
+  const toExit = describeNextStep(model.snapshot());
+  assert.equal(toExit.targetId, 'relay');
+  assert.ok(toExit.banner.includes('维度锚台'), toExit.banner);
+  assert.ok(!toExit.banner.includes('先回⚓台'), toExit.banner);
+  assert.ok(toExit.banner.length <= 20, `${toExit.banner} (${toExit.banner.length})`);
+  reach(model, 'relay');
+  const atRelay = describeNextStep(model.snapshot());
+  assert.equal(atRelay.action, 'shift');
+  assert.match(atRelay.detail, /就在维度锚台/);
+});
+
 test('planLayerRoute still walks to the anchor that actually holds the bridge', () => {
   const model = start('shell', 7);
   const first = model.snapshot().mechanismOrder[0];
