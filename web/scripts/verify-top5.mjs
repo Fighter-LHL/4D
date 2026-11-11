@@ -15,6 +15,7 @@ receipt.browserVersion = browser.version();
 try {
   for (const width of [1280, 390, 320]) {
     const context = await browser.newContext({ viewport: { width, height: width > 700 ? 900 : 844 }, reducedMotion: width === 320 ? 'reduce' : 'no-preference' });
+    await context.addInitScript(() => { try { localStorage.setItem('wslice-theater', 'classic'); } catch {} });
     await context.addInitScript(() => {
       window.__top5Labels = [];
       window.__top5EchoBounds = [];

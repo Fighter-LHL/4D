@@ -12,6 +12,7 @@ export const ROOM_TEMPLATES = [
       ['relay-exit', 'relay', 'exit', 2],
     ], vaultAfter: ['bell'],
     weaveAnchors: { dew: 'relay', bell: 'relay', bloom: 'hub' },
+    ferry: { a: 'bell', b: 'bloom' },
     shadows: [
       { sources: ['dew', 'bell'], edge: ['shadow-bell-relay', 'bell', 'relay', 1, { active: ['bell'] }] },
       { sources: ['bloom'], edge: ['shadow-bloom-exit', 'bloom', 'exit', 2] },
@@ -29,6 +30,7 @@ export const ROOM_TEMPLATES = [
       ['hub-relay', 'hub', 'relay', 1, { active: ['bell'] }], ['relay-exit', 'relay', 'exit', 1],
     ], vaultAfter: ['dew', 'bloom'],
     weaveAnchors: { dew: 'relay', bell: 'relay', bloom: 'relay' },
+    ferry: { a: 'dew', b: 'bloom' },
     shadows: [
       { sources: ['dew', 'bell'], edge: ['shadow-bell-relay', 'bell', 'relay', 1, { active: ['bell'] }] },
       { sources: ['bloom'], edge: ['shadow-bloom-relay', 'bloom', 'relay', 2, { active: ['bell'] }] },
@@ -46,6 +48,7 @@ export const ROOM_TEMPLATES = [
       ['relay-bloom', 'relay', 'bloom', 2, { active: ['bell'], escape: 'bloom' }], ['hub-exit', 'hub', 'exit', 0],
     ], vaultAfter: ['bell'],
     weaveAnchors: { dew: 'relay', bell: 'hub', bloom: 'hub' },
+    ferry: { a: 'dew', b: 'bell' },
     shadows: [
       { sources: ['dew'], edge: ['shadow-dew-relay', 'dew', 'relay', 0, { active: ['dew'] }] },
       { sources: ['bell', 'bloom'], edge: ['shadow-bloom-hub', 'bloom', 'hub', 2, { active: ['bell'] }] },
@@ -63,6 +66,7 @@ export const ROOM_TEMPLATES = [
       ['relay-bloom', 'relay', 'bloom', 2, { active: ['dew'] }], ['relay-exit', 'relay', 'exit', 2],
     ], vaultAfter: ['bell'],
     weaveAnchors: { dew: 'relay', bell: 'relay', bloom: 'hub' },
+    ferry: { a: 'bell', b: 'bloom' },
     shadows: [
       { sources: ['dew', 'bell'], edge: ['shadow-bell-relay', 'bell', 'relay', 1, { active: ['dew'] }] },
       { sources: ['bloom'], edge: ['shadow-bloom-exit', 'bloom', 'exit', 2] },
@@ -90,6 +94,7 @@ export const ADVANCED_TEMPLATES = [
     ],
     vaultAfter: ['bloom'],
     weaveAnchors: { dew: 'relay', bell: 'hub', bloom: 'relay' },
+    ferry: { a: 'dew', b: 'relay', bRole: 2 },
     shadows: [
       { sources: ['dew', 'bloom'], edge: ['shadow-bloom-relay', 'bloom', 'relay', 2, { active: ['bloom'] }] },
       { sources: ['bell'], edge: ['shadow-bell-hub', 'bell', 'hub', 1, { active: ['bell'] }] },
@@ -116,6 +121,7 @@ export const ADVANCED_TEMPLATES = [
     ],
     vaultAfter: ['dew', 'bloom'],
     weaveAnchors: { dew: 'relay', bell: 'relay', bloom: 'hub' },
+    ferry: { a: 'dew', b: 'bloom' },
     shadows: [
       { sources: ['dew', 'bell'], edge: ['shadow-bell-relay', 'bell', 'relay', 1, { active: ['dew'] }] },
       { sources: ['bloom'], edge: ['shadow-bloom-exit', 'bloom', 'exit', 2] },
@@ -145,6 +151,7 @@ export const FINALE_TEMPLATE = {
   ],
   vaultAfter: ['bell', 'bloom'],
   weaveAnchors: { dew: 'relay', bell: 'relay', bloom: 'hub', crown: 'hub' },
+  ferry: { a: 'bell', b: 'bloom' },
   shadows: [
     { sources: ['dew', 'bell'], edge: ['shadow-bell-relay', 'bell', 'relay', 1, { active: ['bell'] }] },
     { sources: ['bloom', 'crown'], edge: ['shadow-bloom-exit', 'bloom', 'exit', 2] },
@@ -282,8 +289,53 @@ export function buildRoom(plan, layers, { includeRift = true } = {}) {
     edge: edge([`secret-${route.id}`, route.entry, 'rift', roles[2]]),
   }));
   const exitLayer = nodes.find(node => node.id === 'exit').layer;
+  // The W-coupled ferry drifts between two authored docks on different layers.
+  // Its screen track is a quadratic arc placed on the clearest side of the room.
+  const dockLayer = (id, role) => {
+    const node = nodes.find(item => item.id === id);
+    return node.layer ?? mapping[role ?? 1];
+  };
+  const layerA = dockLayer(template.ferry.a, template.ferry.aRole);
+  const layerB = dockLayer(template.ferry.b, template.ferry.bRole);
+  const dockA = nodes.find(node => node.id === template.ferry.a);
+  const dockB = nodes.find(node => node.id === template.ferry.b);
+  const p0 = { x: dockA.x + (dockB.x - dockA.x) * .22, y: dockA.y + (dockB.y - dockA.y) * .22 };
+  const p1 = { x: dockA.x + (dockB.x - dockA.x) * .78, y: dockA.y + (dockB.y - dockA.y) * .78 };
+  const mid = { x: (dockA.x + dockB.x) / 2, y: (dockA.y + dockB.y) / 2 };
+  const length = Math.hypot(dockB.x - dockA.x, dockB.y - dockA.y) || 1;
+  const normal = { x: -(dockB.y - dockA.y) / length, y: (dockB.x - dockA.x) / length };
+  const clearanceAt = (h) => {
+    const c = { x: mid.x + normal.x * h, y: mid.y + normal.y * h };
+    let minimum = Infinity;
+    for (const t of [0, .25, .5, .75, 1]) {
+      const s = 1 - t;
+      const x = s * s * p0.x + 2 * s * t * c.x + t * t * p1.x;
+      const y = s * s * p0.y + 2 * s * t * c.y + t * t * p1.y;
+      for (const node of nodes) {
+        const width = 44 + (node.id === 'hub' ? 112 : 81);
+        const height = 26 + (node.id === 'hub' ? 60 : 52);
+        minimum = Math.min(minimum, Math.hypot((x - node.x) / width, (y - node.y) / height));
+      }
+    }
+    return minimum;
+  };
+  let bestH = -90, bestClearance = -Infinity;
+  for (const h of [-90, 90, -140, 140]) {
+    const clearance = clearanceAt(h);
+    if (clearance > bestClearance) { bestClearance = clearance; bestH = h; }
+  }
+  const c = { x: mid.x + normal.x * bestH, y: mid.y + normal.y * bestH };
   return {
     nodes,
+    ferry: {
+      a: template.ferry.a,
+      b: template.ferry.b,
+      layerA,
+      layerB,
+      centerA: layers[layerA].center,
+      centerB: layers[layerB].center,
+      track: { p0, c, p1 },
+    },
     edges: [...template.edges.map(edge), edge(['hub-vault', 'hub', 'vault', 1, { active: template.vaultAfter }])],
     hiddenRoutes,
     rift: {
@@ -320,6 +372,16 @@ export function buildRoom(plan, layers, { includeRift = true } = {}) {
     start: template.start,
     requires: structuredClone(template.requires),
   };
+}
+
+// Position of the ferry along its track: smoothstepped between the two dock
+// layer centers, riding the quadratic arc chosen at build time.
+export function ferryPosition(ferry, w) {
+  const raw = Math.max(0, Math.min(1, (w - ferry.centerA) / (ferry.centerB - ferry.centerA)));
+  const u = raw * raw * (3 - 2 * raw);
+  const { p0, c, p1 } = ferry.track;
+  const s = 1 - u;
+  return { x: s * s * p0.x + 2 * s * u * c.x + u * u * p1.x, y: s * s * p0.y + 2 * s * u * c.y + u * u * p1.y, u };
 }
 
 export function layoutClearance(nodes) {

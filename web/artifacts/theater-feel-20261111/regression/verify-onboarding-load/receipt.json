@@ -1,0 +1,167 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "name": "first run auto-equips the starter shell",
+      "ok": true,
+      "phase": "playing",
+      "relics": {
+        "prism": 0,
+        "shadow": 0,
+        "coil": 0,
+        "weave": 0,
+        "shell": 1
+      }
+    },
+    {
+      "name": "choice dialog stays closed on the first run",
+      "ok": true
+    },
+    {
+      "name": "no mid-run relic switch button",
+      "ok": true
+    },
+    {
+      "name": "wheel up climbs towards Ⅲ and scroll right matches it",
+      "ok": true,
+      "layers": [
+        0,
+        1,
+        2,
+        2,
+        1,
+        2,
+        1,
+        0
+      ]
+    },
+    {
+      "name": "drag does not change layer",
+      "ok": true,
+      "layer": 0
+    },
+    {
+      "name": "stage 1 banner stays expanded",
+      "ok": true
+    },
+    {
+      "name": "later stage banner folds after the announcement",
+      "ok": true,
+      "collapsed": true,
+      "checklist": [
+        "✓ 已点亮",
+        "🎯 当前目标",
+        "🔒 需先点亮 ②"
+      ],
+      "description": "两处独立源都送达，交叠处的汇流台才会回应。"
+    },
+    {
+      "name": "checklist reports state without instructions",
+      "ok": true,
+      "collapsed": true,
+      "checklist": [
+        "✓ 已点亮",
+        "🎯 当前目标",
+        "🔒 需先点亮 ②"
+      ],
+      "description": "两处独立源都送达，交叠处的汇流台才会回应。"
+    },
+    {
+      "name": "room description is the template description",
+      "ok": true,
+      "collapsed": true,
+      "checklist": [
+        "✓ 已点亮",
+        "🎯 当前目标",
+        "🔒 需先点亮 ②"
+      ],
+      "description": "两处独立源都送达，交叠处的汇流台才会回应。"
+    },
+    {
+      "name": "clicking the folded badge reopens the stage instruction",
+      "ok": true
+    },
+    {
+      "name": "R toggles risk and Tab leaves it alone",
+      "ok": true,
+      "riskBefore": false,
+      "riskAfterR": true,
+      "riskAfterTab": true
+    },
+    {
+      "name": "theme toggle repaints the canvas",
+      "ok": true,
+      "darkPixel": [
+        15,
+        28,
+        36
+      ],
+      "lightPixel": [
+        234,
+        241,
+        235
+      ]
+    },
+    {
+      "name": "4D lab readout follows its slider",
+      "ok": true
+    },
+    {
+      "name": "4D lab × closes the dialog",
+      "ok": true
+    },
+    {
+      "name": "hands-off risky crossing fails instead of being auto-steered",
+      "ok": true,
+      "failuresBefore": 0,
+      "failuresAfter": 1,
+      "shieldBefore": 1,
+      "shieldAfter": 0
+    },
+    {
+      "name": "returning player sees the relic picker",
+      "ok": true
+    },
+    {
+      "name": "a new run opens the relic picker again",
+      "ok": true
+    },
+    {
+      "name": "off-layer curio click prompts layer shift without awarding score",
+      "ok": true,
+      "banked": 0,
+      "anomalies": 0
+    },
+    {
+      "name": "collecting a materialized curio credits model.banked (+2), HUD and best score",
+      "ok": true,
+      "banked": 2,
+      "anomalies": 1,
+      "hudBanked": 2,
+      "bestStored": 2,
+      "loreVisible": true
+    },
+    {
+      "name": "settlement dialog score and stats include authoritative curio and phase rating",
+      "ok": true,
+      "resultScore": 2,
+      "banked": 2,
+      "resultStats": "冒险成功 0 次 · 点亮机关 0 次 · 收录奇物 1 件 · 完美同频 0 次 · 刹那折光 0 次 · 共鸣评级 B"
+    },
+    {
+      "name": "restarting resets curio progress, phase resonance and lore box",
+      "ok": true,
+      "banked": 0,
+      "anomalies": 0,
+      "rank": "B",
+      "loreHiddenAfterRestart": true
+    },
+    {
+      "name": "no page or console errors",
+      "ok": true,
+      "errors": []
+    }
+  ],
+  "errors": [],
+  "browserVersion": "145.0.7632.6"
+}

@@ -1,0 +1,212 @@
+{
+  "name": "first-feedback",
+  "widths": [
+    1280,
+    390,
+    320
+  ],
+  "base": "http://127.0.0.1:4173",
+  "status": "passed",
+  "checks": [
+    {
+      "width": 1280,
+      "label": "cascade",
+      "seed": 10,
+      "room": "cascade",
+      "handoff": "same_xyz",
+      "anchor": null,
+      "firstClick": "canvas",
+      "refusal": "🔒「折光花」还没供能：先点亮 ②",
+      "result": "引潮泵已启动 · 1/3",
+      "feedbackTrail": [
+        "🔒「折光花」还没供能：先点亮 ②",
+        "引潮泵已启动 · 1/3",
+        "同位回声台供能到齐 · 原地滚轮换层即可点亮"
+      ],
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "label": "split",
+      "seed": 0,
+      "room": "split",
+      "handoff": "same_xyz",
+      "anchor": null,
+      "firstClick": "canvas",
+      "refusal": "🔒「承光花」还没供能：先点亮 ②",
+      "result": "架桥泵已启动 · 1/3",
+      "feedbackTrail": [
+        "🔒「承光花」还没供能：先点亮 ②",
+        "架桥泵已启动 · 1/3"
+      ],
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "label": "confluence",
+      "seed": 2,
+      "room": "confluence",
+      "handoff": "anchor",
+      "anchor": "hub",
+      "firstClick": "canvas",
+      "refusal": "🔒「双源汇流台」还没供能：先点亮 ①+②",
+      "result": "潮汐源已启动 · 1/3",
+      "feedbackTrail": [
+        "🔒「双源汇流台」还没供能：先点亮 ①+②",
+        "潮汐源已启动 · 1/3"
+      ],
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "label": "return",
+      "seed": 7,
+      "room": "return",
+      "handoff": "anchor",
+      "anchor": "relay",
+      "firstClick": "canvas",
+      "refusal": "🔒「反照花」还没供能：先点亮 ②",
+      "result": "启程泵已启动 · 1/3",
+      "feedbackTrail": [
+        "🔒「反照花」还没供能：先点亮 ②",
+        "启程泵已启动 · 1/3",
+        "远端回声台供能到齐 · 点它前往点亮"
+      ],
+      "passed": true
+    },
+    {
+      "width": 390,
+      "label": "cascade",
+      "seed": 10,
+      "room": "cascade",
+      "handoff": "same_xyz",
+      "anchor": null,
+      "firstClick": "canvas",
+      "refusal": "🔒「折光花」还没供能：先点亮 ②",
+      "result": "引潮泵已启动 · 1/3",
+      "feedbackTrail": [
+        "🔒「折光花」还没供能：先点亮 ②",
+        "引潮泵已启动 · 1/3",
+        "同位回声台供能到齐 · 原地滚轮换层即可点亮"
+      ],
+      "passed": true
+    },
+    {
+      "width": 390,
+      "label": "split",
+      "seed": 0,
+      "room": "split",
+      "handoff": "same_xyz",
+      "anchor": null,
+      "firstClick": "canvas",
+      "refusal": "🔒「承光花」还没供能：先点亮 ②",
+      "result": "架桥泵已启动 · 1/3",
+      "feedbackTrail": [
+        "🔒「承光花」还没供能：先点亮 ②",
+        "架桥泵已启动 · 1/3"
+      ],
+      "passed": true
+    },
+    {
+      "width": 390,
+      "label": "confluence",
+      "seed": 2,
+      "room": "confluence",
+      "handoff": "anchor",
+      "anchor": "hub",
+      "firstClick": "canvas",
+      "refusal": "🔒「双源汇流台」还没供能：先点亮 ①+②",
+      "result": "潮汐源已启动 · 1/3",
+      "feedbackTrail": [
+        "🔒「双源汇流台」还没供能：先点亮 ①+②",
+        "潮汐源已启动 · 1/3"
+      ],
+      "passed": true
+    },
+    {
+      "width": 390,
+      "label": "return",
+      "seed": 7,
+      "room": "return",
+      "handoff": "anchor",
+      "anchor": "relay",
+      "firstClick": "canvas",
+      "refusal": "🔒「反照花」还没供能：先点亮 ②",
+      "result": "启程泵已启动 · 1/3",
+      "feedbackTrail": [
+        "🔒「反照花」还没供能：先点亮 ②",
+        "启程泵已启动 · 1/3",
+        "远端回声台供能到齐 · 点它前往点亮"
+      ],
+      "passed": true
+    },
+    {
+      "width": 320,
+      "label": "cascade",
+      "seed": 10,
+      "room": "cascade",
+      "handoff": "same_xyz",
+      "anchor": null,
+      "firstClick": "canvas",
+      "refusal": "🔒「折光花」还没供能：先点亮 ②",
+      "result": "引潮泵已启动 · 1/3",
+      "feedbackTrail": [
+        "🔒「折光花」还没供能：先点亮 ②",
+        "引潮泵已启动 · 1/3",
+        "同位回声台供能到齐 · 原地滚轮换层即可点亮"
+      ],
+      "passed": true
+    },
+    {
+      "width": 320,
+      "label": "split",
+      "seed": 0,
+      "room": "split",
+      "handoff": "same_xyz",
+      "anchor": null,
+      "firstClick": "canvas",
+      "refusal": "🔒「承光花」还没供能：先点亮 ②",
+      "result": "架桥泵已启动 · 1/3",
+      "feedbackTrail": [
+        "🔒「承光花」还没供能：先点亮 ②",
+        "架桥泵已启动 · 1/3"
+      ],
+      "passed": true
+    },
+    {
+      "width": 320,
+      "label": "confluence",
+      "seed": 2,
+      "room": "confluence",
+      "handoff": "anchor",
+      "anchor": "hub",
+      "firstClick": "canvas",
+      "refusal": "🔒「双源汇流台」还没供能：先点亮 ①+②",
+      "result": "潮汐源已启动 · 1/3",
+      "feedbackTrail": [
+        "🔒「双源汇流台」还没供能：先点亮 ①+②",
+        "潮汐源已启动 · 1/3"
+      ],
+      "passed": true
+    },
+    {
+      "width": 320,
+      "label": "return",
+      "seed": 7,
+      "room": "return",
+      "handoff": "anchor",
+      "anchor": "relay",
+      "firstClick": "canvas",
+      "refusal": "🔒「反照花」还没供能：先点亮 ②",
+      "result": "启程泵已启动 · 1/3",
+      "feedbackTrail": [
+        "🔒「反照花」还没供能：先点亮 ②",
+        "启程泵已启动 · 1/3",
+        "远端回声台供能到齐 · 点它前往点亮"
+      ],
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "browserVersion": "145.0.7632.6"
+}

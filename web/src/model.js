@@ -1,4 +1,4 @@
-import { ROOM_TEMPLATES, createRoomPlan, roomMetadata, buildRoom } from './rooms.js';
+import { ROOM_TEMPLATES, createRoomPlan, roomMetadata, buildRoom, ferryPosition } from './rooms.js';
 import { RHYTHM_GATES } from './hyper-prism.js';
 import { buildRoomAnomalies, projectRoomAnomalies } from './exploration-radar.js';
 // Authoritative authored XYZ + W sections. Views consume these gates and never invent routes.
@@ -35,6 +35,7 @@ function nodeCopy(node) { return { ...node, world: { ...node.world }, required: 
 export class GameModel {
   constructor(seed = 1, options = {}) {
     this.mode = options?.mode === 'expedition' ? 'expedition' : 'intro';
+    this.ferryFromRoom = Number.isInteger(options?.ferryFromRoom) ? options.ferryFromRoom : 1;
     this.events = [];
     this.restart(seed, options);
   }
@@ -43,6 +44,7 @@ export class GameModel {
 
   restart(seed = this.seed, options = null) {
     if (options?.mode) this.mode = options.mode === 'expedition' ? 'expedition' : 'intro';
+    if (Number.isInteger(options?.ferryFromRoom)) this.ferryFromRoom = options.ferryFromRoom;
     this.seed = normalizeSeed(seed);
     this.room = 0;
     this.roomPlan = createRoomPlan(this.seed, { mode: this.mode });
@@ -120,6 +122,19 @@ export class GameModel {
     let hash = Math.imul(this.seed ^ Math.imul(this.room + 1, 0x9e3779b9), 0x85ebca6b) >>> 0;
     hash = Math.imul(hash ^ (hash >>> 16), 0x7feb352d) >>> 0;
     this.safeWidth = .099 + (hash / 0xffffffff) * .012;
+    if (this.room >= this.ferryFromRoom) {
+      this.nodes.push({ id: 'ferry', name: '摆渡星舟', kind: 'ferry', anchor: true, layer: null,
+        center: LAYERS[1].center, required: [], world: { x: 99, y: 99, z: 99, w: LAYERS[1].center }, x: 0, y: 0 });
+    }
+    this._syncFerry();
+  }
+
+  _syncFerry() {
+    const node = this.nodes.find(item => item.id === 'ferry');
+    if (!node || !this.roomConfig.ferry) return;
+    const { x, y } = ferryPosition(this.roomConfig.ferry, this.w);
+    node.x = x;
+    node.y = y;
   }
 
   _emit(type, fields = {}) {
@@ -149,6 +164,7 @@ export class GameModel {
     const fromLayer = nearestLayer(this.w);
     const previousActualLayer = this.lastActualLayer;
     this.w = Math.max(0, Math.min(1, value));
+    this._syncFerry();
     const actualLayer = this._actualLayer();
     // Gaps never count as a visited entity layer. Record real entries even while
     // travelling or dodging so neither ending those states nor gap flicker fires a coil.
@@ -165,6 +181,23 @@ export class GameModel {
       if (this.wave) this._checkWaveGraze();
     }
     return true;
+  }
+
+  // Continuous W push/pull that can never drop the player: free on anchors and
+  // in danger, but capped to the safe band everywhere support is conditional.
+  scrubW(value) {
+    if (this.phase !== 'playing') return false;
+    let clamped = value;
+    if (this.wave || this.travel?.risky) clamped = value;
+    else if (this.travel) {
+      const range = this._range();
+      if (range) clamped = Math.max(range.min, Math.min(range.max, clamped));
+    } else if (!this._node().anchor) {
+      const center = this._node().center;
+      clamped = Math.max(center - .13, Math.min(center + .13, clamped));
+    }
+    if (!this.setW(clamped)) return false;
+    return this.w;
   }
 
   _checkWaveGraze() {
@@ -246,6 +279,10 @@ export class GameModel {
     if (this.ghost) for (const shadow of this.roomConfig.shadows) {
       if (shadow.sources.includes(this.ghost.node)) edges.push(make(shadow.edge, 'shadow'));
     }
+    if (this._node('ferry') && this.roomConfig.ferry) {
+      edges.push(make({ id: 'ferry-a', from: 'ferry', to: this.roomConfig.ferry.a, layer: this.roomConfig.ferry.layerA }, 'ferry'));
+      edges.push(make({ id: 'ferry-b', from: 'ferry', to: this.roomConfig.ferry.b, layer: this.roomConfig.ferry.layerB }, 'ferry'));
+    }
     if (this.travel?.kind === 'shadow' && !edges.some(edge => edge.id === this.travel.edgeId)) {
       const { edgeId: id, from, to, layer, min, max, kind } = this.travel;
       edges.push({ id, from, to, layer, min, max, kind, open: false, visible: true, committed: true, reason: '保留本次已踏上的桥段' });
@@ -277,7 +314,9 @@ export class GameModel {
   }
   _routeTo(target) {
     const queue = [{ id: this.node, path: [] }], visited = new Set([this.node]);
-    const edges = this._edges().filter(edge => edge.open && edge.kind !== 'vault');
+    // The ferry is boarded deliberately; routes never chain through it as a suggestion.
+    const edges = this._edges().filter(edge => edge.open && edge.kind !== 'vault'
+      && (edge.kind !== 'ferry' || this.node === 'ferry' || target === 'ferry'));
     while (queue.length) {
       const { id, path } = queue.shift();
       if (id === target) return path;
@@ -506,10 +545,11 @@ export class GameModel {
     return this._activate(this.node);
   }
 
-  _prismTarget() {
-    if (!['hub', 'relay'].includes(this.node)) return null;
-    return this._mechanisms().find(id => this.powered.has(id) && !this.activated.has(id) && this._inLayer(this._node(id).layer)) || null;
+  _prismTargets() {
+    if (!['hub', 'relay'].includes(this.node)) return [];
+    return this._mechanisms().filter(id => this.powered.has(id) && !this.activated.has(id) && this._inLayer(this._node(id).layer));
   }
+  _prismTarget() { return this._prismTargets()[0] || null; }
   _hiddenEligible(route) {
     if (!route.requires.every(id => this.relics[id] > 0)) return false;
     switch (route.id) {
@@ -568,25 +608,30 @@ export class GameModel {
     if (id === 'shadow') return this._mechanisms().includes(this.node) && this.activated.has(this.node) && !this.shadowUsed && this.carried >= 1;
     return false;
   }
-  useAbility(id) {
+  useAbility(id, { target } = {}) {
+    if (target !== undefined && !id) return false;
     const selected = id ?? ['prism', 'shadow', 'weave'].find(relic => this._abilityAvailable(relic));
     if (!this._abilityAvailable(selected)) return false;
     if (selected === 'prism') {
-      const target = this._prismTarget();
+      const targets = this._prismTargets();
+      const chosen = target === undefined ? targets[0] : target;
+      if (!targets.includes(chosen)) return false;
       this.charge -= 1;
-      this._emit('ability', { node: this.node, to: target, relic: 'prism', value: 1, layer: nearestLayer(this.w) });
-      this._activate(target, 'prism');
+      this._emit('ability', { node: this.node, to: chosen, relic: 'prism', value: 1, layer: nearestLayer(this.w) });
+      this._activate(chosen, 'prism');
       return true;
     }
     if (selected === 'weave') {
-      const target = this._weaveTarget();
+      const weaveTarget = this._weaveTarget();
+      if (target !== undefined && target !== (weaveTarget.remote ? weaveTarget.node : weaveTarget.edge.to)) return false;
       this.weaveCharge -= 1;
-      this.woven.add(target.node);
-      if (target.remote) this.remoteWeave = true;
-      this._emit('weave', { from: target.node, to: target.edge.to, node: target.node, layer: target.edge.layer, edgeId: target.edge.id, remote: target.remote });
+      this.woven.add(weaveTarget.node);
+      if (weaveTarget.remote) this.remoteWeave = true;
+      this._emit('weave', { from: weaveTarget.node, to: weaveTarget.edge.to, node: weaveTarget.node, layer: weaveTarget.edge.layer, edgeId: weaveTarget.edge.id, remote: weaveTarget.remote });
       this._chooseTarget();
       return true;
     }
+    if (target !== undefined && target !== this.node) return false;
     this.carried -= 1;
     this.shadowUsed = true;
     const duration = SHADOW_LIFETIMES[this.relics.shadow];
@@ -723,6 +768,7 @@ export class GameModel {
     this.travel = null;
     this.node = reason === 'travel' && source ? source.node : this.lastAnchor;
     this.w = reason === 'travel' && source ? source.w : this.anchorW;
+    this._syncFerry();
     this.phaseStability = 1;
     this.pending = this.pending.filter(cue => ['power', 'resonance', 'ascension', 'sanctum_ascension'].includes(cue.kind));
     this.lastActualLayer = this._actualLayer();
@@ -948,6 +994,7 @@ export class GameModel {
       : this.node === 'vault' ? this.vaultStatus === 'available' ? `开启花匣 · ${this.roomConfig.challenge.name}` : this.wave ? '回波倒计时 · 换层躲避' : '花匣本庭已结束'
       : this.node === 'rift' ? this.riftStatus === 'available' ? '投入 2 回响 · 开启隐星试炼' : this.riftStatus === 'warning' ? '三重回波 · 每波重新换层' : this.riftStatus === 'cleared' ? '隐星试炼已完成' : '隐星试炼本庭已失败'
       : this.node === 'relay' ? '锚台跨层支撑'
+      : this.node === 'ferry' ? '摆渡星舟 · 跨层支撑'
       : this.node === 'exit' ? '抵达庭门'
       : this.activated.has(this.node) ? `${this._node().name}已启动` : `启动${this._node().name}`;
     const layer = nearestLayer(this.w);
@@ -972,6 +1019,11 @@ export class GameModel {
       companionGuide: this._companionGuide(),
       nodes, node: this.node, selected: this.selected, layers, layer,
       w: this.w, riskMode: this.riskMode, range, canMove: this._canMove(), availableNodes: this._availableNodes(), edges: this._edges(),
+      ferry: this._node('ferry') && this.roomConfig.ferry ? {
+        ...structuredClone(this.roomConfig.ferry),
+        ...ferryPosition(this.roomConfig.ferry, this.w),
+        docked: this._inLayer(this.roomConfig.ferry.layerA) ? 'a' : this._inLayer(this.roomConfig.ferry.layerB) ? 'b' : null,
+      } : null,
       travel: this.travel ? { ...this.travel, source: { ...this.travel.source }, gates: [...this.travel.gates] } : null,
       carried: this.carried, banked: this.banked, lives: this.lives, combo: this.combo,
       relic: this.relic, relics: { ...this.relics }, choices: RELICS.map(relic => ({ ...relic, rank: this.relics[relic.id], nextRank: Math.min(3, this.relics[relic.id] + 1) })),
@@ -996,6 +1048,11 @@ export class GameModel {
       ghost: this.ghost ? { ...this.ghost } : null, wave: this.wave ? { ...this.wave, dangerLayers: [...this.wave.dangerLayers], safeLayers: [...this.wave.safeLayers] } : null, vaultStatus: this.vaultStatus,
       phaseStability: this.phaseStability, lastAnchor: this.lastAnchor,
       abilities, abilityAvailable: abilities.some(ability => ability.available), abilityLabel: primaryAbility.label,
+      castTargets: {
+        prism: this._abilityAvailable('prism') ? this._prismTargets() : [],
+        weave: this._abilityAvailable('weave') && weaveTarget ? [weaveTarget.remote ? weaveTarget.node : weaveTarget.edge.to] : [],
+        shadow: this._abilityAvailable('shadow') ? [this.node] : [],
+      },
       interactAvailable: this._interactAvailable(), interactReason: this._interactReason(), interactLabel, objective: this._objective(),
       anomalies,
       anomalyProgress: {

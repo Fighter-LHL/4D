@@ -22,7 +22,7 @@ export function pathTo(state, target) {
   while (queue.length) {
     const { id, path } = queue.shift();
     if (id === target) return path;
-    const steps = state.edges.filter(edge => edge.open && (edge.from === id || edge.to === id)).map(edge => ({ kind: 'move', id: edge.from === id ? edge.to : edge.from, layer: edge.layer }));
+    const steps = state.edges.filter(edge => edge.open && (edge.kind !== 'ferry' || state.node === 'ferry') && (edge.from === id || edge.to === id)).map(edge => ({ kind: 'move', id: edge.from === id ? edge.to : edge.from, layer: edge.layer }));
     if (!nodes.get(id).anchor) for (const node of nodes.values()) if (!node.anchor && node.id !== id && sameXYZ(node, nodes.get(id))) steps.push({ kind: 'shift', id: node.id, layer: node.layer });
     for (const step of steps) if (!visited.has(step.id)) { visited.add(step.id); queue.push({ id: step.id, path: [...path, step] }); }
   }

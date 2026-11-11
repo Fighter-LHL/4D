@@ -45,10 +45,27 @@ export function drawCourtyardFriends(renderer) {
     return;
   }
   const time = renderer.reducedMotion ? 0 : renderer.time;
+  const life = renderer.life;
+  let travelDir = null;
+  if (s?.travel) {
+    const from = renderer.node?.(s.travel.from), to = renderer.node?.(s.travel.to);
+    if (from && to) {
+      const d = Math.max(1, Math.hypot(to.x - from.x, to.y - from.y));
+      travelDir = { x: (to.x - from.x) / d, y: (to.y - from.y) / d };
+    }
+  }
   friends.forEach((friend, i) => {
     const guiding = i === 0 && g;
     const x = guiding ? g.x : p.x - 28 - i * 21;
     const y = guiding ? g.y - 53 : p.y + 10;
+    let lookX = 0, lookY = 0;
+    if (renderer.pointerWorld?.on) {
+      const dx = renderer.pointerWorld.x - x, dy = renderer.pointerWorld.y - y;
+      const d = Math.max(1, Math.hypot(dx, dy));
+      lookX = dx / d; lookY = dy / d;
+    } else if (travelDir) {
+      lookX = travelDir.x; lookY = travelDir.y;
+    }
     renderer.friendTargets.push({ x, y });
     if (guiding) {
       ctx.save(); ctx.strokeStyle = friend.color; ctx.fillStyle = friend.color;
@@ -59,6 +76,6 @@ export function drawCourtyardFriends(renderer) {
       ctx.fillText(`${['Ⅰ', 'Ⅱ', 'Ⅲ'][g.layer]} · ${g.aligned ? '这边' : '换到这一层'}`, x, y - 24);
       ctx.restore();
     }
-    drawCreature(ctx, friend.id, x, y, time, { scale: 22, happy: !!guiding && g.aligned, ghost: false, crowned: friend.crowned });
+    drawCreature(ctx, friend.id, x, y, time, { scale: 22, lookX, lookY, happy: (!!guiding && g.aligned) || !!life?.cheering, ghost: false, crowned: friend.crowned });
   });
 }

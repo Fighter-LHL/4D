@@ -26,6 +26,7 @@ async function open({ firstRunDone = false, seed = 123 } = {}) {
     if (sessionStorage.getItem('__seeded')) return;
     sessionStorage.setItem('__seeded', '1');
     localStorage.clear();
+    try { localStorage.setItem('wslice-theater', 'classic'); } catch {}
     if (done) localStorage.setItem('wslice-first-run-done', 'yes');
   }, firstRunDone);
   const page = await context.newPage();

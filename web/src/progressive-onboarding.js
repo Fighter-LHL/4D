@@ -52,7 +52,8 @@ export function findCurrentLayerRoute(state, targetId) {
   if (!state || !targetId) return null;
   if (state.node === targetId) return [];
   const currentLayer = state.layer;
-  const openCurrentEdges = (state.edges || []).filter(e => e.open && e.layer === currentLayer);
+  const openCurrentEdges = (state.edges || []).filter(e => e.open && e.layer === currentLayer
+    && (e.kind !== 'ferry' || state.node === 'ferry' || targetId === 'ferry'));
   const queue = [{ id: state.node, path: [] }];
   const visited = new Set([state.node]);
 
@@ -117,7 +118,8 @@ export function planLayerRoute(state, targetId, { finalLayer = null } = {}) {
 
   const exists = (node, layer) => node && (node.anchor || node.layer === layer);
   const isGoal = (id, layer) => id === targetId && (wantLayer === null || layer === wantLayer);
-  const edges = (state.edges || []).filter(e => e.open && Number.isInteger(e.layer));
+  const edges = (state.edges || []).filter(e => e.open && Number.isInteger(e.layer)
+    && (e.kind !== 'ferry' || state.node === 'ferry' || targetId === 'ferry'));
   const key = (id, layer) => `${id}@${layer}`;
   const SHIFT_COST = 1000;
 

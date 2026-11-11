@@ -22,6 +22,7 @@ try {
   const widths = process.env.VERIFY_WIDTHS ? process.env.VERIFY_WIDTHS.split(',').map(Number) : [1280, 390, 320];
   for (const width of widths) {
     const context = await browser.newContext({ viewport: { width, height: width > 700 ? 900 : 844 }, reducedMotion: width === 320 ? 'reduce' : 'no-preference' });
+    await context.addInitScript(() => { try { localStorage.setItem('wslice-theater', 'classic'); } catch {} });
     const page = await context.newPage();
     await context.route('**/src/main.js', async route => {
       const response = await route.fetch();

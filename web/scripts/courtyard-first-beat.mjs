@@ -66,6 +66,8 @@ export async function runCourtyardChecks({ name, cases, run }) {
   try {
     for (const width of widths) for (const testCase of cases) {
       const context = await browser.newContext({ viewport: { width, height: width === 1280 ? 900 : 844 }, reducedMotion: width === 320 ? 'reduce' : 'no-preference' });
+      // These checks assert the classic layout; force it regardless of theater default.
+      await context.addInitScript(() => { try { localStorage.setItem('wslice-theater', 'classic'); } catch {} });
       await context.route('**/src/flatland/main.js', async route => {
         const response = await route.fetch();
         await route.fulfill({ response, body: await response.text() + discoveryObserver });

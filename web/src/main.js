@@ -9,6 +9,7 @@ import { STARTER_RELICS, mechanismFeedback, contextualHelp, courtyardActions } f
 import { initThemeToggle, initHyperLab } from './hyper-lab-ui.js';
 import { ProgressiveOnboarding, planLayerRoute, findCurrentLayerRoute, computeRiskDecisionPreview, computeRelicHudStatus } from './progressive-onboarding.js';
 import { CodexStore } from './codex.js';
+import { GameFeel } from './game-feel.js';
 import { ALL_ROOM_TEMPLATES, HIDDEN_ROUTE_RECIPES } from './rooms.js';
 import { CURIOSITY_CATALOG } from './exploration-radar.js';
 
@@ -43,7 +44,9 @@ const readPreference = (key, fallback) => { try { return localStorage.getItem(ke
 const savePreference = (key,value) => { try { localStorage.setItem(key,String(value)); } catch { /* Private browsing can disable persistence. */ } };
 const readJSON = key => { try { return JSON.parse(readPreference(key, '{}')); } catch { return {}; } };
 const codex = new CodexStore();
-const model = new GameModel(initialSeed, { mode: currentMode });
+const ferryFirst = initialUrlParams.get('ferry') === 'first';
+const modelOptions = () => ({ mode: currentMode, ...(ferryFirst ? { ferryFromRoom: 0 } : {}) });
+const model = new GameModel(initialSeed, modelOptions());
 const fromFlatland = isFlatlandArrival(location.search, readJSON('wslice-flatland-stars'), readJSON('wslice-flatland-visits'));
 $('chapter-arrival').hidden = !fromFlatland;
 rememberSeed(initialSeed, currentMode);
@@ -98,8 +101,52 @@ let autoPilot = null;
 let altarTune = null;
 const ALTAR_TUNE_WINDOW_MS = 680;
 let oneShotRiskCrossing = false;
+// Dial/ferry W scrubs: a live grab session plus a short glide that carries the
+// release momentum to the nearest layer center, then runs the manual-shift aftermath.
+let scrubSession = null;
+let scrubGlide = null;
+function cancelScrubGlide() { scrubGlide = null; }
+function nearestLayerCenter(s, origin) {
+  const layers = s.layers || [{ center: .5 }];
+  return layers.reduce((best, l) => Math.abs(l.center - origin) < Math.abs(best - origin) ? l.center : best, layers[0].center);
+}
+function finishScrubSession(session) {
+  if (!session?.before) return;
+  layerShiftAftermath(session.before, 'scrub');
+}
+function handleScrubW(w, { phase = 'move', velocity = 0 } = {}) {
+  if (!canAct()) return;
+  onboarding.recordActivity();
+  if (phase === 'start') {
+    cancelScrubGlide();
+    autoPilot = null;
+    scrubSession = { before: model.snapshot() };
+    return;
+  }
+  if (phase === 'move') {
+    cancelScrubGlide();
+    action(() => model.scrubW(w));
+    return;
+  }
+  const session = scrubSession;
+  scrubSession = null;
+  if (!session) return;
+  const s = model.snapshot();
+  if (s.travel?.risky) { finishScrubSession(session); return; }
+  if (phase !== 'cancel') action(() => model.scrubW(w));
+  const origin = phase === 'cancel' ? session.before.w : w + velocity * .12;
+  const target = nearestLayerCenter(s, origin);
+  if (scene.reducedMotion) {
+    action(() => model.scrubW(target));
+    finishScrubSession(session);
+  } else {
+    scrubGlide = { target, session };
+  }
+}
 let bannerStage = 0;
 let bannerExpandedUntil = 0;
+let bannerDescOpen = false;
+let bannerDescDismissed = false;
 let relicHudKey = '';
 
 // `type` lets an accepted departure retire messages that belonged to the spot just left
@@ -317,63 +364,68 @@ function manualSwitchLayer(layerIdx, source = 'manual') {
       return;
     }
   }
-  const order = s.mechanismOrder || s.nodes.filter(n => n.kind === 'mechanism').map(n => n.id);
+  autoPilot = null;
+  cancelScrubGlide();
+  action(() => model.setW(s.layers[layerIdx].center));
+  layerShiftAftermath(s, source);
+  updateUI();
+}
+
+// Shared manual-layer-change bookkeeping: onboarding shift record, prompt resolution,
+// autopilot resume and the materialize "aha" — used by manualSwitchLayer and by
+// dial/ferry W scrubs that land in a different layer than they started.
+function layerShiftAftermath(before, source = 'manual') {
+  const after = model.snapshot();
+  if (after.layer === before.layer) return;
+  const order = before.mechanismOrder || before.nodes.filter(n => n.kind === 'mechanism').map(n => n.id);
   const nextMechId = order.find(id => {
-    const n = s.nodes.find(item => item.id === id);
-    return n && n.powered && !s.activated.includes(id);
+    const n = before.nodes.find(item => item.id === id);
+    return n && n.powered && !before.activated.includes(id);
   });
   const prompt = scene.pendingLayerPrompt;
-  const targetId = prompt?.targetId || (s.activated.length >= mechCountOf(s) ? 'exit' : nextMechId);
+  const targetId = prompt?.targetId || (before.activated.length >= mechCountOf(before) ? 'exit' : nextMechId);
   const prevOpenCurrent = new Set(
-    (s.edges || []).filter(e => e.open && e.layer === prevLayer).map(e => e.id)
+    (before.edges || []).filter(e => e.open && e.layer === before.layer).map(e => e.id)
   );
+  const newlyVisibleEdges = (after.edges || []).filter(
+    e => e.open && e.layer === after.layer && !prevOpenCurrent.has(e.id) &&
+    (e.from === after.node || e.to === after.node || (targetId && (e.from === targetId || e.to === targetId)))
+  );
+  const targetNode = targetId ? after.nodes.find(n => n.id === targetId) : null;
+  const revealedTarget = newlyVisibleEdges.length > 0 || (targetNode && targetNode.layer === after.layer && !targetNode.anchor);
+  onboarding.recordManualLayerShift({ revealedBridge: revealedTarget });
 
-  autoPilot = null;
-  action(() => model.setW(s.layers[layerIdx].center));
+  // The player made the prompted change themselves: resume the walk to the clicked target.
+  // (phaseStability only decays on the next tick, so check the footing directly.)
+  const footing = after.nodes.find(n => n.id === after.node);
+  const stable = !!footing && (footing.anchor || footing.layer === after.layer);
+  const prismReady = !!after.abilities?.some(a => a.id === 'prism' && a.available);
+  const resume = !!prompt && prompt.targetLayer === after.layer && stable;
+  if (prompt && (resume || after.node !== prompt.atNode || ((source === 'button' || source === 'wstack') && prompt.kind === 'anomaly' && after.layer !== prompt.targetLayer))) {
+    scene.pendingLayerPrompt = null;
+  }
+  if (resume && prompt.kind === 'anomaly') {
+    const anomRes = scene.explorationRadar.interact(after, prompt.anomalyId);
+    if (collectMaterializedAnomaly(anomRes)) return;
+  }
+  if (after.node !== before.node && footing?.kind === 'mechanism' && footing.powered && !after.activated.includes(footing.id) && after.interactAvailable && !prismReady) {
+    scene.pendingLayerPrompt = null;
+    action(() => model.interact());
+    return;
+  }
+  if (resume && prompt.targetId && !prismReady) {
+    autoPilot = { targetNode: prompt.targetId, finalLayer: prompt.finalLayer ?? null, resumeAt: performance.now() + 700 };
+  }
 
-  const after = model.snapshot();
-  if (after.layer !== prevLayer) {
-    const newlyVisibleEdges = (after.edges || []).filter(
-      e => e.open && e.layer === after.layer && !prevOpenCurrent.has(e.id) &&
-      (e.from === after.node || e.to === after.node || (targetId && (e.from === targetId || e.to === targetId)))
-    );
-    const targetNode = targetId ? after.nodes.find(n => n.id === targetId) : null;
-    const revealedTarget = newlyVisibleEdges.length > 0 || (targetNode && targetNode.layer === after.layer && !targetNode.anchor);
-    onboarding.recordManualLayerShift({ revealedBridge: revealedTarget });
-
-    // The player made the prompted change themselves: resume the walk to the clicked target.
-    // (phaseStability only decays on the next tick, so check the footing directly.)
-    const footing = after.nodes.find(n => n.id === after.node);
-    const stable = !!footing && (footing.anchor || footing.layer === after.layer);
-    const prismReady = !!after.abilities?.some(a => a.id === 'prism' && a.available);
-    const resume = !!prompt && prompt.targetLayer === after.layer && stable;
-    if (prompt && (resume || after.node !== prompt.atNode || ((source === 'button' || source === 'wstack') && prompt.kind === 'anomaly' && after.layer !== prompt.targetLayer))) {
-      scene.pendingLayerPrompt = null;
-    }
-    if (resume && prompt.kind === 'anomaly') {
-      const anomRes = scene.explorationRadar.interact(after, prompt.anomalyId);
-      if (collectMaterializedAnomaly(anomRes)) return;
-    }
-    if (after.node !== s.node && footing?.kind === 'mechanism' && footing.powered && !after.activated.includes(footing.id) && after.interactAvailable && !prismReady) {
-      scene.pendingLayerPrompt = null;
-      action(() => model.interact());
-      return;
-    }
-    if (resume && prompt.targetId && !prismReady) {
-      autoPilot = { targetNode: prompt.targetId, finalLayer: prompt.finalLayer ?? null, resumeAt: performance.now() + 700 };
-    }
-
-    if (revealedTarget && stable) {
-      scene.triggerMaterializeAha(after.layer, newlyVisibleEdges, targetNode);
-      if (targetNode) {
-        const layerName = after.layers[after.layer].name;
-        if (prismReady) showTransient(`✨ 桥在【${layerName}】显形，且 ◇ 回流棱镜已就绪！点下方紫色按钮（或按 Q）可直接远程点亮「${targetNode.name}」`, 4.0);
-        else if (resume && prompt.targetId) showTransient(`✨ 桥在【${layerName}】显形了！继续前往「${targetNode.name}」…`, 3.0);
-        else if (targetNode.layer === after.layer) showTransient(`✨ 隐形的桥与「${targetNode.name}」在【${layerName}】显形了！点击它即可顺桥走过去`, 3.6);
-      }
+  if (revealedTarget && stable) {
+    scene.triggerMaterializeAha(after.layer, newlyVisibleEdges, targetNode);
+    if (targetNode) {
+      const layerName = after.layers[after.layer].name;
+      if (prismReady) showTransient(`✨ 桥在【${layerName}】显形，且 ◇ 回流棱镜已就绪！点下方紫色按钮（或按 Q）可直接远程点亮「${targetNode.name}」`, 4.0);
+      else if (resume && prompt.targetId) showTransient(`✨ 桥在【${layerName}】显形了！继续前往「${targetNode.name}」…`, 3.0);
+      else if (targetNode.layer === after.layer) showTransient(`✨ 隐形的桥与「${targetNode.name}」在【${layerName}】显形了！点击它即可顺桥走过去`, 3.6);
     }
   }
-  updateUI();
 }
 
 function handleCanvasSelect(id) {
@@ -405,6 +457,7 @@ function handleCanvasSelect(id) {
     }
     if ($('run-details')) $('run-details').open = true;
     if ($('secret-panel')) $('secret-panel').open = true;
+    openPanel();
     transient = '🌌 隐藏秘境「隐星台」：跨庭集齐 2 件共鸣遗物并在指定的 ⚓ 安全台完成三印换层，即可开启隐藏第四岛 (+9◆)！已在右侧展开秘印配方。';
     transientTime = 3.8;
     actionFeedback = transient;
@@ -490,7 +543,7 @@ function revealScene() {
   if (rect.top >= 0 && rect.bottom <= innerHeight) return;
   wrap.scrollIntoView({ block: rect.height > innerHeight ? 'start' : 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
-function selectFromPanel(id) { revealScene(); handleCanvasSelect(id); }
+function selectFromPanel(id) { revealScene(); closePanel(); handleCanvasSelect(id); }
 
 function collectMaterializedAnomaly(res) {
   if (!res || res.status !== 'collected') return false;
@@ -617,9 +670,19 @@ const scene = new SceneRenderer($('scene'), {
   },
   onPolytopeTune: nodeId => snapPolytopeLock(nodeId),
   onBridgeDash: () => triggerPhaseDash(),
+  onCast: (relic, target) => {
+    if (!canAct()) return;
+    autoPilot = null;
+    scene.pendingLayerPrompt = null;
+    action(() => model.useAbility(relic, { target }));
+  },
+  onScrubW: handleScrubW,
   hasSupplySlots,
 });
 scene.visualGuide = true;
+const feel = new GameFeel({ reducedMotion: scene.reducedMotion });
+scene.feel = feel;
+scene.motionQuery?.addEventListener?.('change', e => feel.setReducedMotion(e.matches));
 function refreshFriends() { scene.friends = courtyardFriends(readJSON('wslice-flatland-friends'), readJSON('wslice-flatland-gardens')); }
 refreshFriends();
 window.addEventListener('storage', event => {
@@ -653,6 +716,12 @@ function consumeEvents() {
       transient = null; transientTime = 0; transientType = ''; actionFeedback = '';
       $('announcement').textContent = '';
     }
+    if (event.type === 'harmonic_burst') feel.trigger('harmonic_burst', { punches: [[`node:${event.node}`, .14], ['camera', .012]] });
+    if (event.type === 'phase_dash' && event.rating === 'perfect') feel.trigger('phase_dash_perfect', { punches: [['player', .16]] });
+    if (event.type === 'phase_graze') feel.trigger('phase_graze', { punches: [['player', -.18]] });
+    if (event.type === 'weave') feel.trigger('bridge_landed', { delay: 1.25, punches: [[`node:${event.to}`, .08]] });
+    if (event.type === 'resonance' && event.stage === 3) feel.trigger('bridge_landed', { delay: 1.25, punches: [['node:relay', .08]] });
+    if (event.type === 'fail' || event.type === 'room' || event.type === 'restart') { feel.reset(); if (event.type === 'fail') cancelScrubGlide(); }
     let message = mechanismFeedback(event, state, { hasSupplySlots: hasSupplySlots(event.to) });
     if (event.type === 'activate' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       $('mechanism-count').animate([{ transform: 'scale(1.3)', color: '#a06c24' }, { transform: 'scale(1)' }], { duration: 550 });
@@ -703,6 +772,7 @@ function consumeEvents() {
     if (event.type === 'ascension' && event.stage===3) message = '升庭桥已展开，完成本庭机关后可以从隐星台直达庭门。';
     if (event.type === 'phase_transfer') message = '位置没有变，脚下已是另一层的机关。';
     if (event.type === 'warning') {
+      closePanel({ focus: 'canvas' });
       const state=model.snapshot();
       message = `第 ${state.wave?.step || 1}/${state.wave?.steps || 1} 波将抵达，切到${(state.wave?.safeLayers || []).map(i=>state.layers[i].name).join('或')}。`;
       // On phones, the lower action button can scroll the actual hazard offscreen.
@@ -1040,7 +1110,18 @@ function updateUI() {
   }
   setText('layer-name',currentLayer?.name || '层间隙');
   setText('layer-symbol',layerSymbols[state.layer] || '◇');
-  if(currentNode?.world)setText('position-readout',`位置 ${Number(currentNode.world.x.toFixed(1))}, ${Number(currentNode.world.y.toFixed(1))}, ${Number(currentNode.world.z.toFixed(1))} · W ${state.w.toFixed(2)}`);
+  // On the ferry the sentinel world coords (99,99,99) only protect sameXYZ —
+  // the readout shows the interpolated position between the two dock islands.
+  let posWorld = currentNode?.world;
+  if (state.node === 'ferry' && state.ferry) {
+    const aw = state.nodes.find(n => n.id === state.ferry.a)?.world;
+    const bw = state.nodes.find(n => n.id === state.ferry.b)?.world;
+    if (aw && bw) {
+      const u = state.ferry.u ?? 0;
+      posWorld = { x: aw.x + (bw.x - aw.x) * u, y: aw.y + (bw.y - aw.y) * u, z: aw.z + (bw.z - aw.z) * u };
+    }
+  }
+  if(posWorld)setText('position-readout',`位置 ${Number(posWorld.x.toFixed(1))}, ${Number(posWorld.y.toFixed(1))}, ${Number(posWorld.z.toFixed(1))} · W ${state.w.toFixed(2)}`);
   document.body.dataset.layer = String(state.layer);
   const liveGuide = snapshot.companionGuide;
   const activePrompt = !state.wave && !state.travel && scene.pendingLayerPrompt &&
@@ -1212,12 +1293,19 @@ function updateUI() {
     if (stageInfo.stage !== bannerStage) {
       const firstExpeditionPaint = bannerStage === 0 && state.mode === 'expedition';
       bannerStage = stageInfo.stage;
+      bannerDescOpen = false;
+      bannerDescDismissed = false;
       bannerExpandedUntil = firstExpeditionPaint ? 0 : bannerNow + 4500;
       // The banner is aria-live itself; #announcement keeps the action result that caused the stage-up.
     }
     // Stage 1 is the very first screen, so its single instruction stays until ① is lit.
     // Later stages expand briefly on arrival, then fold to a one-line badge (click to reopen).
     $('onboarding-banner').classList.toggle('collapsed', stageInfo.stage > 1 && bannerNow > bannerExpandedUntil);
+    // The theater description popover is tap-only on small screens: .desc-open is
+    // set by the banner click and cleared on expiry, stage change or canvas input.
+    if (bannerNow > bannerExpandedUntil) bannerDescOpen = false;
+    $('onboarding-banner').classList.toggle('desc-open', bannerDescOpen);
+    $('onboarding-banner').classList.toggle('desc-dismissed', bannerDescDismissed);
     $('onboarding-banner').dataset.stage = String(stageInfo.stage);
     setText('onboarding-badge', stageInfo.badge);
     setText('onboarding-title', stageInfo.title);
@@ -1466,8 +1554,8 @@ function updateUI() {
   }
 }
 
-$('w-slider').addEventListener('input',e=>{ if(canAct()) action(()=>model.setW(Number(e.target.value))); });
-$('align').addEventListener('click',()=>{ if(canAct()) action(()=>model.setW(model.snapshot().range?.center ?? .5)); });
+$('w-slider').addEventListener('input',e=>{ if(canAct()) { cancelScrubGlide(); action(()=>model.setW(Number(e.target.value))); } });
+$('align').addEventListener('click',()=>{ if(canAct()) { cancelScrubGlide(); action(()=>model.setW(model.snapshot().range?.center ?? .5)); } });
 $('safe-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(false)); if(e.detail>0) focusPlaySurface(); } });
 $('risk-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(true)); if(e.detail>0) focusPlaySurface(); } });
 $('move').addEventListener('click',()=>{ if(canAct()) { action(()=>model.move()); if(model.snapshot().travel) focusPlaySurface(); } });
@@ -1483,6 +1571,8 @@ $('interact').addEventListener('click',e=>{
 $('ask-friend').addEventListener('click', askFriend);
 $('onboarding-banner')?.querySelector('.onboarding-main')?.addEventListener('click', () => {
   bannerExpandedUntil = performance.now() + 6000;
+  bannerDescOpen = true;
+  bannerDescDismissed = false;
   updateUI();
 });
 $('void-rescue-btn')?.addEventListener('click', () => {
@@ -1731,7 +1821,7 @@ function restartWithMode(nextMode = currentMode) {
   if($('anomaly-lore-box'))$('anomaly-lore-box').hidden=true;
   scene.explorationRadar.reset();scene.phaseResonance.reset();
   const seed=newSeed();rememberSeed(seed, currentMode);
-  action(()=>{model.restart(seed, { mode: currentMode });autoEquipFirstRun();});
+  action(()=>{model.restart(seed, modelOptions());autoEquipFirstRun();});
 }
 function restart() { restartWithMode(currentMode); }
 $('confirm-restart').addEventListener('click',restart);$('play-again').addEventListener('click',restart);
@@ -2010,6 +2100,7 @@ window.addEventListener('scroll', () => { lastPageScrollAt = performance.now(); 
   if (!wantsWheel) return;
 
   e.preventDefault();
+  cancelScrubGlide();
   // One direction convention everywhere: wheel up / scroll right = higher W (towards Ⅲ),
   // matching the layer stack (Ⅲ on top) and the W slider (higher values on the right).
   const wheelDelta = e.deltaY || -e.deltaX;
@@ -2055,6 +2146,15 @@ window.addEventListener('scroll', () => { lastPageScrollAt = performance.now(); 
 
 let sceneDrag = null;
 $('scene').addEventListener('pointerdown', e => {
+  closePanel({ focus: 'canvas' });
+  if (isTheater()) {
+    // Dismiss only the description popover — collapsing the banner title here
+    // would shrink .controls and shift the canvas mid-drag.
+    bannerDescOpen = false;
+    bannerDescDismissed = true;
+    $('onboarding-banner')?.classList.remove('desc-open');
+    $('onboarding-banner')?.classList.add('desc-dismissed');
+  }
   if (!canAct()) return;
   $('scene').focus?.({ preventScroll: true });
   sceneDrag = { x: e.clientX, y: e.clientY, w: model.snapshot().w, moved: false };
@@ -2076,8 +2176,80 @@ window.addEventListener('pointerup', () => {
   sceneDrag = null;
 });
 
+// Theater layout: the progress panel is a non-modal drawer; the game keeps running behind it.
+const runPanel = $('run-panel');
+const panelToggle = $('panel-toggle');
+const isTheater = () => document.documentElement.classList.contains('theater');
+let panelOpen = false;
+function openPanel({ focus = false } = {}) {
+  if (!isTheater() || !runPanel) return;
+  panelOpen = true;
+  runPanel.classList.add('panel-open');
+  runPanel.toggleAttribute('inert', false);
+  panelToggle?.setAttribute('aria-expanded', 'true');
+  if (focus) (runPanel.querySelector('button, a[href], input, summary, [tabindex]') || runPanel).focus?.({ preventScroll: true });
+}
+function closePanel({ focus = 'toggle' } = {}) {
+  if (!isTheater() || !runPanel || !panelOpen) return;
+  panelOpen = false;
+  runPanel.classList.remove('panel-open');
+  runPanel.toggleAttribute('inert', true);
+  panelToggle?.setAttribute('aria-expanded', 'false');
+  if (focus === 'toggle') panelToggle?.focus?.({ preventScroll: true });
+  else if (focus === 'canvas') $('scene').focus?.({ preventScroll: true });
+}
+function syncLayoutMode() {
+  const theater = isTheater();
+  $('layout-toggle')?.setAttribute('aria-pressed', String(theater));
+  panelOpen = false;
+  if (!runPanel) return;
+  runPanel.classList.remove('panel-open');
+  runPanel.toggleAttribute('inert', theater);
+  panelToggle?.setAttribute('aria-expanded', 'false');
+}
+$('layout-toggle')?.addEventListener('click', () => {
+  const theater = !isTheater();
+  document.documentElement.classList.toggle('theater', theater);
+  savePreference('wslice-theater', theater ? 'theater' : 'classic');
+  syncLayoutMode();
+});
+panelToggle?.addEventListener('click', () => { panelOpen ? closePanel() : openPanel({ focus: true }); });
+syncLayoutMode();
+
+// Theater overlays: --dock-h keeps the drawer above the dock; --f0/--af-h stack the
+// toast chips above the dock-float column; --scene-h anchors the popover to the
+// top of the scene so nothing intersects.
+{
+  const controlsEl = document.querySelector('.controls');
+  const sceneWrapEl = document.querySelector('.scene-wrap');
+  const dockFloatEl = document.querySelector('.dock-float');
+  const feedbackEl = $('action-feedback');
+  const warningEl = $('wave-warning');
+  const visibleRect = el => {
+    if (!el || el.hidden) return null;
+    const r = el.getBoundingClientRect();
+    return r.height > 1 ? r : null;
+  };
+  const syncOverlayVars = () => {
+    document.documentElement.style.setProperty('--dock-h', `${controlsEl?.offsetHeight ?? 0}px`);
+    if (controlsEl && sceneWrapEl)
+      document.documentElement.style.setProperty('--scene-h', `${controlsEl.getBoundingClientRect().top - sceneWrapEl.getBoundingClientRect().top}px`);
+    const df = dockFloatEl && getComputedStyle(dockFloatEl).display !== 'contents' ? visibleRect(dockFloatEl) : null;
+    const af = visibleRect(feedbackEl);
+    document.documentElement.style.setProperty('--f0', `${df?.height ?? 0}px`);
+    document.documentElement.style.setProperty('--af-h', `${af ? af.height + 6 : 0}px`);
+  };
+  if (typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(syncOverlayVars);
+    for (const el of [controlsEl, sceneWrapEl, dockFloatEl, feedbackEl, warningEl]) if (el) ro.observe(el);
+  }
+  syncOverlayVars();
+}
+
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&!isModal()){
+    if (scene.cancelGrab()) { e.preventDefault(); return; }
+    if (panelOpen) { e.preventDefault(); closePanel(); return; }
     if (scene.hyperLens.pinned || scene.hyperLens.active) {
       e.preventDefault();
       scene.closeHyperLens();
@@ -2087,6 +2259,7 @@ document.addEventListener('keydown',e=>{
   }
   if(!canAct()||e.altKey||e.ctrlKey||e.metaKey)return;
   const key=e.key.toLowerCase();
+  if(key==='p'&&!e.repeat&&isTheater()){e.preventDefault();panelOpen?closePanel():openPanel({focus:true});return;}
   if(key==='l'&&!e.repeat&&(scene.onboardingStage??4)>=2){
     const s=model.snapshot();
     if(s.phase==='playing'&&!s.wave&&!s.travel?.risky){e.preventDefault();scene.togglePinnedHyperLens(null);return;}
@@ -2126,7 +2299,7 @@ document.addEventListener('keydown',e=>{
   }
   const activeModeToggle = (e.target === $('risk-mode') && model.snapshot().riskMode) || (e.target === $('safe-mode') && !model.snapshot().riskMode);
   if(e.target.matches('button,a')&&[' ','enter'].includes(key)&&!(key===' '&&activeModeToggle))return;
-  if(['a','d','arrowleft','arrowright'].includes(key)){e.preventDefault();action(()=>model.setW(model.snapshot().w+(['a','arrowleft'].includes(key)?-.015:.015)));}
+  if(['a','d','arrowleft','arrowright'].includes(key)){e.preventDefault();cancelScrubGlide();action(()=>model.setW(model.snapshot().w+(['a','arrowleft'].includes(key)?-.015:.015)));}
   else if(key===' '||key==='enter'){
     e.preventDefault();
     if (e.repeat) return;
@@ -2158,16 +2331,50 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('visibilitychange',()=>{lastFrame=performance.now();if(document.hidden&&model.snapshot().phase==='playing'&&!isModal())pauseGame();syncAudio();});
 window.addEventListener('pagehide',event=>{if(event.persisted)audio.setEnabled(false);else audio.dispose();});
 window.addEventListener('pageshow',event=>{if(event.persisted){audio.setEnabled(soundEnabled);lastFrame=performance.now();}});
+let windowFocused = true;
+window.addEventListener('blur', () => { windowFocused = false; audio.syncAmbient({ blocked: true }); });
+window.addEventListener('focus', () => { windowFocused = true; });
+function syncAmbient() {
+  const s = model.snapshot();
+  audio.syncAmbient({
+    progress: s.activated?.length ?? 0,
+    w: scene.currentW(),
+    exitOpen: (s.activated?.length ?? 0) >= mechCountOf(s),
+    blocked: paused || isModal() || document.hidden || !windowFocused || s.phase !== 'playing',
+  });
+}
 function frame(now) {
   const dt=Math.max(0,Math.min(.05,(now-lastFrame)/1000));lastFrame=now;
   const active=!paused&&!isModal()&&!document.hidden;
+  const gameDt = active ? feel.step(dt) : 0;
   if(active){
     const beforeSnap = model.snapshot();
     const beforeTravel = beforeSnap.travel;
-    model.update(dt);
+    model.update(gameDt);
     const afterSnap = model.snapshot();
     if ((afterSnap.stats?.failures || 0) > (beforeSnap.stats?.failures || 0)) {
       autoPilot = null;
+    }
+    if (beforeTravel && !afterSnap.travel && !(afterSnap.stats?.failures > beforeSnap.stats?.failures)) {
+      feel.punch('player', .07);
+    }
+    if (afterSnap.travel && !beforeTravel) cancelScrubGlide();
+    if (scrubGlide) {
+      const cur = model.snapshot();
+      if (cur.travel) {
+        scrubGlide = null;
+      } else {
+        const w = cur.w, target = scrubGlide.target;
+        const next = Math.abs(target - w) < 1e-3 ? target : w + (target - w) * Math.min(1, dt * 14);
+        action(() => model.scrubW(next));
+        const applied = model.snapshot().w;
+        const progressed = applied === target || Math.abs(applied - target) < Math.abs(w - target) - 1e-6;
+        if (applied === target || !progressed) {
+          const session = scrubGlide.session;
+          scrubGlide = null;
+          finishScrubSession(session);
+        }
+      }
     }
     if (oneShotRiskCrossing && beforeTravel?.risky && !afterSnap.travel) {
       oneShotRiskCrossing = false;
@@ -2193,9 +2400,10 @@ function frame(now) {
   } else if (scene.altarWindow) {
     scene.altarWindow = null;
   }
-  const prEvents = scene.phaseResonance.update(dt, model.snapshot(), { active });
+  const prEvents = scene.phaseResonance.update(gameDt, model.snapshot(), { active });
   for (const pe of prEvents) {
     if (pe.type === 'phase_graze') {
+      scene.life?.cheer();
       showTransient(`⚡ 刹那折光（+1◆）！在回流抵达前 ${pe.remaining.toFixed(2)}s 切入安全层 · 连击 ×${pe.streak}`, 2.4, 'phase_graze');
     } else if (pe.type === 'phase_beat' && pe.rating === 'perfect') {
       showTransient(pe.gateIndex === 2 && pe.streak >= 3 ? `✦ 完美同频 ×${pe.streak}（+1◆）· 黄金相位锁定` : `✦ 完美同频 ×${pe.streak} · 黄金相位锁定`, 1.8, 'phase_beat');
@@ -2203,6 +2411,6 @@ function frame(now) {
   }
   guide.update(dt, model.snapshot(), active, scene.friends.length > 0 && !momentum.firstEntry);
   momentum.update(dt, model.snapshot(), guide, active);
-  consumeEvents();updateUI();syncAudio();scene.render(paused||document.hidden?0:dt);requestAnimationFrame(frame);
+  consumeEvents();updateUI();syncAudio();syncAmbient();scene.render(paused||document.hidden?0:gameDt);requestAnimationFrame(frame);
 }
 updateSoundButton();consumeEvents();updateUI();requestAnimationFrame(frame);

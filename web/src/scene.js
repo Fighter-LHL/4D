@@ -3,6 +3,9 @@ import { missingSupplySources, reachablePlatforms, mechanismFeedback } from './p
 import { projectPolytope4D, projectPolytopeLock, magnetizeLensW, wrapSignedAngle, wrapHalfTurnAngle, PhaseResonanceController } from './hyper-prism.js';
 import { ExplorationRadar } from './exploration-radar.js';
 import { planLayerRoute } from './progressive-onboarding.js';
+import { CourtyardLife } from './courtyard-life.js';
+import { ferryPosition } from './rooms.js';
+import * as toys from './scene-toys.js';
 const WORLD_W = 1000;
 const WORLD_H = 650;
 const TAU = Math.PI * 2;
@@ -62,6 +65,8 @@ export class SceneRenderer {
     onLensDive,
     onPolytopeTune,
     onBridgeDash,
+    onCast,
+    onScrubW,
     hasSupplySlots = () => false,
   } = {}) {
     this.canvas = canvas;
@@ -74,6 +79,8 @@ export class SceneRenderer {
     this.onLensDive = typeof onLensDive === 'function' ? onLensDive : null;
     this.onPolytopeTune = typeof onPolytopeTune === 'function' ? onPolytopeTune : null;
     this.onBridgeDash = typeof onBridgeDash === 'function' ? onBridgeDash : null;
+    this.onCast = typeof onCast === 'function' ? onCast : null;
+    this.onScrubW = typeof onScrubW === 'function' ? onScrubW : null;
     this.hasSupplySlots = hasSupplySlots;
     this.state = null;
     this.time = 0;
@@ -123,6 +130,13 @@ export class SceneRenderer {
     this.wTween = null;
     this.wrapAlpha = 1;
     this.downPoint = null;
+    this.grab = null;
+    this.cast = null;
+    this.hoverGrab = null;
+    this.pointerWorld = null;
+    this._pointerPrev = null;
+    this.life = null;
+    this._lifeSeed = undefined;
     this.targetTiltX = 0;
     this.targetTiltY = 0;
     this.parallaxX = 0;
@@ -146,7 +160,27 @@ export class SceneRenderer {
         this.targetTiltY = clamp(ny, -1, 1);
       }
       const wp = this.toWorld(event);
+      this.pointerWorld = { x: wp.x, y: wp.y, on: true };
+      if (this.life) {
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        const prev = this._pointerPrev;
+        const pdt = prev ? Math.max(1e-3, (now - prev.t) / 1000) : 0;
+        this.life.pointer(wp.x, wp.y, prev && pdt < .6 ? (wp.x - prev.x) / pdt : 0, prev && pdt < .6 ? (wp.y - prev.y) / pdt : 0);
+        this._pointerPrev = { x: wp.x, y: wp.y, t: now };
+      }
       const s = this.state;
+      if (this.grab) { this._grabMove(wp); canvas.style.cursor = 'grabbing'; return; }
+      if (this.downPoint?.grab) {
+        const dist = Math.hypot((event.clientX ?? 0) - this.downPoint.x, (event.clientY ?? 0) - this.downPoint.y);
+        if (dist >= 8) {
+          this.grab = this._grabStart(this.downPoint.grab, wp);
+          if (this.grab) { this._grabMove(wp); canvas.style.cursor = 'grabbing'; return; }
+          this.downPoint.grab = null;
+        } else {
+          canvas.style.cursor = 'grab';
+          return;
+        }
+      }
       if (this.downPoint && this.visualGuide && (this.onboardingStage ?? 4) >= 2 && s?.phase === 'playing' && !s.travel?.risky && !s.wave) {
         const dx = (event.clientX ?? 0) - this.downPoint.x;
         const dy = (event.clientY ?? 0) - this.downPoint.y;
@@ -204,18 +238,24 @@ export class SceneRenderer {
       this.hoverPolyLock = polyLock;
       this.hover = node?.id ?? null;
       const canSurfBridge = Boolean(this.visualGuide && (this.onboardingStage ?? 4) >= 2 && s?.phase === 'playing' && s.travel && !s.travel.risky && !s.travel.dashed);
-      canvas.style.cursor = polyLock
+      const grabHover = (!lensToggle && wLayer === null && !anom && !polyLock) ? this.hitGrab(event) : null;
+      this.hoverGrab = grabHover;
+      canvas.style.cursor = (grabHover || polyLock)
         ? 'grab'
         : (lensToggle || node || this.hitFriend(event) || anom || wLayer !== null || canSurfBridge)
           ? 'pointer'
           : (this.hyperLens.pinned ? 'crosshair' : 'default');
     };
     this.pointerLeave = () => {
+      if (this.grab) this._grabEnd(true);
       this.hover = null;
       this.hoverWLayer = null;
       this.hoverAnomaly = null;
       this.hoverLensToggle = false;
       this.hoverPolyLock = null;
+      this.hoverGrab = null;
+      this.pointerWorld = null;
+      this.life?.pointer(null);
       this.downPoint = null;
       this.polyLockDrag = null;
       if (!this.hyperLens.pinned) {
@@ -283,12 +323,15 @@ export class SceneRenderer {
         return;
       }
       if (event.button !== undefined && event.button !== 0) return;
+      const grab = this.hitGrab(event);
       this.downPoint = {
         x: event.clientX ?? 0,
         y: event.clientY ?? 0,
         world: this.toWorld(event),
-        lockHit: this.hitPolytopeLock(event),
+        lockHit: grab ? null : this.hitPolytopeLock(event),
+        grab,
       };
+      if (grab) this.canvas.setPointerCapture?.(event.pointerId);
     };
     this.onCanvasPointerUp = event => {
       if (event.button === 2) {
@@ -299,6 +342,11 @@ export class SceneRenderer {
         return;
       }
       if (event.button !== undefined && event.button !== 0) return;
+      if (this.grab) {
+        this._grabEnd(false);
+        this.downPoint = null;
+        return;
+      }
       if (this.polyLockDrag) {
         this.polyLockDrag = null;
         this.downPoint = null;
@@ -327,6 +375,14 @@ export class SceneRenderer {
     canvas.addEventListener('pointerdown', this.onCanvasPointerDown);
     canvas.addEventListener('pointerup', this.onCanvasPointerUp);
     canvas.addEventListener('contextmenu', this.onContextMenu);
+    this.onPointerCancel = () => { if (this.grab) this._grabEnd(true); this.downPoint = null; };
+    canvas.addEventListener('pointercancel', this.onPointerCancel);
+    canvas.addEventListener('lostpointercapture', this.onPointerCancel);
+    this.onTouchStart = e => {
+      const touch = e.touches?.[0];
+      if (touch && this.hitGrab(touch)) e.preventDefault();
+    };
+    canvas.addEventListener('touchstart', this.onTouchStart, { passive: false });
     this.resizeHandler = () => this.resize();
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(this.resizeHandler);
@@ -421,7 +477,7 @@ export class SceneRenderer {
     const nearMech = (s.nodes || []).find(n => !n.anchor && n.layer !== s.layer && n.powered && !s.activated.includes(n.id) && Math.hypot(n.x - wx, n.y - wy) <= 155);
     if (nearMech) return nearMech.layer;
     for (const edge of this.connections()) {
-      if (!edge.open || edge.layer === s.layer) continue;
+      if (!edge.open || edge.layer === s.layer || edge.kind === 'ferry') continue;
       const mx = mix(edge.a.x, edge.b.x, .5), my = mix(edge.a.y, edge.b.y, .5);
       if (Math.hypot(mx - wx, my - wy) <= 150) return edge.layer;
     }
@@ -515,6 +571,10 @@ export class SceneRenderer {
       this.hyperLens.active = false;
       this.hyperLens.mode = null;
     }
+    if (this.life) {
+      const p = this.playerPosition();
+      this.life.ripple(p.x, p.y);
+    }
   }
 
   hitFriend(event) {
@@ -549,6 +609,101 @@ export class SceneRenderer {
     return null;
   }
 
+  hitGrab(event) {
+    const s = this.state;
+    if (!this.visualGuide || !s || s.phase !== 'playing' || this.disposed || s.wave || s.travel?.risky) return null;
+    const { x, y } = this.toWorld(event);
+    if ((this.onboardingStage ?? 4) >= 2) {
+      const hub = this.node('hub');
+      if (hub && Math.hypot(x - toys.dialBead(hub, this.currentW()).x, y - toys.dialBead(hub, this.currentW()).y) <= 18) return 'dial';
+    }
+    if (s.ferry) {
+      const pos = ferryPosition(s.ferry, this.currentW());
+      if (((x - pos.x) / 50) ** 2 + ((y - pos.y) / 32) ** 2 <= 1) return 'ferry';
+    }
+    const casts = s.castTargets;
+    if (!s.travel && casts && ((casts.prism?.length || 0) + (casts.weave?.length || 0) + (casts.shadow?.length || 0)) > 0) {
+      const p = this.playerPosition();
+      if (Math.hypot(x - p.x, y - (p.y - 14)) <= 26) return 'cast';
+    }
+    return null;
+  }
+
+  _grabStart(kind, wp) {
+    const grab = { kind, w: this.currentW(), velocity: 0, trail: [] };
+    if (kind === 'dial') {
+      const hub = this.node('hub');
+      if (!hub) return null;
+      grab.prevAngle = toys.dialAngle(hub, wp.x, wp.y);
+    } else if (kind === 'cast') {
+      const p = this.playerPosition();
+      this.cast = { x: wp.x, y: wp.y, ax: p.x, ay: p.y - 14, snap: null, retract: 0 };
+    }
+    if (kind === 'dial' || kind === 'ferry') {
+      this._grabTrailPush(grab, grab.w);
+      this.onScrubW?.(grab.w, { phase: 'start', velocity: 0 });
+    }
+    return grab;
+  }
+
+  _grabTrailPush(grab, w) {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    grab.trail.push({ t: now, w });
+    while (grab.trail.length > 2 && now - grab.trail[0].t > 80) grab.trail.shift();
+    const first = grab.trail[0], last = grab.trail[grab.trail.length - 1];
+    grab.velocity = last.t > first.t ? (last.w - first.w) * 1000 / (last.t - first.t) : 0;
+  }
+
+  _grabMove(wp) {
+    const grab = this.grab;
+    if (!grab) return;
+    if (grab.kind === 'dial') {
+      const hub = this.node('hub');
+      if (!hub) return;
+      const angle = toys.dialAngle(hub, wp.x, wp.y);
+      const delta = wrapSignedAngle(angle - grab.prevAngle);
+      grab.prevAngle = angle;
+      grab.w = clamp(grab.w + delta / TAU);
+    } else if (grab.kind === 'ferry') {
+      const ferry = this.state?.ferry;
+      if (!ferry) return;
+      grab.w = toys.ferryDragW(ferry, wp.x, wp.y);
+    } else if (grab.kind === 'cast') {
+      if (!this.cast) return;
+      this.cast.x = wp.x;
+      this.cast.y = wp.y;
+      this.cast.snap = toys.castSnap(this, this.cast);
+      return;
+    }
+    this._grabTrailPush(grab, grab.w);
+    this.onScrubW?.(grab.w, { phase: 'move', velocity: grab.velocity });
+  }
+
+  _grabEnd(cancelled) {
+    const grab = this.grab;
+    if (!grab) return;
+    this.grab = null;
+    if (grab.kind === 'dial' || grab.kind === 'ferry') {
+      this.onScrubW?.(grab.w, { phase: cancelled ? 'cancel' : 'end', velocity: grab.velocity || 0 });
+      return;
+    }
+    const cast = this.cast;
+    if (!cancelled && cast?.snap) {
+      this.cast = null;
+      this.onCast?.(cast.snap.relic, cast.snap.target);
+    } else if (cast) {
+      cast.snap = null;
+      if (this.reducedMotion) this.cast = null;
+      else cast.retracting = true;
+    }
+  }
+
+  cancelGrab() {
+    if (this.grab) { this._grabEnd(true); this.downPoint = null; return true; }
+    if (this.downPoint?.grab) { this.downPoint = null; return true; }
+    return false;
+  }
+
   hitTest(event) {
     if (!this.state || this.state.phase !== 'playing' || this.disposed) return null;
     if (this.state.wave && this.visualGuide) return null;
@@ -557,6 +712,7 @@ export class SceneRenderer {
     const y = (event.clientY - rect.top - this.offsetY) / this.scale;
     // Match the painted island top and mechanism, never its generous label box.
     const visibleHit = [...this.state.nodes].reverse().find(node => {
+      if (node.kind === 'ferry') return ((x - node.x) / 48) ** 2 + ((y - node.y) / 30) ** 2 <= 1;
       if (node.id === 'bloom' && this.node('crown')?.anchor) return false;
       if (!node.present || (!node.anchor && node.scale < .5)) return false;
       if (node.id === 'rift' && (node.locked || !this.state.availableNodes.includes(node.id))) return false;
@@ -595,6 +751,9 @@ export class SceneRenderer {
       this.polyLocks.clear();
       this.polyLockDrag = null;
       this.altarWindow = null;
+      this.grab = null;
+      this.cast = null;
+      this.downPoint = null;
       this.hyperLens.irisWave = null;
       if (!this.hyperLens.pinned) {
         this.hyperLens.active = false;
@@ -629,6 +788,13 @@ export class SceneRenderer {
       }
     }
     this.state = snapshot;
+    if (snapshot) {
+      if (!this.life || this._lifeSeed !== snapshot.seed) {
+        this._lifeSeed = snapshot.seed;
+        this.life = new CourtyardLife({ reducedMotion: this.reducedMotion, seed: snapshot.seed ?? 1 });
+      }
+      this.life.setRoom(`${snapshot.roomSignature ?? 'room'}:${snapshot.room ?? 0}`, snapshot.nodes || []);
+    }
   }
 
   currentW() {
@@ -708,7 +874,7 @@ export class SceneRenderer {
     this.addEffect('collect', target, { ...shared, delay: .73, duration: .55, radius: 70 + tier * 16 });
     this.burst(target, COLORS.lightGold, 22 + tier * 9, .9 + tier * .2, { delay: .16, celebration: true });
     // Resonance follows only actual, open world bridges. It never changes a gate.
-    const neighbors = this.connections().filter(edge => edge.open && (edge.from === target.id || edge.to === target.id)).slice(0, tier + 1);
+    const neighbors = this.connections().filter(edge => edge.open && edge.kind !== 'ferry' && (edge.from === target.id || edge.to === target.id)).slice(0, tier + 1);
     for (const edge of neighbors) {
       const to = edge.from === target.id ? edge.b : edge.a;
       const bridgeColor = this.palette(edge.layer).color;
@@ -723,6 +889,14 @@ export class SceneRenderer {
   pushEvents(events = []) {
     if (this.disposed) return;
     for (const event of events) {
+      if (this.life) {
+        if (event.type === 'layer_shift' || event.type === 'phase_transfer') {
+          const p = this.playerPosition();
+          this.life.ripple(p.x, p.y);
+        }
+        if (event.type === 'harmonic_burst' || event.type === 'phase_graze' || event.type === 'phase_sync'
+          || (event.type === 'phase_dash' && event.rating === 'perfect')) this.life.cheer();
+      }
       const target = this.node(event.to) || this.node(event.node) || this.node(this.state?.node) || this.lastPlayer;
       const color = event.type === 'risk' || event.risky ? COLORS.gold : this.palette(target.layer ?? this.state?.layer).color;
       if (['fail', 'restart', 'room'].includes(event.type)) {
@@ -995,6 +1169,30 @@ export class SceneRenderer {
         }
       }
     }
+    if (this.state?.ferry) {
+      const ferryNode = this.state.nodes.find(n => n.id === 'ferry');
+      if (ferryNode) {
+        const p = ferryPosition(this.state.ferry, this.currentW());
+        ferryNode.x = p.x;
+        ferryNode.y = p.y;
+      }
+    }
+    if (this.cast?.retracting) {
+      this.cast.retract = this.reducedMotion ? 1 : Math.min(1, this.cast.retract + dt / .18);
+      if (this.cast.retract >= 1) this.cast = null;
+    }
+    if (this.life && this.state) {
+      this.life.setReducedMotion(this.reducedMotion);
+      const player = this.playerPosition();
+      this.life.update(dt, player);
+      if (this.state.travel?.dashed) {
+        const from = this.node(this.state.travel.from), to = this.node(this.state.travel.to);
+        if (from && to) {
+          const len = Math.max(1, Math.hypot(to.x - from.x, to.y - from.y));
+          this.life.dashPass(player.x, player.y, (to.x - from.x) / len, (to.y - from.y) / len);
+        }
+      }
+    }
     const lensAllowed = Boolean(this.visualGuide && this.hyperLens.active && this.state?.phase === 'playing' && !this.state?.wave && !this.state?.travel?.risky);
     const lensTarget = lensAllowed ? 1 : 0;
     if (this.reducedMotion) {
@@ -1043,6 +1241,8 @@ export class SceneRenderer {
     ctx.save();
     ctx.translate(this.offsetX, this.offsetY);
     ctx.scale(this.scale, this.scale);
+    const zoom = 1 + (this.feel?.value('camera') || 0);
+    if (zoom !== 1) { ctx.translate(500, 325); ctx.scale(zoom, zoom); ctx.translate(-500, -325); }
     if (!this.reducedMotion && this.shake) {
       ctx.translate(Math.sin(this.time * 93) * this.shake * 7, Math.cos(this.time * 81) * this.shake * 4);
     }
@@ -1054,6 +1254,7 @@ export class SceneRenderer {
       this.drawDormantGrowth();
       this.drawHiddenRoutes();
       this.drawConnections();
+      toys.drawFerryRail(this);
       this.drawRiskCorridor();
       if (this.visualGuide) this.drawBridgeSurfCue();
       this.labelZones = [];
@@ -1062,6 +1263,7 @@ export class SceneRenderer {
       this.drawAnchorSliceBridges();
       this.drawMomentum();
       this.drawSceneCues();
+      toys.drawFireflies(this);
       this.drawEffects(false);
       if (this.visualGuide) this.drawPolytopeLocks();
       this.drawGhost();
@@ -1073,6 +1275,7 @@ export class SceneRenderer {
       if (this.visualGuide) this.drawVisualActionGuide();
       this.drawParticles();
       this.drawAtmosphere();
+      toys.drawRelicCast(this);
       if (this.visualGuide) this.drawHyperLens();
       this.drawWStack();
     }
@@ -1109,8 +1312,11 @@ export class SceneRenderer {
     ctx.fillStyle = glow; ctx.fillRect(0, 0, WORLD_W, WORLD_H);
     for (let i = 0; i < 26; i++) {
       const depth = .4 + (i % 4) * .25;
-      const x = clamp(hash(i + 11) * WORLD_W + px * depth, 0, WORLD_W);
-      const y = clamp(30 + hash(i + 78) * 560 + py * depth, 0, WORLD_H);
+      const baseX = clamp(hash(i + 11) * WORLD_W + px * depth, 0, WORLD_W);
+      const baseY = clamp(30 + hash(i + 78) * 560 + py * depth, 0, WORLD_H);
+      const dust = this.life ? this.life.dustOffset(i, baseX, baseY) : null;
+      const x = baseX + (dust?.dx || 0);
+      const y = baseY + (dust?.dy || 0);
       const offset = this.reducedMotion ? 0 : Math.sin(this.time * .35 + i) * 5;
       const r = this.astralMode ? (i % 5 === 0 ? 2.4 : 1.7) : 1.5;
       const starCol = this.astralMode ? this.palette(i % 3).glow : '#ffffffa8';
@@ -1455,6 +1661,7 @@ export class SceneRenderer {
       const { a, b } = edge;
       const selected = (s.node === a.id && s.selected === b.id) || (s.node === b.id && s.selected === a.id);
       const traversing = s.travel?.edgeId === edge.id;
+      if (edge.kind === 'ferry' && !traversing) continue;
       const relevant = selected || traversing;
       const range = relevant && s.range?.layer === edge.layer ? s.range : edge;
       const fits = edge.visible && s.w >= range.min && s.w <= range.max;
@@ -1560,7 +1767,7 @@ export class SceneRenderer {
     // the invisible bridge lies in a higher or lower W slice, brightened when standing on an anchor
     // or hovering a layer button / W-Stack plane.
     for (const edge of this.connections()) {
-      if (!edge.open || edge.visible) continue;
+      if (!edge.open || edge.visible || edge.kind === 'ferry') continue;
       const { a, b } = edge;
       const dx = b.x - a.x, dy = b.y - a.y;
       const dist = Math.hypot(dx, dy);
@@ -1663,7 +1870,7 @@ export class SceneRenderer {
     const plan = targetId ? planLayerRoute(s, targetId, { finalLayer: this.pendingLayerPrompt?.finalLayer ?? null }) : null;
     const nextMoveEdgeId = plan?.steps?.find(st => st.type === 'move')?.edgeId || null;
     for (const edge of this.connections()) {
-      if (!edge.open || edge.visible) continue;
+      if (!edge.open || edge.visible || edge.kind === 'ferry') continue;
       if (edge.from !== s.node && edge.to !== s.node) continue;
       const from = edge.from === s.node ? edge.a : edge.b;
       const to = edge.from === s.node ? edge.b : edge.a;
@@ -3036,6 +3243,7 @@ export class SceneRenderer {
 
   drawIsland(node) {
     const ctx = this.ctx, s = this.state;
+    if (node.kind === 'ferry') { toys.drawFerrySkiff(this, node); return; }
     if (node.id === 'rift' && node.locked) { this.drawRiftSilhouette(node); return; }
     if (node.id === 'bloom' && this.node('crown')?.anchor) return;
     const hub = node.id === 'hub', exit = node.id === 'exit';
@@ -3054,6 +3262,8 @@ export class SceneRenderer {
     const points = [[-width, -height * .16], [-width * .68, -height * .77], [-width * .13, -height], [width * .65, -height * .68], [width, -.02 * height], [width * .66, height * .7], [-width * .1, height], [-width * .79, height * .6]];
     ctx.save(); ctx.translate(node.x, node.y);
     ctx.save(); ctx.scale(section, section);
+    const nodePunch = this.feel?.value(`node:${node.id}`) || 0;
+    if (nodePunch) { ctx.translate(0, 60); ctx.scale(1 + nodePunch * .5, 1 - nodePunch); ctx.translate(0, -60); }
     ctx.globalAlpha = node.anchor ? 1 : clamp(.15 + section * .85);
     if (node.anchor) {
       // An anchored column spans the W stack; its top remains solid while slices change.
@@ -3113,7 +3323,7 @@ export class SceneRenderer {
       const angle = i * 1.39 + (hub ? .3 : 1);
       const x = Math.cos(angle) * width * .77, y = Math.sin(angle) * height * .7;
       ellipse(ctx, x, y, 11 + hash(i + node.x) * 10, 4, this.astralMode ? '#296c5d42' : '#6da48440');
-      this.drawPlant(x, y, active, i + node.x);
+      this.drawPlant(x, y, active, i + node.x, `sway:${node.id}:${i}`, node.x + x * section, node.y + y * section);
     }
     // The rim belongs to this W section, making the same XYZ visibly change material.
     const rimAccent = this.astralMode ? (palette.astralColor || palette.color) : palette.color;
@@ -3206,6 +3416,8 @@ export class SceneRenderer {
     // This is permanent world geometry, so a cleared effect queue never erases it.
     const current = this.state.layer === layer;
     ctx.save();
+    const sway = this.life ? this.life.swayAngle(`growth:${node.id}`, node.x, node.y) : 0;
+    if (sway) ctx.rotate(sway * .4);
     ellipse(ctx, 0, 0, width * .88, height * .79, null, COLORS.resonance, 2.4);
     ellipse(ctx, 0, 0, width * .82, height * .72, null, '#f5e3a8', 2);
     const count = requiredStage === 1 ? 6 : 4;
@@ -3226,9 +3438,11 @@ export class SceneRenderer {
     ctx.restore();
   }
 
-  drawPlant(x, y, active, seed) {
+  drawPlant(x, y, active, seed, swayKey, swayX, swayY) {
     const ctx = this.ctx;
+    const sway = swayKey && this.life ? this.life.swayAngle(swayKey, swayX ?? x, swayY ?? y) : 0;
     ctx.save(); ctx.translate(x, y);
+    if (sway) ctx.rotate(sway);
     const height = 8 + hash(seed + 8) * 9;
     line(ctx, 0, 0, 1, -height, '#608b69', 1.5);
     for (let side = -1; side <= 1; side += 2) {
@@ -3258,8 +3472,7 @@ export class SceneRenderer {
       line(ctx, Math.cos(angle) * 45, Math.sin(angle) * 24 - 2, Math.cos(angle) * 51, Math.sin(angle) * 27 - 2, this.astralMode ? '#6cc7d8' : '#699a84', i % 3 === 0 ? 2 : 1);
     }
     diamond(ctx, 0, -3, 14, this.astralMode ? '#377d8f' : '#a8cebb', this.astralMode ? '#7fe2ee' : '#779c87');
-    const wAngle = this.currentW() * TAU - Math.PI / 2;
-    ellipse(ctx, Math.cos(wAngle) * 51, Math.sin(wAngle) * 27 - 2, 4, 3, COLORS.gold, '#ffefbf', 1);
+    toys.drawDialBead(this);
     if (s.banked > 0) {
       const stacks = Math.min(7, Math.ceil(s.banked / 3));
       for (let i = 0; i < stacks; i++) diamond(ctx, -49 + i * 16, 30 - (i % 2) * 3, 4, '#e3bd65', '#c19642');
@@ -3309,6 +3522,9 @@ export class SceneRenderer {
 
   drawMechanism(node, active) {
     const ctx = this.ctx;
+    const sway = this.life ? this.life.swayAngle(`mech:${node.id}`, node.x, node.y) : 0;
+    ctx.save();
+    if (sway) ctx.rotate(sway * .18);
     const beat = this.reducedMotion ? 0 : Math.sin(this.time * 2.5 + node.x) * 1.5;
     const astral = this.astralMode;
     if (node.id === 'dew') {
@@ -3407,6 +3623,7 @@ export class SceneRenderer {
         }
       }
     }
+    ctx.restore();
   }
 
   drawInputSlots(node) {
@@ -3550,7 +3767,15 @@ export class SceneRenderer {
     const bob = this.reducedMotion ? 0 : Math.sin(this.time * (travel ? 10 : 2.5)) * (travel ? 1.4 : 1);
     ctx.save();
     const avatarScale = clamp(.48 / this.scale, 1, 1.5);
-    ctx.scale(avatarScale, avatarScale);
+    const punch = this.feel?.value('player') || 0;
+    let squashAngle = 0;
+    if (punch && travel) {
+      const from = this.node(travel.from), to = this.node(travel.to);
+      if (from && to) squashAngle = Math.atan2(to.y - from.y, to.x - from.x);
+    }
+    if (squashAngle) ctx.rotate(squashAngle);
+    ctx.scale(avatarScale * (1 + punch), avatarScale * (1 - punch));
+    if (squashAngle) ctx.rotate(-squashAngle);
     this.drawAvatar(0, bob, color, false); ctx.restore();
     if (s.shield) {
       ctx.beginPath(); ctx.ellipse(0, -12 + bob, 19, 25, 0, Math.PI * .08, Math.PI * 1.92);
@@ -3872,6 +4097,9 @@ export class SceneRenderer {
     this.canvas.removeEventListener('pointerdown', this.onCanvasPointerDown);
     this.canvas.removeEventListener('pointerup', this.onCanvasPointerUp);
     this.canvas.removeEventListener('contextmenu', this.onContextMenu);
+    this.canvas.removeEventListener('pointercancel', this.onPointerCancel);
+    this.canvas.removeEventListener('lostpointercapture', this.onPointerCancel);
+    this.canvas.removeEventListener('touchstart', this.onTouchStart);
     this.effects.length = 0; this.particles.length = 0;
     this.state = null;
   }
