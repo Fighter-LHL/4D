@@ -58,7 +58,7 @@ export class GameModel {
     this.goodBeats = 0;
     this.syncTime = 0;
     this.riskyTime = 0;
-    this.stats = { risks: 0, failures: 0, chains: 0, anomalies: 0, perfectBeats: 0, grazes: 0, perfectCrossings: 0 };
+    this.stats = { risks: 0, failures: 0, chains: 0, anomalies: 0, perfectBeats: 0, grazes: 0, perfectCrossings: 0, dashes: 0, perfectDashes: 0, harmonicLocks: 0 };
     this.events = [];
     this._setupRoom();
     this._emit('restart');
@@ -84,6 +84,9 @@ export class GameModel {
     this.woven = new Set();
     this.coilArmed = new Set();
     this.coilUsed = 0;
+    this.tunedMechanisms = new Set();
+    this.harmonicClaims = new Set();
+    this.lastDashedArrival = null;
     this.lastActualLayer = this._actualLayer();
     this.resonance = { stage: 0, triggered: false, from: null };
     this.hiddenProgress = Object.fromEntries(this.roomConfig.hiddenRoutes.map(route => [route.id, 0]));
@@ -335,9 +338,47 @@ export class GameModel {
     this.travel = { from: this.node, to: this.selected, progress: 0, duration: this.riskMode ? 2.5 : 1.35,
       risky: this.riskMode, stability: 1, center: LAYERS[edge.layer].center, layer: edge.layer,
       edgeId: edge.id, kind: edge.kind, min: edge.min, max: edge.max, source: { node: this.node, w: this.w },
-      gates: ['pending', 'pending', 'pending'] };
+      gates: ['pending', 'pending', 'pending'], dashed: null, dashBoost: 1, dashedAt: null };
     this._emit('move', { from: this.node, to: this.selected, risky: this.riskMode, layer: edge.layer });
     if (this.riskMode) this._emit('risk', { from: this.node, to: this.selected, tier: Math.min(3, this.combo + 1) });
+    return true;
+  }
+
+  dashTravel() {
+    if (this.phase !== 'playing' || !this.travel || this.travel.risky || this.travel.dashed) return false;
+    const p = this.travel.progress;
+    if (p < .06 - EPSILON || p > .88 + EPSILON) return false;
+    const sweet = p >= .20 - EPSILON && p <= .66 + EPSILON;
+    const rating = sweet ? 'perfect' : 'good';
+    this.travel.dashed = rating;
+    this.travel.dashBoost = sweet ? 2.85 : 2.15;
+    this.travel.dashedAt = p;
+    this.stats.dashes += 1;
+    if (sweet) {
+      this.stats.perfectDashes += 1;
+      this.phaseStreak += 1;
+      this.maxPhaseStreak = Math.max(this.maxPhaseStreak, this.phaseStreak);
+    }
+    this._emit('phase_dash', {
+      from: this.travel.from,
+      to: this.travel.to,
+      node: this.travel.to,
+      edgeId: this.travel.edgeId,
+      layer: this.travel.layer,
+      rating,
+      progress: p,
+      streak: this.phaseStreak,
+    });
+    return true;
+  }
+
+  tuneMechanism(id) {
+    if (this.phase !== 'playing' || this.wave || typeof id !== 'string') return false;
+    const mechanisms = this._mechanisms();
+    if (!mechanisms.includes(id) || !this.powered.has(id) || this.activated.has(id)) return false;
+    if (this.tunedMechanisms.has(id)) return true;
+    this.tunedMechanisms.add(id);
+    this._emit('polytope_lock', { node: id, layer: this._node(id).layer });
     return true;
   }
 
@@ -366,16 +407,29 @@ export class GameModel {
   _activate(id, via = 'touch') {
     const mechanisms = this._mechanisms();
     if (!mechanisms.includes(id) || !this.powered.has(id) || this.activated.has(id) || !this._inLayer(this._node(id).layer)) return false;
+    const overcharged = this.tunedMechanisms.has(id);
+    this.tunedMechanisms.delete(id);
     this.activated.add(id);
     if (via === 'prism' || via === 'coil') this.remoteActivation = true;
     this.coilArmed.delete(id);
     this.stats.chains += 1;
     const layer = this._node(id).layer;
     const tier = Math.min(3, this.activated.size);
-    this._emit('activate', { node: id, via, layer, tier });
-    this._emit('chain', { node: id, from: id, to: id, layer, tier, via });
+    this._emit('activate', { node: id, via, layer, tier, overcharged });
+    this._emit('chain', { node: id, from: id, to: id, layer, tier, via, overcharged });
+    if (overcharged && !this.harmonicClaims.has(id)) {
+      this.harmonicClaims.add(id);
+      const surfCombo = Boolean(this.lastDashedArrival?.node === id && (this.time - this.lastDashedArrival.at) <= 1.25);
+      this.banked += 1;
+      this.roomScore += 1;
+      this.stats.harmonicLocks += 1;
+      this.phaseStreak += 1;
+      this.maxPhaseStreak = Math.max(this.maxPhaseStreak, this.phaseStreak);
+      this._emit('harmonic_burst', { node: id, bonus: 1, layer, tier, surfCombo });
+    }
+    const powerDelay = overcharged ? .12 : .5;
     for (const target of mechanisms) if (this.roomConfig.requires[target].includes(id)) {
-      this.pending.push({ at: this.time + .5, kind: 'power', from: id, to: target });
+      this.pending.push({ at: this.time + powerDelay, kind: 'power', from: id, to: target, overcharged });
     }
     if (this._allActivated()) this._emit('unlock', { node: 'exit', from: id, to: 'exit', layer: this._node('exit').layer, tier: 3 });
     if (id === 'crown' && this.roomConfig.sanctum && this.sanctumStatus === 'locked') {
@@ -571,6 +625,7 @@ export class GameModel {
     this.travel = null;
     this.node = travel.to;
     this.phaseStability = 1;
+    this.lastDashedArrival = travel.dashed ? { node: travel.to, rating: travel.dashed, at: this.time } : null;
     if (this._node().anchor) { this.lastAnchor = this.node; this.anchorW = this.w; }
     const perfectSync = Boolean(travel.risky && travel.gates?.length === RHYTHM_GATES.length && travel.gates.every(g => g === 'perfect'));
     this._reward(`${travel.from}>${travel.to}`, travel.risky ? 3 : 1, travel.risky, { from: travel.from, to: travel.to, layer: travel.layer, ...(perfectSync ? { perfectSync: true } : {}) });
@@ -672,9 +727,10 @@ export class GameModel {
     this.pending = this.pending.filter(cue => ['power', 'resonance', 'ascension', 'sanctum_ascension'].includes(cue.kind));
     this.lastActualLayer = this._actualLayer();
     // Power and scene growth are committed world effects. Only presentation celebrations are cancelled.
-    this.events = this.events.filter(event => !['chain', 'reward', 'unlock', 'activate', 'evade', 'rift_clear', 'sanctum_clear', 'phase_beat', 'phase_sync', 'phase_graze'].includes(event.type));
+    this.events = this.events.filter(event => !['chain', 'reward', 'unlock', 'activate', 'evade', 'rift_clear', 'sanctum_clear', 'phase_beat', 'phase_sync', 'phase_graze', 'phase_dash', 'polytope_lock', 'harmonic_burst'].includes(event.type));
     this.combo = 0;
     this.phaseStreak = 0;
+    this.lastDashedArrival = null;
     this.grazeArmed = null;
     this.grazeStepTriggered = null;
     this.charge = 0;
@@ -741,7 +797,8 @@ export class GameModel {
         this.wave.remaining = Math.max(0, this.wave.remaining - dt);
         if (this.wave.remaining <= EPSILON) this._finishWave();
       } else if (this.travel) {
-        this.travel.progress = Math.min(1, this.travel.progress + dt / this.travel.duration);
+        const speedBoost = this.travel.dashBoost || 1;
+        this.travel.progress = Math.min(1, this.travel.progress + (dt * speedBoost) / this.travel.duration);
         const range = this._range();
         if (this.travel.risky && range) {
           const width = Math.max(.01, (range.max - range.min) / 2);
@@ -904,7 +961,7 @@ export class GameModel {
       layers,
     }, this.collectedAnomalies);
     const syncPercent = this.riskyTime > .1 ? Math.round(Math.min(1, Math.max(0, this.syncTime / this.riskyTime)) * 100) : 100;
-    const resonanceScore = this.stats.perfectBeats * 3 + this.goodBeats + this.stats.grazes * 3 + this.maxPhaseStreak;
+    const resonanceScore = this.stats.perfectBeats * 3 + this.goodBeats + this.stats.grazes * 3 + this.stats.perfectDashes + this.stats.harmonicLocks * 2 + this.maxPhaseStreak;
     const resonanceRank = resonanceScore >= 12 ? 'S+' : resonanceScore >= 7 ? 'S' : resonanceScore >= 3 ? 'A' : 'B';
     return {
       mode: this.mode, roomTotal: this.roomPlan.length,
@@ -935,7 +992,7 @@ export class GameModel {
       } : null,
       charge: this.charge, shield: this.shieldUses > 0, shieldUses: this.shieldUses,
       claimedRoutes: [...this.claims, ...this.bankedClaims],
-      activated: [...this.activated], powered: [...this.powered], shortcut: !!this.ghost, shadowRemaining: this.ghost?.remaining || 0,
+      activated: [...this.activated], powered: [...this.powered], tunedMechanisms: [...this.tunedMechanisms], shortcut: !!this.ghost, shadowRemaining: this.ghost?.remaining || 0,
       ghost: this.ghost ? { ...this.ghost } : null, wave: this.wave ? { ...this.wave, dangerLayers: [...this.wave.dangerLayers], safeLayers: [...this.wave.safeLayers] } : null, vaultStatus: this.vaultStatus,
       phaseStability: this.phaseStability, lastAnchor: this.lastAnchor,
       abilities, abilityAvailable: abilities.some(ability => ability.available), abilityLabel: primaryAbility.label,

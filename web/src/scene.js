@@ -1,6 +1,6 @@
 import { drawCourtyardFriends } from './courtyard-friends.js';
 import { missingSupplySources, reachablePlatforms, mechanismFeedback } from './play-feedback.js';
-import { projectPolytope4D, PhaseResonanceController } from './hyper-prism.js';
+import { projectPolytope4D, projectPolytopeLock, magnetizeLensW, wrapSignedAngle, wrapHalfTurnAngle, PhaseResonanceController } from './hyper-prism.js';
 import { ExplorationRadar } from './exploration-radar.js';
 import { planLayerRoute } from './progressive-onboarding.js';
 const WORLD_W = 1000;
@@ -53,13 +53,27 @@ function hash(n) {
 
 /** Canvas presentation only. The model remains the sole rule authority. */
 export class SceneRenderer {
-  constructor(canvas, { onSelect, onFriend, onAnomaly, onLayerSelect, hasSupplySlots = () => false } = {}) {
+  constructor(canvas, {
+    onSelect,
+    onFriend,
+    onAnomaly,
+    onLayerSelect,
+    onLensDetent,
+    onLensDive,
+    onPolytopeTune,
+    onBridgeDash,
+    hasSupplySlots = () => false,
+  } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.onSelect = typeof onSelect === 'function' ? onSelect : () => {};
     this.onFriend = typeof onFriend === 'function' ? onFriend : () => {};
     this.onAnomaly = typeof onAnomaly === 'function' ? onAnomaly : null;
     this.onLayerSelect = typeof onLayerSelect === 'function' ? onLayerSelect : null;
+    this.onLensDetent = typeof onLensDetent === 'function' ? onLensDetent : null;
+    this.onLensDive = typeof onLensDive === 'function' ? onLensDive : null;
+    this.onPolytopeTune = typeof onPolytopeTune === 'function' ? onPolytopeTune : null;
+    this.onBridgeDash = typeof onBridgeDash === 'function' ? onBridgeDash : null;
     this.hasSupplySlots = hasSupplySlots;
     this.state = null;
     this.time = 0;
@@ -68,6 +82,8 @@ export class SceneRenderer {
     this.hover = null;
     this.hoverWLayer = null;
     this.hoverAnomaly = null;
+    this.hoverLensToggle = false;
+    this.hoverPolyLock = null;
     this.previewLayer = null;
     this.shake = 0;
     this.flash = 0;
@@ -85,6 +101,24 @@ export class SceneRenderer {
     this.explicitLayerHint = null;
     this.liveGuide = null;
     this.pendingLayerPrompt = null;
+    this.altarWindow = null;
+    this.polyLocks = new Map();
+    this.polyLockDrag = null;
+    this.hyperLens = {
+      active: false,
+      pinned: false,
+      mode: null,
+      x: 500,
+      y: 325,
+      open: 0,
+      w: .5,
+      rawW: .5,
+      startRawW: .5,
+      dragStartY: 0,
+      snappedLayer: 1,
+      detent: true,
+      irisWave: null,
+    };
     this.displayW = null;
     this.wTween = null;
     this.wrapAlpha = 1;
@@ -111,39 +145,173 @@ export class SceneRenderer {
         this.targetTiltX = clamp(nx, -1, 1);
         this.targetTiltY = clamp(ny, -1, 1);
       }
-      const wLayer = this.hitWStackLayer(event);
-      const anom = wLayer === null ? this.hitAnomaly(event) : null;
-      const node = (wLayer === null && !anom) ? this.hitTest(event) : null;
+      const wp = this.toWorld(event);
+      const s = this.state;
+      if (this.downPoint && this.visualGuide && (this.onboardingStage ?? 4) >= 2 && s?.phase === 'playing' && !s.travel?.risky && !s.wave) {
+        const dx = (event.clientX ?? 0) - this.downPoint.x;
+        const dy = (event.clientY ?? 0) - this.downPoint.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist >= 8) {
+          if (this.downPoint.lockHit) {
+            const lockId = this.downPoint.lockHit;
+            const lock = this.getPolyLockState(lockId);
+            if (!this.polyLockDrag) {
+              this.polyLockDrag = { nodeId: lockId, startX: this.downPoint.x, startY: this.downPoint.y, startAngle: lock.angleOffset };
+            }
+            const targetNode = this.node(lockId);
+            const isLit = s.activated.includes(lockId);
+            const nextAngle = wrapHalfTurnAngle(this.polyLockDrag.startAngle + dx * .028 - dy * .018);
+            if (isLit) {
+              lock.spinVel = clamp(dx * .045 - dy * .03, -6, 6);
+              lock.angleOffset = nextAngle;
+            } else if (targetNode?.powered && !lock.snapped && !s.tunedMechanisms?.includes(lockId)) {
+              lock.angleOffset = nextAngle;
+              if (Math.abs(nextAngle) <= .26) {
+                this.snapPolyLockVisual(lockId);
+                this.onPolytopeTune?.(lockId);
+              }
+            }
+            canvas.style.cursor = 'grabbing';
+            return;
+          }
+          if (!s.travel) {
+            if (!this.hyperLens.active || this.hyperLens.mode !== 'drag') {
+              this.openHyperLensAt(event, 'drag', this.downPoint.y);
+            }
+            this.updateHyperLensDrag(wp.x, wp.y, (event.clientY ?? 0) - this.hyperLens.dragStartY);
+            canvas.style.cursor = 'crosshair';
+            return;
+          }
+        }
+      } else if (this.hyperLens.active && this.hyperLens.mode === 'rmb') {
+        this.updateHyperLensDrag(wp.x, wp.y, (event.clientY ?? 0) - this.hyperLens.dragStartY);
+        canvas.style.cursor = 'crosshair';
+        return;
+      } else if (this.hyperLens.pinned && this.visualGuide && s?.phase === 'playing' && !s.wave && !s.travel?.risky) {
+        this.hyperLens.active = true;
+        this.hyperLens.mode = 'pinned';
+        this.hyperLens.x = clamp(wp.x, 72, WORLD_W - 72);
+        this.hyperLens.y = clamp(wp.y, 72, WORLD_H - 72);
+      }
+      const lensToggle = this.hitHyperLensToggle(event);
+      const wLayer = lensToggle ? null : this.hitWStackLayer(event);
+      const anom = (lensToggle || wLayer !== null) ? null : this.hitAnomaly(event);
+      const polyLock = (lensToggle || wLayer !== null || anom) ? null : this.hitPolytopeLock(event);
+      const node = (lensToggle || wLayer !== null || anom) ? null : this.hitTest(event);
+      this.hoverLensToggle = lensToggle;
       this.hoverWLayer = wLayer;
       this.hoverAnomaly = anom?.id ?? null;
+      this.hoverPolyLock = polyLock;
       this.hover = node?.id ?? null;
-      canvas.style.cursor = node || this.hitFriend(event) || anom || wLayer !== null ? 'pointer' : 'default';
+      const canSurfBridge = Boolean(this.visualGuide && (this.onboardingStage ?? 4) >= 2 && s?.phase === 'playing' && s.travel && !s.travel.risky && !s.travel.dashed);
+      canvas.style.cursor = polyLock
+        ? 'grab'
+        : (lensToggle || node || this.hitFriend(event) || anom || wLayer !== null || canSurfBridge)
+          ? 'pointer'
+          : (this.hyperLens.pinned ? 'crosshair' : 'default');
     };
     this.pointerLeave = () => {
       this.hover = null;
       this.hoverWLayer = null;
       this.hoverAnomaly = null;
+      this.hoverLensToggle = false;
+      this.hoverPolyLock = null;
       this.downPoint = null;
+      this.polyLockDrag = null;
+      if (!this.hyperLens.pinned) {
+        this.hyperLens.active = false;
+        this.hyperLens.mode = null;
+      }
       this.targetTiltX = 0;
       this.targetTiltY = 0;
       canvas.style.cursor = 'default';
     };
     this.pointerDown = event => {
       if (event.button !== undefined && event.button !== 0) return;
+      const s = this.state;
+      if (this.hitHyperLensToggle(event)) {
+        this.togglePinnedHyperLens(event);
+        return;
+      }
+      // ③ Kinetic Bridge Surf -> ② Altar Snap 2-Hit Combo during safe bridge crossings
+      if (this.visualGuide && (this.onboardingStage ?? 4) >= 2 && s?.phase === 'playing' && s.travel && !s.travel.risky) {
+        if (!s.travel.dashed && s.travel.progress >= .06 && this.onBridgeDash) {
+          this.onBridgeDash();
+          return;
+        }
+        if (s.travel.dashed && this.onPolytopeTune) {
+          const dest = this.node(s.travel.to);
+          if (dest?.kind === 'mechanism' && dest.powered && !s.activated.includes(dest.id)) {
+            this.snapPolyLockVisual(dest.id);
+            this.onPolytopeTune(dest.id);
+            return;
+          }
+        }
+      }
+      // ② Instant Altar Resonance Snap upon landing
+      if (this.altarWindow?.node && s?.node === this.altarWindow.node && !s.travel && this.onPolytopeTune) {
+        this.snapPolyLockVisual(this.altarWindow.node);
+        this.onPolytopeTune(this.altarWindow.node);
+        return;
+      }
       if (this.hitFriend(event)) { this.onFriend(); return; }
       const anomaly = this.hitAnomaly(event);
       if (anomaly && this.onAnomaly) { this.onAnomaly(anomaly); return; }
       const wLayer = this.hitWStackLayer(event);
       if (wLayer !== null && this.onLayerSelect) { this.onLayerSelect(wLayer); return; }
+      // Clicking an off-slice island or curiosity inside Pinned 4D Hyper-Lens while on an anchor dives into that slice
+      if (this.hyperLens.pinned && this.hyperLens.open > .35 && s?.phase === 'playing' && !s.travel && !s.wave) {
+        const here = this.node(s.node);
+        if (here?.anchor && this.hyperLens.snappedLayer !== s.layer) {
+          const wp = this.toWorld(event);
+          const inLens = Math.hypot(wp.x - this.hyperLens.x, wp.y - this.hyperLens.y) <= 114;
+          const hitOffSlice = inLens && s.nodes.some(n => !n.anchor && n.layer === this.hyperLens.snappedLayer && Math.hypot(wp.x - n.x, wp.y - n.y) <= 84);
+          if (hitOffSlice && this.onLensDive) {
+            this.onLensDive(this.hyperLens.snappedLayer);
+            return;
+          }
+        }
+      }
       const node = this.hitTest(event);
       if (node) this.onSelect(node.id);
     };
     this.onCanvasPointerDown = event => {
+      if (event.button === 2) {
+        if (this.visualGuide && (this.onboardingStage ?? 4) >= 2 && this.state?.phase === 'playing' && !this.state.travel?.risky && !this.state.wave) {
+          this.openHyperLensAt(event, 'rmb', event.clientY ?? 0);
+        }
+        return;
+      }
       if (event.button !== undefined && event.button !== 0) return;
-      this.downPoint = { x: event.clientX ?? 0, y: event.clientY ?? 0 };
+      this.downPoint = {
+        x: event.clientX ?? 0,
+        y: event.clientY ?? 0,
+        world: this.toWorld(event),
+        lockHit: this.hitPolytopeLock(event),
+      };
     };
     this.onCanvasPointerUp = event => {
+      if (event.button === 2) {
+        if (!this.hyperLens.pinned && this.hyperLens.mode === 'rmb') {
+          this.hyperLens.active = false;
+          this.hyperLens.mode = null;
+        }
+        return;
+      }
       if (event.button !== undefined && event.button !== 0) return;
+      if (this.polyLockDrag) {
+        this.polyLockDrag = null;
+        this.downPoint = null;
+        return;
+      }
+      if (this.hyperLens.active && this.hyperLens.mode === 'drag') {
+        if (!this.hyperLens.pinned) {
+          this.hyperLens.active = false;
+          this.hyperLens.mode = null;
+        }
+        this.downPoint = null;
+        return;
+      }
       if (!this.downPoint) return;
       const dist = Math.hypot((event.clientX ?? 0) - this.downPoint.x, (event.clientY ?? 0) - this.downPoint.y);
       this.downPoint = null;
@@ -151,10 +319,14 @@ export class SceneRenderer {
         this.pointerDown(event);
       }
     };
+    this.onContextMenu = event => {
+      if (this.visualGuide && this.state?.phase === 'playing') event.preventDefault();
+    };
     canvas.addEventListener('pointermove', this.pointerMove);
     canvas.addEventListener('pointerleave', this.pointerLeave);
     canvas.addEventListener('pointerdown', this.onCanvasPointerDown);
     canvas.addEventListener('pointerup', this.onCanvasPointerUp);
+    canvas.addEventListener('contextmenu', this.onContextMenu);
     this.resizeHandler = () => this.resize();
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(this.resizeHandler);
@@ -175,6 +347,174 @@ export class SceneRenderer {
     this.scale = Math.min(this.width / WORLD_W, this.height / WORLD_H);
     this.offsetX = (this.width - WORLD_W * this.scale) / 2;
     this.offsetY = (this.height - WORLD_H * this.scale) / 2;
+  }
+
+  toWorld(event) {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX ?? 0) - rect.left - this.offsetX) / this.scale,
+      y: ((event.clientY ?? 0) - rect.top - this.offsetY) / this.scale,
+    };
+  }
+
+  hitHyperLensToggle(event) {
+    if (!this.visualGuide || !this.state || this.state.phase !== 'playing' || this.state.wave) return false;
+    if ((this.onboardingStage ?? 4) < 2) return false;
+    const { x, y } = this.toWorld(event);
+    const cx = 868 + this.parallaxX * 11.9;
+    const cy = 114 + this.parallaxY * 7.65;
+    const onOrb = Math.hypot(x - cx, y - cy) <= 58;
+    const onPill = Math.abs(x - cx) <= 68 && y >= cy + 50 && y <= cy + 80;
+    return onOrb || onPill;
+  }
+
+  hitPolytopeLock(event) {
+    if (!this.visualGuide || !this.state || this.state.phase !== 'playing' || this.state.wave) return null;
+    if ((this.onboardingStage ?? 4) < 2) return null;
+    const { x, y } = this.toWorld(event);
+    const order = this.state.mechanismOrder || [];
+    for (let i = order.length - 1; i >= 0; i--) {
+      const id = order[i];
+      const node = this.node(id);
+      if (!node || (!node.present && node.layer !== this.state.layer)) continue;
+      if (!node.powered && !this.state.activated.includes(id)) continue;
+      const cy = node.y - (id === 'bell' ? 46 : 36);
+      const hitRadius = this.altarWindow?.node === id ? 68 : 58;
+      if (Math.hypot(x - node.x, y - cy) <= hitRadius) return id;
+    }
+    return null;
+  }
+
+  getPolyLockState(id) {
+    let entry = this.polyLocks.get(id);
+    if (!entry) {
+      const seedIdx = ['dew', 'bell', 'bloom', 'crown'].indexOf(id);
+      const initial = ((seedIdx >= 0 ? seedIdx : 1) % 2 === 0 ? 1 : -1) * (.76 + (seedIdx + 1) * .09);
+      entry = { angleOffset: initial, spinVel: 0, snapFlash: 0, snapped: false };
+      this.polyLocks.set(id, entry);
+    }
+    return entry;
+  }
+
+  snapPolyLockVisual(id) {
+    const entry = this.getPolyLockState(id);
+    entry.angleOffset = 0;
+    entry.spinVel = 0;
+    entry.snapped = true;
+    entry.snapFlash = 1;
+    const node = this.node(id);
+    if (node) {
+      this.addEffect('ring', { x: node.x, y: node.y - 34 }, { duration: .55, radius: 62, color: COLORS.lightGold, tier: 2 });
+      this.burst({ x: node.x, y: node.y - 26 }, COLORS.lightGold, 16, .85);
+    }
+  }
+
+  chooseDefaultLensLayer(wx, wy) {
+    const s = this.state;
+    if (!s?.layers?.length) return 1;
+    if (this.pendingLayerPrompt && Number.isInteger(this.pendingLayerPrompt.targetLayer) && this.pendingLayerPrompt.targetLayer !== s.layer) {
+      return this.pendingLayerPrompt.targetLayer;
+    }
+    // Prefer an off-slice curiosity, powered mechanism, or open bridge near cursor
+    const nearAnom = (s.anomalies || []).find(a => !a.collected && a.layer !== s.layer && Math.hypot((a.x ?? 500) - wx, (a.y ?? 325) - wy) <= 150);
+    if (nearAnom) return nearAnom.layer;
+    const nearMech = (s.nodes || []).find(n => !n.anchor && n.layer !== s.layer && n.powered && !s.activated.includes(n.id) && Math.hypot(n.x - wx, n.y - wy) <= 155);
+    if (nearMech) return nearMech.layer;
+    for (const edge of this.connections()) {
+      if (!edge.open || edge.layer === s.layer) continue;
+      const mx = mix(edge.a.x, edge.b.x, .5), my = mix(edge.a.y, edge.b.y, .5);
+      if (Math.hypot(mx - wx, my - wy) <= 150) return edge.layer;
+    }
+    const poweredOther = (s.nodes || []).find(n => !n.anchor && n.layer !== s.layer && n.powered && !s.activated.includes(n.id));
+    if (poweredOther) return poweredOther.layer;
+    return (s.layer + 1) % s.layers.length;
+  }
+
+  openHyperLensAt(event, mode = 'drag', startClientY = 0) {
+    const wp = this.toWorld(event);
+    const s = this.state;
+    const targetLayer = this.chooseDefaultLensLayer(wp.x, wp.y);
+    const centers = (s?.layers || []).map(l => l.center);
+    const initW = centers[targetLayer] ?? .5;
+    this.hyperLens.active = true;
+    this.hyperLens.mode = mode;
+    this.hyperLens.x = clamp(wp.x, 72, WORLD_W - 72);
+    this.hyperLens.y = clamp(wp.y, 72, WORLD_H - 72);
+    this.hyperLens.startRawW = initW;
+    this.hyperLens.rawW = initW;
+    this.hyperLens.w = initW;
+    this.hyperLens.snappedLayer = targetLayer;
+    this.hyperLens.detent = true;
+    this.hyperLens.dragStartY = startClientY;
+  }
+
+  togglePinnedHyperLens(event) {
+    this.hyperLens.pinned = !this.hyperLens.pinned;
+    if (this.hyperLens.pinned) {
+      if (event) {
+        this.openHyperLensAt(event, 'pinned', event.clientY ?? 0);
+      } else {
+        const s = this.state;
+        const targetLayer = this.chooseDefaultLensLayer(WORLD_W * .5, WORLD_H * .5);
+        const centers = (s?.layers || []).map(l => l.center);
+        const initW = centers[targetLayer] ?? .5;
+        this.hyperLens.active = true;
+        this.hyperLens.mode = 'pinned';
+        this.hyperLens.x = WORLD_W * .5;
+        this.hyperLens.y = WORLD_H * .5;
+        this.hyperLens.startRawW = initW;
+        this.hyperLens.rawW = initW;
+        this.hyperLens.w = initW;
+        this.hyperLens.snappedLayer = targetLayer;
+        this.hyperLens.detent = true;
+      }
+      const cx = 868 + this.parallaxX * 11.9, cy = 114 + this.parallaxY * 7.65;
+      this.addEffect('ring', { x: cx, y: cy }, { duration: .6, radius: 68, color: COLORS.mint, tier: 2 });
+      this.onLensDetent?.(this.hyperLens.snappedLayer);
+    } else {
+      this.closeHyperLens();
+    }
+  }
+
+  closeHyperLens() {
+    this.hyperLens.pinned = false;
+    this.hyperLens.active = false;
+    this.hyperLens.mode = null;
+  }
+
+  updateHyperLensDrag(wx, wy, deltaClientY = 0) {
+    const s = this.state;
+    this.hyperLens.x = clamp(wx, 72, WORLD_W - 72);
+    this.hyperLens.y = clamp(wy, 72, WORLD_H - 72);
+    const centers = (s?.layers || [{ center: .18 }, { center: .5 }, { center: .82 }]).map(l => l.center);
+    // Dragging up raises W towards Ⅲ (0.82); dragging down lowers W towards Ⅰ (0.18).
+    const nextRaw = clamp(this.hyperLens.startRawW - deltaClientY / 210, .06, .94);
+    const mag = magnetizeLensW(nextRaw, centers);
+    const prevLayer = this.hyperLens.snappedLayer;
+    const enteredDetent = mag.detent && (!this.hyperLens.detent || mag.snappedLayer !== prevLayer);
+    this.hyperLens.rawW = mag.rawW;
+    this.hyperLens.w = mag.w;
+    this.hyperLens.snappedLayer = mag.snappedLayer;
+    this.hyperLens.detent = mag.detent;
+    if (enteredDetent) this.onLensDetent?.(mag.snappedLayer);
+  }
+
+  isHyperLensActive() {
+    return Boolean(this.hyperLens.active && this.hyperLens.open > .08);
+  }
+
+  triggerLensIrisWave(layerIdx) {
+    this.hyperLens.irisWave = {
+      x: this.hyperLens.x,
+      y: this.hyperLens.y,
+      layer: layerIdx,
+      age: 0,
+      duration: .68,
+    };
+    if (!this.hyperLens.pinned) {
+      this.hyperLens.active = false;
+      this.hyperLens.mode = null;
+    }
   }
 
   hitFriend(event) {
@@ -252,6 +592,15 @@ export class SceneRenderer {
       this.displayW = snapshot?.w ?? null;
       this.wTween = null;
       this.wrapAlpha = 1;
+      this.polyLocks.clear();
+      this.polyLockDrag = null;
+      this.altarWindow = null;
+      this.hyperLens.irisWave = null;
+      if (!this.hyperLens.pinned) {
+        this.hyperLens.active = false;
+        this.hyperLens.mode = null;
+        this.hyperLens.open = 0;
+      }
     } else if (snapshot && Number.isFinite(snapshot.w)) {
       if (this.displayW === null || this.reducedMotion || snapshot.travel?.risky) {
         this.displayW = snapshot.w;
@@ -520,6 +869,60 @@ export class SceneRenderer {
       } else if (event.type === 'ability') {
         this.addEffect('ring', target, { duration: 1.15, radius: 145, color: COLORS.gold, tier: 2 });
         this.burst(target, COLORS.gold, 24, 1.1);
+      } else if (event.type === 'phase_dash') {
+        const pos = this.playerPosition();
+        const from = this.node(event.from), to = this.node(event.to);
+        const dashColor = event.rating === 'perfect' ? COLORS.lightGold : this.palette(event.layer ?? this.state?.layer).glow;
+        this.addEffect('ring', pos, { duration: .48, radius: event.rating === 'perfect' ? 76 : 58, color: dashColor, tier: event.rating === 'perfect' ? 2 : 1, celebration: true });
+        if (from && to && !this.reducedMotion) {
+          const dx = to.x - from.x, dy = to.y - from.y, len = Math.max(1, Math.hypot(dx, dy));
+          const ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
+          for (let i = 0; i < 14; i++) {
+            const spread = (this.random() - .5) * 22;
+            const speed = 75 + this.random() * 115;
+            this.particles.push({
+              x: pos.x + nx * spread,
+              y: pos.y - 10 + ny * spread,
+              vx: -ux * speed + nx * spread * 1.4,
+              vy: -uy * speed - 22,
+              age: 0,
+              celebration: true,
+              duration: .38 + this.random() * .36,
+              size: 2.2 + this.random() * 2.6,
+              color: i % 2 === 0 ? dashColor : this.palette(event.layer ?? this.state?.layer).color,
+              spin: this.random() * TAU,
+            });
+          }
+          if (this.particles.length > 220) this.particles.splice(0, this.particles.length - 220);
+        }
+        this.phaseResonance?.pushBeat(
+          event.rating === 'perfect' ? '🌊 踏浪冲刺 ✦' : '🌊 相位冲刺',
+          event.rating === 'perfect' ? 'perfect' : 'good',
+          .95,
+          'phase_dash'
+        );
+      } else if (event.type === 'polytope_lock') {
+        this.snapPolyLockVisual(event.node);
+        if (this.state?.node !== event.node) {
+          this.phaseResonance?.pushBeat('🔮 截面预调谐 ✓', 'perfect', 1.0, 'polytope_lock');
+        }
+      } else if (event.type === 'harmonic_burst') {
+        const burstNode = this.node(event.node) || target;
+        this.addEffect('section', burstNode, { duration: .95, radius: 118, color: COLORS.lightGold, celebration: true });
+        this.addEffect('crown', burstNode, { duration: 1.05, tier: 3, color: COLORS.gold, celebration: true });
+        this.addEffect('value', burstNode, { delay: .08, duration: 1.25, value: event.bonus || 1, color: COLORS.gold, celebration: true });
+        this.burst(burstNode, COLORS.lightGold, 26, 1.15, { celebration: true });
+        if (this.phaseResonance?.floatingBeats) {
+          this.phaseResonance.floatingBeats = this.phaseResonance.floatingBeats.filter(
+            b => b.type !== 'phase_dash' && b.type !== 'polytope_lock'
+          );
+        }
+        this.phaseResonance?.pushBeat(
+          event.surfCombo ? '⚡ 踏浪超频 +1◆' : '✦ 超频谐振 +1◆',
+          'perfect',
+          1.25,
+          'harmonic_burst'
+        );
       } else if (event.type === 'win') {
         for (const node of this.state?.nodes || []) {
           this.addEffect('ring', node, { duration: 1.6, radius: 110, color: COLORS.gold, tier: 3 });
@@ -592,6 +995,36 @@ export class SceneRenderer {
         }
       }
     }
+    const lensAllowed = Boolean(this.visualGuide && this.hyperLens.active && this.state?.phase === 'playing' && !this.state?.wave && !this.state?.travel?.risky);
+    const lensTarget = lensAllowed ? 1 : 0;
+    if (this.reducedMotion) {
+      this.hyperLens.open = lensTarget;
+      if (this.hyperLens.irisWave && dt > 0) {
+        this.hyperLens.irisWave.age += dt;
+        if (this.hyperLens.irisWave.age >= this.hyperLens.irisWave.duration) this.hyperLens.irisWave = null;
+      }
+    } else if (dt > 0) {
+      this.hyperLens.open += (lensTarget - this.hyperLens.open) * Math.min(1, dt * 12);
+      if (Math.abs(this.hyperLens.open - lensTarget) < .004) this.hyperLens.open = lensTarget;
+      if (this.hyperLens.irisWave) {
+        this.hyperLens.irisWave.age += dt;
+        if (this.hyperLens.irisWave.age >= this.hyperLens.irisWave.duration) this.hyperLens.irisWave = null;
+      }
+    }
+    if (dt > 0) {
+      for (const [id, lock] of this.polyLocks) {
+        lock.snapFlash = Math.max(0, lock.snapFlash - dt * 1.85);
+        if (this.state?.tunedMechanisms?.includes(id) && !lock.snapped) {
+          lock.snapped = true;
+          lock.angleOffset = 0;
+        }
+        if (!this.reducedMotion && Math.abs(lock.spinVel) > 1e-3 && (!this.polyLockDrag || this.polyLockDrag.nodeId !== id)) {
+          lock.angleOffset = wrapSignedAngle(lock.angleOffset + lock.spinVel * dt);
+          lock.spinVel *= Math.exp(-3.6 * dt);
+          if (Math.abs(lock.spinVel) < .02) lock.spinVel = 0;
+        }
+      }
+    }
     for (const effect of this.effects) effect.age += dt;
     this.effects = this.effects.filter(effect => effect.age < effect.duration + (effect.delay || 0));
     for (const particle of this.particles) {
@@ -622,6 +1055,7 @@ export class SceneRenderer {
       this.drawHiddenRoutes();
       this.drawConnections();
       this.drawRiskCorridor();
+      if (this.visualGuide) this.drawBridgeSurfCue();
       this.labelZones = [];
       const nodes = [...this.state.nodes].sort((a, b) => a.y - b.y);
       for (const node of nodes) this.drawIsland(node);
@@ -629,6 +1063,7 @@ export class SceneRenderer {
       this.drawMomentum();
       this.drawSceneCues();
       this.drawEffects(false);
+      if (this.visualGuide) this.drawPolytopeLocks();
       this.drawGhost();
       this.drawWave();
       this.drawPlayer();
@@ -638,6 +1073,7 @@ export class SceneRenderer {
       if (this.visualGuide) this.drawVisualActionGuide();
       this.drawParticles();
       this.drawAtmosphere();
+      if (this.visualGuide) this.drawHyperLens();
       this.drawWStack();
     }
     ctx.restore();
@@ -696,36 +1132,43 @@ export class SceneRenderer {
 
   drawTesseractHologram(cx, cy) {
     const ctx = this.ctx;
-    const w = this.currentW();
-    const palette = this.palette();
+    const lensActive = this.isHyperLensActive();
+    const w = lensActive ? this.hyperLens.w : this.currentW();
+    const palette = lensActive ? this.palette(this.hyperLens.snappedLayer) : this.palette();
     const spinTime = this.reducedMotion ? 0 : this.time;
+    const interactive = Boolean(this.visualGuide && (this.onboardingStage ?? 4) >= 2 && this.state?.phase === 'playing' && !this.state?.wave);
+    const hot = interactive && (this.hoverLensToggle || this.hyperLens.pinned || lensActive);
     const proj = projectPolytope4D('tesseract', {
       w,
       time: spinTime,
       tiltX: this.parallaxX * .6,
       tiltY: this.parallaxY * .6,
-      radius: 62,
+      radius: hot ? 65 : 62,
     });
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.globalAlpha = this.astralMode ? .46 : .28;
-    ellipse(ctx, 0, 0, 56, 56, null, palette.color, 1);
+    if (hot) {
+      ctx.globalAlpha = this.hyperLens.pinned ? .34 : .2;
+      ellipse(ctx, 0, 0, 62, 62, this.astralMode ? '#143342' : '#ffffff', this.hyperLens.pinned ? COLORS.lightGold : (palette.astralColor || palette.color), 1.8);
+    }
+    ctx.globalAlpha = hot ? .72 : (this.astralMode ? .46 : .28);
+    ellipse(ctx, 0, 0, 56, 56, null, this.hyperLens.pinned ? COLORS.lightGold : palette.color, hot ? 1.5 : 1);
     ellipse(ctx, 0, 0, 42, 18, null, palette.color, .8);
     // 4D Tesseract edges
     for (const [aIdx, bIdx] of proj.edges) {
       const a = proj.vertices[aIdx], b = proj.vertices[bIdx];
       const near = Math.max(a.proximity, b.proximity);
-      ctx.globalAlpha = (this.astralMode ? .22 : .13) + near * .36;
-      line(ctx, a.x, a.y, b.x, b.y, near > .65 ? palette.color : COLORS.mute, near > .65 ? 1.6 : .9);
+      ctx.globalAlpha = (this.astralMode ? .22 : .13) + near * (hot ? .48 : .36);
+      line(ctx, a.x, a.y, b.x, b.y, near > .65 ? (this.hyperLens.pinned ? COLORS.lightGold : palette.color) : COLORS.mute, near > .65 ? 1.6 : .9);
     }
     // Highlighted 4D hyperplane slice polygon at current W
     if (proj.sliceHull.length >= 3) {
-      ctx.globalAlpha = this.astralMode ? .26 : .16;
+      ctx.globalAlpha = hot ? .34 : (this.astralMode ? .26 : .16);
       path(ctx, proj.sliceHull.map(p => [p.x, p.y]));
       ctx.fillStyle = palette.glow;
       ctx.fill();
-      ctx.globalAlpha = this.astralMode ? .78 : .52;
-      ctx.strokeStyle = palette.color;
+      ctx.globalAlpha = hot ? .9 : (this.astralMode ? .78 : .52);
+      ctx.strokeStyle = this.hyperLens.pinned ? COLORS.lightGold : palette.color;
       ctx.lineWidth = 1.6;
       ctx.stroke();
     }
@@ -733,6 +1176,38 @@ export class SceneRenderer {
       if (v.proximity < .45) continue;
       ctx.globalAlpha = v.proximity * (this.astralMode ? .85 : .6);
       diamond(ctx, v.x, v.y, 2.2 + v.proximity * 1.8, palette.glow, palette.color);
+    }
+    if (interactive) {
+      const label = this.hyperLens.pinned
+        ? '🔍 透视镜 · 开'
+        : this.hoverLensToggle
+          ? '🔍 开启透视镜'
+          : '🔍 透视镜';
+      ctx.globalAlpha = hot ? .96 : .76;
+      ctx.font = `600 ${clamp(9.2 / this.scale, 10.5, 13.5)}px system-ui, sans-serif`;
+      const tw = Math.max(82, ctx.measureText(label).width + 16);
+      const th = 20;
+      const py = 64;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(-tw / 2, py - th / 2, tw, th, 10);
+      else ctx.rect(-tw / 2, py - th / 2, tw, th);
+      ctx.fillStyle = this.hyperLens.pinned
+        ? (this.astralMode ? '#2f230ce8' : '#fef3c7ee')
+        : (this.astralMode ? '#0d202ee0' : '#f1f7f2e8');
+      ctx.fill();
+      ctx.lineWidth = this.hyperLens.pinned || this.hoverLensToggle ? 1.6 : 1.1;
+      ctx.strokeStyle = this.hyperLens.pinned
+        ? '#fbbf24'
+        : this.hoverLensToggle
+          ? (palette.astralColor || palette.color)
+          : (this.astralMode ? '#3b647bb0' : '#9bb6a8c8');
+      ctx.stroke();
+      ctx.fillStyle = this.hyperLens.pinned
+        ? (this.astralMode ? '#ffe9a8' : '#7c4a0d')
+        : (this.astralMode ? '#daf4ef' : '#244b45');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, 0, py);
     }
     ctx.restore();
   }
@@ -1080,7 +1555,7 @@ export class SceneRenderer {
     const w = this.currentW();
     const currentNode = this.node(s.node);
     const onAnchor = !!currentNode?.anchor;
-    const activePreviewLayer = this.hoverWLayer ?? this.previewLayer;
+    const activePreviewLayer = this.isHyperLensActive() ? this.hyperLens.snappedLayer : (this.hoverWLayer ?? this.previewLayer);
     // 1. Neighboring W-volume bridge silhouettes: vertical offset (delta * 95) shows whether
     // the invisible bridge lies in a higher or lower W slice, brightened when standing on an anchor
     // or hovering a layer button / W-Stack plane.
@@ -1315,11 +1790,494 @@ export class SceneRenderer {
     ctx.restore();
   }
 
+  drawBridgeSurfCue() {
+    const s = this.state;
+    if (!s || s.phase !== 'playing' || !s.travel || s.travel.risky) return;
+    if ((this.onboardingStage ?? 4) < 2) return;
+    const from = this.node(s.travel.from), to = this.node(s.travel.to);
+    if (!from || !to) return;
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1) return;
+    const ux = dx / dist, uy = dy / dist;
+    const nx = -uy, ny = ux;
+    const ctx = this.ctx;
+    const pal = this.palette(s.travel.layer ?? s.layer);
+    const accent = this.astralMode ? (pal.astralColor || pal.color) : pal.color;
+    const pos = this.playerPosition();
+    const p = clamp(s.travel.progress);
+
+    ctx.save();
+    if (!s.travel.dashed && p <= .86) {
+      const inSweet = p >= .20 && p <= .66;
+      const sx1 = mix(from.x, to.x, .20), sy1 = mix(from.y, to.y, .20);
+      const sx2 = mix(from.x, to.x, .66), sy2 = mix(from.y, to.y, .66);
+      const railCol = inSweet ? COLORS.lightGold : accent;
+      ctx.globalAlpha = inSweet ? .9 : .58;
+      for (const side of [-1, 1]) {
+        line(ctx, sx1 + nx * 15 * side, sy1 + ny * 15 * side, sx2 + nx * 15 * side, sy2 + ny * 15 * side, railCol, inSweet ? 2.6 : 1.7);
+      }
+      // Flowing phase-crest chevron moving slightly ahead in the sweet zone
+      const crestT = clamp(Math.max(.26, p + .10), .26, .64);
+      const cx = mix(from.x, to.x, crestT), cy = mix(from.y, to.y, crestT);
+      const pulse = this.reducedMotion ? .5 : .5 + .5 * Math.sin(this.time * 9);
+      ctx.globalAlpha = .72 + pulse * .25;
+      path(ctx, [
+        [cx - ux * 11 + nx * 14, cy - uy * 11 + ny * 14],
+        [cx + ux * 11, cy + uy * 11],
+        [cx - ux * 11 - nx * 14, cy - uy * 11 - ny * 14],
+      ], false);
+      ctx.strokeStyle = inSweet ? COLORS.lightGold : pal.glow;
+      ctx.lineWidth = inSweet ? 3.2 : 2.2;
+      ctx.stroke();
+      diamond(ctx, cx, cy, inSweet ? 5.2 : 4, inSweet ? '#fffbeb' : pal.glow, railCol);
+
+      if (p >= .06) {
+        const label = inSweet ? '🌊 轻点 / 空格 · 踏浪冲刺' : '🌊 波峰冲刺';
+        ctx.globalAlpha = .94;
+        ctx.font = `700 ${clamp(9.4 / this.scale, 10.5, 14.5)}px system-ui, sans-serif`;
+        const tw = Math.max(88, ctx.measureText(label).width + 18);
+        const th = 21;
+        const bx = clamp(pos.x, tw / 2 + 12, WORLD_W - tw / 2 - 12);
+        const by = Math.max(22, pos.y - 54);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(bx - tw / 2, by - th / 2, tw, th, 10.5);
+        else ctx.rect(bx - tw / 2, by - th / 2, tw, th);
+        ctx.fillStyle = inSweet ? (this.astralMode ? '#2f230cf0' : '#33230bee') : (this.astralMode ? '#0f2734ee' : '#163139eb');
+        ctx.fill();
+        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = inSweet ? '#fbbf24' : '#5eead4';
+        ctx.stroke();
+        ctx.fillStyle = inSweet ? '#fff7d6' : '#ccfbf1';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, bx, by);
+      }
+    } else if (s.travel.dashed) {
+      const tailT = clamp(Math.max(s.travel.dashedAt ?? 0, p - .34));
+      const tx = mix(from.x, to.x, tailT), ty = mix(from.y, to.y, tailT);
+      const wakeCol = s.travel.dashed === 'perfect' ? COLORS.lightGold : pal.glow;
+      ctx.globalAlpha = .42;
+      line(ctx, tx, ty, pos.x, pos.y, wakeCol, 9);
+      ctx.globalAlpha = .88;
+      line(ctx, tx, ty, pos.x, pos.y, '#ffffff', 2.2);
+      // Mid-dash pre-lock combo cue if destination is an untuned powered mechanism
+      const dest = to;
+      if (dest.kind === 'mechanism' && dest.powered && !s.activated.includes(dest.id) && !s.tunedMechanisms?.includes(dest.id) && p < .92) {
+        const comboText = '⚡ 再点一下 · 凌空锁频 (+1◆)';
+        ctx.globalAlpha = .95;
+        ctx.font = `700 ${clamp(9.4 / this.scale, 10.5, 14.5)}px system-ui, sans-serif`;
+        const tw = Math.max(110, ctx.measureText(comboText).width + 18);
+        const th = 21;
+        const bx = clamp(dest.x, tw / 2 + 12, WORLD_W - tw / 2 - 12);
+        const by = Math.max(24, dest.y - 84);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(bx - tw / 2, by - th / 2, tw, th, 10.5);
+        else ctx.rect(bx - tw / 2, by - th / 2, tw, th);
+        ctx.fillStyle = '#33230bf2';
+        ctx.fill();
+        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = '#fbbf24';
+        ctx.stroke();
+        ctx.fillStyle = '#fffbeb';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(comboText, bx, by);
+      }
+    }
+    ctx.restore();
+  }
+
+  drawPolytopeLocks() {
+    const s = this.state;
+    if (!s || s.phase !== 'playing' || s.wave) return;
+    if ((this.onboardingStage ?? 4) < 2) return;
+    const ctx = this.ctx;
+    const order = s.mechanismOrder || [];
+    for (const id of order) {
+      const node = this.node(id);
+      if (!node || (!node.present && node.layer !== s.layer)) continue;
+      const isLit = s.activated.includes(id);
+      const isPowered = node.powered && !isLit;
+      const isInteracting = this.hoverPolyLock === id || this.polyLockDrag?.nodeId === id;
+      if (!isPowered && !(isLit && isInteracting && Math.abs(this.getPolyLockState(id).spinVel) > .05)) continue;
+      const lock = this.getPolyLockState(id);
+      const isTuned = Boolean(lock.snapped || s.tunedMechanisms?.includes(id) || isLit);
+      const isAltar = Boolean(this.altarWindow?.node === id && s.node === id && !s.travel && !isTuned);
+      const cx = node.x;
+      const cy = node.y - (id === 'bell' ? 46 : 36);
+      const radius = isAltar ? 33 : (isInteracting ? 29 : 24);
+      const pal = this.palette(node.layer ?? s.layer);
+      const baseCol = this.astralMode ? (pal.astralColor || pal.color) : pal.color;
+      const sway = (!isTuned && this.polyLockDrag?.nodeId !== id && !this.reducedMotion)
+        ? Math.sin(this.time * 1.65 + node.x * .02) * .08
+        : 0;
+      const proj = projectPolytopeLock(id, {
+        w: this.currentW(),
+        offsetAngle: isTuned ? lock.angleOffset : wrapHalfTurnAngle(lock.angleOffset + sway),
+        time: this.reducedMotion ? 0 : this.time,
+        radius,
+      });
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      const ringR = radius + 8;
+      // Outer astrolabe dial ring
+      ctx.globalAlpha = isAltar ? .92 : (isTuned ? .84 : (isInteracting ? .8 : .52));
+      ellipse(ctx, 0, 0, ringR, ringR * .68, isAltar ? '#fbbf241e' : (isTuned ? '#fde68a1a' : null), isTuned ? COLORS.lightGold : baseCol, isAltar ? 2.2 : 1.3);
+      for (let t = 0; t < 8; t++) {
+        const a = t * TAU / 8;
+        const rIn = ringR - 2.5, rOut = ringR + 2.5;
+        line(ctx, Math.cos(a) * rIn, Math.sin(a) * rIn * .68, Math.cos(a) * rOut, Math.sin(a) * rOut * .68, isTuned ? COLORS.lightGold : baseCol, t % 2 === 0 ? 1.5 : .9);
+      }
+
+      // Contracting Altar Resonance countdown arc upon landing
+      if (isAltar) {
+        const remain = 1 - clamp(this.altarWindow.progress ?? 0, 0, 1);
+        const shrinkR = ringR + 4 + remain * 14;
+        ctx.globalAlpha = .92;
+        ellipse(ctx, 0, 0, shrinkR, shrinkR * .68, null, '#fbbf24', 2.4);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, ringR + 2, (ringR + 2) * .68, 0, -Math.PI / 2, -Math.PI / 2 + TAU * Math.max(.03, remain));
+        ctx.strokeStyle = '#fffbeb';
+        ctx.lineWidth = 2.8;
+        ctx.stroke();
+      }
+
+      // Target 4D cross-section silhouette frame (dashed golden socket)
+      if (!isTuned && proj.targetHull.length >= 3) {
+        ctx.globalAlpha = isInteracting || isAltar ? .82 : .48;
+        ctx.setLineDash([4, 4]);
+        path(ctx, proj.targetHull.map(p => [p.x, p.y]));
+        ctx.strokeStyle = COLORS.lightGold;
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Live rotating 4D polytope edges & active hyperplane slice
+      const liveCol = isTuned || proj.alignment > .78 ? COLORS.lightGold : baseCol;
+      for (const [aIdx, bIdx] of proj.live.edges) {
+        const a = proj.live.vertices[aIdx], b = proj.live.vertices[bIdx];
+        const near = Math.max(a.proximity, b.proximity);
+        ctx.globalAlpha = .2 + near * (isTuned ? .68 : .48);
+        line(ctx, a.x, a.y, b.x, b.y, near > .6 ? liveCol : COLORS.mute, near > .6 ? 1.5 : .9);
+      }
+      if (proj.live.sliceHull.length >= 3) {
+        ctx.globalAlpha = isTuned ? (.42 + lock.snapFlash * .35) : (.18 + proj.alignment * .22);
+        path(ctx, proj.live.sliceHull.map(p => [p.x, p.y]));
+        ctx.fillStyle = isTuned ? '#fef08a' : pal.glow;
+        ctx.fill();
+        ctx.globalAlpha = isTuned ? .96 : (.62 + proj.alignment * .32);
+        ctx.strokeStyle = liveCol;
+        ctx.lineWidth = isTuned ? 2.1 : 1.5;
+        ctx.stroke();
+      }
+      diamond(ctx, 0, 0, isTuned ? 5.2 : 3.8, isTuned ? '#fffbeb' : pal.glow, liveCol);
+
+      // Subtle status / prompt micro-pill
+      let lockTag = null;
+      if (isAltar) lockTag = '⚡ 轻点 / 空格 · 超频锁 (+1◆)';
+      else if (isTuned && !isLit) lockTag = '✦ 超频已锁 (+1◆)';
+      else if (isInteracting && !isTuned) lockTag = '↻ 拖拽对准金框 (+1◆)';
+
+      if (lockTag) {
+        ctx.globalAlpha = .95;
+        ctx.font = `700 ${clamp(8.8 / this.scale, 10, 13.5)}px system-ui, sans-serif`;
+        const tw = Math.max(82, ctx.measureText(lockTag).width + 14);
+        const th = 19;
+        const ty = isAltar ? -(ringR * .68 + 18) : (ringR * .68 + 15);
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(-tw / 2, ty - th / 2, tw, th, 9.5);
+        else ctx.rect(-tw / 2, ty - th / 2, tw, th);
+        ctx.fillStyle = isTuned || isAltar ? '#33230bf0' : '#122634ee';
+        ctx.fill();
+        ctx.lineWidth = 1.4;
+        ctx.strokeStyle = isTuned || isAltar ? '#fbbf24' : baseCol;
+        ctx.stroke();
+        ctx.fillStyle = isTuned || isAltar ? '#fffbeb' : '#daf4ef';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(lockTag, 0, ty);
+      }
+      ctx.restore();
+    }
+  }
+
+  drawHyperLens() {
+    const ctx = this.ctx, s = this.state;
+    if (!s) return;
+    // Full-screen expanding Iris Dive wave when diving through the 4D Hyper-Lens
+    if (this.hyperLens.irisWave) {
+      const wave = this.hyperLens.irisWave;
+      const p = clamp(wave.age / Math.max(.05, wave.duration));
+      const pal = this.palette(wave.layer);
+      const col = this.astralMode ? (pal.astralColor || pal.color) : pal.color;
+      const r = 24 + (this.reducedMotion ? .55 : ease(p)) * 960;
+      ctx.save();
+      ctx.globalAlpha = (1 - p) * .72;
+      ellipse(ctx, wave.x, wave.y, r, r * .72, null, col, 3.2 * (1 - p * .5));
+      ctx.globalAlpha = (1 - p) * .45;
+      ellipse(ctx, wave.x, wave.y, Math.max(8, r * .82), Math.max(6, r * .82 * .72), null, COLORS.lightGold, 1.8);
+      ctx.restore();
+    }
+
+    if (this.hyperLens.open <= .01) return;
+    const openEase = this.reducedMotion ? clamp(this.hyperLens.open) : ease(this.hyperLens.open);
+    const r = Math.max(10, 118 * openEase);
+    const lx = clamp(this.hyperLens.x, 72, WORLD_W - 72);
+    const ly = clamp(this.hyperLens.y, 72, WORLD_H - 72);
+    const lensW = clamp(this.hyperLens.w, .06, .94);
+    const lensLayer = clamp(this.hyperLens.snappedLayer ?? 1, 0, Math.max(0, (s.layers?.length || 3) - 1));
+    const pal = this.palette(lensLayer);
+    const accent = this.astralMode ? (pal.astralColor || pal.color) : pal.color;
+    const order = s.mechanismOrder || [];
+    const numSymbols = ['①', '②', '③', '④'];
+
+    // 1. Clipped 4D X-Ray Portal Interior
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(lx, ly, r, 0, TAU);
+    ctx.clip();
+
+    const bgGrad = ctx.createRadialGradient(lx, ly, 4, lx, ly, r);
+    if (this.astralMode) {
+      bgGrad.addColorStop(0, '#102838f6');
+      bgGrad.addColorStop(.72, '#0b1b27f8');
+      bgGrad.addColorStop(1, '#07121bfa');
+    } else {
+      bgGrad.addColorStop(0, '#f8fcf7f6');
+      bgGrad.addColorStop(.75, `${pal.pale}f6`);
+      bgGrad.addColorStop(1, '#dce9e2fa');
+    }
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(lx - r - 2, ly - r - 2, r * 2 + 4, r * 2 + 4);
+
+    // Subtle 4D coordinate grid inside the lens shifting with lensW
+    ctx.globalAlpha = this.astralMode ? .2 : .15;
+    const gridShift = (lensW - .5) * 60;
+    for (let gx = -120; gx <= 120; gx += 30) {
+      line(ctx, lx + gx, ly - r, lx + gx, ly + r, accent, .8);
+    }
+    for (let gy = -120; gy <= 120; gy += 30) {
+      const yLine = ly + gy + (gridShift % 30);
+      line(ctx, lx - r, yLine, lx + r, yLine, accent, .8);
+    }
+
+    // Bridges materialized at lensW
+    for (const edge of this.connections()) {
+      const inLensW = lensW >= edge.min - .025 && lensW <= edge.max + .025;
+      if (!inLensW) continue;
+      const { a, b } = edge;
+      const dx = b.x - a.x, dy = b.y - a.y, dist = Math.hypot(dx, dy);
+      if (dist < 1) continue;
+      const nx = -dy / dist, ny = dx / dist;
+      const eCol = this.astralMode && edge.kind === 'normal' ? (this.palette(edge.layer).astralColor || this.bridgeColor(edge)) : this.bridgeColor(edge);
+      if (edge.open) {
+        ctx.globalAlpha = .24;
+        line(ctx, a.x, a.y, b.x, b.y, eCol, 20);
+        const steps = Math.max(5, Math.floor(dist / 24));
+        for (let i = 1; i < steps; i++) {
+          const t = i / steps;
+          const px = mix(a.x, b.x, t), py = mix(a.y, b.y, t);
+          const vx = dx / dist * 5.5, vy = dy / dist * 5.5;
+          ctx.globalAlpha = .92;
+          path(ctx, [
+            [px + nx * 11 - vx, py + ny * 11 - vy],
+            [px + nx * 11 + vx, py + ny * 11 + vy],
+            [px - nx * 11 + vx, py - ny * 11 + vy],
+            [px - nx * 11 - vx, py - ny * 11 - vy],
+          ]);
+          ctx.fillStyle = this.astralMode ? '#1b384a' : '#f9f6e8';
+          ctx.fill();
+          ctx.strokeStyle = eCol;
+          ctx.lineWidth = 1.4;
+          ctx.stroke();
+        }
+        for (const side of [-1, 1]) {
+          ctx.globalAlpha = .82;
+          line(ctx, a.x + nx * 14 * side, a.y + ny * 14 * side, b.x + nx * 14 * side, b.y + ny * 14 * side, eCol, 1.4);
+        }
+      } else {
+        ctx.globalAlpha = .45;
+        ctx.setLineDash([4, 6]);
+        line(ctx, a.x, a.y, b.x, b.y, eCol, 1.5);
+        ctx.setLineDash([]);
+        const mx = mix(a.x, b.x, .5), my = mix(a.y, b.y, .5);
+        ellipse(ctx, mx, my, 9, 9, this.astralMode ? '#122330' : '#edf1e5', eCol, 1.4);
+      }
+    }
+
+    // Continuously sliced 4D islands at lensW
+    const sortedNodes = [...s.nodes].sort((a, b) => a.y - b.y);
+    for (const node of sortedNodes) {
+      if (node.id === 'rift' && node.locked) continue;
+      if (node.id === 'bloom' && this.node('crown')?.anchor) continue;
+      const nodeCenter = node.center ?? node.world?.w ?? (s.layers?.[node.layer]?.center ?? .5);
+      const sec = node.anchor ? 1 : this.sectionAt(nodeCenter, lensW);
+      if (sec <= .05) continue;
+      const nPal = this.palette(node.layer ?? lensLayer);
+      const nCol = this.astralMode ? (nPal.astralColor || nPal.color) : nPal.color;
+      const w = (node.id === 'hub' ? 106 : node.id === 'exit' ? 84 : node.anchor ? 80 : 88) * sec;
+      const h = (node.id === 'hub' ? 54 : 44) * sec;
+      ctx.save();
+      ctx.translate(node.x, node.y);
+      ctx.globalAlpha = clamp(.25 + sec * .75);
+      ellipse(ctx, 0, 5 * sec, w * .95, h * .82, this.astralMode ? '#09162288' : '#8aa59640');
+      ellipse(ctx, 0, 0, w * .88, h * .76, this.astralMode ? (nPal.astralStone || '#1d3647') : nPal.stone, nCol, node.anchor ? 1.8 : 2.2);
+      ellipse(ctx, 0, 0, Math.max(2, w * .72), Math.max(2, h * .6), null, `${nCol}88`, 1.1);
+      const mIdx = order.indexOf(node.id);
+      const glyph = mIdx >= 0
+        ? (s.activated.includes(node.id) ? `✓${numSymbols[mIdx]}` : numSymbols[mIdx])
+        : node.id === 'exit'
+          ? '🚪'
+          : node.id === 'vault'
+            ? '✨'
+            : node.anchor
+              ? '⚓'
+              : '◇';
+      if (sec > .32) {
+        diamond(ctx, 0, -14 * sec, Math.max(4, 9 * sec), s.activated.includes(node.id) ? '#fde68a' : nPal.glow, nCol);
+        ctx.font = `700 ${clamp(10 / this.scale, 11, 15)}px system-ui, sans-serif`;
+        ctx.fillStyle = this.astralMode ? '#f0fdf9' : COLORS.ink;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${glyph} ${node.name || ''}`.trim(), 0, 14 * sec);
+      }
+      ctx.restore();
+    }
+
+    // Hidden 4D Curiosities materialized inside lensW
+    for (const item of this.explorationRadar.visibleAnomalies(s)) {
+      if (item.collected) continue;
+      const aCenter = s.layers?.[item.layer]?.center ?? .5;
+      const aSec = this.sectionAt(aCenter, lensW);
+      if (aSec <= .14) continue;
+      const iPal = this.palette(item.layer);
+      const iCol = aSec > .75 ? '#fbbf24' : (this.astralMode ? (iPal.astralColor || iPal.color) : iPal.color);
+      const proj = projectPolytope4D(item.polytope, {
+        w: lensW,
+        time: this.reducedMotion ? 0 : this.time * 1.5,
+        radius: 24 * aSec,
+      });
+      ctx.save();
+      ctx.translate(item.x, item.y);
+      ctx.globalAlpha = clamp(.3 + aSec * .7);
+      ellipse(ctx, 0, 0, 30 * aSec, 17 * aSec, aSec > .75 ? '#fbbf2426' : null, iCol, 1.8);
+      for (const [aIdx, bIdx] of proj.edges) {
+        const va = proj.vertices[aIdx], vb = proj.vertices[bIdx];
+        line(ctx, va.x, va.y, vb.x, vb.y, iCol, 1.3);
+      }
+      diamond(ctx, 0, 0, 5.5 * aSec, '#fffbeb', iCol);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // 2. Precision Optical Astrolabe Bezel & W-Arc Gauge (outside clip)
+    ctx.save();
+    const bezelCol = this.hyperLens.detent ? COLORS.lightGold : accent;
+    ctx.globalAlpha = .95;
+    ellipse(ctx, lx, ly, r, r, null, bezelCol, this.hyperLens.detent ? 2.8 : 2.2);
+    ctx.globalAlpha = .52;
+    ellipse(ctx, lx, ly, r + 5, r + 5, null, accent, 1.1);
+    // Crosshair cardinal ticks
+    for (let i = 0; i < 12; i++) {
+      const a = i * TAU / 12;
+      const major = i % 3 === 0;
+      const r1 = r - (major ? 6 : 3), r2 = r + (major ? 5 : 2);
+      ctx.globalAlpha = major ? .82 : .38;
+      line(ctx, lx + Math.cos(a) * r1, ly + Math.sin(a) * r1, lx + Math.cos(a) * r2, ly + Math.sin(a) * r2, bezelCol, major ? 1.7 : 1);
+    }
+
+    // Left W-axis detent arc (Ⅰ 0.18 -> Ⅱ 0.50 -> Ⅲ 0.82)
+    const arcR = r + 12;
+    const angleForW = wVal => Math.PI * (1.28 - clamp((wVal - .06) / .88, 0, 1) * .56);
+    ctx.globalAlpha = .5;
+    ctx.beginPath();
+    ctx.arc(lx, ly, arcR, Math.PI * .72, Math.PI * 1.28);
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    const centers = (s.layers || [{ center: .18 }, { center: .5 }, { center: .82 }]).map(l => l.center);
+    centers.forEach((cW, idx) => {
+      const a = angleForW(cW);
+      const tx = lx + Math.cos(a) * arcR, ty = ly + Math.sin(a) * arcR;
+      const isSnap = this.hyperLens.detent && lensLayer === idx;
+      ctx.globalAlpha = isSnap ? 1 : .72;
+      diamond(ctx, tx, ty, isSnap ? 5.2 : 3.4, isSnap ? '#fffbeb' : this.palette(idx).glow, isSnap ? '#fbbf24' : this.palette(idx).color);
+    });
+    const needleA = angleForW(lensW);
+    ctx.globalAlpha = 1;
+    diamond(ctx, lx + Math.cos(needleA) * arcR, ly + Math.sin(needleA) * arcR, 4.6, '#ffffff', bezelCol);
+
+    // Mini 4D cross-section inset at top-right of bezel
+    const insetX = lx + r * .71, insetY = ly - r * .71;
+    ctx.globalAlpha = .92;
+    ellipse(ctx, insetX, insetY, 17, 17, this.astralMode ? '#0b1d2be8' : '#f4f8f3ee', bezelCol, 1.4);
+    const miniProj = projectPolytope4D('tesseract', { w: lensW, time: this.reducedMotion ? 0 : this.time, radius: 13 });
+    if (miniProj.sliceHull.length >= 3) {
+      path(ctx, miniProj.sliceHull.map(p => [insetX + p.x, insetY + p.y]));
+      ctx.fillStyle = `${pal.glow}66`;
+      ctx.fill();
+      ctx.strokeStyle = bezelCol;
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
+    }
+
+    // Top W-slice readout pill
+    const layerLabels = ['Ⅰ 潮汐层', 'Ⅱ 回声层', 'Ⅲ 绽放层'];
+    const topLabel = `🔍 透视 ${layerLabels[lensLayer] || ''} · W ${lensW.toFixed(2)}${this.hyperLens.detent ? ' ✦磁吸' : ''}`;
+    ctx.globalAlpha = .96;
+    ctx.font = `700 ${clamp(9.4 / this.scale, 11, 14.5)}px system-ui, sans-serif`;
+    const topW = Math.max(128, ctx.measureText(topLabel).width + 18);
+    const topH = 22;
+    const topX = clamp(lx, topW / 2 + 10, WORLD_W - topW / 2 - 10);
+    const topY = ly - r - 18 >= 20 ? ly - r - 16 : ly + r + 16;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(topX - topW / 2, topY - topH / 2, topW, topH, 11);
+    else ctx.rect(topX - topW / 2, topY - topH / 2, topW, topH);
+    ctx.fillStyle = this.astralMode ? '#0b1d2bf2' : '#132933f0';
+    ctx.fill();
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = bezelCol;
+    ctx.stroke();
+    ctx.fillStyle = this.hyperLens.detent ? '#fff7d6' : '#daf4ef';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(topLabel, topX, topY);
+
+    // Bottom action micro-hint
+    const onAnchor = !!this.node(s.node)?.anchor;
+    const subLabel = this.hyperLens.pinned
+      ? (onAnchor && lensLayer !== s.layer ? '点击镜内异层岛直达 · 点右上角关' : '移鼠透视四维 · 站 ⚓ 台点镜内岛可切入')
+      : (onAnchor ? '↕ 上下拖移调 W · 滚轮直接潜入此层' : '↕ 上下拖移透视异层 · 松手不改当前层');
+    if (ly + r + 18 <= WORLD_H - 14 && topY < ly) {
+      ctx.font = `600 ${clamp(8.6 / this.scale, 10, 13)}px system-ui, sans-serif`;
+      const subW = Math.max(132, ctx.measureText(subLabel).width + 16);
+      const subH = 19;
+      const subX = clamp(lx, subW / 2 + 10, WORLD_W - subW / 2 - 10);
+      const subY = ly + r + 15;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(subX - subW / 2, subY - subH / 2, subW, subH, 9.5);
+      else ctx.rect(subX - subW / 2, subY - subH / 2, subW, subH);
+      ctx.fillStyle = this.astralMode ? '#091722e8' : '#162b33e6';
+      ctx.fill();
+      ctx.lineWidth = 1.1;
+      ctx.strokeStyle = `${accent}aa`;
+      ctx.stroke();
+      ctx.fillStyle = '#cbeee7';
+      ctx.fillText(subLabel, subX, subY);
+    }
+    ctx.restore();
+  }
+
   drawPhaseBeats() {
     const beats = this.phaseResonance?.floatingBeats || [];
     if (!beats.length) return;
     const ctx = this.ctx, pos = this.playerPosition();
-    for (const beat of beats) {
+    for (let i = 0; i < beats.length; i++) {
+      const beat = beats[i];
+      const stackOffset = (beats.length - 1 - i) * 22;
       const p = clamp(beat.age / beat.duration);
       const lift = this.reducedMotion ? 16 : ease(p) * 34;
       ctx.save();
@@ -1328,10 +2286,10 @@ export class SceneRenderer {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const x = clamp(pos.x, 80, WORLD_W - 80);
-      const y = Math.max(28, pos.y - 78 - lift);
+      const y = Math.max(24, pos.y - 78 - lift - stackOffset);
       ctx.lineWidth = 4;
       ctx.strokeStyle = this.astralMode ? '#0f1c24' : '#fff8dd';
-      ctx.fillStyle = beat.type === 'phase_graze' ? '#24968d' : beat.rating === 'perfect' ? '#c58b2b' : '#378d9c';
+      ctx.fillStyle = beat.type === 'phase_graze' ? '#24968d' : beat.rating === 'perfect' ? (this.astralMode ? '#ffd166' : '#c58b2b') : '#378d9c';
       ctx.strokeText(beat.text, x, y);
       ctx.fillText(beat.text, x, y);
       ctx.restore();
@@ -1578,6 +2536,7 @@ export class SceneRenderer {
         ellipse(ctx, node.x, node.y, (isPrimary ? 82 : 74) + pulse * 10, (isPrimary ? 44 : 40) + pulse * 5, '#dd9a1c24', COLORS.gold, isPrimary ? 3.4 : 2.4);
         ctx.restore();
         const onCurrentLayer = node.layer === s.layer;
+        if (this.altarWindow?.node === id && s.node === id && !s.travel) return;
         const showRiskOption = (stage >= 3 || this.riskPreview?.chargesPrism || this.riskPreview?.chargesWeave) && isPrimary && this.riskPreview?.available && this.riskPreview.isNovel;
         const actionText = s.node === id
           ? `⚡ 点我点亮 ${num}`
@@ -1858,7 +2817,7 @@ export class SceneRenderer {
     const corners = [[0, 25], [67, -5], [128, 22], [60, 53]];
     const at = (point, layer) => ({ x: 63 + (point.x - 500) * .105, y: 24 + (point.y - 340) * .06 + (2 - layer) * 29 });
     const danger = s.wave?.dangerLayers || (s.wave ? [s.wave.layer] : []);
-    const activePreview = this.hoverWLayer ?? this.previewLayer;
+    const activePreview = this.isHyperLensActive() ? this.hyperLens.snappedLayer : (this.hoverWLayer ?? this.previewLayer);
     for (let i = 0; i < s.layers.length; i++) {
       const pal = this.palette(i);
       const baseColor = this.astralMode ? (pal.astralColor || pal.color) : pal.color;
@@ -2543,6 +3502,36 @@ export class SceneRenderer {
     const stability = travel ? travel.stability : (s.phaseStability ?? 1);
     const stable = stability > .5;
     const color = !stable ? COLORS.danger : risky ? COLORS.gold : this.palette().color;
+    // Prismatic comet afterimages & phase bow-wave during Bridge Surf Dash
+    if (travel?.dashed && !risky && !this.reducedMotion) {
+      const from = this.node(travel.from), to = this.node(travel.to);
+      if (from && to) {
+        const dx = to.x - from.x, dy = to.y - from.y, len = Math.max(1, Math.hypot(dx, dy));
+        const ux = dx / len, uy = dy / len;
+        const avatarScale = clamp(.48 / this.scale, 1, 1.5);
+        const wakeCol = travel.dashed === 'perfect' ? COLORS.lightGold : this.palette().glow;
+        for (let i = 4; i >= 1; i--) {
+          const backT = clamp(travel.progress - i * .055, 0, 1);
+          const ax = mix(from.x, to.x, backT), ay = mix(from.y, to.y, backT);
+          ctx.save();
+          ctx.translate(ax, ay);
+          ctx.globalAlpha = (.46 - i * .09);
+          ctx.scale(avatarScale * (1 - i * .06), avatarScale * (1 - i * .06));
+          this.drawAvatar(0, 0, i % 2 === 0 ? wakeCol : color, true);
+          ctx.restore();
+        }
+        ctx.save();
+        ctx.translate(position.x + ux * 16, position.y - 10 + uy * 16);
+        ctx.rotate(Math.atan2(dy, dx));
+        ctx.globalAlpha = .82;
+        ctx.beginPath();
+        ctx.arc(0, 0, 18, -Math.PI * .42, Math.PI * .42);
+        ctx.strokeStyle = wakeCol;
+        ctx.lineWidth = travel.dashed === 'perfect' ? 2.8 : 2;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
     ctx.save(); ctx.translate(position.x, position.y);
     ellipse(ctx, 0, 6, 16, 7, '#345f5729');
     if (travel || stability < .99) {
@@ -2882,6 +3871,7 @@ export class SceneRenderer {
     this.canvas.removeEventListener('pointerleave', this.pointerLeave);
     this.canvas.removeEventListener('pointerdown', this.onCanvasPointerDown);
     this.canvas.removeEventListener('pointerup', this.onCanvasPointerUp);
+    this.canvas.removeEventListener('contextmenu', this.onContextMenu);
     this.effects.length = 0; this.particles.length = 0;
     this.state = null;
   }

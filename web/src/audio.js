@@ -97,18 +97,26 @@ export class GameAudio {
       }
       // Stop even a throttled old shift: it must never describe a layer the
       // player has already left. Transfers replace its light orientation cue.
-      if (['layer_shift', 'phase_transfer'].includes(event.type)) this._cancelGroup('layer');
+      if (['layer_shift', 'phase_transfer', 'lens_dive'].includes(event.type)) this._cancelGroup('layer');
       if (this.paused || !this.enabled || this.context?.state !== 'running') continue;
       const now = this.context.currentTime;
       // Selection/movement can repeat under keyboard input; major consequences
       // are never silently dropped by this small input-sound throttle.
-      const gap = event.type === 'select' ? .065 : ['move', 'layer_shift', 'phase_transfer'].includes(event.type) ? .08 : 0;
+      const gap = event.type === 'select' ? .065 : event.type === 'lens_detent' ? .07 : ['move', 'layer_shift', 'phase_transfer'].includes(event.type) ? .08 : 0;
       if (gap && now - (this.lastEvent.get(event.type) ?? -Infinity) < gap) continue;
       this.lastEvent.set(event.type, now);
       const pan = PAN[event.to ?? event.node] ?? 0;
       const tier = Math.min(3, Math.max(1, Number(event.tier) || 1));
       const layer = LAYER[Math.min(2, Math.max(0, Math.round(Number(event.toLayer ?? event.layer) || 0)))];
       switch (event.type) {
+        case 'lens_detent':
+          this._tone(layer.note * 2, now, .09, .024, pan, 'glass', null, 'layer');
+          break;
+        case 'lens_dive':
+          this._tone(layer.note / 2, now, .28, .052, -pan, 'soft', layer.note, 'layer');
+          this._tone(layer.note * 1.5, now + .03, .31, .042, pan, 'glass', layer.note * 2, 'layer');
+          this._air(now, .18, .044, pan, layer.air + 450, 'layer');
+          break;
         case 'layer_shift':
           this._tone(layer.note, now, .16, .035, pan, layer.kind, layer.slide, 'layer');
           break;
@@ -210,6 +218,34 @@ export class GameAudio {
         case 'move':
           this._tone(NOTE.D3, now, .19, .075, pan, 'soft', NOTE.A3);
           this._air(now, .12, .045, pan, 650);
+          break;
+        case 'phase_dash':
+          if (event.rating === 'perfect') {
+            this._tone(layer.note, now, .18, .058, pan, 'soft', layer.note * 1.5, 'reward');
+            this._arpeggio([layer.note, layer.note * 1.5, layer.note * 2], now + .018, .034, .046, pan, 'reward');
+            this._air(now, .19, .058, pan, 2150, 'reward');
+          } else {
+            this._tone(layer.note * .75, now, .17, .05, pan, 'soft', layer.note * 1.5, 'reward');
+            this._air(now, .15, .045, pan, 1450, 'reward');
+          }
+          break;
+        case 'polytope_lock':
+          // Precision crystal tumbler magnetic snap: double glass transient.
+          this._tone(layer.note * 1.5, now, .11, .052, pan, 'glass', null, 'reward');
+          this._tone(layer.note * 2, now + .024, .16, .062, pan, 'glass', null, 'reward');
+          this._air(now, .09, .028, pan, layer.air + 700, 'reward');
+          break;
+        case 'harmonic_burst':
+          this._tone(NOTE.D3, now, .36, .085, pan, 'soft', NOTE.A3, 'reward');
+          this._arpeggio(
+            event.surfCombo ? [NOTE.D4, NOTE.A4, NOTE.D5, NOTE.Fs5, NOTE.A5, NOTE.D6] : [NOTE.A4, NOTE.D5, NOTE.Fs5, NOTE.D6],
+            now + .02,
+            .042,
+            .064,
+            pan,
+            'reward'
+          );
+          this._air(now + .02, .22, .055, -pan, 2450, 'reward');
           break;
         case 'risk':
           this._tone(NOTE.A3, now, .29, .075, pan, 'soft', NOTE.B3);

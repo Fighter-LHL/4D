@@ -167,6 +167,88 @@ export function projectPolytope4D(polytopeId = 'tesseract', { w = .5, time = 0, 
   return { vertices: projected, edges: poly.edges, sliceHull, intersections, targetW };
 }
 
+export const MECHANISM_POLYTOPES = Object.freeze({
+  dew: 'tesseract',
+  bell: 'orthoplex',
+  bloom: '24cell',
+  crown: '24cell',
+});
+
+export function wrapSignedAngle(rad = 0) {
+  if (!Number.isFinite(rad)) return 0;
+  let a = ((rad + Math.PI) % TAU + TAU) % TAU - Math.PI;
+  if (a === -Math.PI) a = Math.PI;
+  return a;
+}
+
+export function wrapHalfTurnAngle(rad = 0) {
+  if (!Number.isFinite(rad)) return 0;
+  let a = ((rad + Math.PI * .5) % Math.PI + Math.PI) % Math.PI - Math.PI * .5;
+  if (a === -Math.PI * .5) a = Math.PI * .5;
+  return a;
+}
+
+export function magnetizeLensW(rawW = .5, layerCenters = [.18, .50, .82], { magnetRadius = .062, strength = .76 } = {}) {
+  const safeRaw = clamp(Number.isFinite(rawW) ? rawW : .5, .06, .94);
+  let nearestIdx = 0;
+  let nearestDist = Infinity;
+  for (let i = 0; i < layerCenters.length; i++) {
+    const d = Math.abs(safeRaw - layerCenters[i]);
+    if (d < nearestDist) {
+      nearestDist = d;
+      nearestIdx = i;
+    }
+  }
+  const center = layerCenters[nearestIdx] ?? .5;
+  const radius = Math.max(.01, magnetRadius);
+  const detent = nearestDist <= radius;
+  const pull = detent ? (1 - (nearestDist / radius) ** 2) * clamp(strength, 0, 1) : 0;
+  const w = clamp(mix(safeRaw, center, pull), .06, .94);
+  return {
+    rawW: safeRaw,
+    w,
+    snappedLayer: nearestIdx,
+    center,
+    detent,
+    proximity: clamp(1 - nearestDist / .18, 0, 1),
+  };
+}
+
+export function projectPolytopeLock(nodeId = 'dew', { w = .5, offsetAngle = 0, time = 0, radius = 32, snapThreshold = .26 } = {}) {
+  const polytopeId = MECHANISM_POLYTOPES[nodeId] || 'tesseract';
+  const wrapped = wrapHalfTurnAngle(offsetAngle);
+  const absErr = Math.abs(wrapped);
+  const snapped = absErr <= snapThreshold;
+  const effectiveOffset = snapped ? 0 : wrapped;
+  const alignment = snapped ? 1 : clamp(1 - absErr / 1.45, 0, 1);
+  const safeTime = Number.isFinite(time) ? time : 0;
+  const baseW = clamp(Number.isFinite(w) ? w : .5, .14, .86);
+  const target = projectPolytope4D(polytopeId, {
+    w: baseW,
+    time: safeTime * .35,
+    tiltX: .22,
+    tiltY: -.18,
+    radius,
+  });
+  const phase2 = effectiveOffset * 2;
+  const live = projectPolytope4D(polytopeId, {
+    w: clamp(baseW + Math.sin(phase2) * .16, .08, .92),
+    time: safeTime * .35 + Math.sin(phase2) * 1.35,
+    tiltX: .22 + Math.sin(phase2) * .85,
+    tiltY: -.18 + (1 - Math.cos(phase2)) * .45,
+    radius,
+  });
+  return {
+    polytopeId,
+    targetHull: target.sliceHull,
+    targetVertices: target.vertices,
+    live,
+    alignment,
+    snapped,
+    offsetAngle: effectiveOffset,
+  };
+}
+
 export const RHYTHM_GATES = Object.freeze([.26, .54, .82]);
 
 export class PhaseResonanceController {
@@ -364,6 +446,14 @@ export class PhaseResonanceController {
     }
 
     return emitted;
+  }
+
+  pushBeat(text, rating = 'perfect', duration = 1.05, type = 'phase_beat') {
+    if (!text) return null;
+    const beat = { type, rating, text, age: 0, duration };
+    this.floatingBeats.push(beat);
+    if (this.floatingBeats.length > 8) this.floatingBeats.shift();
+    return beat;
   }
 
   onFail() {

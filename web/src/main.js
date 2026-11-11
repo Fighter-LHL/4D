@@ -95,6 +95,8 @@ function askFriend() {
   }
 }
 let autoPilot = null;
+let altarTune = null;
+const ALTAR_TUNE_WINDOW_MS = 680;
 let oneShotRiskCrossing = false;
 let bannerStage = 0;
 let bannerExpandedUntil = 0;
@@ -168,10 +170,11 @@ function promptLayerShift(s, targetId, shift, finalLayer = null) {
 }
 
 function stepAutoPilot() {
-  if (!canAct()) { autoPilot = null; return; }
+  if (!canAct()) { autoPilot = null; altarTune = null; return; }
   let s = model.snapshot();
-  if (s.travel || s.wave) return;
+  if (s.travel || s.wave) { altarTune = null; return; }
   let currentNode = s.nodes.find(n => n.id === s.node);
+  if (altarTune && altarTune.node !== s.node) altarTune = null;
 
   // Auto-bank carried echoes upon stepping onto or passing through ⚓ 归响台 (hub),
   // unless an unlocked隐星试炼 (rift) or unspent 留影扣 (shadow) needs unbanked echoes.
@@ -187,8 +190,26 @@ function stepAutoPilot() {
     }
   }
 
-  // Auto-activate mechanism as soon as player stands on a powered unlit mechanism on its matching layer
+  // Auto-activate mechanism once standing on a powered unlit mechanism on its matching layer:
+  // Stage 2+ untuned mechanisms open a crisp 0.58s Altar Resonance Window for tactile +1◆ snap,
+  // while pre-tuned mechanisms (or Stage 1 ①) fire instantaneously (0ms).
   if (currentNode?.kind === 'mechanism' && currentNode.layer === s.layer && s.interactAvailable) {
+    const stage2Plus = (scene.onboardingStage ?? 4) >= 2;
+    const preTuned = Boolean(s.tunedMechanisms?.includes(s.node));
+    if (stage2Plus && !preTuned) {
+      const now = performance.now();
+      if (!altarTune || altarTune.node !== s.node) {
+        altarTune = { node: s.node, startedAt: now, until: now + ALTAR_TUNE_WINDOW_MS };
+      }
+      if (now < altarTune.until) {
+        if (!autoPilot || autoPilot.targetNode !== s.node) {
+          autoPilot = { targetNode: s.node, altarTuning: true };
+        }
+        return;
+      }
+    }
+    altarTune = null;
+    if (scene) scene.altarWindow = null;
     action(() => model.interact());
     if (autoPilot?.targetNode === s.node) {
       autoPilot = null;
@@ -547,11 +568,55 @@ function handleAnomalySelect(anomaly) {
   collectMaterializedAnomaly(res);
 }
 
+function triggerPhaseDash() {
+  if (!canAct()) return false;
+  onboarding.recordActivity();
+  const s = model.snapshot();
+  if ((scene.onboardingStage ?? 4) < 2 || !s.travel || s.travel.risky) return false;
+  let dashed = false;
+  action(() => { dashed = model.dashTravel(); });
+  return dashed;
+}
+
+function snapPolytopeLock(nodeId) {
+  if (!canAct() || !nodeId) return false;
+  onboarding.recordActivity();
+  if ((scene.onboardingStage ?? 4) < 2) return false;
+  let tuned = false;
+  action(() => { tuned = model.tuneMechanism(nodeId); });
+  const after = model.snapshot();
+  if (after.node === nodeId && !after.travel && !after.wave && after.interactAvailable) {
+    altarTune = null;
+    scene.altarWindow = null;
+    if (autoPilot?.targetNode === nodeId) autoPilot = null;
+    action(() => model.interact());
+    return true;
+  }
+  if (tuned) {
+    const targetName = after.nodes.find(n => n.id === nodeId)?.name || '机关';
+    showTransient(`🔮「${targetName}」四维截面已锁频！登岛即触发⚡超频谐振 (+1◆)`, 2.5, 'tune');
+  }
+  return tuned;
+}
+
 const scene = new SceneRenderer($('scene'), {
   onSelect: handleCanvasSelect,
   onFriend: askFriend,
   onAnomaly: handleAnomalySelect,
   onLayerSelect: layerIdx => manualSwitchLayer(layerIdx, 'wstack'),
+  onLensDetent: layerIdx => {
+    unlockAudio();
+    audio.handle([{ type: 'lens_detent', layer: layerIdx }]);
+  },
+  onLensDive: layerIdx => {
+    if (!canAct()) return;
+    unlockAudio();
+    scene.triggerLensIrisWave(layerIdx);
+    audio.handle([{ type: 'lens_dive', layer: layerIdx }]);
+    manualSwitchLayer(layerIdx, 'lens');
+  },
+  onPolytopeTune: nodeId => snapPolytopeLock(nodeId),
+  onBridgeDash: () => triggerPhaseDash(),
   hasSupplySlots,
 });
 scene.visualGuide = true;
@@ -584,7 +649,7 @@ function consumeEvents() {
   for (const event of events) {
     // Local E feedback belongs to the platform just used, not the next crossing.
     // A rejected move emits no move event; remote supply messages stay relevant.
-    if (event.type === 'move' && ['interact_blocked', 'activate', 'refused', 'prompt'].includes(transientType)) {
+    if (event.type === 'move' && ['interact_blocked', 'activate', 'harmonic_burst', 'tune', 'refused', 'prompt'].includes(transientType)) {
       transient = null; transientTime = 0; transientType = ''; actionFeedback = '';
       $('announcement').textContent = '';
     }
@@ -592,7 +657,13 @@ function consumeEvents() {
     if (event.type === 'activate' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       $('mechanism-count').animate([{ transform: 'scale(1.3)', color: '#a06c24' }, { transform: 'scale(1)' }], { duration: 550 });
     }
+    if (event.type === 'harmonic_burst') {
+      const mechName = state.nodes.find(n => n.id === event.node)?.name || '机关';
+      message = `${mechName}已启动 · ${state.activated.length}/${mechCountOf(state)} · ${event.surfCombo ? '⚡踏浪超频 +1◆' : '✦超频谐振 +1◆'}`;
+    }
     if (event.type === 'fail') {
+      altarTune = null;
+      if (scene) scene.altarWindow = null;
       onboarding.recordFailure();
       message = event.protected ? '缓落壳接住了你，随身回响保留。' : `失稳回退，失去 ${event.value} 枚未存回响。`;
     }
@@ -642,9 +713,13 @@ function consumeEvents() {
     if (event.type === 'dodge') message = model.snapshot().wave?.variant==='rift' ? '一枚星环点亮，切入下一枚符印对应的安全层。' : '躲过一波；下一波会追到这里，再换一次层。';
     if (message) {
       transient = message; transientTime = 2.8; transientType = event.type; $('announcement').textContent = message;
-      actionFeedback = ['interact_blocked', 'activate', 'power'].includes(event.type) ? message : '';
+      actionFeedback = ['interact_blocked', 'activate', 'harmonic_burst', 'power'].includes(event.type) ? message : '';
     }
-    if (['restart','room'].includes(event.type)) { transient = null; transientTime = 0; $('announcement').textContent = ''; }
+    if (['restart','room'].includes(event.type)) {
+      altarTune = null;
+      if (scene) scene.altarWindow = null;
+      transient = null; transientTime = 0; $('announcement').textContent = '';
+    }
   }
 }
 
@@ -765,7 +840,10 @@ function showResult(state) {
       : '你让回响穿过了三层空间，也把这一路的能力组合带到了终点。可继续开启第二幕「深层五庭巡礼」！')
     : '回程结已用完，之前存下的回响仍计入本次成绩。';
   $('result-score').textContent = state.banked;
-  $('result-stats').textContent = `冒险成功 ${state.stats.risks} 次 · 点亮机关 ${state.stats.chains} 次 · 收录奇物 ${state.stats.anomalies || 0} 件 · 完美同频 ${pr.perfectBeats} 次 · 刹那折光 ${pr.grazes} 次 · 共鸣评级 ${pr.rank}`;
+  const tactileSummary = (state.stats.harmonicLocks || state.stats.perfectDashes)
+    ? ` · 超频锁 ${state.stats.harmonicLocks || 0} 次 · 踏浪冲刺 ${state.stats.perfectDashes || 0} 次`
+    : '';
+  $('result-stats').textContent = `冒险成功 ${state.stats.risks} 次 · 点亮机关 ${state.stats.chains} 次 · 收录奇物 ${state.stats.anomalies || 0} 件${tactileSummary} · 完美同频 ${pr.perfectBeats} 次 · 刹那折光 ${pr.grazes} 次 · 共鸣评级 ${pr.rank}`;
   if ($('next-expedition')) {
     $('next-expedition').hidden = !(won && !isExpedition);
   }
@@ -1943,6 +2021,28 @@ window.addEventListener('scroll', () => { lastPageScrollAt = performance.now(); 
     if (Math.abs(delta) > 1e-4) action(() => model.setW(s.w + delta));
     return;
   }
+  // Holding the 4D Hyper-Lens (drag / right-click) and rolling the wheel dives straight into the previewed slice!
+  if (!s.wave && !s.travel && scene.hyperLens.active && (scene.hyperLens.mode === 'drag' || scene.hyperLens.mode === 'rmb')) {
+    let diveLayer = scene.hyperLens.snappedLayer;
+    if (diveLayer === s.layer) {
+      const stepped = onboarding.handleDiscreteWheel(wheelDelta, s.layer, now, {
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        deltaMode: e.deltaMode,
+      });
+      if (stepped !== null) diveLayer = stepped;
+    }
+    if (diveLayer !== s.layer) {
+      const centers = (s.layers || []).map(l => l.center);
+      scene.hyperLens.snappedLayer = diveLayer;
+      scene.hyperLens.w = centers[diveLayer] ?? scene.hyperLens.w;
+      unlockAudio();
+      scene.triggerLensIrisWave(diveLayer);
+      audio.handle([{ type: 'lens_dive', layer: diveLayer }]);
+      manualSwitchLayer(diveLayer, 'wheel');
+    }
+    return;
+  }
   const nextLayer = onboarding.handleDiscreteWheel(wheelDelta, s.layer, now, {
     ctrlKey: e.ctrlKey,
     metaKey: e.metaKey,
@@ -1977,9 +2077,20 @@ window.addEventListener('pointerup', () => {
 });
 
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'&&!isModal()){e.preventDefault();pauseGame();return;}
+  if(e.key==='Escape'&&!isModal()){
+    if (scene.hyperLens.pinned || scene.hyperLens.active) {
+      e.preventDefault();
+      scene.closeHyperLens();
+      return;
+    }
+    e.preventDefault();pauseGame();return;
+  }
   if(!canAct()||e.altKey||e.ctrlKey||e.metaKey)return;
   const key=e.key.toLowerCase();
+  if(key==='l'&&!e.repeat&&(scene.onboardingStage??4)>=2){
+    const s=model.snapshot();
+    if(s.phase==='playing'&&!s.wave&&!s.travel?.risky){e.preventDefault();scene.togglePinnedHyperLens(null);return;}
+  }
   if(key==='r'&&!e.repeat){
     const s=model.snapshot();
     if(!s.travel&&!s.wave){e.preventDefault();action(()=>model.setRisk(!s.riskMode));return;}
@@ -1989,10 +2100,56 @@ document.addEventListener('keydown',e=>{
   // Other game shortcuts remain available after a click or slider adjustment.
   if(e.target===$('w-slider')&&['arrowleft','arrowright','arrowup','arrowdown','home','end','pageup','pagedown'].includes(key))return;
   if(e.target.matches('input,select,textarea')&&e.target!==$('w-slider'))return;
+  if (key === ' ' && (scene.onboardingStage ?? 4) >= 2) {
+    const sNow = model.snapshot();
+    const inSurfWindow = Boolean(sNow.travel && !sNow.travel.risky);
+    const inAltarWindow = Boolean(!sNow.travel && !sNow.wave && altarTune?.node === sNow.node);
+    if (inSurfWindow || inAltarWindow) {
+      e.preventDefault();
+      if (e.repeat) return;
+      if (inSurfWindow) {
+        if (!sNow.travel.dashed) {
+          triggerPhaseDash();
+        } else {
+          const dest = sNow.nodes.find(n => n.id === sNow.travel.to);
+          if (dest?.kind === 'mechanism' && dest.powered && !sNow.activated.includes(dest.id)) {
+            scene.snapPolyLockVisual(dest.id);
+            snapPolytopeLock(dest.id);
+          }
+        }
+      } else {
+        scene.snapPolyLockVisual(sNow.node);
+        snapPolytopeLock(sNow.node);
+      }
+      return;
+    }
+  }
   const activeModeToggle = (e.target === $('risk-mode') && model.snapshot().riskMode) || (e.target === $('safe-mode') && !model.snapshot().riskMode);
   if(e.target.matches('button,a')&&[' ','enter'].includes(key)&&!(key===' '&&activeModeToggle))return;
   if(['a','d','arrowleft','arrowright'].includes(key)){e.preventDefault();action(()=>model.setW(model.snapshot().w+(['a','arrowleft'].includes(key)?-.015:.015)));}
-  else if(key===' '||key==='enter'){e.preventDefault();action(()=>model.move());}
+  else if(key===' '||key==='enter'){
+    e.preventDefault();
+    if (e.repeat) return;
+    const s = model.snapshot();
+    if ((scene.onboardingStage ?? 4) >= 2 && s.travel && !s.travel.risky) {
+      if (!s.travel.dashed) {
+        triggerPhaseDash();
+      } else {
+        const dest = s.nodes.find(n => n.id === s.travel.to);
+        if (dest?.kind === 'mechanism' && dest.powered && !s.activated.includes(dest.id)) {
+          scene.snapPolyLockVisual(dest.id);
+          snapPolytopeLock(dest.id);
+        }
+      }
+      return;
+    }
+    if ((scene.onboardingStage ?? 4) >= 2 && !s.travel && !s.wave && altarTune?.node === s.node) {
+      scene.snapPolyLockVisual(s.node);
+      snapPolytopeLock(s.node);
+      return;
+    }
+    action(()=>model.move());
+  }
   else if(key==='e'){e.preventDefault();if(!e.repeat)action(()=>model.interact());}
   else if(key==='q'){e.preventDefault();action(()=>model.useAbility());}
   else if(['z','x','c'].includes(key)){e.preventDefault();manualSwitchLayer(['z','x','c'].indexOf(key), 'key');}
@@ -2021,6 +2178,20 @@ function frame(now) {
   }
   if(active && !model.snapshot().travel && !model.snapshot().wave) {
     stepAutoPilot();
+  }
+  if (altarTune) {
+    const cur = model.snapshot();
+    if (cur.phase !== 'playing' || cur.travel || cur.wave || cur.node !== altarTune.node || !cur.interactAvailable) {
+      altarTune = null;
+      scene.altarWindow = null;
+    } else {
+      scene.altarWindow = {
+        node: altarTune.node,
+        progress: Math.max(0, Math.min(1, (now - altarTune.startedAt) / ALTAR_TUNE_WINDOW_MS)),
+      };
+    }
+  } else if (scene.altarWindow) {
+    scene.altarWindow = null;
   }
   const prEvents = scene.phaseResonance.update(dt, model.snapshot(), { active });
   for (const pe of prEvents) {
