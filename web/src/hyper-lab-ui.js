@@ -83,6 +83,7 @@ export function initHyperLab({
   let tiltX = .25;
   let tiltY = -.18;
   let dragging = false;
+  let capturedPointerId = null;
   let lastPointer = { x: 0, y: 0 };
   let rafId = 0;
   let lastTick = performance.now();
@@ -243,8 +244,16 @@ export function initHyperLab({
     rafId = requestAnimationFrame(loop);
   });
 
+  function releaseLabPointer(pointerId = capturedPointerId) {
+    if (pointerId === undefined || pointerId === null) return;
+    if (capturedPointerId === pointerId) capturedPointerId = null;
+    try { canvas?.releasePointerCapture?.(pointerId); } catch {}
+  }
+
   function close() {
     if (!dialog.open) return;
+    dragging = false;
+    releaseLabPointer();
     cancelAnimationFrame(rafId);
     dialog.close();
     onClose();
@@ -272,7 +281,12 @@ export function initHyperLab({
   canvas?.addEventListener('pointerdown', e => {
     dragging = true;
     lastPointer = { x: e.clientX, y: e.clientY };
-    canvas.setPointerCapture?.(e.pointerId);
+    if (e.pointerId !== undefined && e.pointerId !== null) {
+      try {
+        canvas.setPointerCapture?.(e.pointerId);
+        capturedPointerId = e.pointerId;
+      } catch {}
+    }
   });
   canvas?.addEventListener('pointermove', e => {
     if (!dragging) return;
@@ -283,7 +297,11 @@ export function initHyperLab({
     tiltY += dy * .012;
   });
   for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-    canvas?.addEventListener(ev, () => { dragging = false; });
+    canvas?.addEventListener(ev, e => {
+      dragging = false;
+      if (ev === 'lostpointercapture') capturedPointerId = null;
+      else releaseLabPointer(e?.pointerId ?? capturedPointerId);
+    });
   }
   canvas?.addEventListener('wheel', e => {
     e.preventDefault();

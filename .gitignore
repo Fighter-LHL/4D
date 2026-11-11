@@ -1,0 +1,34 @@
+# OS & Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Node / Web / Playwright
+node_modules/
+web/node_modules/
+npm-debug.log*
+.playwright-mcp/
+playwright-report/
+test-results/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Unity generated directories (WSliceProto/)
+/WSliceProto/[Ll]ibrary/
+/WSliceProto/[Tt]emp/
+/WSliceProto/[Oo]bj/
+/WSliceProto/[Bb]uild/
+/WSliceProto/[Bb]uilds/
+/WSliceProto/[Ll]ogs/
+/WSliceProto/[Uu]ser[Ss]ettings/
+/WSliceProto/[Mm]emoryCaptures/
+/WSliceProto/[Rr]ecordings/
+/WSliceProto/TestResults/

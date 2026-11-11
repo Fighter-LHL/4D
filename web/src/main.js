@@ -7,13 +7,22 @@ import { FriendGuide } from './friend-guide.js';
 import { CourtyardMomentum } from './courtyard-momentum.js';
 import { STARTER_RELICS, mechanismFeedback, contextualHelp, courtyardActions } from './play-feedback.js';
 import { initThemeToggle, initHyperLab } from './hyper-lab-ui.js';
-import { ProgressiveOnboarding, planLayerRoute, findCurrentLayerRoute, computeRiskDecisionPreview, computeRelicHudStatus } from './progressive-onboarding.js';
+import { ProgressiveOnboarding, planLayerRoute, findCurrentLayerRoute, computeRiskDecisionPreview, computeRelicHudStatus, resolveScrubReleaseTarget } from './progressive-onboarding.js';
 import { CodexStore } from './codex.js';
 import { GameFeel } from './game-feel.js';
 import { ALL_ROOM_TEMPLATES, HIDDEN_ROUTE_RECIPES } from './rooms.js';
 import { CURIOSITY_CATALOG } from './exploration-radar.js';
 
 const $ = id => document.getElementById(id);
+const runPanel = $('run-panel');
+const panelToggle = $('panel-toggle');
+const isTheater = () => document.documentElement.classList.contains('theater');
+function closeAdvancedDrawers() {
+  const openDrawers = document.querySelectorAll('details.advanced-drawer[open]');
+  if (!openDrawers.length) return false;
+  for (const drawer of openDrawers) drawer.open = false;
+  return true;
+}
 const onboarding = new ProgressiveOnboarding({ skillGated: true });
 const compactProgress = matchMedia('(max-width:480px)');
 const syncProgressDetails = () => { if ($('run-details')) $('run-details').open = false; };
@@ -98,6 +107,10 @@ function askFriend() {
   }
 }
 let autoPilot = null;
+function cancelAutoPilot() {
+  autoPilot = null;
+  if (scene) scene.pendingLayerPrompt = null;
+}
 let altarTune = null;
 const ALTAR_TUNE_WINDOW_MS = 680;
 let oneShotRiskCrossing = false;
@@ -106,10 +119,6 @@ let oneShotRiskCrossing = false;
 let scrubSession = null;
 let scrubGlide = null;
 function cancelScrubGlide() { scrubGlide = null; }
-function nearestLayerCenter(s, origin) {
-  const layers = s.layers || [{ center: .5 }];
-  return layers.reduce((best, l) => Math.abs(l.center - origin) < Math.abs(best - origin) ? l.center : best, layers[0].center);
-}
 function finishScrubSession(session) {
   if (!session?.before) return;
   layerShiftAftermath(session.before, 'scrub');
@@ -134,8 +143,14 @@ function handleScrubW(w, { phase = 'move', velocity = 0 } = {}) {
   const s = model.snapshot();
   if (s.travel?.risky) { finishScrubSession(session); return; }
   if (phase !== 'cancel') action(() => model.scrubW(w));
-  const origin = phase === 'cancel' ? session.before.w : w + velocity * .12;
-  const target = nearestLayerCenter(s, origin);
+  const after = model.snapshot();
+  if (after.travel?.risky) { finishScrubSession(session); return; }
+  const target = resolveScrubReleaseTarget(after, {
+    phase,
+    w: after.w,
+    velocity,
+    beforeW: session.before.w,
+  });
   if (scene.reducedMotion) {
     action(() => model.scrubW(target));
     finishScrubSession(session);
@@ -458,7 +473,8 @@ function handleCanvasSelect(id) {
     if ($('run-details')) $('run-details').open = true;
     if ($('secret-panel')) $('secret-panel').open = true;
     openPanel();
-    transient = '🌌 隐藏秘境「隐星台」：跨庭集齐 2 件共鸣遗物并在指定的 ⚓ 安全台完成三印换层，即可开启隐藏第四岛 (+9◆)！已在右侧展开秘印配方。';
+    const riftDrawerHint = isTheater() && window.innerWidth <= 780 ? '已在底部展开秘印配方。' : '已在右侧展开秘印配方。';
+    transient = `🌌 隐藏秘境「隐星台」：跨庭集齐 2 件共鸣遗物并在指定的 ⚓ 安全台完成三印换层，即可开启隐藏第四岛 (+9◆)！${riftDrawerHint}`;
     transientTime = 3.8;
     actionFeedback = transient;
     $('announcement').textContent = transient;
@@ -721,7 +737,15 @@ function consumeEvents() {
     if (event.type === 'phase_graze') feel.trigger('phase_graze', { punches: [['player', -.18]] });
     if (event.type === 'weave') feel.trigger('bridge_landed', { delay: 1.25, punches: [[`node:${event.to}`, .08]] });
     if (event.type === 'resonance' && event.stage === 3) feel.trigger('bridge_landed', { delay: 1.25, punches: [['node:relay', .08]] });
-    if (event.type === 'fail' || event.type === 'room' || event.type === 'restart') { feel.reset(); if (event.type === 'fail') cancelScrubGlide(); }
+    if (event.type === 'fail' || event.type === 'room' || event.type === 'restart') {
+      feel.reset();
+      cancelScrubGlide();
+      scrubSession = null;
+      if (event.type === 'room' || event.type === 'restart') {
+        cancelAutoPilot();
+        oneShotRiskCrossing = false;
+      }
+    }
     let message = mechanismFeedback(event, state, { hasSupplySlots: hasSupplySlots(event.to) });
     if (event.type === 'activate' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       $('mechanism-count').animate([{ transform: 'scale(1.3)', color: '#a06c24' }, { transform: 'scale(1)' }], { duration: 550 });
@@ -788,7 +812,7 @@ function consumeEvents() {
     if (['restart','room'].includes(event.type)) {
       altarTune = null;
       if (scene) scene.altarWindow = null;
-      transient = null; transientTime = 0; $('announcement').textContent = '';
+      transient = null; transientTime = 0; transientType = ''; actionFeedback = ''; $('announcement').textContent = '';
     }
   }
 }
@@ -1095,6 +1119,15 @@ function updateUI() {
   [...$('combo').children].forEach((el,i) => el.classList.toggle('active',i < state.combo));
   $('combo').setAttribute('aria-label',`${state.combo} 层`);
   $('mechanism-count').textContent = `${state.activated.length} / ${mechTotal}`;
+  if (panelToggle) {
+    const navLabel = panelToggle.querySelector('.nav-label');
+    if (navLabel) {
+      const nextLabel = isTheater() ? `进度 ${state.activated.length}/${mechTotal}` : '进度';
+      if (navLabel.textContent !== nextLabel) navLabel.textContent = nextLabel;
+    }
+    const nextTitle = `打开本局进度面板 (P) · 机关 ${state.activated.length}/${mechTotal} · 缓落壳 ${state.lives} · 已存 ${state.banked}◆`;
+    if (panelToggle.title !== nextTitle) panelToggle.title = nextTitle;
+  }
   const currentLayer = state.layers?.[state.layer];
   const currentNode = state.nodes.find(n=>n.id===state.node);
   const anomProg = scene.explorationRadar.roomProgress(state);
@@ -1816,6 +1849,23 @@ $('cancel-restart').addEventListener('click',cancelRestart);$('restart-dialog').
 function restartWithMode(nextMode = currentMode) {
   currentMode = nextMode === 'expedition' ? 'expedition' : 'intro';
   for(const id of dialogs)if($(id)?.open)$(id).close();
+  cancelAutoPilot();
+  cancelScrubGlide();
+  scrubSession = null;
+  scene.cancelGrab?.();
+  oneShotRiskCrossing = false;
+  altarTune = null;
+  if (scene) scene.altarWindow = null;
+  transient = null;
+  transientTime = 0;
+  transientType = '';
+  actionFeedback = '';
+  $('announcement').textContent = '';
+  bannerDescOpen = false;
+  bannerDescDismissed = false;
+  bannerExpandedUntil = 0;
+  closeAdvancedDrawers();
+  onboarding.resetRun();
   paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';secretKey='';sealKey='';bannerStage=0;
   $('secret-panel').open=false;$('build-list').replaceChildren();$('ability-list').replaceChildren();
   if($('anomaly-lore-box'))$('anomaly-lore-box').hidden=true;
@@ -2147,6 +2197,7 @@ window.addEventListener('scroll', () => { lastPageScrollAt = performance.now(); 
 let sceneDrag = null;
 $('scene').addEventListener('pointerdown', e => {
   closePanel({ focus: 'canvas' });
+  closeAdvancedDrawers();
   if (isTheater()) {
     // Dismiss only the description popover — collapsing the banner title here
     // would shrink .controls and shift the canvas mid-drag.
@@ -2177,9 +2228,6 @@ window.addEventListener('pointerup', () => {
 });
 
 // Theater layout: the progress panel is a non-modal drawer; the game keeps running behind it.
-const runPanel = $('run-panel');
-const panelToggle = $('panel-toggle');
-const isTheater = () => document.documentElement.classList.contains('theater');
 let panelOpen = false;
 function openPanel({ focus = false } = {}) {
   if (!isTheater() || !runPanel) return;
@@ -2212,6 +2260,7 @@ $('layout-toggle')?.addEventListener('click', () => {
   document.documentElement.classList.toggle('theater', theater);
   savePreference('wslice-theater', theater ? 'theater' : 'classic');
   syncLayoutMode();
+  updateUI();
 });
 panelToggle?.addEventListener('click', () => { panelOpen ? closePanel() : openPanel({ focus: true }); });
 syncLayoutMode();
@@ -2250,6 +2299,11 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&!isModal()){
     if (scene.cancelGrab()) { e.preventDefault(); return; }
     if (panelOpen) { e.preventDefault(); closePanel(); return; }
+    if (closeAdvancedDrawers()) {
+      e.preventDefault();
+      document.querySelector('details.advanced-drawer > summary')?.focus?.({ preventScroll: true });
+      return;
+    }
     if (scene.hyperLens.pinned || scene.hyperLens.active) {
       e.preventDefault();
       scene.closeHyperLens();
