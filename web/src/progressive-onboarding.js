@@ -201,6 +201,20 @@ export class ProgressiveOnboarding {
     this.lockedUntilQuiet = false;
   }
 
+  resetRun() {
+    this.idleSeconds = 0;
+    this.roomFailures = 0;
+    this.lastRoom = 0;
+    this.explicitHintOverride = false;
+    this.maxStageReached = 1;
+    this.lastAnnouncedStage = 1;
+    this.lastBannerAtMs = -Infinity;
+    this.wheelAccumulator = 0;
+    this.lastWheelStepTime = -Infinity;
+    this.lastWheelEventTime = -Infinity;
+    this.lockedUntilQuiet = false;
+  }
+
   recordManualLayerShift({ revealedBridge = false } = {}) {
     this.skills.manualLayerShift = true;
     if (revealedBridge) {
@@ -360,6 +374,42 @@ export class ProgressiveOnboarding {
     }
     return null;
   }
+}
+
+export function nearestLayerCenter(state, origin) {
+  const layers = state?.layers?.length ? state.layers : [{ center: 0.5 }];
+  return layers.reduce(
+    (best, l) => (Math.abs(l.center - origin) < Math.abs(best - origin) ? l.center : best),
+    layers[0].center,
+  );
+}
+
+/**
+ * Resolves the layer-center snap target when a continuous W scrub gesture ends or cancels.
+ * Standing on a conditional non-anchor platform (`!state.wave && !state.travel && !currentNode.anchor`),
+ * `GameModel.scrubW` clamps W to `[center - 0.13, center + 0.13]`, so release/cancel must rebound
+ * to the platform's own layer center instead of aiming at an unreachable off-slice layer center.
+ */
+export function resolveScrubReleaseTarget(state, { phase = 'end', w, velocity = 0, beforeW } = {}) {
+  if (!state) return 0.5;
+  if (!state.wave) {
+    if (state.travel) {
+      if (state.travel.risky) return state.w;
+      return state.layers?.[state.travel.layer]?.center ?? state.travel.center ?? nearestLayerCenter(state, state.w);
+    }
+    const currentNode = (state.nodes || []).find(n => n.id === state.node);
+    if (currentNode && !currentNode.anchor) {
+      return state.layers?.[currentNode.layer]?.center ?? currentNode.center;
+    }
+  }
+  const releaseW = Number.isFinite(w)
+    ? Math.max(0, Math.min(1, w))
+    : (Number.isFinite(state.w) ? state.w : 0.5);
+  const vel = Number.isFinite(velocity) ? velocity : 0;
+  const origin = phase === 'cancel'
+    ? (Number.isFinite(beforeW) ? beforeW : (Number.isFinite(state.w) ? state.w : releaseW))
+    : releaseW + vel * 0.12;
+  return nearestLayerCenter(state, origin);
 }
 
 const RELIC_META = {
