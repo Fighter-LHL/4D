@@ -1,365 +1,323 @@
 import assert from 'node:assert/strict';
-import { pathTo } from '../tests/model-helpers.js';
+import { chromium } from 'playwright';
+import { mkdir, writeFile } from 'node:fs/promises';
 
-// Appended only by the browser checks: observes real input/rendering, never
-// changes the model, timing, collection, or persisted first-entry budget.
-export const courtyardBeatObserver = `
-window.__courtyardBeats = []; window.__courtyardBeatEnds = []; window.__courtyardBeatEvents = []; window.__courtyardBeatConflicts = [];
-window.__courtyardPowerFrames = []; window.__courtyardPowerConflicts = [];
-let pendingPower = [];
-const beatPush = scene.pushEvents.bind(scene);
+// Shared first-session courtyard harness for the browser checks.
+// The observers appended to the page only copy snapshots and record what was painted;
+// they never change the model, timing, collection or the persisted first-entry budget.
+// Every courtyard action goes through real input: canvas / checklist clicks, the real
+// wheel over the canvas, keyboard and buttons. The "player" follows only what the game
+// itself shows (visual stepper + canvas pill), and asserts that what it shows is right.
+
+export const discoveryObserver = '\nwindow.__discovery = () => structuredClone({ state: model.snapshot(), view: scene.view });';
+
+export const courtyardFlowObserver = `
+window.__flowPills = []; window.__flowMaxFullPills = 0; window.__flowFeedback = []; window.__flowPower = [];
+let flowPillFrame = null;
+const flowGuide = scene.drawVisualActionGuide.bind(scene), flowText = scene.ctx.fillText.bind(scene.ctx);
+scene.drawVisualActionGuide = () => {
+  flowPillFrame = [];
+  try { flowGuide(); } finally {
+    window.__flowPills = flowPillFrame; flowPillFrame = null;
+    // Full callout pills carry sentences; compact badges are a glyph plus a number.
+    window.__flowMaxFullPills = Math.max(window.__flowMaxFullPills, window.__flowPills.filter(t => [...t].length > 6).length);
+  }
+};
+scene.ctx.fillText = (text, ...rest) => { if (flowPillFrame) flowPillFrame.push(String(text)); return flowText(text, ...rest); };
+const flowEvents = scene.pushEvents.bind(scene);
 scene.pushEvents = events => {
-  window.__courtyardBeatEvents.push(...events.filter(e => ['activate', 'power', 'fail'].includes(e.type)).map(e => ({ ...e, time: model.time })));
-  pendingPower.push(...events.filter(e => e.type === 'power').map(e => ({ ...e, beat: scene.state?.courtyardMomentum?.beat || null, slotsVisible: hasSupplySlots(e.to) })));
-  beatPush(events);
+  window.__flowPower.push(...events.filter(e => e.type === 'power').map(e => ({ ...e, time: model.time })));
+  flowEvents(events);
 };
-let observedBeat = null, beatDrawing = false, beatStrokes = 0;
-const beatRender = scene.render.bind(scene), beatDraw = scene.drawMomentum.bind(scene), beatStroke = scene.ctx.stroke.bind(scene.ctx);
-scene.ctx.stroke = (...args) => { if (beatDrawing && scene.ctx.globalAlpha > .05) beatStrokes++; return beatStroke(...args); };
-scene.drawMomentum = () => { beatDrawing = true; try { beatDraw(); } finally { beatDrawing = false; } };
+const flowRender = scene.render.bind(scene);
+window.__flowTravelPills = [];
 scene.render = dt => {
-  beatStrokes = 0; beatRender(dt);
-  const cue = scene.state?.courtyardMomentum, key = cue && cue.beat + ':' + cue.node;
-  if (key && key !== observedBeat) window.__courtyardBeats.push({ beat: cue.beat, node: cue.node, time: model.time });
-  if (observedBeat && key !== observedBeat) window.__courtyardBeatEnds.push({ key: observedBeat, time: model.time });
-  observedBeat = key;
-  const primary = [...document.querySelectorAll('.action-row .primary-button, .action-row .attention-action, .layer-controls .attention-action')];
-  if (primary.length > 1 || primary.some(el => el.disabled) || (cue && scene.state.companionGuide))
-    window.__courtyardBeatConflicts.push({ time: model.time, primary: primary.map(el => el.id), cue });
-  const notes = scene.effects.filter(e => e.kind === 'note' && e.supply).map(e => e.text);
-  const text = $('action-feedback').hidden ? '' : $('action-feedback').textContent;
-  const status = $('scene-state').textContent;
-  const powerText = /供能到齐|供能 [0-9]|还差一路/.test(text);
-  if ((['mechanism', 'mechanism-follow'].includes(cue?.beat) && (notes.length || powerText)) ||
-      notes.filter(t => t.includes('供能到齐')).length + Number(text.includes('供能到齐')) + Number(status.includes('供能到齐')) > 1)
-    window.__courtyardPowerConflicts.push({ time: model.time, cue, notes, text, status });
-  if (pendingPower.length) {
-    window.__courtyardPowerFrames.push({ time: model.time, node: model.node, cue, events: pendingPower, notes, text, status,
-      announcement: $('announcement').textContent, primary: primary.map(el => el.id),
-      effects: scene.effects.filter(e => ['power', 'ring'].includes(e.kind)).map(e => e.kind),
-      slots: [...document.querySelectorAll('[data-mechanism]')].map(row => ({ id: row.dataset.mechanism,
-        received: row.querySelectorAll('[data-source].received').length, total: row.querySelectorAll('[data-source]').length })) });
-    pendingPower = [];
-  }
+  flowRender(dt);
+  // Judge pills against the very state this frame painted, not a later snapshot.
+  if (scene.state?.travel) window.__flowTravelPills.push(...window.__flowPills.filter(t => [...t].length > 6));
+  const el = $('action-feedback'), text = el.hidden ? '' : el.textContent, last = window.__flowFeedback.at(-1);
+  if (!last || last.text !== text) window.__flowFeedback.push({ text, time: model.time, travel: !!model.snapshot().travel, node: model.node });
 };
-window.__courtyardSupplyState = () => model.snapshot();
-window.__courtyardBeat = () => structuredClone({ time: model.time, firstEntry: momentum.firstEntry,
+window.__flow = () => structuredClone({
+  state: model.snapshot(), time: model.time,
+  momentum: { cue: scene.state?.courtyardMomentum ? { beat: scene.state.courtyardMomentum.beat, node: scene.state.courtyardMomentum.node } : null, used: [...momentum.used], firstEntry: momentum.firstEntry },
+  prompt: scene.pendingLayerPrompt ? { targetId: scene.pendingLayerPrompt.targetId, layer: scene.pendingLayerPrompt.targetLayer, at: scene.pendingLayerPrompt.atNode, kind: scene.pendingLayerPrompt.kind } : null,
+  autoPilot: autoPilot ? autoPilot.targetNode : null,
+  stage: scene.onboardingStage, pills: window.__flowPills, maxFullPills: window.__flowMaxFullPills, travelPills: window.__flowTravelPills,
+  feedback: window.__flowFeedback, power: window.__flowPower,
   friends: scene.friends.map(({ id, name }) => ({ id, name })),
-  firstAction: momentum.firstAction(model.snapshot(), guide), objective: $('objective').textContent, moveLabel: $('move').textContent,
-  cue: scene.state?.courtyardMomentum, renderedNode: scene.momentumNode()?.id, strokes: beatStrokes,
-  node: model.node, selected: model.selected, settled: guide.settled, used: [...momentum.used],
-  activated: [...model.activated], nodes: model.snapshot().nodes.map(n => ({ id: n.id, required: n.required, received: n.received, powered: n.powered, present: n.present })),
-  beats: window.__courtyardBeats, ends: window.__courtyardBeatEnds, events: window.__courtyardBeatEvents, conflicts: window.__courtyardBeatConflicts,
-  powerFrames: window.__courtyardPowerFrames, powerConflicts: window.__courtyardPowerConflicts });
-`;
+  view: { scale: scene.scale, offsetX: scene.offsetX, offsetY: scene.offsetY },
+});`;
 
-async function assertFirstAction(page, action, node) {
-  const state = await page.evaluate(() => window.__courtyardSupplyState());
-  const target = state.nodes.find(n => n.id === node);
-  const actual = await page.evaluate(() => window.__courtyardBeat());
-  assert.deepEqual(actual.firstAction, { action, node }, 'instruction refers to the invitation already seen');
-  assert.equal(actual.objective, action === 'move' ? `先到${target.name} · 稳行过去` : `启动脚下的${target.name} · 按 E`);
-  const button = page.locator(`#${action}.primary-button.attention-action`);
-  assert.equal(await button.count(), 1);
-  assert.ok((await button.innerText()).includes(action === 'move' ? `到${target.name}` : `启动${target.name}`));
-  assert.ok(await button.evaluate(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight), 'named primary action fits its button');
-  const box = await button.boundingBox();
-  assert.ok(box.x >= 0 && box.x + box.width <= page.viewportSize().width, 'named primary stays within the viewport');
-}
+export const readFlow = page => page.evaluate(() => window.__flow());
+const LAYER_NAMES = ['潮汐层', '回声层', '绽放层'];
 
-async function reachThroughUI(page, target) {
-  const state = await page.evaluate(() => window.__courtyardSupplyState());
-  const path = pathTo(state, target);
-  assert.ok(path, `visible route to ${target}`);
-  for (const step of path) {
-    if (step.kind === 'shift') await page.locator(`[data-layer="${step.layer}"]`).click();
-    else {
-      await page.getByRole('button', { name: `前往${state.nodes.find(n => n.id === step.id).name}`, exact: true }).click();
-      await page.locator('#align').click(); await page.locator('#move').click();
+// One browser, a fresh isolated context per case, and a receipt in ARTIFACT_DIR.
+export async function runCourtyardChecks({ name, cases, run }) {
+  const base = process.env.BASE_URL || 'http://127.0.0.1:4173';
+  const out = process.env.ARTIFACT_DIR;
+  assert.ok(out, 'use a fresh explicit artifact directory');
+  await mkdir(out, { recursive: true });
+  const widths = process.env.VERIFY_WIDTHS ? process.env.VERIFY_WIDTHS.split(',').map(Number) : [1280, 390, 320];
+  assert.ok(widths.length && widths.every(width => [1280, 390, 320].includes(width)), 'supported viewport widths');
+  const receipt = { name, widths, base, status: 'started', checks: [], errors: [] };
+  const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
+  receipt.browserVersion = browser.version();
+  try {
+    for (const width of widths) for (const testCase of cases) {
+      const context = await browser.newContext({ viewport: { width, height: width === 1280 ? 900 : 844 }, reducedMotion: width === 320 ? 'reduce' : 'no-preference' });
+      // These checks assert the classic layout; force it regardless of theater default.
+      await context.addInitScript(() => { try { localStorage.setItem('wslice-theater', 'classic'); } catch {} });
+      await context.route('**/src/flatland/main.js', async route => {
+        const response = await route.fetch();
+        await route.fulfill({ response, body: await response.text() + discoveryObserver });
+      });
+      await context.route('**/src/main.js', async route => {
+        const response = await route.fetch();
+        await route.fulfill({ response, body: await response.text() + courtyardFlowObserver });
+      });
+      const page = await context.newPage();
+      page.on('pageerror', e => receipt.errors.push({ width, case: testCase.label, message: e.message }));
+      page.on('console', m => { if (['error', 'warning'].includes(m.type())) receipt.errors.push({ width, case: testCase.label, message: m.text() }); });
+      const shot = label => page.screenshot({ path: `${out}/${width}-${testCase.label}-${label}.png`, fullPage: true });
+      const result = await run({ page, base, width, out, shot, ...testCase });
+      receipt.checks.push({ width, ...testCase, ...result, passed: true });
+      await writeFile(`${out}/progress.json`, JSON.stringify({ completed: receipt.checks.length, last: { width, case: testCase.label } }, null, 2));
+      await context.close();
     }
-    await page.waitForFunction(id => { const s = window.__courtyardSupplyState(); return s.node === id && !s.travel; }, step.id);
+    assert.deepEqual(receipt.errors, [], 'no page errors or console warnings');
+    receipt.status = 'passed';
+  } catch (error) {
+    receipt.status = 'failed'; receipt.failure = error.stack; receipt.actual = error.actual; receipt.expected = error.expected;
+    process.exitCode = 1;
+  } finally {
+    await browser.close();
+    await writeFile(`${out}/receipt.json`, JSON.stringify(receipt, null, 2));
+    console.log(JSON.stringify({ name, status: receipt.status, checks: receipt.checks.length, failure: receipt.failure, out }));
   }
 }
 
-function assertQuietPower(frames) {
-  // A split-bridge first mechanism opens a bridge and sends no power.
-  for (const frame of frames) {
-    assert.deepEqual(frame.notes, [], 'visible slots / completion leave no scene power note');
-    assert.doesNotMatch(frame.status, /供能到齐|供能 [0-9]|还差一路/, 'status does not repeat the action popup');
-    assert.ok(frame.effects.includes('power') && frame.effects.includes('ring'), 'power and ring remain');
-    for (const event of frame.events) {
-      const slot = frame.slots.find(s => s.id === event.to);
-      assert.equal(slot.received, event.received, 'the rendered slots reflect delivery');
-      if (!event.complete || ['mechanism', 'mechanism-follow'].includes(event.beat)) {
-        assert.doesNotMatch(frame.text, /供能到齐|供能 [0-9]|还差一路/);
-        assert.doesNotMatch(frame.announcement, /供能到齐|供能 [0-9]|还差一路/);
-      }
-    }
+// The real Flatland chase that earns the first companion (sprout), driven by pointer and slider.
+export async function earnFirstDiscovery(page, base, query = 'play=explore&seed=42') {
+  await page.goto(`${base}/flatland.html?${query}`);
+  await page.waitForFunction(() => window.__discovery?.().view);
+  const slice = async height => {
+    await page.locator('#s-slider').evaluate((el, value) => { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }, height);
+    await page.waitForFunction(value => Math.abs(window.__discovery().state.s - value) < .02, height);
+  };
+  for (const [step, height] of [[0, 4.7], [1, 2.7], [2, .6]]) {
+    if (!step) await slice(height);
+    await page.locator('#scene').scrollIntoViewIfNeeded();
+    const { state, view } = await page.evaluate(() => window.__discovery()), box = await page.locator('#scene').boundingBox();
+    const { x, y } = state.encounter;
+    await page.mouse.move(box.x + view.main.ox + x * view.main.scale, box.y + view.main.oy + y * view.main.scale);
+    await page.mouse.down();
+    try { await page.waitForFunction(({ x, y }) => { const p = window.__discovery().state.player; return Math.hypot(p.x - x, p.y - y) < .22; }, { x, y }, { timeout: 8000 }); }
+    finally { await page.mouse.up(); }
+    if (step) await slice(height);
+    await page.waitForFunction(step => { const e = window.__discovery().state.encounter; return e.kind === 'home' || e.step > step; }, step);
   }
+  assert.deepEqual(await page.evaluate(() => window.__discovery().state.collection.found), ['sprout']);
 }
 
-export async function verifyPowerAtReceiver(page, out, width) {
-  await page.goto(new URL('/?seed=2', page.url()).href);
-  await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
-  await reachThroughUI(page, 'bloom'); await page.locator('#interact').click();
-  await page.waitForFunction(() => window.__courtyardBeat().powerFrames.length === 1);
-  await reachThroughUI(page, 'dew'); await page.locator('#interact').click();
-  await page.keyboard.press('z'); // Same XYZ receiver, before the committed .5s delivery.
-  await page.waitForFunction(() => window.__courtyardBeat().powerFrames.length === 2);
-  const receipt = await page.evaluate(() => window.__courtyardBeat());
-  assertQuietPower(receipt.powerFrames);
-  const complete = receipt.powerFrames[1];
-  assert.equal(complete.node, 'bell'); assert.equal(complete.events[0].complete, true);
-  assert.deepEqual(complete.primary, ['interact']);
-  assert.doesNotMatch(complete.text, /供能到齐|到台上/);
-  assert.doesNotMatch(complete.announcement, /供能到齐|到台上/);
-  assert.deepEqual(receipt.powerConflicts, []);
-  await page.screenshot({ path: `${out}/courtyard-power-at-receiver-${width}.png`, fullPage: true });
-  return receipt;
+// Follow the real earned "去庭院" link; the supported seed query only fixes the room.
+export async function enterCourtyard(page, seed) {
+  const entry = new URL(await page.getByRole('link', { name: '去庭院 ↗', exact: true }).first().getAttribute('href'), page.url());
+  entry.searchParams.set('seed', seed);
+  await page.goto(entry.href);
+  await page.waitForFunction(() => window.__flow?.());
 }
 
-// Called after the real "go to courtyard" link with a genuinely earned friend.
-export async function verifyCourtyardFirstBeat(page, out, width, { interrupt = false, fullPowerChain = false, starterRelic = 'shell' } = {}) {
-  const read = () => page.evaluate(() => window.__courtyardBeat());
-  const shot = name => page.screenshot({ path: `${out}/courtyard-first-beat-${name}-${width}.png`, fullPage: true });
+export async function fitsViewport(page, locator, label) {
+  // Allow a smooth scroll (panel shortcuts bring the scene into view) to finish.
+  const viewport = page.viewportSize();
+  const inside = b => b && b.x >= -1 && b.x + b.width <= viewport.width + 1 && b.y >= -1 && b.y + b.height <= viewport.height + 1;
+  let box = await locator.boundingBox();
+  for (let i = 0; i < 10 && !inside(box); i++) { await page.waitForTimeout(150); box = await locator.boundingBox(); }
+  assert.ok(box, `${label} is rendered`);
+  assert.ok(inside(box), `${label} fits the viewport: ${JSON.stringify(box)}`);
+  assert.ok(await locator.evaluate(el => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1), `${label} does not clip its text`);
+}
+
+// The discovery arrival keeps its designed starter picker: one primary "带缓落壳出发",
+// four alternatives folded away, keyboard disclosure, and no autostart while browsing.
+export async function chooseDiscoveryStarter(page, out, width, { starterRelic = 'shell' } = {}) {
   assert.equal(new URL(page.url()).searchParams.get('from'), 'discovery');
   await page.locator('#choice-dialog[open]').waitFor();
-  const beforeChoice = await page.evaluate(() => window.__courtyardSupplyState());
-  const friends = (await read()).friends;
+  const before = (await readFlow(page)).state;
+  const friends = (await readFlow(page)).friends;
   assert.ok(friends.length > 0, 'entry uses an actually earned companion');
+  assert.equal(before.phase, 'choose', 'the discovery arrival is not auto-equipped');
   assert.equal(await page.locator('#choice-title').innerText(), `${friends.length === 1 ? friends[0].name : '伙伴们'}也来了。`);
-  const primaryChoice = page.getByRole('button', { name: '带缓落壳出发', exact: true });
+  const primary = page.getByRole('button', { name: '带缓落壳出发', exact: true });
   assert.equal(await page.locator('#relic-choices .primary-button').count(), 1);
   assert.equal(await page.locator('#relic-choices button:visible').count(), 1);
   assert.equal(await page.locator('#relic-choices button').count(), 5, 'all five relics remain available');
-  assert.ok(await primaryChoice.evaluate(el => document.activeElement === el), 'entry focuses the explicit departure action');
-  assert.ok(await primaryChoice.evaluate(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight));
-  const choiceBox = await primaryChoice.boundingBox();
-  assert.ok(choiceBox.x >= 0 && choiceBox.x + choiceBox.width <= width && choiceBox.y >= 0 && choiceBox.y + choiceBox.height <= page.viewportSize().height);
+  assert.ok(await primary.evaluate(el => document.activeElement === el), 'entry focuses the explicit departure action');
+  await fitsViewport(page, primary, 'starter departure button');
   const fits = () => page.locator('#choice-dialog').evaluate(el => el.scrollHeight <= el.clientHeight + 2 && el.scrollWidth <= el.clientWidth);
   assert.ok(await fits(), 'collapsed choice fits without scrolling');
-  await page.screenshot({ path: `${out}/courtyard-entry-choice-${width}.png`, fullPage: true });
-  // Native keyboard disclosure never chooses a relic or spends gameplay time.
+  await page.screenshot({ path: `${out}/${width}-entry-choice.png`, fullPage: true });
   await page.keyboard.press('Tab');
   assert.ok(await page.locator('.starter-alternatives summary').evaluate(el => document.activeElement === el));
   await page.keyboard.press('Enter');
   assert.equal(await page.locator('#relic-choices button:visible').count(), 5);
-  assert.equal(await page.locator('#relic-choices .primary-button').count(), 1);
   assert.ok(await fits(), 'expanded alternatives fit without scrolling');
   await page.waitForTimeout(250);
-  assert.deepEqual(await page.evaluate(() => window.__courtyardSupplyState()), beforeChoice, 'browsing choices does not start, advance or equip the run');
-  await page.screenshot({ path: `${out}/courtyard-entry-alternatives-${width}.png`, fullPage: true });
+  assert.deepEqual((await readFlow(page)).state, before, 'browsing choices does not start, advance or equip the run');
   if (starterRelic === 'shell') {
     await page.keyboard.press('Enter');
-    assert.equal(await page.locator('#relic-choices button:visible').count(), 1);
     await page.keyboard.press('Shift+Tab');
-    assert.ok(await primaryChoice.evaluate(el => document.activeElement === el));
+    assert.ok(await primary.evaluate(el => document.activeElement === el));
     await page.keyboard.press('Enter');
   } else {
-    assert.equal(starterRelic, 'shadow');
-    await page.getByRole('button', { name: '选择留影扣', exact: true }).click();
+    await page.getByRole('button', { name: `选择${{ shadow: '留影扣', prism: '回流棱镜', coil: '接力线圈', weave: '织桥种' }[starterRelic]}`, exact: true }).click();
   }
-  const chosen = await page.evaluate(() => window.__courtyardSupplyState());
+  const chosen = (await readFlow(page)).state;
   assert.equal(chosen.phase, 'playing');
   assert.deepEqual(Object.entries(chosen.relics).filter(([, rank]) => rank > 0), [[starterRelic, 1]], 'only the explicitly chosen relic is equipped');
-  const entryChoice = { friends, starterRelic, initialPhase: beforeChoice.phase, chosenRelics: chosen.relics,
-    singlePrimary: true, keyboardDisclosure: true, fitsCollapsedAndExpanded: true, noAutostart: true };
   assert.equal(await page.locator('#friend-guide').isVisible(), false, 'entry is not occupied by automatic help');
-  await page.waitForFunction(() => window.__courtyardBeat().cue?.beat === 'arrival' && window.__courtyardBeat().cue.age >= .3);
-  const invitation = await read();
-  assert.equal(invitation.firstEntry, true);
-  assert.ok(invitation.beats[0].time >= 1 && invitation.beats[0].time <= 3);
-  assert.notEqual(invitation.cue.node, invitation.node, 'invite a next step, not the starting platform');
-  assert.equal(invitation.cue.node, invitation.selected);
-  assert.equal(invitation.renderedNode, invitation.selected);
-  assert.ok(invitation.strokes > 0, 'the invited platform actually paints its glint');
-  assert.equal(await page.locator('.action-row .primary-button').count(), 1);
-  assert.equal(await page.locator('#move.primary-button.attention-action').count(), 1);
-  assert.equal(await page.locator('#friend-guide').isVisible(), false);
-  assert.equal(await page.locator('#announcement').innerText(), '');
-  await assertFirstAction(page, 'move', invitation.cue.node);
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  await shot('invitation');
-  await page.locator('#pause').click();
-  const frozen = (await read()).cue;
-  await page.waitForTimeout(250);
-  assert.deepEqual((await read()).cue, frozen);
-  await page.locator('#resume').click();
-  let completed = null, secondInvitation = null, secondCompleted = null;
-  const helpAt = interrupt === true ? 'arrival' : interrupt;
-  if (helpAt === 'arrival') {
-    await page.keyboard.press('h');
-    assert.equal((await read()).cue, null, 'H immediately takes the invitation channel');
-    assert.equal(await page.locator('#friend-guide').isVisible(), true);
-    assert.equal((await read()).firstAction, null, 'H also retires the named instruction');
-    assert.match(await page.locator('#move').innerText(), /^稳行/);
-    await shot('help');
-    await page.locator('#move').click();
-    await page.waitForFunction(() => window.__courtyardBeat().settled);
-    await page.waitForFunction(() => window.__courtyardBeat().time >= 8);
-    assert.deepEqual((await read()).used, ['arrival'], 'cancelled invitations cannot pay out later');
-  } else {
-    await page.waitForFunction(t => window.__courtyardBeat().time >= t + 6.5, invitation.time);
-    const idle = await read();
-    assert.equal(idle.cue, null); assert.deepEqual(idle.used, ['arrival']);
-    assert.equal(await page.locator('#friend-guide').isVisible(), false, 'no second prompt on the six-second idle timer');
-    assert.equal(await page.locator('#announcement').innerText(), '');
-    await assertFirstAction(page, 'move', invitation.cue.node);
-    await shot('idle');
-    await page.locator('#move').click();
-    assert.equal((await read()).firstAction, null, 'crossing retires the named invitation');
-    assert.match(await page.locator('#move').innerText(), /^穿越中/);
-    await page.waitForFunction(() => window.__courtyardBeat().cue?.beat === 'follow' && window.__courtyardBeat().cue.age >= .2);
-    completed = await read();
-    assert.equal(completed.node, invitation.cue.node);
-    assert.equal(completed.renderedNode, completed.node); assert.ok(completed.strokes > 0);
-    assert.equal(completed.settled, true);
-    assert.equal(completed.firstAction, null, 'landing completion is not another instruction');
-    assert.deepEqual(completed.used, ['arrival', 'follow']);
-    assert.equal(await page.locator('#friend-guide').isVisible(), false);
-    assert.equal(await page.locator('.action-row .primary-button').count(), 1);
-    await shot('complete');
-    if (helpAt === 'follow') {
-      await page.keyboard.press('h');
-      assert.equal((await read()).cue, null, 'H during the first follow cancels the second opportunity');
-      assert.equal(await page.locator('#friend-guide').isVisible(), true);
-      await shot('follow-help');
-    } else {
-      await page.waitForFunction(() => window.__courtyardBeat().cue?.beat === 'mechanism' && window.__courtyardBeat().cue.age >= .3);
-      secondInvitation = await read();
-      assert.equal(secondInvitation.cue.node, completed.node, 'invite the actual first source/gate underfoot');
-      assert.equal(secondInvitation.renderedNode, secondInvitation.cue.node);
-      assert.ok(secondInvitation.strokes > 0, 'the second invitation is painted, not only scheduled');
-      const firstEnd = secondInvitation.ends.find(e => e.key === 'follow:' + completed.node);
-      const secondStart = secondInvitation.beats.find(b => b.beat === 'mechanism');
-      assert.ok(secondStart.time - firstEnd.time >= .44, 'first follow fully ends, then a quiet gap');
-      assert.deepEqual(secondInvitation.used, ['arrival', 'follow', 'mechanism']);
-      assert.equal(await page.locator('.action-row .primary-button').count(), 1);
-      assert.equal(await page.locator('#interact.primary-button.attention-action').count(), 1);
-      assert.equal(await page.locator('#friend-guide').isVisible(), false);
-      await assertFirstAction(page, 'interact', secondInvitation.cue.node);
-      await page.screenshot({ path: `${out}/courtyard-second-beat-invitation-${width}.png`, fullPage: true });
-      await page.locator('#pause').click();
-      const secondFrozen = (await read()).cue;
-      await page.waitForTimeout(250); assert.deepEqual((await read()).cue, secondFrozen);
-      await page.locator('#resume').click();
-      if (helpAt === 'mechanism') {
-        await page.keyboard.press('h');
-        assert.equal((await read()).cue, null, 'H immediately takes the second invitation channel');
-        assert.equal(await page.locator('#friend-guide').isVisible(), true);
-        assert.equal((await read()).firstAction, null, 'help owns the instruction after H');
-        await page.screenshot({ path: `${out}/courtyard-second-beat-help-${width}.png`, fullPage: true });
-      } else {
-        await page.waitForFunction(t => window.__courtyardBeat().time >= t + 6.2, secondInvitation.time);
-        assert.equal((await read()).cue, null, 'expired second invitation stays quiet');
-        assert.equal(await page.locator('#friend-guide').isVisible(), false, 'no automatic idle help');
-        assert.deepEqual((await read()).used, ['arrival', 'follow', 'mechanism']);
-        await assertFirstAction(page, 'interact', secondInvitation.cue.node);
-        await page.screenshot({ path: `${out}/courtyard-second-beat-idle-${width}.png`, fullPage: true });
+  return { friends, starterRelic };
+}
+
+// Screen point of a platform, from the renderer's own world -> canvas transform.
+export async function nodePoint(page, id) {
+  const { state, view } = await readFlow(page);
+  const node = state.nodes.find(n => n.id === id);
+  assert.ok(node, `node ${id} exists`);
+  const box = await page.locator('#scene').boundingBox();
+  return { x: box.x + view.offsetX + node.x * view.scale, y: box.y + view.offsetY + node.y * view.scale, present: node.present };
+}
+
+// What a player does to "go to" something: click it on the canvas when it is drawn
+// in this slice, otherwise use its numbered checklist row (or the exit card).
+export async function chooseTarget(page, id) {
+  const { state } = await readFlow(page);
+  const node = state.nodes.find(n => n.id === id);
+  if (node?.present && (node.anchor || node.layer === state.layer)) {
+    await page.locator('#scene').scrollIntoViewIfNeeded();
+    const p = await nodePoint(page, id);
+    await page.mouse.click(p.x, p.y);
+    return 'canvas';
+  }
+  if (id === 'exit') { await page.locator('#exit-step-card').click(); return 'exit-card'; }
+  await page.locator(`[data-mechanism="${id}"]`).click();
+  return 'checklist';
+}
+
+// Settled = no crossing, no wave and no pending autopilot for three polls (> resume delay).
+export async function waitSettled(page, { timeout = 15000 } = {}) {
+  const started = Date.now();
+  let calm = 0;
+  while (calm < 3) {
+    assert.ok(Date.now() - started < timeout, 'the courtyard settles');
+    await page.waitForTimeout(300);
+    const f = await readFlow(page);
+    calm = !f.state.travel && !f.state.wave && !f.autoPilot ? calm + 1 : 0;
+  }
+  return readFlow(page);
+}
+
+// One real wheel notch over an empty part of the canvas.
+export async function wheelNotch(page, direction) {
+  await page.locator('#scene').scrollIntoViewIfNeeded();
+  const box = await page.locator('#scene').boundingBox();
+  await page.mouse.move(box.x + box.width * .97, box.y + box.height * .93);
+  await page.mouse.wheel(0, direction === 'up' ? -120 : 120);
+  await page.waitForTimeout(450);
+}
+
+// Read the persistent instruction the game shows while it waits for a layer change and
+// check it against the prompt it is actually waiting on. From stage 3 the game may hide
+// the layer on purpose (deduce it from the dashed bridge); then nothing may leak it, and
+// the stepper card is the designed way to reveal it.
+export async function readLayerInstruction(page, { allowDeduction = false } = {}) {
+  const f = await readFlow(page);
+  assert.ok(f.prompt && f.prompt.layer !== f.state.layer, 'the game is waiting for a layer change');
+  const title = await page.locator('#vstep-shift-title').innerText();
+  const sub = await page.locator('#vstep-shift-sub').innerText();
+  assert.equal(await page.locator('#visual-stepper').isVisible(), true, 'the visual stepper is visible');
+  if (allowDeduction && /调谐/.test(title)) {
+    assert.ok(f.stage >= 3, 'layer hints are only withheld after the shift has been learned');
+    assert.ok(!LAYER_NAMES.some(name => title.includes(name) || sub.includes(name)), `deduction mode does not name the layer: ${title} / ${sub}`);
+    assert.match(sub, /揭晓/, 'the stepper offers to reveal the layer');
+    const pill = f.pills.find(t => /虚线桥/.test(t));
+    assert.ok(pill, `the canvas points at the dashed bridge: ${JSON.stringify(f.pills)}`);
+    assert.ok(!LAYER_NAMES.some(name => pill.includes(name)) && !/上滚|下滚/.test(pill), `the canvas pill does not leak the answer: ${pill}`);
+    return { deduction: true, title, sub, pill, prompt: f.prompt, layer: f.state.layer, node: f.state.node };
+  }
+  const direction = /上滚/.test(sub) ? 'up' : /下滚/.test(sub) ? 'down' : null;
+  const expected = f.prompt.layer > f.state.layer ? 'up' : 'down';
+  assert.ok(title.includes(LAYER_NAMES[f.prompt.layer]), `stepper names the target layer: ${title}`);
+  assert.equal(direction, expected, `stepper wheel direction matches the target layer: ${sub}`);
+  const pill = f.pills.find(t => /【(上滚|下滚)/.test(t));
+  assert.ok(pill, `the canvas pill repeats the instruction where the player stands: ${JSON.stringify(f.pills)}`);
+  assert.ok(pill.includes(expected === 'up' ? '上滚' : '下滚'), `canvas pill direction matches: ${pill}`);
+  return { title, sub, pill, direction, prompt: f.prompt, layer: f.state.layer, node: f.state.node };
+}
+
+// The player: choose the target (unless continuing a pending instruction), then only follow
+// the game's layer instruction with the real wheel. Walking and activation must happen
+// without any other input.
+export async function followGuidance(page, targetId, { beforeShift = null, maxRounds = 10, click = true } = {}) {
+  const trace = [];
+  const done = f => targetId === 'exit' ? f.state.phase !== 'playing'
+    : f.state.nodes.find(n => n.id === targetId)?.kind === 'mechanism' ? f.state.activated.includes(targetId)
+      : f.state.node === targetId;
+  if (click) trace.push({ click: await chooseTarget(page, targetId) });
+  for (let round = 0; round < maxRounds; round++) {
+    const f = await waitSettled(page);
+    if (done(f)) return trace;
+    if (f.prompt && f.prompt.layer !== f.state.layer) {
+      let instruction = await readLayerInstruction(page, { allowDeduction: true });
+      if (instruction.deduction) {
+        // A stuck player asks the stepper; it reveals the layer without changing it.
+        trace.push({ deduction: { title: instruction.title, pill: instruction.pill } });
+        const layerBefore = f.state.layer;
+        await page.locator('#vstep-shift').click();
+        await page.waitForTimeout(250); // let the canvas repaint with the revealed hint
+        assert.equal((await readFlow(page)).state.layer, layerBefore, 'revealing the hint does not shift for the player');
+        assert.match(await page.locator('#action-feedback').innerText(), new RegExp(`层提示已揭晓.*${LAYER_NAMES[instruction.prompt.layer]}`));
+        instruction = await readLayerInstruction(page);
       }
+      if (beforeShift && !trace.some(t => t.instruction)) await beforeShift(instruction);
+      trace.push({ instruction: { at: instruction.node, from: instruction.layer, to: instruction.prompt.layer, kind: instruction.prompt.kind, sub: instruction.sub } });
+      while ((await readFlow(page)).state.layer !== instruction.prompt.layer) {
+        const before = (await readFlow(page)).state.layer;
+        await wheelNotch(page, instruction.direction);
+        assert.notEqual((await readFlow(page)).state.layer, before, 'each instructed wheel notch changes the layer');
+      }
+      continue;
     }
+    // The walk ended without a pending instruction (e.g. a resumed walk reached a waypoint): ask again.
+    trace.push({ click: await chooseTarget(page, targetId) });
   }
-  await page.locator('#interact').click();
-  await page.waitForFunction(() => document.querySelector('#mechanism-count').textContent === '1 / 3');
-  const activatedAt = (await read()).time;
-  if (secondInvitation && helpAt !== 'mechanism') {
-    await page.waitForFunction(() => window.__courtyardBeat().cue?.beat === 'mechanism-follow' && window.__courtyardBeat().cue.age >= .2);
-    secondCompleted = await read();
-    assert.equal(secondCompleted.renderedNode, secondInvitation.cue.node);
-    assert.ok(secondCompleted.strokes > 0);
-    assert.ok(secondCompleted.activated.includes(secondInvitation.cue.node));
-    assert.equal(secondCompleted.firstAction, null, 'successful activation settles the instruction');
-    assert.equal(secondCompleted.events.filter(e => e.type === 'activate' && e.node === secondInvitation.cue.node && e.via === 'touch').length, 1);
-    assert.deepEqual(secondCompleted.used, ['arrival', 'follow', 'mechanism', 'mechanism-follow']);
-    assert.equal(await page.locator('#friend-guide').isVisible(), false);
-    await page.screenshot({ path: `${out}/courtyard-second-beat-complete-${width}.png`, fullPage: true });
-    await page.locator('#pause').click();
-    const completionFrozen = (await read()).cue;
-    await page.waitForTimeout(250); assert.deepEqual((await read()).cue, completionFrozen);
-    await page.locator('#resume').click();
-    if (helpAt === 'mechanism-follow') {
-      // The .5s delivery may change the next-step photograph. Request H once it
-      // has settled, while the .85s follow is still visible, so the test does not
-      // race legitimate guide invalidation against its visibility assertion.
-      await page.waitForFunction(() => window.__courtyardBeat().cue?.beat === 'mechanism-follow' && window.__courtyardBeat().cue.age >= .55);
-      await page.keyboard.press('h');
-      assert.equal((await read()).cue, null);
-      assert.equal(await page.locator('#friend-guide').isVisible(), true);
-    }
-  }
-  await page.waitForFunction(t => window.__courtyardBeat().time >= t + 6.2, activatedAt);
-  const settled = await read();
-  assert.equal(settled.cue, null);
-  assert.equal(settled.firstAction, null);
-  assert.match(await page.locator('#move').innerText(), /^稳行/);
-  const expected = helpAt === 'arrival' ? ['arrival'] : helpAt === 'follow' ? ['arrival', 'follow']
-    : helpAt === 'mechanism' ? ['arrival', 'follow', 'mechanism'] : ['arrival', 'follow', 'mechanism', 'mechanism-follow'];
-  assert.deepEqual(settled.beats.map(b => b.beat), expected);
-  if (secondInvitation) for (const receiver of secondInvitation.nodes.filter(n => n.required?.includes(secondInvitation.cue.node))) {
-    const actual = settled.nodes.find(n => n.id === receiver.id);
-    assert.ok(actual.received.includes(secondInvitation.cue.node), 'real supply reaches the model receiver');
-    assert.equal(actual.powered, actual.required.every(id => actual.received.includes(id)), 'partial supply is never reported complete');
-    assert.equal(settled.events.filter(e => e.type === 'power' && e.from === secondInvitation.cue.node && e.to === receiver.id).length, 1);
-  }
-  assert.equal(await page.locator('#friend-guide').isVisible(), false);
-  assert.deepEqual(settled.conflicts, []);
-  assertQuietPower(settled.powerFrames);
-  assert.deepEqual(settled.powerConflicts, []);
-  await shot('settled');
-  if (secondInvitation) await page.screenshot({ path: `${out}/courtyard-second-beat-settled-${width}.png`, fullPage: true });
-  let powerChain = null;
-  let interludeChoices = null;
-  if (fullPowerChain) {
-    for (let i = 0; i < 2; i++) {
-      const state = await page.evaluate(() => window.__courtyardSupplyState());
-      const target = state.nodes.find(n => n.kind === 'mechanism' && n.powered && !state.activated.includes(n.id) && pathTo(state, n.id));
-      assert.ok(target, 'a real supplied mechanism remains reachable');
-      await reachThroughUI(page, target.id); await page.locator('#interact').click();
-      const time = (await read()).time;
-      await page.waitForFunction(t => window.__courtyardBeat().time >= t + .7, time);
-    }
-    const time = (await read()).time;
-    await page.waitForFunction(t => window.__courtyardBeat().time >= t + 6.2, time);
-    powerChain = await read();
-    assert.equal(powerChain.activated.length, 3);
-    assert.ok(powerChain.powerFrames.some(f => f.events.some(e => e.complete)));
-    assertQuietPower(powerChain.powerFrames);
-    assert.deepEqual(powerChain.powerConflicts, []);
-    assert.deepEqual(powerChain.used, expected, 'the full chain adds no third beat');
-    assert.equal(powerChain.cue, null);
-    assert.equal(await page.locator('#friend-guide').isVisible(), false);
-    assert.equal(await page.locator('#action-feedback').isVisible(), false);
-    await shot('full-power-chain-quiet');
-    // Landing at the exit already banks the run and opens the next-room picker.
-    await reachThroughUI(page, 'exit');
-    await page.locator('#choice-dialog[open]').waitFor();
-    assert.equal(await page.locator('#choice-dialog.discovery-choice').count(), 0, 'next-room choice remains ordinary');
-    assert.equal(await page.locator('.starter-alternatives').count(), 0);
-    const next = await page.evaluate(() => window.__courtyardSupplyState());
-    assert.equal(next.phase, 'interlude');
-    assert.equal(await page.locator('#relic-choices button:visible').count(), next.choices.length);
-    interludeChoices = next.choices.map(relic => relic.id);
-    await page.locator('#relic-choices button').first().click();
-  }
-  // Exercise restart on the original discovery page, where the entry flag was
-  // true at load, rather than only after a reload has cleared that condition.
+  assert.fail(`could not reach ${targetId} by following the game's guidance: ${JSON.stringify(trace)}`);
+}
+
+// Restart and revisit never re-arm the one-time discovery picker.
+export async function verifyRestartAndRevisit(page) {
   await page.locator('#restart').click(); await page.locator('#confirm-restart').click();
   await page.locator('#choice-dialog[open]').waitFor();
   assert.equal(await page.locator('#choice-dialog.discovery-choice').count(), 0, 'restart cannot re-arm the first-entry picker');
-  assert.equal(await page.locator('.starter-alternatives').count(), 0);
   assert.equal(await page.locator('#relic-choices button:visible').count(), 5);
   await page.reload();
   await page.locator('#choice-dialog[open]').waitFor();
   assert.equal(await page.locator('#choice-dialog.discovery-choice').count(), 0, 'revisits do not repeat the first-entry picker');
-  assert.equal(await page.locator('#relic-choices button:visible').count(), 5);
   assert.equal(await page.locator('#relic-choices .primary-button').count(), 0);
   await page.getByRole('button', { name: '选择缓落壳', exact: true }).click();
-  await page.locator('#align').click();
-  await page.waitForFunction(() => window.__courtyardBeat().time >= 3.5);
-  const revisit = await read();
-  assert.equal(revisit.firstEntry, false); assert.equal(revisit.cue, null);
-  assert.equal(revisit.firstAction, null);
-  assert.deepEqual(revisit.beats, []); assert.deepEqual(revisit.used, []);
-  assert.deepEqual(revisit.conflicts, []);
-  return { entryChoice, interludeChoices, invitation, completed, secondInvitation, secondCompleted, settled, powerChain, revisit, interrupt: helpAt, idleSeconds: helpAt === 'arrival' ? null : 6.5, secondIdleSeconds: secondCompleted ? 6.2 : null, passed: true };
+  await page.waitForFunction(() => window.__flow().time >= 3.5);
+  const revisit = await readFlow(page);
+  assert.equal(revisit.momentum.firstEntry, false);
+  assert.deepEqual(revisit.momentum.used, [], 'a revisit plays no first-entry beats');
+  return { restartOrdinary: true, revisitOrdinary: true };
 }
+
+// The four authored first rooms reachable from the discovery entry, with the shape of
+// their second step: a same-position layer change, a return to the hub, or the relay.
+export const FIRST_ROOMS = [
+  { label: 'cascade', seed: 10, room: 'cascade', handoff: 'same_xyz', anchor: null },
+  { label: 'split', seed: 0, room: 'split', handoff: 'same_xyz', anchor: null },
+  { label: 'confluence', seed: 2, room: 'confluence', handoff: 'anchor', anchor: 'hub' },
+  { label: 'return', seed: 7, room: 'return', handoff: 'anchor', anchor: 'relay' },
+];

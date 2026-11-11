@@ -392,3 +392,34 @@ test('seed collection wins over garden labels in either event order and briefly 
     assert.ok(texts(calls).includes('走到光环边'), 'the existing instruction returns');
   }
 });
+
+test('astral mode renders every Flatland level and 3D ascend volume in dark holographic palette', () => {
+  const { scene, calls } = renderer(1000, 560);
+  scene.astralMode = true;
+  FLATLAND_LEVELS.forEach((_, index) => {
+    const m = new FlatlandModel(index, { seed: index + 7 });
+    m.start();
+    for (const s of [0.8, 2.8, 4.8]) {
+      m.setSlice(s);
+      m.update(.05);
+      scene.setState(m.snapshot());
+      scene.pushEvents(m.drainEvents());
+      scene.render(1 / 60);
+    }
+  });
+  const ascend = new FlatlandModel(levelIndex('ascend'), { seed: 42 });
+  ascend.start();
+  ascend.setSlice(4); ascend.endSliceGesture();
+  ascend.setMove(1, 0);
+  for (let t = 0; t < 1.4 - 1e-9; t += .05) ascend.update(Math.min(.05, 1.4 - t));
+  ascend.setMove(0, 0);
+  ascend.setSlice(1); ascend.endSliceGesture();
+  for (let t = 0; t < 4.1; t += .05) ascend.update(.05);
+  assert.equal(ascend.ascend.stage, 'volume');
+  calls.length = 0;
+  scene.setState(ascend.snapshot());
+  scene.render(1 / 60);
+  assert.ok(calls.some(c => c.method === 'fill' && c.fill === '#132635'), 'astral 3D floor renders obsidian prism');
+  assert.equal(calls.some(c => c.method === 'fill' && c.fill === '#d9e3d2'), false, 'paper 3D floor absent in astral mode');
+  assert.ok(calls.some(c => c.method === 'fillText' && c.args[0] === '出口' && c.fill === '#ffd878'), 'astral goal label high contrast');
+});

@@ -1,5 +1,8 @@
-// Every sound follows a model event or its authoritative wave clock. No ambient loop and
-// no deferred replay of events that occurred before the player's first gesture.
+// Every sound follows a model event or its authoritative wave clock. A quiet
+// generative bed (detuned D/A drone, progress overtones, W-filtered air and
+// sparse pings) lives entirely inside syncAmbient: it starts only after a
+// gesture on a running context, cuts instantly on pause/mute/dispose, and is
+// never replayed. No deferred replay of events before the player's first gesture.
 const MAX_VOICES = 24;
 const NOTE = { D2: 73.42, D3: 146.83, A3: 220, B3: 246.94, D4: 293.66, E4: 329.63, Fs4: 369.99, A4: 440, B4: 493.88, D5: 587.33, E5: 659.25, Fs5: 739.99, A5: 880, B5: 987.77, D6: 1174.66 };
 const PAN = { dew: -.6, bell: -.6, relay: -.25, bloom: .35, vault: .6, rift: .72, hub: 0, exit: -.12 };
@@ -24,6 +27,8 @@ export class GameAudio {
     this.master = null;
     this.compressor = null;
     this.noiseBuffer = null;
+    this.ambient = null;
+    this.ambientNoise = null;
     this.voices = new Set();
     this.lastEvent = new Map();
     this.waveCue = null;
@@ -70,7 +75,7 @@ export class GameAudio {
 
   setEnabled(enabled) {
     this.enabled = Boolean(enabled);
-    if (!this.enabled) this._cancel();
+    if (!this.enabled) { this._cancel(); this._stopAmbient(); }
     if (this.master && this.context?.state !== 'closed') {
       this.master.gain.cancelScheduledValues(this.context.currentTime);
       this.master.gain.setValueAtTime(this.enabled ? .65 : 0, this.context.currentTime);
@@ -97,18 +102,26 @@ export class GameAudio {
       }
       // Stop even a throttled old shift: it must never describe a layer the
       // player has already left. Transfers replace its light orientation cue.
-      if (['layer_shift', 'phase_transfer'].includes(event.type)) this._cancelGroup('layer');
+      if (['layer_shift', 'phase_transfer', 'lens_dive'].includes(event.type)) this._cancelGroup('layer');
       if (this.paused || !this.enabled || this.context?.state !== 'running') continue;
       const now = this.context.currentTime;
       // Selection/movement can repeat under keyboard input; major consequences
       // are never silently dropped by this small input-sound throttle.
-      const gap = event.type === 'select' ? .065 : ['move', 'layer_shift', 'phase_transfer'].includes(event.type) ? .08 : 0;
+      const gap = event.type === 'select' ? .065 : event.type === 'lens_detent' ? .07 : ['move', 'layer_shift', 'phase_transfer'].includes(event.type) ? .08 : 0;
       if (gap && now - (this.lastEvent.get(event.type) ?? -Infinity) < gap) continue;
       this.lastEvent.set(event.type, now);
       const pan = PAN[event.to ?? event.node] ?? 0;
       const tier = Math.min(3, Math.max(1, Number(event.tier) || 1));
       const layer = LAYER[Math.min(2, Math.max(0, Math.round(Number(event.toLayer ?? event.layer) || 0)))];
       switch (event.type) {
+        case 'lens_detent':
+          this._tone(layer.note * 2, now, .09, .024, pan, 'glass', null, 'layer');
+          break;
+        case 'lens_dive':
+          this._tone(layer.note / 2, now, .28, .052, -pan, 'soft', layer.note, 'layer');
+          this._tone(layer.note * 1.5, now + .03, .31, .042, pan, 'glass', layer.note * 2, 'layer');
+          this._air(now, .18, .044, pan, layer.air + 450, 'layer');
+          break;
         case 'layer_shift':
           this._tone(layer.note, now, .16, .035, pan, layer.kind, layer.slide, 'layer');
           break;
@@ -210,6 +223,34 @@ export class GameAudio {
         case 'move':
           this._tone(NOTE.D3, now, .19, .075, pan, 'soft', NOTE.A3);
           this._air(now, .12, .045, pan, 650);
+          break;
+        case 'phase_dash':
+          if (event.rating === 'perfect') {
+            this._tone(layer.note, now, .18, .058, pan, 'soft', layer.note * 1.5, 'reward');
+            this._arpeggio([layer.note, layer.note * 1.5, layer.note * 2], now + .018, .034, .046, pan, 'reward');
+            this._air(now, .19, .058, pan, 2150, 'reward');
+          } else {
+            this._tone(layer.note * .75, now, .17, .05, pan, 'soft', layer.note * 1.5, 'reward');
+            this._air(now, .15, .045, pan, 1450, 'reward');
+          }
+          break;
+        case 'polytope_lock':
+          // Precision crystal tumbler magnetic snap: double glass transient.
+          this._tone(layer.note * 1.5, now, .11, .052, pan, 'glass', null, 'reward');
+          this._tone(layer.note * 2, now + .024, .16, .062, pan, 'glass', null, 'reward');
+          this._air(now, .09, .028, pan, layer.air + 700, 'reward');
+          break;
+        case 'harmonic_burst':
+          this._tone(NOTE.D3, now, .36, .085, pan, 'soft', NOTE.A3, 'reward');
+          this._arpeggio(
+            event.surfCombo ? [NOTE.D4, NOTE.A4, NOTE.D5, NOTE.Fs5, NOTE.A5, NOTE.D6] : [NOTE.A4, NOTE.D5, NOTE.Fs5, NOTE.D6],
+            now + .02,
+            .042,
+            .064,
+            pan,
+            'reward'
+          );
+          this._air(now + .02, .22, .055, -pan, 2450, 'reward');
           break;
         case 'risk':
           this._tone(NOTE.A3, now, .29, .075, pan, 'soft', NOTE.B3);
@@ -364,6 +405,152 @@ export class GameAudio {
       variant === 'chase' ? 1800 : variant === 'rift' ? 620 + Math.min(3, step) * 240 : locked ? 550 : 1100, 'warning');
   }
 
+  // Called once per rendered frame with model-derived state. The bed owns its
+  // own persistent graph under this.ambient (never a voice): its sources count
+  // against nothing and survive _cancel(), but _stopAmbient() severs them in
+  // the same frame the game blocks, mutes or loses the device.
+  syncAmbient({ progress = 0, w = .5, exitOpen = false, blocked = false } = {}) {
+    if (this.disposed) return;
+    if (blocked || !this.enabled || this.context?.state !== 'running') {
+      this._stopAmbient();
+      return;
+    }
+    try {
+      if (!this.ambient) this._startAmbient();
+      const ambient = this.ambient;
+      if (!ambient) return;
+      const now = this.context.currentTime;
+      const retarget = (key, param, target, ramp) => {
+        if (ambient.targets[key] === target) return;
+        ambient.targets[key] = target;
+        param.cancelScheduledValues(now);
+        param.setValueAtTime(param.value, now);
+        param.linearRampToValueAtTime(target, now + ramp);
+      };
+      const lit = Math.max(0, Math.floor(Number.isFinite(progress) ? progress : 0));
+      for (let k = 0; k < 3; k++) retarget(`overtone${k}`, ambient.overtones[k].gain, lit >= k + 1 ? .009 : 0, 1.4);
+      retarget('shimmer', ambient.shimmer.gain, exitOpen ? .004 : 0, 1.4);
+      const air = 500 + Math.max(0, Math.min(1, Number.isFinite(w) ? w : .5)) * 2300;
+      retarget('air', ambient.filter.frequency, air, .12);
+      // Sparse generative pings ride the frame clock; no timers exist to replay.
+      if (now >= ambient.nextPing) {
+        ambient.nextPing = now + 4 + ambient.rng() * 5;
+        if (!this.waveCue) {
+          const pool = [NOTE.D5, NOTE.E5, NOTE.Fs5, NOTE.A5, NOTE.B5].slice(0, Math.min(5, 2 + lit));
+          ambient.pan = Math.max(-.6, Math.min(.6, ambient.pan + (ambient.rng() - .5) * .3));
+          if (pool.length) this._tone(pool[Math.floor(ambient.rng() * pool.length)], now, 1.7, .009, ambient.pan, 'glass', null, 'ambient');
+        }
+      }
+    } catch {
+      // The soundscape is optional scenery; a device fault must never break a frame.
+      this.ambient = null;
+    }
+  }
+
+  _startAmbient() {
+    const context = this.context;
+    const now = context.currentTime;
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(1, now + 1.2);
+    gain.connect(this.master);
+    const sources = [];
+    const nodes = [gain];
+    const layer = (target) => {
+      const g = context.createGain();
+      g.gain.value = target;
+      g.connect(gain);
+      nodes.push(g);
+      return g;
+    };
+    const pair = (frequency, out) => {
+      for (const detune of [-.35, .35]) {
+        const osc = context.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = frequency + detune;
+        osc.connect(out);
+        osc.start(now);
+        sources.push(osc);
+      }
+    };
+    pair(NOTE.D3, layer(.022));
+    pair(NOTE.A3, layer(.014));
+    const overtones = [NOTE.Fs4, NOTE.A4, NOTE.D5].map(frequency => {
+      const out = layer(0);
+      const osc = context.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = frequency;
+      osc.connect(out);
+      osc.start(now);
+      sources.push(osc);
+      return out;
+    });
+    const shimmer = layer(0);
+    const shimmerOsc = context.createOscillator();
+    shimmerOsc.type = 'sine';
+    shimmerOsc.frequency.value = NOTE.D6;
+    shimmerOsc.connect(shimmer);
+    shimmerOsc.start(now);
+    sources.push(shimmerOsc);
+    if (!this.ambientNoise) {
+      this.ambientNoise = context.createBuffer(1, Math.ceil(context.sampleRate * 2.5), context.sampleRate);
+      const samples = this.ambientNoise.getChannelData(0);
+      let previous = 0;
+      for (let i = 0; i < samples.length; i++) {
+        previous = previous * .62 + (Math.random() * 2 - 1) * .38;
+        samples[i] = previous;
+      }
+    }
+    const air = context.createBufferSource();
+    air.buffer = this.ambientNoise;
+    air.loop = true;
+    const filter = context.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.value = .8;
+    filter.frequency.value = 500 + .5 * 2300;
+    const airGain = layer(.006);
+    air.connect(filter);
+    filter.connect(airGain);
+    air.start(now);
+    sources.push(air);
+    nodes.push(filter);
+    // Deterministic ping clock + random walk, reseeded with each fresh graph.
+    let rngState = 0x9e3779b9;
+    const rng = () => {
+      rngState = (rngState + 0x6d2b79f5) >>> 0;
+      let t = rngState;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+    this.ambient = {
+      gain, sources, nodes, overtones, shimmer, filter,
+      targets: { overtone0: 0, overtone1: 0, overtone2: 0, shimmer: 0, air: filter.frequency.value },
+      nextPing: now + 4 + rng() * 5,
+      pan: 0,
+      rng,
+    };
+  }
+
+  _stopAmbient() {
+    const ambient = this.ambient;
+    if (!ambient) return;
+    this.ambient = null;
+    const now = this.context?.currentTime ?? 0;
+    try {
+      ambient.gain.gain.cancelScheduledValues(now);
+      ambient.gain.gain.setValueAtTime(0, now);
+    } catch { /* Device may already be gone. */ }
+    for (const source of ambient.sources) {
+      try { source.stop(now); } catch { /* Already ended. */ }
+      try { source.disconnect(); } catch { /* Already detached. */ }
+    }
+    for (const node of ambient.nodes) {
+      try { node.disconnect(); } catch { /* Already detached. */ }
+    }
+    this._cancelGroup('ambient');
+  }
+
   _riftReward(at, pan) {
     this._cancelGroup('reward');
     // A lower impact and wider ascending motif distinguish the three-wave
@@ -503,6 +690,7 @@ export class GameAudio {
   dispose() {
     this.disposed = true;
     this._cancel();
+    this._stopAmbient();
     try { this.master?.disconnect(); } catch { /* Already disconnected. */ }
     try { this.compressor?.disconnect(); } catch { /* Already disconnected. */ }
     const context = this.context;
@@ -510,6 +698,7 @@ export class GameAudio {
     this.master = null;
     this.compressor = null;
     this.noiseBuffer = null;
+    this.ambientNoise = null;
     if (context && context.state !== 'closed') {
       try { const closed = context.close(); closed?.catch?.(() => {}); } catch { /* Device already closed. */ }
     }

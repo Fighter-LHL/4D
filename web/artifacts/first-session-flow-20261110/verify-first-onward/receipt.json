@@ -1,0 +1,332 @@
+{
+  "name": "first-onward",
+  "widths": [
+    1280,
+    390,
+    320
+  ],
+  "base": "http://127.0.0.1:4189",
+  "status": "passed",
+  "checks": [
+    {
+      "width": 1280,
+      "label": "cascade",
+      "seed": 10,
+      "room": "cascade",
+      "handoff": "same_xyz",
+      "anchor": null,
+      "handoffCopy": {
+        "title": "切到潮汐层",
+        "sub": "下滚 ▼，或点此切层 ✨"
+      },
+      "trace": [
+        {
+          "click": "checklist"
+        },
+        {
+          "instruction": {
+            "at": "dew",
+            "from": 2,
+            "to": 0,
+            "kind": "same_xyz",
+            "sub": "下滚 ▼，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "label": "split",
+      "seed": 0,
+      "room": "split",
+      "handoff": "same_xyz",
+      "anchor": null,
+      "handoffCopy": {
+        "title": "切到绽放层",
+        "sub": "上滚 ▲，或点此切层 ✨"
+      },
+      "trace": [
+        {
+          "click": "checklist"
+        },
+        {
+          "instruction": {
+            "at": "dew",
+            "from": 0,
+            "to": 2,
+            "kind": "same_xyz",
+            "sub": "上滚 ▲，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "label": "confluence",
+      "seed": 2,
+      "room": "confluence",
+      "handoff": "anchor",
+      "anchor": "hub",
+      "handoffCopy": {
+        "title": "先回 ⚓ 归响台"
+      },
+      "trace": [
+        {
+          "click": "checklist"
+        },
+        {
+          "instruction": {
+            "at": "hub",
+            "from": 2,
+            "to": 1,
+            "kind": "anchor",
+            "sub": "下滚 ▼，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "label": "return",
+      "seed": 7,
+      "room": "return",
+      "handoff": "anchor",
+      "anchor": "relay",
+      "handoffCopy": {
+        "title": "先回 ⚓ 归响台"
+      },
+      "trace": [
+        {
+          "click": "checklist"
+        },
+        {
+          "instruction": {
+            "at": "relay",
+            "from": 2,
+            "to": 0,
+            "kind": "anchor",
+            "sub": "下滚 ▼，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 390,
+      "label": "cascade",
+      "seed": 10,
+      "room": "cascade",
+      "handoff": "same_xyz",
+      "anchor": null,
+      "handoffCopy": {
+        "title": "切到潮汐层",
+        "sub": "下滚 ▼，或点此切层 ✨"
+      },
+      "trace": [
+        {
+          "click": "checklist"
+        },
+        {
+          "instruction": {
+            "at": "dew",
+            "from": 2,
+            "to": 0,
+            "kind": "same_xyz",
+            "sub": "下滚 ▼，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 390,
+      "label": "split",
+      "seed": 0,
+      "room": "split",
+      "handoff": "same_xyz",
+      "anchor": null,
+      "handoffCopy": {
+        "title": "切到绽放层",
+        "sub": "上滚 ▲，或点此切层 ✨"
+      },
+      "trace": [
+        {
+          "click": "checklist"
+        },
+        {
+          "instruction": {
+            "at": "dew",
+            "from": 0,
+            "to": 2,
+            "kind": "same_xyz",
+            "sub": "上滚 ▲，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 390,
+      "label": "confluence",
+      "seed": 2,
+      "room": "confluence",
+      "handoff": "anchor",
+      "anchor": "hub",
+      "handoffCopy": {
+        "title": "先回 ⚓ 归响台"
+      },
+      "trace": [
+        {
+          "click": "checklist"
+        },
+        {
+          "instruction": {
+            "at": "hub",
+            "from": 2,
+            "to": 1,
+            "kind": "anchor",
+            "sub": "下滚 ▼，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 390,
+      "label": "return",
+      "seed": 7,
+      "room": "return",
+      "handoff": "anchor",
+      "anchor": "relay",
+      "handoffCopy": {
+        "title": "先回 ⚓ 归响台"
+      },
+      "trace": [
+        {
+          "click": "checklist"
+        },
+        {
+          "instruction": {
+            "at": "relay",
+            "from": 2,
+            "to": 0,
+            "kind": "anchor",
+            "sub": "下滚 ▼，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 320,
+      "label": "cascade",
+      "seed": 10,
+      "room": "cascade",
+      "handoff": "same_xyz",
+      "anchor": null,
+      "handoffCopy": {
+        "title": "切到潮汐层",
+        "sub": "下滚 ▼，或点此切层 ✨"
+      },
+      "trace": [
+        {
+          "click": "checklist"
+        },
+        {
+          "instruction": {
+            "at": "dew",
+            "from": 2,
+            "to": 0,
+            "kind": "same_xyz",
+            "sub": "下滚 ▼，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 320,
+      "label": "split",
+      "seed": 0,
+      "room": "split",
+      "handoff": "same_xyz",
+      "anchor": null,
+      "handoffCopy": {
+        "title": "切到绽放层",
+        "sub": "上滚 ▲，或点此切层 ✨"
+      },
+      "trace": [
+        {
+          "click": "checklist"
+        },
+        {
+          "instruction": {
+            "at": "dew",
+            "from": 0,
+            "to": 2,
+            "kind": "same_xyz",
+            "sub": "上滚 ▲，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 320,
+      "label": "confluence",
+      "seed": 2,
+      "room": "confluence",
+      "handoff": "anchor",
+      "anchor": "hub",
+      "handoffCopy": {
+        "title": "先回 ⚓ 归响台"
+      },
+      "trace": [
+        {
+          "click": "checklist"
+        },
+        {
+          "instruction": {
+            "at": "hub",
+            "from": 2,
+            "to": 1,
+            "kind": "anchor",
+            "sub": "下滚 ▼，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 320,
+      "label": "return",
+      "seed": 7,
+      "room": "return",
+      "handoff": "anchor",
+      "anchor": "relay",
+      "handoffCopy": {
+        "title": "先回 ⚓ 归响台"
+      },
+      "trace": [
+        {
+          "click": "checklist"
+        },
+        {
+          "instruction": {
+            "at": "relay",
+            "from": 2,
+            "to": 0,
+            "kind": "anchor",
+            "sub": "下滚 ▼，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "browserVersion": "130.0.6723.31"
+}

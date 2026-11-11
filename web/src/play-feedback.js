@@ -93,14 +93,25 @@ export function mechanismFeedback(event, state, { hasSupplySlots = false } = {})
         state.activated.includes(state.node) && next) return `这边已经亮了 · 去${next.name}`;
     return event.text;
   }
-  if (event.type === 'activate') return `${name}已启动 · ${event.tier}/3`;
+  if (event.type === 'activate') {
+    const mechTotal = state.mechanismOrder?.length || state.nodes?.filter(n => n.kind === 'mechanism').length || 3;
+    return `${name}已启动 · ${event.tier}/${mechTotal}`;
+  }
   if (event.type === 'power') {
     // The second beat and the visible supply list already carry this feedback.
     if (['mechanism', 'mechanism-follow'].includes(state.courtyardMomentum?.beat)) return '';
     if (!event.complete) return hasSupplySlots ? '' : `${name}供能 ${event.received}/${event.required} · 还差一路`;
     // At the receiver, its activation CTA is enough; keep the remote arrival cue.
     if (state.node === event.to && courtyardActions(state).primary === 'interact') return '';
-    return `${name}供能到齐 · 到台上按 E`;
+    const current = state.nodes?.find(n => n.id === state.node);
+    const receiver = state.nodes?.find(n => n.id === event.to);
+    const sameSpot = current && receiver && !current.anchor && !receiver.anchor &&
+      current.world && receiver.world &&
+      Math.abs(current.world.x - receiver.world.x) < 1e-4 &&
+      Math.abs(current.world.y - receiver.world.y) < 1e-4 &&
+      Math.abs(current.world.z - receiver.world.z) < 1e-4;
+    if (sameSpot) return `${name}供能到齐 · 原地滚轮换层即可点亮`;
+    return `${name}供能到齐 · 点它前往点亮`;
   }
   return '';
 }

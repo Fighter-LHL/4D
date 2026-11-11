@@ -1,0 +1,104 @@
+{
+  "name": "first-anchor",
+  "widths": [
+    1280,
+    390,
+    320
+  ],
+  "base": "http://127.0.0.1:4189",
+  "status": "passed",
+  "checks": [
+    {
+      "width": 1280,
+      "label": "return",
+      "seed": 7,
+      "room": "return",
+      "handoff": "anchor",
+      "anchor": "relay",
+      "visited": [
+        "hub",
+        "relay"
+      ],
+      "instruction": {
+        "title": "切到潮汐层",
+        "sub": "下滚 ▼，或点此切层 ✨",
+        "pill": "🌀 在此【下滚 ▼】切至 Ⅰ 潮汐层 显桥"
+      },
+      "wrongWayTried": false,
+      "trace": [
+        {
+          "instruction": {
+            "at": "relay",
+            "from": 2,
+            "to": 0,
+            "kind": "anchor",
+            "sub": "下滚 ▼，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 390,
+      "label": "return",
+      "seed": 7,
+      "room": "return",
+      "handoff": "anchor",
+      "anchor": "relay",
+      "visited": [
+        "hub",
+        "relay"
+      ],
+      "instruction": {
+        "title": "切到潮汐层",
+        "sub": "下滚 ▼，或点此切层 ✨",
+        "pill": "🌀 在此【下滚 ▼】切至 Ⅰ 潮汐层 显桥"
+      },
+      "wrongWayTried": false,
+      "trace": [
+        {
+          "instruction": {
+            "at": "relay",
+            "from": 2,
+            "to": 0,
+            "kind": "anchor",
+            "sub": "下滚 ▼，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "width": 320,
+      "label": "return",
+      "seed": 7,
+      "room": "return",
+      "handoff": "anchor",
+      "anchor": "relay",
+      "visited": [
+        "hub",
+        "relay"
+      ],
+      "instruction": {
+        "title": "切到潮汐层",
+        "sub": "下滚 ▼，或点此切层 ✨",
+        "pill": "🌀 在此【下滚 ▼】切至 Ⅰ 潮汐层 显桥"
+      },
+      "wrongWayTried": false,
+      "trace": [
+        {
+          "instruction": {
+            "at": "relay",
+            "from": 2,
+            "to": 0,
+            "kind": "anchor",
+            "sub": "下滚 ▼，或点此切层 ✨"
+          }
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "browserVersion": "130.0.6723.31"
+}

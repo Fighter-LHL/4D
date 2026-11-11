@@ -1,0 +1,226 @@
+{
+  "name": "theater-feel",
+  "base": "http://127.0.0.1:4173",
+  "status": "passed",
+  "checks": [
+    {
+      "viewport": "1440x900",
+      "label": "layout",
+      "theaterRatio": 0.6606,
+      "classicRatio": 0.2094,
+      "target": 0.55,
+      "passed": true
+    },
+    {
+      "viewport": "1440x900",
+      "label": "drawer",
+      "passed": true
+    },
+    {
+      "viewport": "1440x900",
+      "label": "dial",
+      "samples": 8,
+      "passed": true
+    },
+    {
+      "viewport": "1440x900",
+      "label": "ferry",
+      "dock": "b",
+      "passed": true
+    },
+    {
+      "viewport": "1440x900",
+      "label": "cast-shadow",
+      "passed": true
+    },
+    {
+      "viewport": "1440x900",
+      "label": "cast-weave",
+      "passed": true
+    },
+    {
+      "viewport": "1440x900",
+      "label": "cast-prism",
+      "targets": 1,
+      "snapped": "bloom",
+      "passed": true
+    },
+    {
+      "viewport": "1440x900",
+      "label": "feel",
+      "bursts": 1,
+      "passed": true
+    },
+    {
+      "viewport": "1440x900",
+      "label": "ambient",
+      "passed": true
+    },
+    {
+      "viewport": "1280x720",
+      "label": "layout",
+      "theaterRatio": 0.5348,
+      "classicRatio": 0.1235,
+      "target": 0.5,
+      "passed": true
+    },
+    {
+      "viewport": "1280x720",
+      "label": "drawer",
+      "passed": true
+    },
+    {
+      "viewport": "1280x720",
+      "label": "dial",
+      "samples": 8,
+      "passed": true
+    },
+    {
+      "viewport": "1280x720",
+      "label": "ferry",
+      "dock": "b",
+      "passed": true
+    },
+    {
+      "viewport": "1280x720",
+      "label": "cast-shadow",
+      "passed": true
+    },
+    {
+      "viewport": "1280x720",
+      "label": "cast-weave",
+      "passed": true
+    },
+    {
+      "viewport": "1280x720",
+      "label": "cast-prism",
+      "targets": 1,
+      "snapped": "bloom",
+      "passed": true
+    },
+    {
+      "viewport": "1280x720",
+      "label": "feel",
+      "bursts": 1,
+      "passed": true
+    },
+    {
+      "viewport": "1280x720",
+      "label": "ambient",
+      "passed": true
+    },
+    {
+      "viewport": "390x844",
+      "label": "layout",
+      "theaterRatio": 0.3004,
+      "classicRatio": 0.2882,
+      "target": 0.27,
+      "passed": true
+    },
+    {
+      "viewport": "390x844",
+      "label": "drawer",
+      "passed": true
+    },
+    {
+      "viewport": "390x844",
+      "label": "dial",
+      "samples": 8,
+      "passed": true
+    },
+    {
+      "viewport": "390x844",
+      "label": "ferry",
+      "dock": "b",
+      "passed": true
+    },
+    {
+      "viewport": "390x844",
+      "label": "cast-shadow",
+      "passed": true
+    },
+    {
+      "viewport": "390x844",
+      "label": "cast-weave",
+      "passed": true
+    },
+    {
+      "viewport": "390x844",
+      "label": "cast-prism",
+      "targets": 1,
+      "snapped": "bloom",
+      "passed": true
+    },
+    {
+      "viewport": "390x844",
+      "label": "feel",
+      "bursts": 1,
+      "passed": true
+    },
+    {
+      "viewport": "390x844",
+      "label": "ambient",
+      "passed": true
+    },
+    {
+      "viewport": "390x844",
+      "label": "touch-guard",
+      "passed": true
+    },
+    {
+      "viewport": "320x640",
+      "label": "layout",
+      "theaterRatio": 0.325,
+      "classicRatio": 0.2856,
+      "target": 0.27,
+      "passed": true
+    },
+    {
+      "viewport": "320x640",
+      "label": "drawer",
+      "passed": true
+    },
+    {
+      "viewport": "320x640",
+      "label": "dial",
+      "samples": 8,
+      "passed": true
+    },
+    {
+      "viewport": "320x640",
+      "label": "ferry",
+      "dock": "b",
+      "passed": true
+    },
+    {
+      "viewport": "320x640",
+      "label": "cast-shadow",
+      "passed": true
+    },
+    {
+      "viewport": "320x640",
+      "label": "cast-weave",
+      "passed": true
+    },
+    {
+      "viewport": "320x640",
+      "label": "cast-prism",
+      "targets": 1,
+      "snapped": "bloom",
+      "passed": true
+    },
+    {
+      "viewport": "320x640",
+      "label": "feel",
+      "bursts": 1,
+      "passed": true
+    },
+    {
+      "viewport": "320x640",
+      "label": "ambient",
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "browserVersion": "145.0.7632.6"
+}

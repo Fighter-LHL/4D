@@ -12,16 +12,19 @@ export function friendGuideText(state, friends = []) {
   if (!state?.companionGuide) return '';
   const g = state.companionGuide, friend = friends[0];
   const targetName = state.nodes?.find(n => n.id === g.node)?.name || '目标平台';
+  // Speak the current controls: click a target to walk there (landing lights it), and the
+  // wheel climbs up towards Ⅲ / down towards Ⅰ (Z/X/C stay as direct keys).
+  const roll = `滚轮${g.layer > (state.layer ?? 0) ? '上滚' : '下滚'}（或按 ${['Z', 'X', 'C'][g.layer]}）`;
   if (!friend) {
-    if (!g.aligned) return `提示：切到${['Ⅰ', 'Ⅱ', 'Ⅲ'][g.layer]}层 · ${['Z', 'X', 'C'][g.layer]} 换层（${targetName}）`;
-    return g.kind === 'activate' ? `提示：按 E 启动${targetName}`
+    if (!g.aligned) return `提示：${roll}切到${['Ⅰ', 'Ⅱ', 'Ⅲ'][g.layer]}层（${targetName}）`;
+    return g.kind === 'activate' ? `提示：点${targetName}把它点亮`
       : g.kind === 'shift' ? `提示：保持当前位置，继续换层显现${targetName}`
-        : `提示：前往${targetName} · 点平台预览，再点稳行`;
+        : `提示：点${targetName}，顺桥走过去`;
   }
-  if (!g.aligned) return `${friend.name}在${['Ⅰ', 'Ⅱ', 'Ⅲ'][g.layer]}层招手 · ${['Z', 'X', 'C'][g.layer]} 换层`;
-  return g.kind === 'activate' ? `${friend.name}围着脚下发光 · E 启动`
+  if (!g.aligned) return `${friend.name}在${['Ⅰ', 'Ⅱ', 'Ⅲ'][g.layer]}层招手 · ${roll}`;
+  return g.kind === 'activate' ? `${friend.name}围着脚下发光 · 点它点亮`
     : g.kind === 'shift' ? `${friend.name}在这里等你，继续换层`
-      : `${friend.name}在前面等你 · 点平台预览，再点稳行`;
+      : `${friend.name}在前面等你 · 点${targetName}走过去`;
 }
 
 // Presentation only. Guide data comes from the same authored route that the
@@ -42,10 +45,27 @@ export function drawCourtyardFriends(renderer) {
     return;
   }
   const time = renderer.reducedMotion ? 0 : renderer.time;
+  const life = renderer.life;
+  let travelDir = null;
+  if (s?.travel) {
+    const from = renderer.node?.(s.travel.from), to = renderer.node?.(s.travel.to);
+    if (from && to) {
+      const d = Math.max(1, Math.hypot(to.x - from.x, to.y - from.y));
+      travelDir = { x: (to.x - from.x) / d, y: (to.y - from.y) / d };
+    }
+  }
   friends.forEach((friend, i) => {
     const guiding = i === 0 && g;
     const x = guiding ? g.x : p.x - 28 - i * 21;
     const y = guiding ? g.y - 53 : p.y + 10;
+    let lookX = 0, lookY = 0;
+    if (renderer.pointerWorld?.on) {
+      const dx = renderer.pointerWorld.x - x, dy = renderer.pointerWorld.y - y;
+      const d = Math.max(1, Math.hypot(dx, dy));
+      lookX = dx / d; lookY = dy / d;
+    } else if (travelDir) {
+      lookX = travelDir.x; lookY = travelDir.y;
+    }
     renderer.friendTargets.push({ x, y });
     if (guiding) {
       ctx.save(); ctx.strokeStyle = friend.color; ctx.fillStyle = friend.color;
@@ -56,6 +76,6 @@ export function drawCourtyardFriends(renderer) {
       ctx.fillText(`${['Ⅰ', 'Ⅱ', 'Ⅲ'][g.layer]} · ${g.aligned ? '这边' : '换到这一层'}`, x, y - 24);
       ctx.restore();
     }
-    drawCreature(ctx, friend.id, x, y, time, { scale: 22, happy: !!guiding && g.aligned, ghost: false, crowned: friend.crowned });
+    drawCreature(ctx, friend.id, x, y, time, { scale: 22, lookX, lookY, happy: (!!guiding && g.aligned) || !!life?.cheering, ghost: false, crowned: friend.crowned });
   });
 }
