@@ -158,7 +158,8 @@ a.icon-button{text-decoration:none;color:var(--green)}
 
 /* Astral Prism Dark / Holographic Theme */
 body{color:var(--ink)}
-body[data-theme="astral"]{--paper:#091119;--card:#101d29;--ink:#eaf6f3;--muted:#9ab6c2;--green:#4dd2ac;--mint:#2d6e5e;--line:#223c4f;--amber:#f3b852;--danger:#ef745a;--slice-color:#69d8ee;--slice-tint:#132c38;color:var(--ink);color-scheme:dark;background:radial-gradient(circle at 20% 0%,#122738 0%,#091119 68%)}
+html:has(body[data-theme="astral"]){background:#091119;color-scheme:dark}
+body[data-theme="astral"]{--paper:#091119;--card:#101d29;--ink:#eaf6f3;--muted:#9ab6c2;--green:#4dd2ac;--mint:#2d6e5e;--line:#223c4f;--amber:#f3b852;--danger:#ef745a;--slice-color:#69d8ee;--slice-tint:#132c38;color:var(--ink);color-scheme:dark;background:#091119 radial-gradient(circle at 20% 0%,#122738 0%,#091119 68%)}
 body[data-theme="astral"][data-layer="1"]{--slice-color:#be9cf8;--slice-tint:#231d38}
 body[data-theme="astral"][data-layer="2"]{--slice-color:#f5c465;--slice-tint:#2e2516}
 body[data-theme="astral"] .brand{color:#eef9f6}
@@ -443,3 +444,104 @@ body[data-theme="astral"] .exit-step-card.exit-open .exit-step-body small{color:
 
 @media(max-width:640px){.visual-stepper{grid-template-columns:1fr;gap:5px}.vstep-arrow{display:none}.void-rescue-banner{flex-direction:column;text-align:center;padding:12px}.void-rescue-btn{width:100%}.auto-pilot-bar{flex-direction:column;align-items:stretch;text-align:center}}
 body[data-theme="astral"] .friend-guide{background:#16302a;color:#a8e6cf}
+
+/* Campaign Chapters (维度章节星图) & 4D Naturalist Codex (四维博物图鉴) */
+.topbar nav{flex-wrap:wrap;justify-content:flex-end;row-gap:4px}
+@media(max-width:960px){.topbar{height:auto;min-height:60px;padding-top:8px;padding-bottom:8px}.topbar .nav-label{display:none}}
+.chapter-mode-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:#dfe9dd;border:1px solid #b9ccb7;color:#1f5948;font-size:9.5px;font-weight:700;letter-spacing:.8px;cursor:pointer}
+.chapter-mode-pill.expedition-mode{background:#faefd5;border-color:#d8a955;color:#78440e}
+body[data-theme="astral"] .chapter-mode-pill{background:#142d38;border-color:#2f687a;color:#8be8f5}
+body[data-theme="astral"] .chapter-mode-pill.expedition-mode{background:#2d2211;border-color:#d89c2b;color:#ffd982}
+
+.choice-route.five-stops{grid-template-columns:repeat(5,minmax(0,1fr))}
+@media(max-width:860px){.choice-route.five-stops{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.choice-route.five-stops{grid-template-columns:1fr}}
+
+.expedition-cta{margin-top:20px;width:100%;background:linear-gradient(135deg,#9a5c14 0%,#b47a2d 100%);border:1px solid #8a4f0d;color:#fffdf7}
+.expedition-cta:hover:not(:disabled){background:linear-gradient(135deg,#7e490d 0%,#9a651e 100%)}
+.result-dialog #next-expedition:not([hidden])+#play-again{margin-top:10px;background:transparent;color:var(--ink);border:1px solid var(--line)}
+body[data-theme="astral"] .result-dialog #next-expedition:not([hidden])+#play-again{color:#eaf6f3;border-color:#2c4d63;background:#132433}
+.result-sub-actions{margin-top:10px}
+
+.chapter-dialog,.codex-dialog{width:min(900px,calc(100vw - 28px));padding:28px 30px;border-radius:16px;background:#f4f6ee;color:var(--ink);border:1px solid #cbd6c2;box-shadow:0 28px 90px rgba(20,42,35,.28)}
+.chapter-dialog-header,.codex-dialog-header{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+.chapter-dialog h2,.codex-dialog h2{font-size:24px;margin:6px 0 8px;line-height:1.35}
+.chapter-dialog-header .dialog-close,.codex-dialog-header .dialog-close{position:static;font-size:26px;line-height:1;padding:2px 8px;color:#4f635b}
+.chapter-dialog-desc{font-size:12px;line-height:1.65;color:#4f635b;margin-bottom:18px}
+.chapter-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.chapter-card{display:flex;flex-direction:column;justify-content:space-between;gap:12px;padding:18px 16px;border-radius:12px;background:#fbfcf8;border:1.5px solid #cfd9c7;text-align:left}
+.chapter-card.active-chapter{border-color:#2b6b59;background:linear-gradient(160deg,#f2f8f3 0%,#e8f2ea 100%);box-shadow:0 8px 22px rgba(43,107,89,.12)}
+.chapter-card.expedition-card.active-chapter{border-color:#b47a2d;background:linear-gradient(160deg,#fffaf0 0%,#f7edd8 100%)}
+.chapter-step-tag{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:700;letter-spacing:1px;color:#1f5948}
+.chapter-card.expedition-card .chapter-step-tag{color:#854d0e}
+.chapter-card h3{font-size:17px;font-weight:600;margin:6px 0 6px;color:var(--ink)}
+.chapter-card p{font-size:11.5px;line-height:1.6;color:#4a5e56;margin:0}
+.chapter-Topology-pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.chapter-pill{padding:3px 7px;border-radius:6px;font-size:10px;background:#eaf0e5;color:#2c4c41;border:1px solid #cad6c3}
+.chapter-card.expedition-card .chapter-pill{background:#faefd9;color:#6e420f;border-color:#e2c690}
+.chapter-record{padding-top:10px;border-top:1px dashed #ced8c7;font-size:10.5px;color:#4a5e56;display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap}
+.chapter-record strong{color:#1f5948;font-weight:700}
+.chapter-card .primary-button,.chapter-card .secondary-button{width:100%;min-height:38px;padding:9px 12px;text-decoration:none;font-size:12px}
+
+.codex-header-right{display:flex;align-items:center;gap:10px}
+.codex-total-badge{padding:5px 11px;border-radius:999px;background:#e1ece2;border:1px solid #b3c9b6;color:#1b5444;font-size:11px;font-weight:700;white-space:nowrap}
+.codex-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 16px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.codex-tab{padding:8px 14px;border-radius:999px;background:#e8ede2;border:1px solid #cbd5c2;color:#354d45;font-size:11.5px;font-weight:600}
+.codex-tab[aria-selected="true"]{background:var(--green);border-color:var(--green);color:#ffffff}
+.codex-panel{display:grid;gap:14px}
+.codex-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.codex-item{padding:12px 14px;border-radius:10px;background:#fbfcf8;border:1px solid #d2dccb;display:flex;flex-direction:column;gap:5px}
+.codex-item.discovered{border-color:#8ab59b;background:linear-gradient(145deg,#ffffff 0%,#eef6f0 100%)}
+.codex-item.undiscovered{background:#eff2ea;border-style:dashed;color:#52665e}
+.codex-item-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.codex-item-head strong{font-size:12.5px;color:var(--ink)}
+.codex-item.undiscovered .codex-item-head strong{color:#4d6159}
+.codex-tag{padding:2px 7px;border-radius:999px;font-size:9.5px;font-weight:700;background:#e2ece4;color:#1f5948;white-space:nowrap}
+.codex-item.undiscovered .codex-tag{background:#e1e6dc;color:#4f635b}
+.codex-item p{font-size:11px;line-height:1.55;color:#485c54;margin:0}
+.codex-section-title{font-size:12px;font-weight:700;color:#244b3f;margin:4px 0 2px;letter-spacing:.5px}
+.codex-secrets-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.codex-journey-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.codex-stat-card{padding:15px;border-radius:11px;background:#fbfcf8;border:1px solid #cfd9c7;display:flex;flex-direction:column;gap:6px}
+.codex-stat-card strong{font-size:24px;color:var(--green);font-variant-numeric:tabular-nums}
+.codex-stat-card span{font-size:11.5px;font-weight:600;color:var(--ink)}
+.codex-stat-card small{font-size:10.5px;color:#4d6159;line-height:1.45}
+
+body[data-theme="astral"] dialog{background:#0d1924;color:#edf8f5;border-color:#27465c;box-shadow:0 30px 100px rgba(2,8,15,.78)}
+body[data-theme="astral"] dialog p{color:#b4cdd8}
+body[data-theme="astral"] .dialog-close{color:#b4cdd8}
+body[data-theme="astral"] .relic-choice{background:#122332;border-color:#26445a;color:#edf8f5}
+body[data-theme="astral"] .relic-choice:hover{background:#183044;border-color:#4dd2ac}
+body[data-theme="astral"] .relic-choice.has-synergy{background:#142b35;border-color:#45c4a0}
+body[data-theme="astral"] .choice-synergy{color:#7ef0cb;border-top-color:#264b56}
+body[data-theme="astral"] .choice-route .route-stop{background:#10202e;border-color:#244055;color:#b4cdd8}
+body[data-theme="astral"] .choice-route .route-stop.current{background:#15313b;border-color:#4dd2ac;color:#edf8f5}
+body[data-theme="astral"] .chapter-dialog,body[data-theme="astral"] .codex-dialog{background:#0e1b28 linear-gradient(165deg,#0c1722 0%,#10202e 100%);border-color:#2a4d63;color:#edf8f5}
+body[data-theme="astral"] .chapter-dialog-desc{color:#b8d0db}
+body[data-theme="astral"] .chapter-card{background:#122332;border-color:#26445a}
+body[data-theme="astral"] .chapter-card.active-chapter{background:#133236 linear-gradient(160deg,#122d37 0%,#153836 100%);border-color:#4dd2ac}
+body[data-theme="astral"] .chapter-card.expedition-card.active-chapter{background:#212423 linear-gradient(160deg,#292012 0%,#192834 100%);border-color:#f5b947}
+body[data-theme="astral"] .chapter-step-tag{color:#7ef0cb}
+body[data-theme="astral"] .chapter-card.expedition-card .chapter-step-tag{color:#ffd573}
+body[data-theme="astral"] .chapter-card h3{color:#f2fbf9}
+body[data-theme="astral"] .chapter-card p,body[data-theme="astral"] .chapter-record{color:#bdd4df;border-top-color:#26445a}
+body[data-theme="astral"] .chapter-record strong{color:#7ef0cb}
+body[data-theme="astral"] .chapter-pill{background:#173042;border-color:#2d536b;color:#d6eef6}
+body[data-theme="astral"] .chapter-card.expedition-card .chapter-pill{background:#2f2412;border-color:#7c5b22;color:#ffe6a3}
+body[data-theme="astral"] .codex-total-badge{background:#14313b;border-color:#357485;color:#8be8f5}
+body[data-theme="astral"] .codex-tab{background:#132535;border-color:#29495f;color:#cbe2ec}
+body[data-theme="astral"] .codex-tab[aria-selected="true"]{background:#1b7a64;border-color:#4dd2ac;color:#ffffff}
+body[data-theme="astral"] .codex-item,body[data-theme="astral"] .codex-stat-card{background:#122332;border-color:#26445a}
+body[data-theme="astral"] .codex-item.discovered{background:#132e34 linear-gradient(145deg,#132938 0%,#133330 100%);border-color:#3ca88b}
+body[data-theme="astral"] .codex-item.undiscovered{background:#0e1b27;border-color:#233d50;color:#a5bfcc}
+body[data-theme="astral"] .codex-item-head strong,body[data-theme="astral"] .codex-stat-card span{color:#f0faf7}
+body[data-theme="astral"] .codex-item.undiscovered .codex-item-head strong{color:#b0c9d6}
+body[data-theme="astral"] .codex-item p,body[data-theme="astral"] .codex-stat-card small{color:#b8d0db}
+body[data-theme="astral"] .codex-tag{background:#163838;color:#7ef0cb}
+body[data-theme="astral"] .codex-item.undiscovered .codex-tag{background:#172a3a;color:#a9c4d1}
+body[data-theme="astral"] .codex-section-title{color:#8be8f5}
+
+@media(max-width:760px){
+  .chapter-cards,.codex-grid,.codex-secrets-grid,.codex-journey-cards{grid-template-columns:1fr}
+  .chapter-dialog,.codex-dialog{padding:20px 18px}
+}

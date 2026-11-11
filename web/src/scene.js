@@ -217,6 +217,7 @@ export class SceneRenderer {
     const y = (event.clientY - rect.top - this.offsetY) / this.scale;
     // Match the painted island top and mechanism, never its generous label box.
     const visibleHit = [...this.state.nodes].reverse().find(node => {
+      if (node.id === 'bloom' && this.node('crown')?.anchor) return false;
       if (!node.present || (!node.anchor && node.scale < .5)) return false;
       if (node.id === 'rift' && (node.locked || !this.state.availableNodes.includes(node.id))) return false;
       const section = node.anchor ? 1 : node.scale;
@@ -233,11 +234,12 @@ export class SceneRenderer {
       return bGuide - aGuide;
     });
     return candidates.find(node => {
+      if (node.id === 'bloom' && this.node('crown')?.anchor) return false;
       if (!order.includes(node.id) && !['exit', 'vault', 'rift'].includes(node.id) && !node.anchor) return false;
       const rx = node.id === 'hub' ? 112 : 84;
       const ry = node.id === 'hub' ? 60 : 56;
       const onIsland = ((x - node.x) / rx) ** 2 + ((y - node.y + 12) / ry) ** 2 <= 1;
-      const onBadge = Math.abs(x - node.x) <= 95 && Math.abs(y - (node.y - 78)) <= 24;
+      const onBadge = Math.abs(x - node.x) <= 95 && y >= node.y - 154 && y <= node.y - 50;
       return onIsland || onBadge;
     }) ?? null;
   }
@@ -419,10 +421,32 @@ export class SceneRenderer {
         // The model emits one reward as well; avoid a second celebration burst.
         this.addEffect('section', target, { duration: 1.1, radius: 130, color: this.palette().color });
       } else if (event.type === 'activate') {
-        this.addEffect('note', target, { duration: 2.2, text: `启动！${event.tier}/3`, color: COLORS.teal });
+        const mechTotal = this.state?.mechanismOrder?.length || 3;
+        this.addEffect('note', target, { duration: 2.2, text: `启动！${this.state?.activated?.length || event.tier}/${mechTotal}`, color: COLORS.teal });
         this.addEffect('ring', target, { duration: 1.2, radius: 110, color, tier: 2 });
         this.addEffect('bloom', target, { duration: 1, radius: 85, color });
         this.burst(target, this.palette(target.layer ?? this.state?.layer).glow, 28, 1.25);
+      } else if (event.type === 'sanctum_start') {
+        this.addEffect('ring', target, { duration: .9, radius: 118, color: COLORS.gold, tier: 3 });
+        this.burst(target, COLORS.lightGold, 32, 1.15);
+      } else if (event.type === 'sanctum_clear') {
+        this.addEffect('gather', target, { duration: .25, radius: 108, color: COLORS.gold, celebration: true });
+        this.addEffect('rift_unfold', target, { delay: .18, duration: 2.2, tier: 3, color: COLORS.gold, celebration: true });
+        const exitTarget = this.node('exit');
+        if (exitTarget) {
+          this.addEffect('ascension_signal', target, {
+            to: { x: exitTarget.x, y: exitTarget.y },
+            fromLayer: target.layer ?? this.state?.layer ?? 2,
+            toLayer: exitTarget.layer ?? 1,
+            layer: exitTarget.layer ?? 1,
+            delay: .22,
+            duration: 1.4,
+            color: COLORS.gold,
+            celebration: true,
+          });
+        }
+        if (event.edgeId) this.growBridge(event.edgeId, COLORS.gold);
+        this.burst(target, COLORS.lightGold, 56, 1.3, { delay: .2, celebration: true });
       } else if (event.type === 'resonance') {
         const from = this.node(event.from) || target;
         this.addEffect('growth_signal', from, { to: { x: target.x, y: target.y }, layer: event.layer,
@@ -1012,6 +1036,16 @@ export class SceneRenderer {
           const x = mix(a.x, b.x, .5), y = mix(a.y, b.y, .5);
           for (let pip = 0; pip <= edge.layer; pip++) diamond(ctx, x + (pip - edge.layer / 2) * 9, y - 23, 3.2, this.palette(edge.layer).glow, color);
         }
+        if (edge.phaseSwap) {
+          const mx = mix(a.x, b.x, .5), my = mix(a.y, b.y, .5);
+          ctx.globalAlpha = relevant ? .95 : .82;
+          for (const side of [-1, 1]) {
+            ctx.setLineDash([6, 5]);
+            line(ctx, a.x + nx * 16 * side, a.y + ny * 16 * side, b.x + nx * 16 * side, b.y + ny * 16 * side, COLORS.gold, 1.7);
+            ctx.setLineDash([]);
+          }
+          diamond(ctx, mx, my - 14, 7.5, '#fef3c7', '#f59e0b');
+        }
       }
       if (relevant && solid) {
         ctx.globalAlpha = .7;
@@ -1029,9 +1063,13 @@ export class SceneRenderer {
       } else if (!edge.open && edge.visible) {
         ctx.globalAlpha = .65;
         const x = mix(a.x, b.x, .5), y = mix(a.y, b.y, .5);
-        ellipse(ctx, x, y, 10, 10, this.astralMode ? '#122330' : '#edf1e5', color);
-        line(ctx, x - 4, y - 4, x + 4, y + 4, color, 1.5);
-        line(ctx, x + 4, y - 4, x - 4, y + 4, color, 1.5);
+        ellipse(ctx, x, y, 10, 10, this.astralMode ? '#122330' : '#edf1e5', edge.phaseSwap ? '#f59e0b' : color);
+        if (edge.phaseSwap) {
+          diamond(ctx, x, y, 4.8, null, '#fbbf24');
+        } else {
+          line(ctx, x - 4, y - 4, x + 4, y + 4, color, 1.5);
+          line(ctx, x + 4, y - 4, x - 4, y + 4, color, 1.5);
+        }
       }
       ctx.restore();
     }
@@ -1146,7 +1184,7 @@ export class SceneRenderer {
       const n = this.node(id);
       return n && n.powered && !s.activated.includes(id);
     });
-    const targetId = this.pendingLayerPrompt?.targetId || (s.activated.length >= 3 ? 'exit' : primaryMechId);
+    const targetId = this.pendingLayerPrompt?.targetId || (s.activated.length >= (order.length || 3) ? 'exit' : primaryMechId);
     const plan = targetId ? planLayerRoute(s, targetId, { finalLayer: this.pendingLayerPrompt?.finalLayer ?? null }) : null;
     const nextMoveEdgeId = plan?.steps?.find(st => st.type === 'move')?.edgeId || null;
     for (const edge of this.connections()) {
@@ -1403,9 +1441,10 @@ export class SceneRenderer {
 
     const stage = this.onboardingStage ?? 4;
 
-    // Draw crystal-clear numbered badges (① / ② / ③ / 🚪), causal energy wires, and role tags
+    // Draw crystal-clear numbered badges (① / ② / ③ / ④ / 🚪), causal energy wires, and role tags
     const order = s.mechanismOrder || s.nodes.filter(n => n.kind === 'mechanism').map(n => n.id);
-    const numSymbols = ['①', '②', '③'];
+    const mechTotal = order.length || 3;
+    const numSymbols = ['①', '②', '③', '④'];
     const layerShort = ['Ⅰ 潮汐层', 'Ⅱ 回声层', 'Ⅲ 绽放层'];
 
     // 2A. Draw explicit causal energy wires between mechanisms (e.g. ① ──⚡──► ②)
@@ -1443,7 +1482,7 @@ export class SceneRenderer {
       const n = this.node(id);
       return n && n.powered && !s.activated.includes(id);
     });
-    const primaryTarget = s.activated.length >= 3 ? this.node('exit') : (primaryMechId ? this.node(primaryMechId) : null);
+    const primaryTarget = s.activated.length >= mechTotal ? this.node('exit') : (primaryMechId ? this.node(primaryMechId) : null);
     const focusNodeId = this.liveGuide?.node || primaryTarget?.id || null;
     const hoverId = this.hover;
 
@@ -1594,29 +1633,52 @@ export class SceneRenderer {
       }
       // Highlight 4D Same-XYZ Folding if standing on an island that shares 3D coordinates with another layer's island
       if (currentNode && !currentNode.anchor && currentNode.world) {
-        const sameSpot = s.nodes.find(n => !n.anchor && n.id !== currentNode.id && n.world &&
+        const sameSpots = s.nodes.filter(n => !n.anchor && n.id !== currentNode.id && n.world &&
           Math.abs(n.world.x - currentNode.world.x) < 1e-4 &&
           Math.abs(n.world.y - currentNode.world.y) < 1e-4 &&
           Math.abs(n.world.z - currentNode.world.z) < 1e-4);
+        const sameSpot = sameSpots.find(n => n.powered && !s.activated.includes(n.id))
+          || sameSpots.find(n => !s.activated.includes(n.id))
+          || sameSpots[0];
         if (sameSpot) {
           ctx.save();
           ellipse(ctx, currentNode.x, currentNode.y, 92, 50, '#8563b318', '#c084fc', 2.2);
+          if (sameSpots.length >= 2) {
+            ellipse(ctx, currentNode.x, currentNode.y, 102, 56, null, '#fbbf24aa', 1.6);
+            ellipse(ctx, currentNode.x, currentNode.y, 82, 44, null, '#5eead4aa', 1.4);
+          }
           ctx.restore();
           if (!(waitingForShiftHere && hint?.kind === 'same_xyz')) {
+            const stackPrefix = sameSpots.length >= 2 ? '🌀 三层同位高塔' : '🌀 四维同位叠合';
             const portalText = explicitHint
-              ? `🌀 四维同位叠合：直接滚轮切至${layerShort[sameSpot.layer]}可原地变成「${sameSpot.name}」！`
-              : `🌀 四维同位叠合：看重影色彩与层标，直接滚轮原地切至「${sameSpot.name}」！`;
+              ? `${stackPrefix}：直接滚轮切至${layerShort[sameSpot.layer]}可原地变成「${sameSpot.name}」！`
+              : `${stackPrefix}：看重影色彩与层标，直接滚轮原地切至「${sameSpot.name}」！`;
             drawNodeTag(
               sameSpot.id,
               currentNode.x,
               currentNode.y + 56,
               portalText,
-              '🌀同位',
+              sameSpots.length >= 2 ? '🌀三叠' : '🌀同位',
               '#281840ee',
               '#c084fc',
               '#f3e8ff'
             );
           }
+        }
+      }
+      // Highlight Phase-Swap Bridges (⇄ 换向桥) in interlock rooms so players read the dynamic bridge rule
+      for (const edge of s.edges || []) {
+        if (!edge.phaseSwap || !edge.open) continue;
+        const fa = this.node(edge.from), fb = this.node(edge.to);
+        if (!fa || !fb) continue;
+        const mx = mix(fa.x, fb.x, .5), my = mix(fa.y, fb.y, .5);
+        const swapTrig = (edge.swapTriggers || [])[0];
+        const trigIdx = order.indexOf(swapTrig);
+        const trigSym = trigIdx >= 0 ? numSymbols[trigIdx] : '①';
+        if ((hoverId === edge.from || hoverId === edge.to) && fullPillCount < MAX_FULL_PILLS) {
+          drawCalloutPill(mx, my - 26, `⇄ 换向桥 · 点亮 ${trigSym} 后自动收起换路`, '#38250bee', '#fbbf24', '#fff7d6');
+        } else {
+          drawCompactBadge(mx, my - 24, '⇄', '#38250bdd', '#fbbf24', '#fff7d6');
         }
       }
     }
@@ -1743,14 +1805,14 @@ export class SceneRenderer {
 
     const exitNode = this.node('exit');
     if (exitNode) {
-      if (s.activated.length >= 3) {
+      if (s.activated.length >= mechTotal) {
         const pulse = this.reducedMotion ? .7 : .5 + .5 * Math.sin(this.time * 5);
         ctx.save();
         ellipse(ctx, exitNode.x, exitNode.y, 82 + pulse * 10, 44 + pulse * 5, '#45c4a028', '#45c4a0', 3.2);
         ctx.restore();
         drawNodeTag('exit', exitNode.x, exitNode.y - 80, '🚪 大门已开！点我过关 ↗', '🚪↗', '#0f3328f2', '#45c4a0', '#e6fff6');
       } else {
-        drawNodeTag('exit', exitNode.x, exitNode.y - 72, `🚪 终点门 (需点亮 ${s.activated.length}/3)`, `🚪${s.activated.length}/3`, '#18242ccc', '#64748b', '#cbd5e1');
+        drawNodeTag('exit', exitNode.x, exitNode.y - 72, `🚪 终点门 (需点亮 ${s.activated.length}/${mechTotal})`, `🚪${s.activated.length}/${mechTotal}`, '#18242ccc', '#64748b', '#cbd5e1');
       }
     }
 
@@ -1913,6 +1975,12 @@ export class SceneRenderer {
           ctx.strokeStyle = COLORS.danger; ctx.lineWidth = 3; ctx.stroke();
         }
       }
+    } else if (wave.variant === 'sanctum') {
+      ellipse(ctx, 0, -6, 118, 64, null, '#fbbf2499', 2.2);
+      for (let q = 0; q < 4; q++) {
+        const a = q * Math.PI / 2 + (this.reducedMotion ? .3 : this.time * .9);
+        diamond(ctx, Math.cos(a) * 118, Math.sin(a) * 64 - 6, 5.5, '#fef3c7', '#f59e0b');
+      }
     }
     const radius = this.reducedMotion ? 108 : 35 + 160 * (1 - p);
     for (const layer of danger) {
@@ -2010,6 +2078,7 @@ export class SceneRenderer {
   drawIsland(node) {
     const ctx = this.ctx, s = this.state;
     if (node.id === 'rift' && node.locked) { this.drawRiftSilhouette(node); return; }
+    if (node.id === 'bloom' && this.node('crown')?.anchor) return;
     const hub = node.id === 'hub', exit = node.id === 'exit';
     const rawScale = this.wTween
       ? this.sectionAt(node.center ?? node.world?.w ?? s.layers?.[node.layer]?.center ?? s.w) * (this.wrapAlpha ?? 1)
@@ -2128,7 +2197,7 @@ export class SceneRenderer {
     const labelSize = clamp(11 / this.scale, 16, 38);
     ctx.font = `${selected ? 600 : 500} ${labelSize}px system-ui, -apple-system, sans-serif`;
     // ⚓ marks every cross-layer platform, so the '⚓ 安全台' wording always maps to a visible label.
-    const name = (node.anchor ? '⚓ ' : '') + (node.name || { hub: '归息台', dew: '凝露坛', bell: '回声铃', bloom: '映光花', exit: '折光门' }[node.id] || node.id);
+    const name = (node.anchor ? '⚓ ' : '') + (node.name || { hub: '归息台', dew: '凝露坛', bell: '回声铃', bloom: '映光花', crown: '天穹冠', exit: '折光门' }[node.id] || node.id);
     const textWidth = ctx.measureText(name).width;
     ctx.fillStyle = this.astralMode ? '#0c1925eb' : '#edf2e9dd';
     const labelHeight = labelSize + 8;
@@ -2318,6 +2387,42 @@ export class SceneRenderer {
         for (const side of [-1, 1]) {
           ctx.beginPath(); ctx.ellipse(side * 28, -20, 7, 13, 0, side > 0 ? -1.1 : Math.PI - 1.1, side > 0 ? 1.1 : Math.PI + 1.1);
           ctx.strokeStyle = astral ? '#ffd982aa' : '#c49e5080'; ctx.lineWidth = 1.2; ctx.stroke();
+        }
+      }
+    } else if (node.id === 'crown') {
+      // 4-spire Sanctum Crown (Room 5 Finale mechanism ④)
+      ellipse(ctx, 0, 5, 40, 19, astral ? '#28223d' : '#d2d4b4', astral ? '#fbbf24' : '#f7f5dc', 2);
+      ellipse(ctx, 0, 1, 31, 14, active ? (astral ? '#423015' : '#ead493') : (astral ? '#1d273c' : '#b8c7af'), active ? '#fbbf24' : (astral ? '#7c6dc4' : '#8da58e'), 1.5);
+      const spires = [[-26, -3], [26, -3], [-13, -8], [13, -8]];
+      spires.forEach(([sx, sy], idx) => {
+        const tall = idx >= 2 ? 44 : 33;
+        path(ctx, [[sx - 5, sy], [sx - 2.5, sy - tall], [sx, sy - tall - 8], [sx + 2.5, sy - tall], [sx + 5, sy]]);
+        ctx.fillStyle = active
+          ? (idx >= 2 ? '#f3ca68' : '#dfaf49')
+          : (astral ? '#2a3452' : '#b2c2a8');
+        ctx.fill();
+        ctx.strokeStyle = active ? '#fff3c4' : (astral ? '#8e7ce0' : '#8aa086');
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        diamond(ctx, sx, sy - tall - 10, 3.6, active ? '#fffbeb' : (astral ? '#c4b5fd' : '#e4e8cf'), active ? '#f59e0b' : '#7c8f79');
+      });
+      const spin = this.reducedMotion ? .35 : this.time * 1.35;
+      const hoverY = -36 + (active ? beat * 1.4 : 0);
+      if (active) {
+        ellipse(ctx, 0, hoverY, 27, 15, '#fbbf2424', '#fde68a', 1.6);
+        ellipse(ctx, 0, hoverY, 18, 28, null, astral ? '#5eead4aa' : '#45c4a099', 1.3);
+      }
+      ctx.save();
+      ctx.translate(0, hoverY);
+      ctx.rotate(active ? spin * .35 : .2);
+      diamond(ctx, 0, 0, active ? 15 : 12, active ? '#fef3c7' : (astral ? '#3b3363' : '#cad6bc'), active ? '#f59e0b' : (astral ? '#a78bfa' : '#7a9480'));
+      ctx.rotate(Math.PI / 4);
+      diamond(ctx, 0, 0, active ? 11 : 8.5, active ? '#9ef5e0' : (astral ? '#274a5e' : '#dce6cf'), active ? '#2dd4bf' : '#5f8f84');
+      ctx.restore();
+      if (active) {
+        for (let i = 0; i < 4; i++) {
+          const a = spin + i * TAU / 4;
+          diamond(ctx, Math.cos(a) * 34, hoverY + Math.sin(a) * 14, 3, '#fffbeb', '#fbbf24');
         }
       }
     } else {

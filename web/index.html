@@ -12,8 +12,10 @@
   <header class="topbar">
     <a class="brand" href="./" aria-label="回响庭院首页"><span class="brand-icon">◈</span><span>W–SLICE<span class="brand-sub">回响庭院</span></span></a>
     <nav aria-label="游戏设置">
-      <button id="open-hyper-lab" class="icon-button prism-button" title="打开四维超多胞体全息观测台">◈ 四维观测台</button>
-      <button id="theme-toggle" class="icon-button" aria-pressed="false" title="切换星界棱镜全息主题">✦ 星界棱镜</button>
+      <button id="open-chapters" class="icon-button" title="打开维度章节星图（序章 / 初探三庭 / 深层五庭）">🗺️ <span class="nav-label">章节星图</span></button>
+      <button id="open-codex" class="icon-button" title="打开跨局《四维博物图鉴》">📖 <span class="nav-label">博物图鉴</span></button>
+      <button id="open-hyper-lab" class="icon-button prism-button" title="打开四维超多胞体全息观测台">◈ <span class="nav-label">四维观测台</span></button>
+      <button id="theme-toggle" class="icon-button" aria-pressed="false" title="切换星界棱镜全息主题">✦ <span class="nav-label">星界棱镜</span></button>
       <button id="sound" class="icon-button" aria-pressed="true" title="切换声音"><span aria-hidden="true">♫</span><span id="sound-label">声音开</span></button>
       <a class="icon-button" href="flatland.html">去平面国玩</a>
       <button id="help" class="icon-button">怎么玩</button>
@@ -25,7 +27,7 @@
   <main class="game-layout">
     <section class="play-area" aria-label="庭院游戏">
       <p id="chapter-arrival" class="chapter-arrival" hidden><strong>从平面国，走进回响庭院</strong><br>点击机关顺桥走过去自动点亮 · 站在 ⚓ 安全台上滚轮换层（上滚去上层）</p>
-      <div class="stage-heading"><div><p class="eyebrow">NEW PATHS · THE SAME FOURTH DIMENSION</p><h1 id="room-name">四维回响庭院</h1></div><div class="chapter"><span id="room-number">01</span><span class="chapter-line"></span><span>03</span></div></div>
+      <div class="stage-heading"><div><p class="eyebrow"><span id="chapter-mode-pill" class="chapter-mode-pill">第一幕 · 初探三庭</span> · NEW PATHS</p><h1 id="room-name">四维回响庭院</h1></div><div class="chapter"><span id="room-number">01</span><span class="chapter-line"></span><span id="room-total">03</span></div></div>
       <p id="room-description" class="room-description">每一庭，都有不同的跨层连锁。</p>
       <div class="scene-wrap">
         <canvas id="scene" tabindex="0" aria-label="庭院场景：左键点击圆盘顺桥走过去并自动点亮机关；站在带 ⚓ 的安全台上滚动鼠标滚轮切换四维层，上滚去上层" role="img"></canvas>
@@ -193,7 +195,7 @@
     <div class="choice-preview"><strong id="choice-room-name"></strong><span id="choice-room-description"></span></div>
     <div id="choice-build" class="choice-build" hidden></div>
     <div id="relic-choices" class="relic-choices"></div>
-    <div class="intro-rules"><span><b>Ⅰ</b>观察机关的供能关系</span><span><b>Ⅱ</b>在同一位置穿入另一层</span><span><b>Ⅲ</b>挑战回流，把收益带回来</span></div><p class="dialog-foot">每局抽取三座不同庭院 · 遗物跨庭保留并升级 · 复制网页地址可重走同一旅程</p>
+    <div class="intro-rules"><span><b>Ⅰ</b>观察机关的供能关系</span><span><b>Ⅱ</b>在同一位置穿入另一层</span><span><b>Ⅲ</b>挑战回流，把收益带回来</span></div><p id="choice-foot" class="dialog-foot">每局抽取三座不同庭院 · 遗物跨庭保留并升级 · 复制网页地址可重走同一旅程</p>
   </dialog>
   <dialog id="help-dialog" class="small-dialog" aria-labelledby="help-title">
     <button class="dialog-close" id="close-help" aria-label="关闭玩法说明">×</button>
@@ -207,7 +209,51 @@
     <button id="help-done" class="primary-button">回去试一下 ↗</button>
   </dialog>
   <dialog id="pause-dialog" class="small-dialog"><p class="eyebrow">TAKE A BREATH</p><h2>庭院正在等你。</h2><p>路径、危险和遗物计时都已暂停。</p><button id="resume" class="primary-button">继续旅程 ↗</button></dialog>
-  <dialog id="result-dialog" class="small-dialog result-dialog"><div id="result-symbol" class="result-symbol">✧</div><p id="result-kicker" class="eyebrow">JOURNEY COMPLETE</p><h2 id="result-title">庭院记住了你的回响。</h2><p id="result-description"></p><div class="result-score"><strong id="result-score">0</strong><span>回响已带回</span></div><p id="result-stats"></p><button id="play-again" class="primary-button">换一种走法，再来一局 ↗</button></dialog>
+  <dialog id="result-dialog" class="small-dialog result-dialog">
+    <div id="result-symbol" class="result-symbol">✧</div>
+    <p id="result-kicker" class="eyebrow">JOURNEY COMPLETE</p>
+    <h2 id="result-title">庭院记住了你的回响。</h2>
+    <p id="result-description"></p>
+    <div class="result-score"><strong id="result-score">0</strong><span>回响已带回</span></div>
+    <p id="result-stats"></p>
+    <button id="next-expedition" class="primary-button expedition-cta" hidden>开启第二幕 · 深层五庭巡礼 ↗</button>
+    <button id="play-again" class="primary-button">换一种走法，再来一局 ↗</button>
+    <div class="dialog-actions result-sub-actions">
+      <button id="result-open-chapters" class="secondary-button" type="button">🗺️ 维度章节星图</button>
+      <button id="result-open-codex" class="secondary-button" type="button">📖 四维博物图鉴</button>
+    </div>
+  </dialog>
+  <dialog id="chapter-dialog" class="chapter-dialog" aria-labelledby="chapter-dialog-title">
+    <div class="chapter-dialog-header">
+      <div>
+        <p class="eyebrow">DIMENSIONAL STAR MAP · 维度章节星图</p>
+        <h2 id="chapter-dialog-title">从二维切片，走向四维圣殿</h2>
+      </div>
+      <button class="dialog-close" id="close-chapters" aria-label="关闭维度章节星图">×</button>
+    </div>
+    <p class="chapter-dialog-desc">三幕旅程可随时自由切换：先在平面国直觉理解「高维物体穿过低维切面」，再进入回响庭院体验三庭初探或深层五庭远征（解锁三叠同位庭、相位换向庭与四象升维圣殿）。</p>
+    <div id="chapter-cards" class="chapter-cards"></div>
+  </dialog>
+  <dialog id="codex-dialog" class="codex-dialog" aria-labelledby="codex-dialog-title">
+    <div class="codex-dialog-header">
+      <div>
+        <p class="eyebrow">4D NATURALIST CODEX · 四维博物图鉴</p>
+        <h2 id="codex-dialog-title">跨局永久铭刻的四维收藏</h2>
+      </div>
+      <div class="codex-header-right">
+        <span id="codex-total-badge" class="codex-total-badge">总收录 0%</span>
+        <button class="dialog-close" id="close-codex" aria-label="关闭四维博物图鉴">×</button>
+      </div>
+    </div>
+    <div class="codex-tabs" role="tablist" aria-label="博物图鉴分卷">
+      <button type="button" class="codex-tab" role="tab" id="codex-tab-curiosities" data-codex-tab="curiosities" aria-selected="true">✦ 异维奇物 (0/12)</button>
+      <button type="button" class="codex-tab" role="tab" id="codex-tab-topologies" data-codex-tab="topologies" aria-selected="false">🏛️ 庭院与十相秘印 (0/17)</button>
+      <button type="button" class="codex-tab" role="tab" id="codex-tab-journey" data-codex-tab="journey" aria-selected="false">🎖️ 维度旅人铭牌</button>
+    </div>
+    <div id="codex-panel-curiosities" class="codex-panel" role="tabpanel" aria-labelledby="codex-tab-curiosities"></div>
+    <div id="codex-panel-topologies" class="codex-panel" role="tabpanel" aria-labelledby="codex-tab-topologies" hidden></div>
+    <div id="codex-panel-journey" class="codex-panel" role="tabpanel" aria-labelledby="codex-tab-journey" hidden></div>
+  </dialog>
   <dialog id="restart-dialog" class="small-dialog"><p class="eyebrow">A NEW PATH</p><h2>从新的庭院出发？</h2><p>新一局会清除当前旅程进度，最佳记录保留。</p><div class="dialog-actions"><button id="cancel-restart" class="secondary-button">继续这一局</button><button id="confirm-restart" class="primary-button">开始新一局 ↗</button></div></dialog>
   <dialog id="hyper-lab-dialog" class="hyper-lab-dialog" aria-labelledby="hyper-lab-title">
     <div class="hyper-lab-header">

@@ -8,6 +8,9 @@ import { CourtyardMomentum } from './courtyard-momentum.js';
 import { STARTER_RELICS, mechanismFeedback, contextualHelp, courtyardActions } from './play-feedback.js';
 import { initThemeToggle, initHyperLab } from './hyper-lab-ui.js';
 import { ProgressiveOnboarding, planLayerRoute, findCurrentLayerRoute, computeRiskDecisionPreview, computeRelicHudStatus } from './progressive-onboarding.js';
+import { CodexStore } from './codex.js';
+import { ALL_ROOM_TEMPLATES, HIDDEN_ROUTE_RECIPES } from './rooms.js';
+import { CURIOSITY_CATALOG } from './exploration-radar.js';
 
 const $ = id => document.getElementById(id);
 const onboarding = new ProgressiveOnboarding({ skillGated: true });
@@ -22,17 +25,28 @@ const setText = (id,text) => { const el=$(id); const value=String(text);if(el.te
 const icons = { prism:'◇', shadow:'◌', shell:'◈', coil:'⌁', weave:'❋' };
 const traits = { prism:'穿层送能 · 蓄能主动', shadow:'跨层压板 · 主动留影', shell:'失稳保护 · 自动触发', coil:'跨层接力 · 换层触发', weave:'冒险落种 · 永久开路' };
 const layerSymbols = ['Ⅰ','Ⅱ','Ⅲ'];
+const numBadges = ['①','②','③','④'];
+const mechCountOf = s => s?.mechanismOrder?.length || s?.nodes?.filter(n => n.kind === 'mechanism').length || 3;
 const newSeed = () => globalThis.crypto?.getRandomValues ? crypto.getRandomValues(new Uint32Array(1))[0] : Date.now() >>> 0;
-const requestedSeed = new URL(location.href).searchParams.get('seed');
+const initialUrlParams = new URL(location.href).searchParams;
+const requestedSeed = initialUrlParams.get('seed');
+let currentMode = initialUrlParams.get('mode') === 'expedition' ? 'expedition' : 'intro';
 const initialSeed = requestedSeed !== null && /^\d{1,10}$/.test(requestedSeed) && Number(requestedSeed)<=0xffffffff ? Number(requestedSeed) : newSeed();
-function rememberSeed(seed) { const url=new URL(location.href);url.searchParams.set('seed',String(seed));history.replaceState(null,'',url); }
+function rememberSeed(seed, mode = currentMode) {
+  const url = new URL(location.href);
+  url.searchParams.set('seed', String(seed));
+  if (mode === 'expedition') url.searchParams.set('mode', 'expedition');
+  else url.searchParams.delete('mode');
+  history.replaceState(null, '', url);
+}
 const readPreference = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const savePreference = (key,value) => { try { localStorage.setItem(key,String(value)); } catch { /* Private browsing can disable persistence. */ } };
 const readJSON = key => { try { return JSON.parse(readPreference(key, '{}')); } catch { return {}; } };
-const model = new GameModel(initialSeed);
+const codex = new CodexStore();
+const model = new GameModel(initialSeed, { mode: currentMode });
 const fromFlatland = isFlatlandArrival(location.search, readJSON('wslice-flatland-stars'), readJSON('wslice-flatland-visits'));
 $('chapter-arrival').hidden = !fromFlatland;
-rememberSeed(initialSeed);
+rememberSeed(initialSeed, currentMode);
 // The very first run starts with the forgiving 缓落壳 so a new player meets zero decisions in
 // the tutorial courtyard; relic choices still arrive between rooms. Once a run reaches the
 // next room (or ends), every new run opens with the normal relic picker again.
@@ -42,7 +56,7 @@ const isFirstRun = () => readPreference(FIRST_RUN_DONE_KEY, '') !== 'yes';
 // "带缓落壳出发" as the primary choice with alternatives folded away).
 const arrivedFrom = new URLSearchParams(location.search).get('from');
 function autoEquipFirstRun() {
-  if (model.snapshot().phase === 'choose' && !fromFlatland && arrivedFrom !== 'discovery' && isFirstRun()) model.chooseRelic('shell');
+  if (currentMode === 'intro' && model.snapshot().phase === 'choose' && !fromFlatland && arrivedFrom !== 'discovery' && isFirstRun()) model.chooseRelic('shell');
 }
 autoEquipFirstRun();
 const audio = new GameAudio();
@@ -62,7 +76,7 @@ let transient = null;
 let transientTime = 0;
 let transientType = '';
 let actionFeedback = '';
-const dialogs = ['choice-dialog','help-dialog','pause-dialog','result-dialog','restart-dialog','hyper-lab-dialog'];
+const dialogs = ['choice-dialog','help-dialog','pause-dialog','result-dialog','restart-dialog','hyper-lab-dialog','chapter-dialog','codex-dialog'];
 const isModal = () => dialogs.some(id => $(id)?.open);
 const canAct = () => !paused && !isModal() && model.snapshot().phase === 'playing';
 const guide = new FriendGuide();
@@ -128,7 +142,7 @@ function buildLayerShiftPromptMessage(s, { targetId, targetLayer, atNode, toNode
 function shouldHoldEchoesAtHub(s) {
   if (!s) return false;
   const riftWaiting = s.nodes?.some(n => n.id === 'rift' && !n.locked) && s.rift?.status === 'available';
-  const shadowWaiting = (s.relics?.shadow || 0) > 0 && !s.shadowUsed && (s.activated?.length || 0) < 3;
+  const shadowWaiting = (s.relics?.shadow || 0) > 0 && !s.shadowUsed && (s.activated?.length || 0) < mechCountOf(s);
   return !!(riftWaiting || shadowWaiting);
 }
 
@@ -288,7 +302,7 @@ function manualSwitchLayer(layerIdx, source = 'manual') {
     return n && n.powered && !s.activated.includes(id);
   });
   const prompt = scene.pendingLayerPrompt;
-  const targetId = prompt?.targetId || (s.activated.length >= 3 ? 'exit' : nextMechId);
+  const targetId = prompt?.targetId || (s.activated.length >= mechCountOf(s) ? 'exit' : nextMechId);
   const prevOpenCurrent = new Set(
     (s.edges || []).filter(e => e.open && e.layer === prevLayer).map(e => e.id)
   );
@@ -419,7 +433,7 @@ function handleCanvasSelect(id) {
     autoPilot = null;
     const order = s.mechanismOrder || [];
     const missing = (targetNode.required || []).filter(req => !(targetNode.received || []).includes(req))
-      .map(req => ['①', '②', '③'][order.indexOf(req)] || '前序机关');
+      .map(req => numBadges[order.indexOf(req)] || '前序机关');
     showTransient(`🔒「${targetNode.name}」还没供能：先点亮 ${missing.join('+') || '前序机关'}`, 3.2, 'refused');
     updateUI();
     return;
@@ -460,6 +474,7 @@ function selectFromPanel(id) { revealScene(); handleCanvasSelect(id); }
 function collectMaterializedAnomaly(res) {
   if (!res || res.status !== 'collected') return false;
   model.collectAnomaly(res.item.id);
+  codex.recordAnomaly(res.item.id);
   scene.spawnBurst(res.item.x, res.item.y, '#fbbf24', 28, 1.2);
   scene.addEffect('ring', { x: res.item.x, y: res.item.y }, { duration: .85, radius: 64, color: '#fbbf24', tier: 2 });
   showTransient(res.message, 4.0, 'anomaly');
@@ -489,8 +504,9 @@ function handleAnomalySelect(anomaly) {
     );
     const dir = res.targetLayer > s.layer ? '上滚' : '下滚';
     if (currentNode && !currentNode.anchor && !hasSameSpotPartner) {
-      const anchorId = ['hub', 'relay'].find(id => findCurrentLayerRoute(s, id)?.length)
-        || ['hub', 'relay'].find(id => planLayerRoute(s, id))
+      const anchorIds = s.nodes.filter(n => n.anchor && n.id !== s.node).map(n => n.id);
+      const anchorId = anchorIds.find(id => findCurrentLayerRoute(s, id)?.length)
+        || anchorIds.find(id => planLayerRoute(s, id))
         || 'hub';
       const anchorNode = s.nodes.find(n => n.id === anchorId);
       const anchorName = anchorNode?.name || '归响台';
@@ -591,8 +607,28 @@ function consumeEvents() {
     if (event.type === 'weave') message = `${event.remote?'影子替你种下':'种下'}一条新路，这座花桥会留到本庭结束。`;
     if (event.type === 'resonance' && event.stage===3) message = `庭院回应了冒险：${model.snapshot().layers[event.layer].name}长出花匣—锚台花径。`;
     if (event.type === 'secret_seal') message = `符印 ${event.stage}/3 回应了换层。`;
-    if (event.type === 'secret_open') message = '封印展开，隐星台显现了；新路仍要沿对应的 W 层前进。';
-    if (event.type === 'rift_clear') message = '三重回流已渡过，整座庭院正在升起。';
+    if (event.type === 'secret_open') {
+      codex.recordSecretUnlock(event.id);
+      message = '封印展开，隐星台显现了；新路仍要沿对应的 W 层前进。';
+    }
+    if (event.type === 'rift_clear') {
+      codex.recordRiftClear((state.hiddenRoutes || []).filter(r => r.unlocked).map(r => r.id));
+      message = '三重回流已渡过，整座庭院正在升起。';
+    }
+    if (event.type === 'sanctum_start') {
+      message = '👑 天穹冠已凝为跨层圣柱！连续躲过三波圣殿回响即可架起黄金天桥 (+8◆)。';
+    }
+    if (event.type === 'sanctum_clear') {
+      codex.recordSanctumChoirClear();
+      message = '👑 圣殿三重回响渡过！天穹冠↔圣殿门黄金天桥已展开 (+8◆)！';
+    }
+    if (event.type === 'room' && event.completed) {
+      const clearedRoomId = state.roomPlan?.[event.room]?.id || state.roomId;
+      if (clearedRoomId) codex.recordRoomClear(clearedRoomId);
+    }
+    if (event.type === 'win') {
+      codex.recordRoomClear(state.roomId);
+    }
     if (event.type === 'ascension' && event.stage===3) message = '升庭桥已展开，完成本庭机关后可以从隐星台直达庭门。';
     if (event.type === 'phase_transfer') message = '位置没有变，脚下已是另一层的机关。';
     if (event.type === 'warning') {
@@ -616,14 +652,20 @@ function synergyNotes(relics) {
   const notes=[];
   if(relics.prism && relics.coil)notes.push({ids:['prism','coil'],text:'远程启动机关 → 锚台三印 → 棱镜回廊'});
   if(relics.shadow && relics.weave)notes.push({ids:['shadow','weave'],text:'借影远程种桥 → 归响台三印 → 影织暗径'});
-  if(relics.prism && relics.weave)notes.push({ids:['prism','weave'],text:'一次冒险同时蓄脉冲与桥种 → 隔层启动后织路'});
   if(relics.shell && relics.weave)notes.push({ids:['shell','weave'],text:'种桥并躲过花匣 → 花匣三印 → 护生险径'});
+  if(relics.prism && relics.shadow)notes.push({ids:['prism','shadow'],text:'留影驻场＋远程启动 → 归响台三印 → 折影星廊'});
+  if(relics.coil && relics.shadow)notes.push({ids:['coil','shadow'],text:'留影驻场＋线圈接力 → 锚台三印 → 叠影回廊'});
+  if(relics.prism && relics.weave)notes.push({ids:['prism','weave'],text:'种桥＋远程启动机关 → 锚台三印 → 织光回廊'});
+  if(relics.coil && relics.weave)notes.push({ids:['coil','weave'],text:'种桥＋线圈接力启动 → 归响台三印 → 缠脉暗径'});
+  if(relics.prism && relics.shell)notes.push({ids:['prism','shell'],text:'远程启动并躲过花匣 → 花匣三印 → 守光秘径'});
+  if(relics.coil && relics.shell)notes.push({ids:['coil','shell'],text:'线圈接力并躲过花匣 → 花匣三印 → 护脉险径'});
+  if(relics.shadow && relics.shell)notes.push({ids:['shadow','shell'],text:'留影驻场并躲过花匣 → 花匣三印 → 驻影险径'});
   return notes;
 }
 
 function choiceSynergy(state,id) {
   const next={...state.relics,[id]:(state.relics[id]||0)+1};
-  return synergyNotes(next).find(note=>note.ids.includes(id))?.text || ({prism:'＋ 接力线圈：探寻棱镜回廊',coil:'＋ 回流棱镜：探寻棱镜回廊',shadow:'＋ 织桥种：探寻影织暗径',weave:'＋ 留影扣或缓落壳：探寻隐藏路线',shell:'＋ 织桥种：探寻护生险径'}[id] || '');
+  return synergyNotes(next).find(note=>note.ids.includes(id))?.text || ({prism:'＋ 任意第二遗物：共鸣解封十相秘境',coil:'＋ 任意第二遗物：共鸣解封十相秘境',shadow:'＋ 任意第二遗物：共鸣解封十相秘境',weave:'＋ 任意第二遗物：共鸣解封十相秘境',shell:'＋ 任意第二遗物：共鸣解封十相秘境'}[id] || '');
 }
 
 function focusPlaySurface() {
@@ -642,14 +684,21 @@ function showChoice(state) {
   $('choice-dialog').classList.toggle('starter-choice', !next);
   $('choice-dialog').classList.toggle('discovery-choice', discoveryStart);
   const upcoming=next ? state.nextRoom : state.roomPlan?.[0];
-  $('choice-kicker').textContent = next ? `第 ${state.room + 1} 庭完成 · 已带回 ${state.banked} 回响` : `随机旅程 #${state.seed.toString(16).toUpperCase().padStart(8,'0')}`;
-  $('choice-title').innerHTML = next ? '下一庭，<br>换一种解法。' : '带一件，就出发。';
-  $('choice-intro').textContent = next ? '已有遗物全部保留。补齐一种组合，解开下一庭的隐藏路线；也可升阶现有能力。' : '点选即出发 · 详细能力随时看「本局构筑」';
+  const isExpedition = state.mode === 'expedition';
+  $('choice-kicker').textContent = next ? `第 ${state.room + 1}/${state.roomTotal || 3} 庭完成 · 已带回 ${state.banked} 回响` : `${isExpedition ? '第二幕 · 深层五庭巡礼' : '随机旅程'} #${state.seed.toString(16).toUpperCase().padStart(8,'0')}`;
+  $('choice-title').innerHTML = next ? '下一庭，<br>换一种解法。' : (isExpedition ? '深层五庭，<br>带一件遗物启程。' : '带一件，就出发。');
+  $('choice-intro').textContent = next ? '已有遗物全部保留。任意两件遗物都能共鸣一条专属隐藏秘径；也可升阶现有能力。' : (isExpedition ? '五座递进庭院（经典双庭 → 三叠/换向进阶庭 → 四象升维圣殿）· 点选即出发' : '点选即出发 · 详细能力随时看「本局构筑」');
   $('choice-route').hidden = !next;
+  $('choice-route').classList.toggle('five-stops', (state.roomPlan?.length || 3) >= 5);
   if (next) renderItinerary('choice-route',state,state.room+1);
   document.querySelector('.choice-preview').hidden = !next;
   document.querySelector('.intro-rules').hidden = !next;
   document.querySelector('.dialog-foot').hidden = !next;
+  if ($('choice-foot')) {
+    setText('choice-foot', isExpedition
+      ? '本幕共五座递进庭院（终章为四象升维圣殿） · 遗物跨庭保留并升级 · 任意双遗物共鸣十相秘境'
+      : '每局抽取三座不同庭院 · 遗物跨庭保留并升级 · 复制网页地址可重走同一旅程');
+  }
   if (fromFlatland && !next) {
     $('choice-intro').textContent = scene.friends.length ? '伙伴也来了 · 带一件遗物出发' : '带一件出发，看看 W 里的新世界。';
   }
@@ -704,13 +753,22 @@ function showChoice(state) {
 
 function showResult(state) {
   const won = state.phase === 'won';
-  $('result-symbol').textContent = won ? '✧' : '◌';
-  $('result-kicker').textContent = won ? 'JOURNEY COMPLETE' : 'UNTIL THE NEXT ECHO';
-  $('result-title').textContent = won ? '庭院记住了你的回响。' : '这一程，先到这里。';
-  $('result-description').textContent = won ? '你让回响穿过了三层空间，也把这一路的能力组合带到了终点。' : '回程结已用完，之前存下的回响仍计入本次成绩。';
-  $('result-score').textContent = state.banked;
+  const isExpedition = state.mode === 'expedition';
   const pr = state.phaseResonance || scene.phaseResonance.summary();
+  codex.recordRunFinish({ mode: state.mode, won, banked: state.banked, rank: pr.rank });
+  $('result-symbol').textContent = won ? (isExpedition ? '👑' : '✧') : '◌';
+  $('result-kicker').textContent = won ? (isExpedition ? 'SANCTUM ASCENDED · 深层五庭贯通' : 'JOURNEY COMPLETE') : 'UNTIL THE NEXT ECHO';
+  $('result-title').textContent = won ? (isExpedition ? '四象圣殿记住了你的升维回响。' : '庭院记住了你的回响。') : '这一程，先到这里。';
+  $('result-description').textContent = won
+    ? (isExpedition
+      ? '你走完了五座递进庭院与四象升维圣殿，所有奇物、秘印与拓扑拓片已永久收录进《四维博物图鉴》。'
+      : '你让回响穿过了三层空间，也把这一路的能力组合带到了终点。可继续开启第二幕「深层五庭巡礼」！')
+    : '回程结已用完，之前存下的回响仍计入本次成绩。';
+  $('result-score').textContent = state.banked;
   $('result-stats').textContent = `冒险成功 ${state.stats.risks} 次 · 点亮机关 ${state.stats.chains} 次 · 收录奇物 ${state.stats.anomalies || 0} 件 · 完美同频 ${pr.perfectBeats} 次 · 刹那折光 ${pr.grazes} 次 · 共鸣评级 ${pr.rank}`;
+  if ($('next-expedition')) {
+    $('next-expedition').hidden = !(won && !isExpedition);
+  }
   $('result-dialog').showModal();
 }
 
@@ -767,10 +825,13 @@ function updateSecrets(state) {
   const routes=state.hiddenRoutes || [];
   const unlocked=routes.filter(route=>route.unlocked).length;
   setText('secret-count',`${unlocked} / ${routes.length || 3}`);
-  const key=JSON.stringify([state.room, routes.map(route=>[route.id,route.progress,route.unlocked,route.eligible,route.requirement]),state.relics]);
+  const matched = routes.filter(r => r.unlocked || r.eligible || r.requires.every(id => state.relics?.[id] > 0));
+  const partial = matched.length ? [] : routes.filter(r => r.requires.some(id => state.relics?.[id] > 0));
+  const visibleRoutes = matched.length ? matched : (partial.length ? partial : routes).slice(0, 3);
+  const key=JSON.stringify([state.room, visibleRoutes.map(route=>[route.id,route.progress,route.unlocked,route.eligible,route.requirement]),state.relics]);
   if(secretKey!==key){
     secretKey=key;
-    $('secret-routes').replaceChildren(...routes.map(route=>{
+    $('secret-routes').replaceChildren(...visibleRoutes.map(route=>{
       const row=document.createElement('div');
       row.className=`secret-route ${route.unlocked?'open':route.eligible?'ready':''}`;
       const entry=state.nodes.find(node=>node.id===route.entry);
@@ -779,7 +840,8 @@ function updateSecrets(state) {
       return row;
     }));
   }
-  const here=routes.find(route=>route.entry===state.node&&!route.unlocked&&route.requires.every(id=>state.relics[id]));
+  const here=routes.find(route=>route.entry===state.node&&!route.unlocked&&route.requires.every(id=>state.relics[id])&&route.eligible)
+    || routes.find(route=>route.entry===state.node&&!route.unlocked&&route.requires.every(id=>state.relics[id]));
   const promptKey=JSON.stringify([here?.id,here?.progress,here?.eligible,here?.requirement,!!state.travel,!!state.wave,state.node==='rift',state.rift?.status,state.rift?.ascension,state.carried>=2]);
   if(promptKey!==sealKey){
     sealKey=promptKey;
@@ -788,7 +850,7 @@ function updateSecrets(state) {
       $('seal-prompt').innerHTML=`<span class="seal-heading">✧ ${here.name}</span><span class="seal-track">${sealGlyphs(here,state)}</span><small>${here.eligible?`依次进入新层 · 下一印 ${layerSymbols[here.sequence[here.progress]]}`:here.requirement}</small>`;
     }else if(state.node==='rift'){
       const rift=state.rift;
-      $('seal-prompt').innerHTML=`<span class="seal-heading">✧ ${rift?.status==='cleared'?'庭院已回应':rift?.status==='failed'?'本庭试炼已结束':'隐星三重回流'}</span><small>${rift?.status==='cleared'?'升庭桥连向庭门，三座机关完成后可通行':rift?.status==='failed'?'押注不返还，原路仍可返回':`押 2 → 全过得 9 · 三波每次重新切入安全层${state.carried<2?' · 随身回响不足':''}`}</small>`;
+      $('seal-prompt').innerHTML=`<span class="seal-heading">✧ ${rift?.status==='cleared'?'庭院已回应':rift?.status==='failed'?'本庭试炼已结束':'隐星三重回流'}</span><small>${rift?.status==='cleared'?'升庭桥连向庭门，本庭机关全部点亮后可通行':rift?.status==='failed'?'押注不返还，原路仍可返回':`押 2 → 全过得 9 · 三波每次重新切入安全层${state.carried<2?' · 随身回响不足':''}`}</small>`;
     }
   }
   for(const [layer,button] of [...document.querySelectorAll('.layer-controls [data-layer]')].entries())button.classList.toggle('seal-next',!state.wave&&!state.travel&&!!here?.eligible&&here.sequence[here.progress]===layer);
@@ -796,7 +858,7 @@ function updateSecrets(state) {
   $('rift-panel').hidden=!unlocked;
   $('rift-panel').classList.toggle('cleared',rift?.status==='cleared');
   setText('rift-title',rift?.status==='cleared'?'升庭连锁':rift?.status==='failed'?'本庭试炼已结束':'隐星三重回流');
-  setText('rift-detail',rift?.status==='cleared'?`${rift.ascension===3?'升庭桥已展开':'星环正在唤醒归响台、锚台与庭门'} · 完成三机关可直达庭门`:rift?.status==='failed'?'本庭不能再挑战；押注不返还，已解开的秘径仍可走。':'押 2 枚随身回响 · 全过得 9 · 失手不退押注，每庭一次。');
+  setText('rift-detail',rift?.status==='cleared'?`${rift.ascension===3?'升庭桥已展开':'星环正在唤醒归响台、锚台与庭门'} · 完成本庭机关可直达庭门`:rift?.status==='failed'?'本庭不能再挑战；押注不返还，已解开的秘径仍可走。':'押 2 枚随身回响 · 全过得 9 · 失手不退押注，每庭一次。');
   setHTML('rift-stages',[0,1,2].map((stage)=>`<span class="${(rift?.ascension||0)>stage?'lit':''}">${['◇ 归响台','⌁ 锚台','✧ 庭门'][stage]}</span>`).join('<i aria-hidden="true">→</i>'));
 }
 
@@ -815,10 +877,10 @@ function updateRoom(state) {
   if(roomKey===key)return;
   roomKey=key;destinationKey='';
   scene.pendingLayerPrompt = null;
+  if (state.roomId) codex.recordRoomVisit(state.roomId);
   setText('room-description', state.roomDescription || '观察各层机关，让能量接力。');
   renderItinerary('room-itinerary',state,state.room);
   const order=state.mechanismOrder || state.nodes.filter(n=>n.kind==='mechanism').map(n=>n.id);
-  const numBadges = ['①', '②', '③'];
   $('mechanisms').replaceChildren(...order.map((id, idx)=>{
     const node=state.nodes.find(n=>n.id===id);
     const row=document.createElement('div');row.className='mechanism-item';row.dataset.mechanism=id;
@@ -841,9 +903,10 @@ function updateUI() {
   const firstTarget = state.nodes.find(node => node.id === firstAction?.node);
   // Keep the first activation and hub/anchor crossings actionable, including
   // the completed courtyard's route to its gate. Deliberate choices keep normal UI.
+  const mechTotal = mechCountOf(state);
   const onward = momentum.firstEntry && canAct() && !state.travel && !state.wave &&
     state.phaseStability === 1 && !state.riskMode && !state.stats.failures &&
-    (([1, 3].includes(state.activated.length) && state.activated.includes(state.node)) ||
+    (([1, mechTotal].includes(state.activated.length) && state.activated.includes(state.node)) ||
       (['hub', 'relay'].includes(state.node) && state.activated.length > 0)) &&
     !state.courtyardMomentum && !state.companionGuide && !model.selectionExplicit
       ? snapshot.companionGuide : null;
@@ -862,20 +925,28 @@ function updateUI() {
   for (let i = 0; i < 3; i++) $('layer-' + i).classList.toggle('friend-layer', !!friendHint && state.companionGuide?.layer === i);
   $('room-name').textContent = state.roomName;
   $('room-number').textContent = String(state.room + 1).padStart(2,'0');
+  if ($('room-total')) {
+    setText('room-total', String(state.roomTotal || state.roomPlan?.length || 3).padStart(2, '0'));
+  }
+  if ($('chapter-mode-pill')) {
+    const isExp = state.mode === 'expedition';
+    setText('chapter-mode-pill', isExp ? '第二幕 · 深层五庭' : '第一幕 · 初探三庭');
+    $('chapter-mode-pill').classList.toggle('expedition-mode', isExp);
+  }
   setText('seed-label',`#${state.seed.toString(16).toUpperCase().padStart(8,'0')}`);
   $('banked').textContent = state.banked;
   $('carried').textContent = state.carried;
   if ($('carried-hint')) {
     setText('carried-hint', shouldHoldEchoesAtHub(state) ? '到 ⚓ 归响台按 E 存入' : '回 ⚓ 归响台自动存入');
   }
-  document.body.classList.toggle('first-run-pending', isFirstRun());
+  document.body.classList.toggle('first-run-pending', state.mode !== 'expedition' && isFirstRun());
   if (state.banked > best) { best = state.banked; savePreference('wslice-best',best); }
   setHTML('best-score',`${best} <small>回响</small>`);
   [...$('lives').children].forEach((el,i) => el.classList.toggle('empty',i >= state.lives));
   $('lives').setAttribute('aria-label',`剩余 ${state.lives} 次`);
   [...$('combo').children].forEach((el,i) => el.classList.toggle('active',i < state.combo));
   $('combo').setAttribute('aria-label',`${state.combo} 层`);
-  $('mechanism-count').textContent = `${state.activated.length} / 3`;
+  $('mechanism-count').textContent = `${state.activated.length} / ${mechTotal}`;
   const currentLayer = state.layers?.[state.layer];
   const currentNode = state.nodes.find(n=>n.id===state.node);
   const anomProg = scene.explorationRadar.roomProgress(state);
@@ -1006,9 +1077,9 @@ function updateUI() {
       setText('vstep-act-title', `点亮${currentNode?.name}`);
       setText('vstep-act-sub', '点此立即点亮机关 ✨');
     } else {
-      setText('vstep-act-icon', state.activated.length === 3 ? '🚪' : '⚡');
-      setText('vstep-act-title', `点亮机关 (${state.activated.length}/3)`);
-      setText('vstep-act-sub', state.activated.length === 3 ? '三座全亮 · 点终点门过关' : '登岛自动点亮');
+      setText('vstep-act-icon', state.activated.length >= mechTotal ? '🚪' : '⚡');
+      setText('vstep-act-title', `点亮机关 (${state.activated.length}/${mechTotal})`);
+      setText('vstep-act-sub', state.activated.length >= mechTotal ? '全部点亮 · 点终点门过关' : '登岛自动点亮');
     }
   }
   setText('footing',`${currentNode?.name || ''} · ${currentNode?.anchor?'跨层支撑':currentNode?.present?'本层平台':'离层失稳 · 换回有支撑的层'}`);
@@ -1029,15 +1100,16 @@ function updateUI() {
   });
   for (const node of state.nodes.filter(n => n.kind === 'mechanism')) {
     const row = document.querySelector(`[data-mechanism="${node.id}"]`);
+    if (!row) continue;
     const active = state.activated.includes(node.id);
     const idx = orderList.indexOf(node.id);
-    const numSym = ['①', '②', '③'][idx] || '◇';
+    const numSym = numBadges[idx] || '◇';
     const isPrimary = primaryMechId === node.id;
     row.classList.toggle('active', active);
     row.classList.toggle('primary-target', isPrimary);
     const missingSyms = (node.required || [])
       .filter(reqId => !(node.received || []).includes(reqId))
-      .map(reqId => ['①', '②', '③'][orderList.indexOf(reqId)] || '前序');
+      .map(reqId => numBadges[orderList.indexOf(reqId)] || '前序');
     row.querySelector('small').textContent = active
       ? '✓ 已点亮'
       : node.powered
@@ -1048,19 +1120,21 @@ function updateUI() {
     for(const slot of row.querySelectorAll('[data-source]')){const received=node.received?.includes(slot.dataset.source);slot.textContent=received?'●':'○';slot.classList.toggle('received',!!received);}
   }
   if ($('exit-step-card')) {
-    const exitOpen = state.activated.length >= 3;
+    const exitOpen = state.activated.length >= mechTotal;
     const exitNode = state.nodes.find(n => n.id === 'exit');
+    const badgeChain = numBadges.slice(0, mechTotal).join('');
     $('exit-step-card').classList.toggle('exit-open', exitOpen);
     setText('exit-step-title', `🚪 终点门 · ${exitNode?.name || '折光门'}`);
     setText('exit-step-sub', exitOpen
       ? '✨ 大门已开！点此直接过关 ↗'
-      : `🔒 待解锁 · 需先点亮 ①②③ (${state.activated.length}/3)`);
+      : `🔒 待解锁 · 需先点亮 ${badgeChain} (${state.activated.length}/${mechTotal})`);
   }
   if ($('onboarding-banner')) {
     const bannerNow = performance.now();
     if (stageInfo.stage !== bannerStage) {
+      const firstExpeditionPaint = bannerStage === 0 && state.mode === 'expedition';
       bannerStage = stageInfo.stage;
-      bannerExpandedUntil = bannerNow + 4500;
+      bannerExpandedUntil = firstExpeditionPaint ? 0 : bannerNow + 4500;
       // The banner is aria-live itself; #announcement keeps the action result that caused the stage-up.
     }
     // Stage 1 is the very first screen, so its single instruction stays until ① is lit.
@@ -1102,18 +1176,18 @@ function updateUI() {
     if ($('radar-rift-card')) $('radar-rift-card').hidden = stageInfo.stage < 4;
     if ($('auto-next-btn')) {
       $('auto-next-btn').hidden = !onboarding.shouldShowAssistButton();
-      if (state.activated.length >= 3) {
+      if (state.activated.length >= mechTotal) {
         setText('auto-next-btn', '🧭 帮我前往终点 ↗');
       } else if (primaryMechId) {
         const pIdx = orderList.indexOf(primaryMechId);
-        const pSym = ['①', '②', '③'][pIdx] || '①';
+        const pSym = numBadges[pIdx] || '①';
         setText('auto-next-btn', `🧭 卡住了？帮我推进 ${pSym} ↗`);
       } else {
         setText('auto-next-btn', '🧭 帮我走这一步 ↗');
       }
     }
   }
-  const activeGoalId = activePrompt?.targetId || (state.activated.length >= 3 ? 'exit' : primaryMechId);
+  const activeGoalId = activePrompt?.targetId || (state.activated.length >= mechTotal ? 'exit' : primaryMechId);
   const riskPreview = computeRiskDecisionPreview(state, activeGoalId);
   const relicHud = computeRelicHudStatus(state);
   scene.relicHud = relicHud;
@@ -1216,7 +1290,7 @@ function updateUI() {
         ? '✨ 第四神秘岛已显现！点此登岛开启隐星试炼 ↗'
         : eligibleSecret
           ? `🔮 封印已松动！点此前往按 ${(eligibleSecret.sequence || []).map(l => layerSymbols[l]).join('→')} 换层开启`
-          : '点此查看 3 大隐藏秘印配方');
+          : '点此查看双遗物共鸣十相秘印配方');
   }
   const routesTo = id => state.edges.filter(edge=>edge.open && ((edge.from===state.node && edge.to===id)||(edge.to===state.node && edge.from===id)));
   const nextKey = `${state.availableNodes.map(id=>`${id}:${routesTo(id).map(edge=>`${edge.id}/${edge.layer}`).join('|')}`).join(',')}:${state.selected}:${state.layer}`;
@@ -1255,7 +1329,7 @@ function updateUI() {
   const mustActivate = actions.primary === 'interact' && currentNode?.kind === 'mechanism';
   $('move').disabled = !state.canMove || paused;
   $('move').className = actions.primary === 'move' && canAct() ? 'primary-button attention-action' : 'secondary-button';
-  setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${firstAction?.action === 'move' ? `到${firstTarget.name}` : onwardMove ? `${['hub', 'relay'].includes(state.node) || state.activated.length === 3 ? '到' : '稳行到'}${onwardTarget.name}` : state.riskMode?'冒险穿越':'稳行'} <span>${onwardMove && compactProgress.matches ? '↗' : 'Space ↗'}</span>`);
+  setHTML('move',state.travel ? `穿越中 <span>${Math.round(state.travel.progress*100)}%</span>` : `${firstAction?.action === 'move' ? `到${firstTarget.name}` : onwardMove ? `${['hub', 'relay'].includes(state.node) || state.activated.length >= mechTotal ? '到' : '稳行到'}${onwardTarget.name}` : state.riskMode?'冒险穿越':'稳行'} <span>${onwardMove && compactProgress.matches ? '↗' : 'Space ↗'}</span>`);
   $('interact').disabled = !canAct() || actions.interactDisabled;
   $('interact').title = state.interactReason || state.interactLabel;
   $('interact').className = actions.primary === 'interact' && canAct() ? 'primary-button attention-action' : `secondary-button${actions.interactDone ? ' completed-action' : ''}`;
@@ -1272,7 +1346,8 @@ function updateUI() {
   if(state.wave){
     const safe=state.wave.safeLayers.includes(state.layer)&&Math.abs(state.w-currentLayer.center)<=Math.sqrt(.75)*.16&&(state.wave.variant!=='rift'||state.wave.entered);
     setText('wave-time',state.wave.remaining.toFixed(1));$('wave-warning').classList.toggle('evading',safe);
-    setText('wave-label',safe?`已在安全层 · 第 ${state.wave.step}/${state.wave.steps} 波`:`${state.wave.variant==='rift'?'隐星三重回流':state.wave.variant==='lock'?'双层封锁':'回流接近'} · 第 ${state.wave.step}/${state.wave.steps} 波`);
+    const waveTitles = { rift: '隐星三重回流', sanctum: '圣殿三重回响', lock: '双层封锁', shift_lock: '双波易位', cascade_wave: '顺次折光' };
+    setText('wave-label',safe?`已在安全层 · 第 ${state.wave.step}/${state.wave.steps} 波`:`${waveTitles[state.wave.variant] || '回流接近'} · 第 ${state.wave.step}/${state.wave.steps} 波`);
     setText('wave-instruction',`${state.wave.variant==='rift'&&!state.wave.entered?'本波需切入':'安全 →'} ${state.wave.safeLayers.map(i=>`${layerSymbols[i]} ${state.layers[i].name}`).join(' / ')}`);
   }
   const aligned = range && state.w >= range.min && state.w <= range.max;
@@ -1409,7 +1484,7 @@ $('auto-next-btn')?.addEventListener('click', () => {
       return;
     }
   }
-  if (s.activated.length >= 3) {
+  if (s.activated.length >= mechCountOf(s)) {
     handleCanvasSelect('exit');
     return;
   }
@@ -1550,7 +1625,8 @@ function selectHelp(topic) {
         ? `你正站在「⚓ ${node.name}」上：滚轮上滚去上层、下滚去下层（或点下方 Ⅰ/Ⅱ/Ⅲ 层按钮），看隐藏的桥显形！`
         : `外圈机关只存在于「${s.layers[node?.layer]?.name || '当前层'}」；想换层请先点击带 ⚓ 的安全台（如「⚓ 归响台」）走回去。`;
     } else if (topic === 'action') {
-      tip = '无需按 E！只要在当前层看到发光的「① / ② / ③」号机关，直接用鼠标左键点击它，角色走上台就会自动点亮。';
+      const mSyms = numBadges.slice(0, mechCountOf(s)).join(' / ');
+      tip = `无需按 E！只要在当前层看到发光的「${mSyms}」号机关，直接用鼠标左键点击它，角色走上台就会自动点亮。`;
     } else if (topic === 'next') {
       const g = s.companionGuide;
       const target = s.nodes.find(n => n.id === g?.node)?.name || '下一座发光机关';
@@ -1569,9 +1645,252 @@ $('close-help').addEventListener('click',closeHelp);$('help-done').addEventListe
 $('restart').addEventListener('click',()=>{if(!isModal()){paused=true;$('restart-dialog').showModal();syncAudio();}});
 function cancelRestart() {$('restart-dialog').close();paused=false;lastFrame=performance.now();syncAudio();}
 $('cancel-restart').addEventListener('click',cancelRestart);$('restart-dialog').addEventListener('cancel',e=>{e.preventDefault();cancelRestart();});
-function restart() {for(const id of dialogs)if($(id)?.open)$(id).close();paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';secretKey='';sealKey='';$('secret-panel').open=false;$('build-list').replaceChildren();$('ability-list').replaceChildren();if($('anomaly-lore-box'))$('anomaly-lore-box').hidden=true;scene.explorationRadar.reset();scene.phaseResonance.reset();const seed=newSeed();rememberSeed(seed);action(()=>{model.restart(seed);autoEquipFirstRun();});}
+function restartWithMode(nextMode = currentMode) {
+  currentMode = nextMode === 'expedition' ? 'expedition' : 'intro';
+  for(const id of dialogs)if($(id)?.open)$(id).close();
+  paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';secretKey='';sealKey='';bannerStage=0;
+  $('secret-panel').open=false;$('build-list').replaceChildren();$('ability-list').replaceChildren();
+  if($('anomaly-lore-box'))$('anomaly-lore-box').hidden=true;
+  scene.explorationRadar.reset();scene.phaseResonance.reset();
+  const seed=newSeed();rememberSeed(seed, currentMode);
+  action(()=>{model.restart(seed, { mode: currentMode });autoEquipFirstRun();});
+}
+function restart() { restartWithMode(currentMode); }
 $('confirm-restart').addEventListener('click',restart);$('play-again').addEventListener('click',restart);
+$('next-expedition')?.addEventListener('click', () => restartWithMode('expedition'));
 $('choice-dialog').addEventListener('cancel',e=>e.preventDefault());$('result-dialog').addEventListener('cancel',e=>e.preventDefault());
+
+let activeCodexTab = 'curiosities';
+
+function renderChapterDialog() {
+  const container = $('chapter-cards');
+  if (!container) return;
+  const sum = codex.summary();
+  const fl = sum.flatland;
+  const introStats = sum.chapters.intro;
+  const expStats = sum.chapters.expedition;
+  const state = model.snapshot();
+
+  container.innerHTML = `
+    <article class="chapter-card">
+      <div>
+        <span class="chapter-step-tag">PROLOGUE · 序章 (2D → 3D)</span>
+        <h3>平面国 · 越墙与升维</h3>
+        <p>扮演二维世界的图形居民，直觉理解「高维球体穿过低维平面为何变成缩放的圆」，结识三位跨维伙伴并把它们带进庭院。</p>
+        <div class="chapter-Topology-pills">
+          <span class="chapter-pill">6 关递进</span>
+          <span class="chapter-pill">伙伴同行</span>
+          <span class="chapter-pill">约 6–8 分钟</span>
+        </div>
+      </div>
+      <div>
+        <div class="chapter-record">
+          <span>已通 <strong>${fl.clearedLevels}/${fl.totalLevels}</strong> 关 · <strong>${fl.totalStars}★</strong></span>
+          <span>伙伴 <strong>${fl.friendsFound}/${fl.friendsTotal}</strong> · 花园 <strong>${fl.gardensBloomed}/${fl.gardensTotal}</strong></span>
+        </div>
+        <a class="secondary-button" href="flatland.html" style="margin-top:10px">前往平面国 ↗</a>
+      </div>
+    </article>
+    <article class="chapter-card ${state.mode === 'intro' ? 'active-chapter' : ''}">
+      <div>
+        <span class="chapter-step-tag">ACT Ⅰ · 第一幕${state.mode === 'intro' ? ' · 当前章节' : ''}</span>
+        <h3>初探巡礼 · 经典三庭</h3>
+        <p>从四座经典四维庭院中随机抽取三座：轻快掌握 W 切片折叠、同位换台、花匣闪避与遗物双件共鸣。</p>
+        <div class="chapter-Topology-pills">
+          <span class="chapter-pill">同位接力庭</span>
+          <span class="chapter-pill">双源分流庭</span>
+          <span class="chapter-pill">折返锚定庭</span>
+          <span class="chapter-pill">合流锁庭</span>
+        </div>
+      </div>
+      <div>
+        <div class="chapter-record">
+          <span>通关 <strong>${introStats.clears}</strong> 次</span>
+          <span>最高 <strong>${introStats.bestScore}◆</strong>${introStats.bestRank && introStats.bestRank !== '—' ? ` · 评级 <strong>${introStats.bestRank}</strong>` : ''}</span>
+        </div>
+        <button type="button" class="${state.mode === 'intro' ? 'secondary-button' : 'primary-button'}" data-launch-mode="intro" style="margin-top:10px">${state.mode === 'intro' ? '重开第一幕 (3 庭) ↻' : '切换至第一幕 (3 庭) ↗'}</button>
+      </div>
+    </article>
+    <article class="chapter-card expedition-card ${state.mode === 'expedition' ? 'active-chapter' : ''}">
+      <div>
+        <span class="chapter-step-tag">ACT Ⅱ · 第二幕${state.mode === 'expedition' ? ' · 当前章节' : ''}</span>
+        <h3>深层五庭巡礼 · 圣殿远征</h3>
+        <p>五庭完整构筑远征：2 座经典庭热身 → 2 座高阶拓扑（三层同位高塔 / 换向相位桥）→ 第 5 庭终章 Boss「四象升维圣殿」（4 机关 + 圣殿三重回响）。</p>
+        <div class="chapter-Topology-pills">
+          <span class="chapter-pill">🌀 三叠同位庭</span>
+          <span class="chapter-pill">⇄ 相位换向庭</span>
+          <span class="chapter-pill">👑 四象升维圣殿</span>
+          <span class="chapter-pill">10 种双遗物秘印</span>
+        </div>
+      </div>
+      <div>
+        <div class="chapter-record">
+          <span>通关 <strong>${expStats.clears}</strong> 次</span>
+          <span>最高 <strong>${expStats.bestScore}◆</strong>${expStats.bestRank && expStats.bestRank !== '—' ? ` · 评级 <strong>${expStats.bestRank}</strong>` : ''}</span>
+        </div>
+        <button type="button" class="primary-button" data-launch-mode="expedition" style="margin-top:10px">${state.mode === 'expedition' ? '重开深层五庭 (5 庭) ↻' : '开启深层五庭 (5 庭) ↗'}</button>
+      </div>
+    </article>
+  `;
+  for (const btn of container.querySelectorAll('[data-launch-mode]')) {
+    btn.addEventListener('click', () => restartWithMode(btn.dataset.launchMode));
+  }
+}
+
+function renderCodexDialog() {
+  const sum = codex.summary();
+  const totalItems = sum.curiosities.total + sum.rooms.total + sum.secrets.total;
+  const doneItems = sum.curiosities.discovered + sum.rooms.cleared + sum.secrets.unlocked;
+  const pct = totalItems ? Math.round((doneItems / totalItems) * 100) : 0;
+  setText('codex-total-badge', `总收录 ${doneItems}/${totalItems} (${pct}%)`);
+  setText('codex-tab-curiosities', `✦ 异维奇物 (${sum.curiosities.discovered}/${sum.curiosities.total})`);
+  setText('codex-tab-topologies', `🏛️ 庭院与十相秘印 (${sum.rooms.cleared + sum.secrets.unlocked}/${sum.rooms.total + sum.secrets.total})`);
+
+  for (const tab of document.querySelectorAll('[data-codex-tab]')) {
+    const active = tab.dataset.codexTab === activeCodexTab;
+    tab.setAttribute('aria-selected', String(active));
+  }
+  if ($('codex-panel-curiosities')) $('codex-panel-curiosities').hidden = activeCodexTab !== 'curiosities';
+  if ($('codex-panel-topologies')) $('codex-panel-topologies').hidden = activeCodexTab !== 'topologies';
+  if ($('codex-panel-journey')) $('codex-panel-journey').hidden = activeCodexTab !== 'journey';
+
+  if ($('codex-panel-curiosities')) {
+    const foundSet = new Set(sum.curiosities.ids);
+    $('codex-panel-curiosities').innerHTML = `<div class="codex-grid">${CURIOSITY_CATALOG.map((item, i) => {
+      const ok = foundSet.has(item.id);
+      return `<article class="codex-item ${ok ? 'discovered' : 'undiscovered'}">
+        <div class="codex-item-head">
+          <strong>${ok ? `✦ ${item.name}` : `◌ 未观测奇物 #${String(i + 1).padStart(2, '0')}`}</strong>
+          <span class="codex-tag">${ok ? '已收录' : '待切层寻获'}</span>
+        </div>
+        <p>${ok ? item.lore : '在庭院中留意异层闪烁的多胞体波纹，站在 ⚓ 安全台上滚轮切至对应切片即可显形收录。'}</p>
+      </article>`;
+    }).join('')}</div>`;
+  }
+
+  if ($('codex-panel-topologies')) {
+    const visitedSet = new Set(sum.rooms.visitedIds);
+    const clearedSet = new Set(sum.rooms.clearedIds);
+    const secretSet = new Set(sum.secrets.ids);
+    const relicName = id => RELICS.find(r => r.id === id)?.name || id;
+    $('codex-panel-topologies').innerHTML = `
+      <div class="codex-section-title">🏛️ 七座四维庭院拓扑 (${sum.rooms.cleared}/${sum.rooms.total} 已通关)</div>
+      <div class="codex-grid">${ALL_ROOM_TEMPLATES.map(tpl => {
+        const cleared = clearedSet.has(tpl.id);
+        const visited = visitedSet.has(tpl.id) || cleared;
+        const tierLabel = tpl.id === 'sanctum' ? '终章圣殿 · 4 机关' : (tpl.id === 'triad' || tpl.id === 'interlock') ? '第二幕进阶庭' : '经典四象庭';
+        return `<article class="codex-item ${cleared ? 'discovered' : 'undiscovered'}">
+          <div class="codex-item-head">
+            <strong>${visited ? tpl.name : `未踏足庭院 · ${tierLabel}`}</strong>
+            <span class="codex-tag">${cleared ? '✓ 已贯通' : visited ? '已踏足' : tierLabel}</span>
+          </div>
+          <p>${visited ? tpl.description : '开启「第二幕 · 深层五庭巡礼」或多走几局即可邂逅此庭院拓扑。'}</p>
+        </article>`;
+      }).join('')}</div>
+      <div class="codex-section-title">🔮 十相双遗物共鸣秘印 (${sum.secrets.unlocked}/${sum.secrets.total} 已解封)</div>
+      <div class="codex-secrets-grid">${HIDDEN_ROUTE_RECIPES.map(rec => {
+        const ok = secretSet.has(rec.id);
+        const pairIcons = rec.requires.map(id => icons[id]).join(' + ');
+        const pairNames = rec.requires.map(relicName).join(' ＋ ');
+        return `<article class="codex-item ${ok ? 'discovered' : 'undiscovered'}">
+          <div class="codex-item-head">
+            <strong>${pairIcons} ${rec.name}</strong>
+            <span class="codex-tag">${ok ? '✓ 已解封' : pairNames}</span>
+          </div>
+          <p>${ok ? `已用「${pairNames}」完成三印调谐，唤醒通往隐星台的跨维秘径。` : `集齐「${pairNames}」并满足共鸣条件后，在指定 ⚓ 安全台按三枚符印换层即可解封。`}</p>
+        </article>`;
+      }).join('')}</div>
+    `;
+  }
+
+  if ($('codex-panel-journey')) {
+    const fl = sum.flatland;
+    const intro = sum.chapters.intro;
+    const exp = sum.chapters.expedition;
+    $('codex-panel-journey').innerHTML = `
+      <div class="codex-journey-cards">
+        <div class="codex-stat-card">
+          <span>序章 · 平面国</span>
+          <strong>${fl.clearedLevels} / ${fl.totalLevels}</strong>
+          <small>累计星级 ${fl.totalStars}★ · 同行伙伴 ${fl.friendsFound}/${fl.friendsTotal} · 盛开花园 ${fl.gardensBloomed}/${fl.gardensTotal}</small>
+        </div>
+        <div class="codex-stat-card">
+          <span>第一幕 · 初探三庭</span>
+          <strong>${intro.bestScore} ◆</strong>
+          <small>通关 ${intro.clears} 次 / 出发 ${intro.runs} 次${intro.bestRank && intro.bestRank !== '—' ? ` · 最佳共鸣评级 ${intro.bestRank}` : ''}</small>
+        </div>
+        <div class="codex-stat-card">
+          <span>第二幕 · 深层五庭</span>
+          <strong>${exp.bestScore} ◆</strong>
+          <small>通关 ${exp.clears} 次 / 出发 ${exp.runs} 次${exp.bestRank && exp.bestRank !== '—' ? ` · 最佳共鸣评级 ${exp.bestRank}` : ''}</small>
+        </div>
+      </div>
+      <div class="codex-grid">
+        <article class="codex-item ${sum.riftClears > 0 ? 'discovered' : 'undiscovered'}">
+          <div class="codex-item-head"><strong>🌌 隐星三重试炼渡劫</strong><span class="codex-tag">累计 ${sum.riftClears} 次</span></div>
+          <p>解开双遗物秘印登上第四神秘岛「隐星台」，押上随身回响连续渡过三波星环回流，架起升庭直达桥。</p>
+        </article>
+        <article class="codex-item ${sum.sanctumChoirClears > 0 ? 'discovered' : 'undiscovered'}">
+          <div class="codex-item-head"><strong>👑 四象圣殿天穹礼赞</strong><span class="codex-tag">累计 ${sum.sanctumChoirClears} 次</span></div>
+          <p>在深层五庭终章点亮第 ④ 机关「天穹冠」，于圣柱之上渡过三重圣殿回响，展开天穹冠↔圣殿门黄金天桥。</p>
+        </article>
+      </div>
+    `;
+  }
+}
+
+function openChapterDialog() {
+  if ($('result-dialog')?.open) $('result-dialog').close();
+  if (isModal()) return;
+  paused = true;
+  renderChapterDialog();
+  $('chapter-dialog')?.showModal();
+  syncAudio();
+}
+function closeChapterDialog() {
+  $('chapter-dialog')?.close();
+  if (['won', 'lost'].includes(model.snapshot().phase)) {
+    $('result-dialog')?.showModal();
+    return;
+  }
+  paused = false;
+  lastFrame = performance.now();
+  syncAudio();
+}
+function openCodexDialog() {
+  if ($('result-dialog')?.open) $('result-dialog').close();
+  if (isModal()) return;
+  paused = true;
+  renderCodexDialog();
+  $('codex-dialog')?.showModal();
+  syncAudio();
+}
+function closeCodexDialog() {
+  $('codex-dialog')?.close();
+  if (['won', 'lost'].includes(model.snapshot().phase)) {
+    $('result-dialog')?.showModal();
+    return;
+  }
+  paused = false;
+  lastFrame = performance.now();
+  syncAudio();
+}
+$('open-chapters')?.addEventListener('click', openChapterDialog);
+$('chapter-mode-pill')?.addEventListener('click', openChapterDialog);
+$('result-open-chapters')?.addEventListener('click', openChapterDialog);
+$('close-chapters')?.addEventListener('click', closeChapterDialog);
+$('chapter-dialog')?.addEventListener('cancel', e => { e.preventDefault(); closeChapterDialog(); });
+
+$('open-codex')?.addEventListener('click', openCodexDialog);
+$('result-open-codex')?.addEventListener('click', openCodexDialog);
+$('close-codex')?.addEventListener('click', closeCodexDialog);
+$('codex-dialog')?.addEventListener('cancel', e => { e.preventDefault(); closeCodexDialog(); });
+for (const tab of document.querySelectorAll('[data-codex-tab]')) {
+  tab.addEventListener('click', () => {
+    activeCodexTab = tab.dataset.codexTab || 'curiosities';
+    renderCodexDialog();
+  });
+}
 
 initThemeToggle($('theme-toggle'), theme => {
   scene.astralMode = theme === 'astral';

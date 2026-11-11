@@ -33,12 +33,19 @@ function sameXYZ(a, b) { return a.world.x === b.world.x && a.world.y === b.world
 function nodeCopy(node) { return { ...node, world: { ...node.world }, required: [...node.required] }; }
 
 export class GameModel {
-  constructor(seed = 1) { this.events = []; this.restart(seed); }
+  constructor(seed = 1, options = {}) {
+    this.mode = options?.mode === 'expedition' ? 'expedition' : 'intro';
+    this.events = [];
+    this.restart(seed, options);
+  }
 
-  restart(seed = this.seed) {
+  _mechanisms() { return this.roomConfig?.order || MECHANISMS; }
+
+  restart(seed = this.seed, options = null) {
+    if (options?.mode) this.mode = options.mode === 'expedition' ? 'expedition' : 'intro';
     this.seed = normalizeSeed(seed);
     this.room = 0;
-    this.roomPlan = createRoomPlan(this.seed);
+    this.roomPlan = createRoomPlan(this.seed, { mode: this.mode });
     this.phase = 'choose';
     this.banked = 0;
     this.lives = 3;
@@ -85,10 +92,13 @@ export class GameModel {
     this.remoteWeave = false;
     this.riftStatus = 'available';
     this.ascension = 0;
+    this.sanctumStatus = this.roomConfig.sanctum ? 'locked' : 'none';
+    this.sanctumAscension = 0;
     this.shieldUses = this.relics.shell;
     this.activated = new Set();
-    this.powered = new Set(MECHANISMS.filter(id => !this.roomConfig.requires[id].length));
-    this.received = Object.fromEntries(MECHANISMS.map(id => [id, new Set()]));
+    const mechanisms = this._mechanisms();
+    this.powered = new Set(mechanisms.filter(id => !this.roomConfig.requires[id].length));
+    this.received = Object.fromEntries(mechanisms.map(id => [id, new Set()]));
     this.claims = new Set();
     this.bankedClaims = new Set();
     this.pulseClaims = new Set();
@@ -197,30 +207,39 @@ export class GameModel {
     return true;
   }
 
-  _allActivated() { return MECHANISMS.every(id => this.activated.has(id)); }
+  _allActivated() { return this._mechanisms().every(id => this.activated.has(id)); }
   _gateOpen(config) {
     if (config.to === 'exit' || config.from === 'exit') return this._allActivated();
     const gate = config.gate || {};
     if (gate.escape === this.node) return true;
-    return (!gate.active || gate.active.every(id => this.activated.has(id))) && (!gate.power || this.powered.has(gate.power));
+    return (!gate.active || gate.active.every(id => this.activated.has(id)))
+      && (!gate.inactive || gate.inactive.every(id => !this.activated.has(id)))
+      && (!gate.power || this.powered.has(gate.power));
   }
   _edges() {
     const make = (config, kind = 'normal') => {
       const { id, from, to, layer } = config;
-      const touchesTrial = ['vault', 'rift'].includes(from) || ['vault', 'rift'].includes(to);
+      const touchesTrial = ['vault', 'rift'].includes(from) || ['vault', 'rift'].includes(to)
+        || (this.wave?.variant === 'sanctum' && (from === 'crown' || to === 'crown'));
       const open = this._gateOpen(config) && !(touchesTrial && this.wave);
       const needs = (config.gate?.active || []).filter(node => !this.activated.has(node));
+      const closedBySwap = (config.gate?.inactive || []).filter(node => this.activated.has(node));
+      const swapNames = (config.gate?.inactive || []).map(item => this._node(item)?.name).filter(Boolean);
       const reason = touchesTrial && this.wave ? '回波期间桥梁收起' : (to === 'exit' || from === 'exit') && !open ? '还需完成本庭的全部机关'
+        : closedBySwap.length ? `因${closedBySwap.map(item => this._node(item).name).join('与')}启动已换向收起`
         : config.gate?.power && !this.powered.has(config.gate.power) ? `等待${this._node(config.gate.power).name}供能`
-        : needs.length ? `先启动${needs.map(id => this._node(id).name).join('与')}` : '';
+        : needs.length ? `先启动${needs.map(item => this._node(item).name).join('与')}` : '';
       return { id, from, to, layer, min: LAYERS[layer].center - this.safeWidth, max: LAYERS[layer].center + this.safeWidth,
-        open, visible: this._inLayer(layer), kind, ...(reason ? { reason } : {}) };
+        open, visible: this._inLayer(layer), kind,
+        ...(swapNames.length ? { phaseSwap: true, swapTriggers: swapNames } : {}),
+        ...(reason ? { reason } : {}) };
     };
     const edges = this.roomConfig.edges.map(config => make(config, config.to === 'vault' ? 'vault' : 'normal'));
     for (const weave of this.roomConfig.weaves) if (this.woven.has(weave.node)) edges.push(make(weave.edge, 'weave'));
     if (this.resonance.stage === 3) edges.push(make(this.roomConfig.resonance, 'resonance'));
     for (const route of this.roomConfig.hiddenRoutes) if (this.hiddenUnlocked.has(route.id)) edges.push(make(route.edge, 'secret'));
     if (this.ascension === 3) edges.push(make(this.roomConfig.rift.exitEdge, 'ascension'));
+    if (this.sanctumAscension === 3 && this.roomConfig.sanctum) edges.push(make(this.roomConfig.sanctum.exitEdge, 'ascension'));
     if (this.ghost) for (const shadow of this.roomConfig.shadows) {
       if (shadow.sources.includes(this.ghost.node)) edges.push(make(shadow.edge, 'shadow'));
     }
@@ -345,18 +364,30 @@ export class GameModel {
   }
 
   _activate(id, via = 'touch') {
-    if (!MECHANISMS.includes(id) || !this.powered.has(id) || this.activated.has(id) || !this._inLayer(this._node(id).layer)) return false;
+    const mechanisms = this._mechanisms();
+    if (!mechanisms.includes(id) || !this.powered.has(id) || this.activated.has(id) || !this._inLayer(this._node(id).layer)) return false;
     this.activated.add(id);
     if (via === 'prism' || via === 'coil') this.remoteActivation = true;
     this.coilArmed.delete(id);
     this.stats.chains += 1;
     const layer = this._node(id).layer;
-    this._emit('activate', { node: id, via, layer, tier: this.activated.size });
-    this._emit('chain', { node: id, from: id, to: id, layer, tier: this.activated.size, via });
-    for (const target of MECHANISMS) if (this.roomConfig.requires[target].includes(id)) {
+    const tier = Math.min(3, this.activated.size);
+    this._emit('activate', { node: id, via, layer, tier });
+    this._emit('chain', { node: id, from: id, to: id, layer, tier, via });
+    for (const target of mechanisms) if (this.roomConfig.requires[target].includes(id)) {
       this.pending.push({ at: this.time + .5, kind: 'power', from: id, to: target });
     }
     if (this._allActivated()) this._emit('unlock', { node: 'exit', from: id, to: 'exit', layer: this._node('exit').layer, tier: 3 });
+    if (id === 'crown' && this.roomConfig.sanctum && this.sanctumStatus === 'locked') {
+      const crownNode = this._node('crown');
+      if (crownNode) crownNode.anchor = true;
+      if (this.node === 'crown') { this.lastAnchor = 'crown'; this.anchorW = this.w; }
+      this.sanctumStatus = 'warning';
+      this._emit('sanctum_start', { node: 'crown', steps: this.roomConfig.sanctum.steps, reward: this.roomConfig.sanctum.reward });
+      this._startSanctumWave(1);
+      this.selected = null;
+      return true;
+    }
     this._chooseTarget({ passive: via === 'coil' });
     return true;
   }
@@ -376,7 +407,7 @@ export class GameModel {
     if (this.node === 'hub') return this.carried > 0 || this.claims.size > 0;
     if (this.node === 'vault') return this._gateOpen(this.roomConfig.edges.find(edge => edge.to === 'vault')) && this.vaultStatus === 'available' && this._inLayer(this.roomConfig.challenge.entryLayer);
     if (this.node === 'rift') return this._riftAvailable();
-    return MECHANISMS.includes(this.node) && this.powered.has(this.node) && !this.activated.has(this.node);
+    return this._mechanisms().includes(this.node) && this.powered.has(this.node) && !this.activated.has(this.node);
   }
   _interactReason() {
     if (this._interactAvailable()) return '';
@@ -386,7 +417,7 @@ export class GameModel {
     if (!this._supported()) return `脚下没站稳，切回${LAYERS[this._node().layer].name}`;
     if (this.node === 'hub') return this._allActivated() ? '还没有回响可存 · 庭门已经打开'
       : this.activated.size ? '还没有回响可存 · 沿桥继续探索' : '还没有回响可存 · 先去发光的供能源';
-    if (MECHANISMS.includes(this.node)) {
+    if (this._mechanisms().includes(this.node)) {
       if (this.activated.has(this.node)) return '这座已启动 · 看看能量送向哪里';
       const missing = this.roomConfig.requires[this.node].filter(id => !this.received[this.node].has(id));
       if (missing.every(id => this.activated.has(id))) return '能量正在路上，等供能槽亮起';
@@ -423,13 +454,23 @@ export class GameModel {
 
   _prismTarget() {
     if (!['hub', 'relay'].includes(this.node)) return null;
-    return MECHANISMS.find(id => this.powered.has(id) && !this.activated.has(id) && this._inLayer(this._node(id).layer)) || null;
+    return this._mechanisms().find(id => this.powered.has(id) && !this.activated.has(id) && this._inLayer(this._node(id).layer)) || null;
   }
   _hiddenEligible(route) {
     if (!route.requires.every(id => this.relics[id] > 0)) return false;
-    if (route.id === 'prism-coil') return this.remoteActivation;
-    if (route.id === 'shadow-weave') return this.remoteWeave;
-    return this.woven.size > 0 && this.vaultStatus === 'escaped';
+    switch (route.id) {
+      case 'prism-coil': return this.remoteActivation;
+      case 'shadow-weave': return this.remoteWeave;
+      case 'shell-weave': return this.woven.size > 0 && this.vaultStatus === 'escaped';
+      case 'prism-shadow': return this.shadowUsed && this.remoteActivation;
+      case 'coil-shadow': return this.shadowUsed && this.coilUsed > 0;
+      case 'prism-weave': return this.woven.size > 0 && this.remoteActivation;
+      case 'coil-weave': return this.woven.size > 0 && this.coilUsed > 0;
+      case 'prism-shell': return this.remoteActivation && this.vaultStatus === 'escaped';
+      case 'coil-shell': return this.coilUsed > 0 && this.vaultStatus === 'escaped';
+      case 'shadow-shell': return this.shadowUsed && this.vaultStatus === 'escaped';
+      default: return false;
+    }
   }
   _trySecretSeal(layer) {
     if (!this._node().anchor || !this._supported()) return;
@@ -460,7 +501,7 @@ export class GameModel {
     return this._activate(target, 'coil');
   }
   _weaveTarget() {
-    const local = MECHANISMS.includes(this.node) && this.activated.has(this.node);
+    const local = this._mechanisms().includes(this.node) && this.activated.has(this.node);
     const source = local ? this.node : ['hub', 'relay'].includes(this.node) ? this.ghost?.node : null;
     if (!source || !this.activated.has(source) || this.woven.has(source)) return null;
     const config = this.roomConfig.weaves.find(item => item.node === source);
@@ -470,7 +511,7 @@ export class GameModel {
     if (this.phase !== 'playing' || this.travel || this.wave || !this._supported() || !this.relics[id]) return false;
     if (id === 'prism') return this.charge > 0 && !!this._prismTarget();
     if (id === 'weave') return this.weaveCharge > 0 && !!this._weaveTarget();
-    if (id === 'shadow') return MECHANISMS.includes(this.node) && this.activated.has(this.node) && !this.shadowUsed && this.carried >= 1;
+    if (id === 'shadow') return this._mechanisms().includes(this.node) && this.activated.has(this.node) && !this.shadowUsed && this.carried >= 1;
     return false;
   }
   useAbility(id) {
@@ -537,13 +578,25 @@ export class GameModel {
     if (this.node === 'exit') {
       this.pending = [];
       this._bank();
-      this.phase = this.room === 2 ? 'won' : 'interlude';
+      this.phase = this.room === this.roomPlan.length - 1 ? 'won' : 'interlude';
       this._emit(this.phase === 'won' ? 'win' : 'room', { node: 'exit', completed: true, value: this.phase === 'won' ? this.banked : this.room + 1 });
     }
   }
   _startWave(step, dangerLayer) {
     const challenge = this.roomConfig.challenge;
-    const dangerLayers = challenge.variant === 'lock' ? [0, 1, 2].filter(layer => layer !== challenge.lockSafeLayer) : [dangerLayer];
+    let dangerLayers;
+    if (challenge.variant === 'lock') {
+      dangerLayers = [0, 1, 2].filter(layer => layer !== challenge.lockSafeLayer);
+    } else if (challenge.variant === 'shift_lock') {
+      const safe = step === 1 ? challenge.lockSafeLayer : challenge.nextSafeLayer;
+      dangerLayers = [0, 1, 2].filter(layer => layer !== safe);
+    } else if (challenge.variant === 'cascade_wave') {
+      const sweep = challenge.sweepOrder || [0, 1, 2];
+      const safe = sweep[step % sweep.length];
+      dangerLayers = [0, 1, 2].filter(layer => layer !== safe);
+    } else {
+      dangerLayers = [dangerLayer];
+    }
     const safeLayers = [0, 1, 2].filter(layer => !dangerLayers.includes(layer));
     this.wave = { node: 'vault', layer: dangerLayers[0], dangerLayers, safeLayers, remaining: challenge.duration,
       duration: challenge.duration, step, steps: challenge.steps, variant: challenge.variant };
@@ -556,18 +609,29 @@ export class GameModel {
       duration: challenge.duration, step, steps: challenge.steps, variant: 'rift', entered: false };
     this._emit('warning', { ...this.wave, dangerLayers: [...dangerLayers], safeLayers: [...safeLayers] });
   }
+  _startSanctumWave(step) {
+    const challenge = this.roomConfig.sanctum;
+    const safeLayers = [challenge.sequence[step - 1]], dangerLayers = [0, 1, 2].filter(layer => !safeLayers.includes(layer));
+    this.wave = { node: 'crown', layer: dangerLayers[0], dangerLayers, safeLayers, remaining: challenge.duration,
+      duration: challenge.duration, step, steps: challenge.steps, variant: 'sanctum' };
+    this._emit('warning', { ...this.wave, dangerLayers: [...dangerLayers], safeLayers: [...safeLayers] });
+  }
   _finishWave() {
     const wave = this.wave;
     const layer = nearestLayer(this.w);
     if (!wave.safeLayers.includes(layer) || !this._inLayer(layer) || (wave.variant === 'rift' && !wave.entered)) {
       this.wave = null;
-      if (wave.variant === 'rift') this.riftStatus = 'failed'; else this.vaultStatus = 'failed';
-      this._fail(wave.variant === 'rift' ? 'rift' : 'wave');
+      if (wave.variant === 'rift') this.riftStatus = 'failed';
+      else if (wave.variant === 'sanctum') this.sanctumStatus = 'failed';
+      else this.vaultStatus = 'failed';
+      this._fail(wave.variant === 'rift' ? 'rift' : wave.variant === 'sanctum' ? 'sanctum' : 'wave');
       return;
     }
     if (wave.step < wave.steps) {
       this._emit('dodge', { node: wave.node, variant: wave.variant, step: wave.step, steps: wave.steps, layer });
-      if (wave.variant === 'rift') this._startRiftWave(wave.step + 1); else this._startWave(wave.step + 1, layer);
+      if (wave.variant === 'rift') this._startRiftWave(wave.step + 1);
+      else if (wave.variant === 'sanctum') this._startSanctumWave(wave.step + 1);
+      else this._startWave(wave.step + 1, layer);
       return;
     }
     this.wave = null;
@@ -577,6 +641,15 @@ export class GameModel {
       this._emit('rift_clear', { node: 'rift', value, tier: Math.min(3, this.combo + 1), layer, steps: wave.steps });
       this._reward('rift:escape', value, true, { challenge: 'rift', variant: 'rift', steps: wave.steps, layer });
       for (const [index, delay] of [.2, .65, 1.1].entries()) this.pending.push({ at: this.time + delay, kind: 'ascension', stage: index + 1 });
+      this._chooseTarget();
+      return;
+    }
+    if (wave.variant === 'sanctum') {
+      this.sanctumStatus = 'cleared';
+      const value = this.roomConfig.sanctum.reward;
+      this._emit('sanctum_clear', { node: 'crown', value, tier: Math.min(3, this.combo + 1), layer, steps: wave.steps });
+      this._reward('sanctum:choir', value, true, { challenge: 'sanctum', variant: 'sanctum', steps: wave.steps, layer });
+      for (const [index, delay] of [.18, .55, .95].entries()) this.pending.push({ at: this.time + delay, kind: 'sanctum_ascension', stage: index + 1 });
       this._chooseTarget();
       return;
     }
@@ -596,10 +669,10 @@ export class GameModel {
     this.node = reason === 'travel' && source ? source.node : this.lastAnchor;
     this.w = reason === 'travel' && source ? source.w : this.anchorW;
     this.phaseStability = 1;
-    this.pending = this.pending.filter(cue => ['power', 'resonance', 'ascension'].includes(cue.kind));
+    this.pending = this.pending.filter(cue => ['power', 'resonance', 'ascension', 'sanctum_ascension'].includes(cue.kind));
     this.lastActualLayer = this._actualLayer();
     // Power and scene growth are committed world effects. Only presentation celebrations are cancelled.
-    this.events = this.events.filter(event => !['chain', 'reward', 'unlock', 'activate', 'evade', 'rift_clear', 'phase_beat', 'phase_sync', 'phase_graze'].includes(event.type));
+    this.events = this.events.filter(event => !['chain', 'reward', 'unlock', 'activate', 'evade', 'rift_clear', 'sanctum_clear', 'phase_beat', 'phase_sync', 'phase_graze'].includes(event.type));
     this.combo = 0;
     this.phaseStreak = 0;
     this.grazeArmed = null;
@@ -607,7 +680,12 @@ export class GameModel {
     this.charge = 0;
     this.weaveCharge = 0;
     this.ghost = null;
-    if (this.wave) { if (this.wave.variant === 'rift') this.riftStatus = 'failed'; else this.vaultStatus = 'failed'; this.wave = null; }
+    if (this.wave) {
+      if (this.wave.variant === 'rift') this.riftStatus = 'failed';
+      else if (this.wave.variant === 'sanctum') this.sanctumStatus = 'failed';
+      else this.vaultStatus = 'failed';
+      this.wave = null;
+    }
     this.stats.failures += 1;
     if (protectedFall) this.shieldUses -= 1;
     else { this.carried = 0; this.claims.clear(); this.lives -= 1; }
@@ -650,6 +728,11 @@ export class GameModel {
           this.ascension = cue.stage;
           const to = ['hub', 'relay', 'exit'][cue.stage - 1], edge = this.roomConfig.rift.exitEdge;
           this._emit('ascension', { stage: cue.stage, from: 'rift', to, node: to, layer: cue.stage === 3 ? edge.layer : this.roomConfig.rift.sequence[cue.stage - 1], edgeId: edge.id });
+          if (!this.travel && !this.wave) this._chooseTarget({ passive: true });
+        } else if (cue.kind === 'sanctum_ascension' && this.roomConfig.sanctum) {
+          this.sanctumAscension = cue.stage;
+          const to = ['crown', 'relay', 'exit'][cue.stage - 1], edge = this.roomConfig.sanctum.exitEdge;
+          this._emit('ascension', { stage: cue.stage, from: 'crown', to, node: to, layer: cue.stage === 3 ? edge.layer : this.roomConfig.sanctum.sequence[cue.stage - 1], edgeId: edge.id });
           if (!this.travel && !this.wave) this._chooseTarget({ passive: true });
         }
       }
@@ -704,11 +787,16 @@ export class GameModel {
   }
 
   _objective() {
+    const mechanisms = this._mechanisms();
+    const total = mechanisms.length;
+    const totalLabel = total === 4 ? '四座圣器' : '三座机关';
+    const shortTotalLabel = total === 4 ? '四圣器' : '三机关';
     if (this.phase === 'choose') return '选一件遗物，进入这次随机展开的四维庭院';
     if (this.phase === 'interlude') return '保留已有能力，再选一件或升阶，进入下一种机关组合';
-    if (this.phase === 'won') return '三庭已展开；换一局路线与遗物组合再次挑战';
+    if (this.phase === 'won') return this.roomPlan.length > 3 ? '五庭巡礼与升维圣殿已展开；换一局种子或流派再次挑战' : '三庭已展开；换一局路线与遗物组合再次挑战';
     if (this.phase === 'lost') return '归响结已用尽；重新开始一局';
     if (this.wave?.variant === 'rift') return `隐星试炼 ${this.wave.step}/${this.wave.steps}：${this.wave.entered ? '已换入' : '本波需从另一实体层切入'}${LAYERS[this.wave.safeLayers[0]].name}，撑过冲击`;
+    if (this.wave?.variant === 'sanctum') return `圣殿合唱 ${this.wave.step}/${this.wave.steps}：切到${this.wave.safeLayers.map(layer => LAYERS[layer].name).join('或')}，立于冠冕锚柱迎接终章回响`;
     if (this.wave) return `第 ${this.wave.step}/${this.wave.steps} 波：切到${this.wave.safeLayers.map(layer => LAYERS[layer].name).join('或')}，留在台座上避开回流`;
     if (this.travel) return this.travel.risky ? '沿着窄光带调整 W，完成冒险穿越' : '保持当前切片，沿实体桥前行';
     if (!this._supported()) return '脚下切片正在消失：回到平台所在层，或切入同位置的另一座台';
@@ -730,23 +818,31 @@ export class GameModel {
       return this._inLayer(entry) ? '返回桥已恢复；沿桥回到归响台，存入随身回响'
         : `花匣本庭已结束；先切回${LAYERS[entry].name}，再沿返回桥回到归响台`;
     }
-    if (MECHANISMS.includes(this.node)) {
-      if (!this.activated.has(this.node) && this.powered.has(this.node)) return `启动${this._node().name}（按 E）；${this._mechanismHint(this.node)}`;
-      if (this.activated.has(this.node)) return `${this._node().name}已启动（${this.activated.size}/3）；${this._allActivated() ? '三座机关全部共鸣，通往庭门的实体桥已开放' : '观察供能槽，切层或沿桥前往下一处机关'}`;
-      return `${this._node().name}尚未供能：${this._mechanismHint(this.node)}`;
+    if (mechanisms.includes(this.node)) {
+      if (!this.activated.has(this.node) && this.powered.has(this.node)) return `启动${this._node().name}（按 E）；${this._mechanismHint(this.node, shortTotalLabel)}`;
+      if (this.activated.has(this.node)) {
+        if (this.node === 'crown' && this.sanctumStatus === 'cleared') {
+          return this.sanctumAscension < 3
+            ? '圣殿合唱已完成，金色直通天桥正在贯通超维圣殿门'
+            : `圣殿直通天桥已成形，切入${LAYERS[this.roomConfig.sanctum.exitEdge.layer].name}直登超维圣殿门`;
+        }
+        return `${this._node().name}已启动（${this.activated.size}/${total}）；${this._allActivated() ? `${totalLabel}全部共鸣，通往庭门的实体桥已开放` : '观察供能槽，切层或沿桥前往下一处机关'}`;
+      }
+      return `${this._node().name}尚未供能：${this._mechanismHint(this.node, shortTotalLabel)}`;
     }
     if (this.pending.some(cue => cue.kind === 'power')) return '跨层能量正在抵达，等待目标机关点亮';
-    if (this._allActivated()) return '三座机关已全部启动，通往庭门的实体桥已开放';
+    if (this._allActivated()) return `${totalLabel}已全部启动，通往庭门的实体桥已开放`;
     const ready = this.roomConfig.order.filter(id => this.powered.has(id) && !this.activated.has(id)).map(id => this._node(id).name);
-    return ready.length ? `已供能待启动：${ready.join('、')}（机关 ${this.activated.size}/3）` : `机关 ${this.activated.size}/3 已启动；观察各层机关的供能连线，在安全锚台换层探索`;
+    return ready.length ? `已供能待启动：${ready.join('、')}（机关 ${this.activated.size}/${total}）` : `机关 ${this.activated.size}/${total} 已启动；观察各层机关的供能连线，在安全锚台换层探索`;
   }
-  _mechanismHint(id) {
+  _mechanismHint(id, shortTotalLabel = this._mechanisms().length === 4 ? '四圣器' : '三机关') {
     const incoming = this.roomConfig.requires[id];
-    const outgoing = MECHANISMS.filter(target => this.roomConfig.requires[target].includes(id));
+    const outgoing = this._mechanisms().filter(target => this.roomConfig.requires[target].includes(id));
     if (!this.powered.has(id)) return `需要${incoming.map(source => this._node(source).name).join('与')}供能（${this.received[id].size}/${incoming.length}）`;
     const gates = this.roomConfig.edges.filter(edge => edge.gate?.active?.includes(id) && edge.to !== 'vault');
+    if (id === 'crown' && this.roomConfig.sanctum) return '点亮后结晶为跨层圣殿柱，唤醒三连圣殿回波与直通天桥';
     return outgoing.length ? `向${outgoing.map(target => this._node(target).name).join('与')}发送能量${gates.length ? '，同时锁定桥梁' : ''}`
-      : gates.length ? '锁定通向锚台的桥梁；三机关完成后开门' : '完成这一环，三机关全部启动后开门';
+      : gates.length ? `锁定通向锚台的桥梁；${shortTotalLabel}完成后开门` : `完成这一环，${shortTotalLabel}全部启动后开门`;
   }
   _shadowDescription() {
     const source = this.ghost?.node || this.node;
@@ -759,7 +855,7 @@ export class GameModel {
   _companionGuide() {
     if (this.phase !== 'playing' || this.travel || this.wave) return null;
     let step;
-    if (MECHANISMS.includes(this.node) && this.powered.has(this.node) && !this.activated.has(this.node)) {
+    if (this._mechanisms().includes(this.node) && this.powered.has(this.node) && !this.activated.has(this.node)) {
       step = { type: 'activate', to: this.node, layer: this._node().layer };
     } else step = this._nextRoute()?.[0];
     if (!step) return null;
@@ -769,12 +865,13 @@ export class GameModel {
   }
 
   snapshot() {
+    const mechanisms = this._mechanisms();
     const range = this._range();
     const nodes = this.nodes.map(node => {
       const visibility = node.anchor ? 1 : section(this.w, node.center);
       return { ...nodeCopy(node), visibility, scale: visibility, present: visibility >= .5 - EPSILON,
-        powered: this.powered.has(node.id), received: [...(this.received[node.id] || [])], mechanismHint: MECHANISMS.includes(node.id) ? this._mechanismHint(node.id) : '',
-        locked: MECHANISMS.includes(node.id) ? !this.powered.has(node.id) : node.id === 'exit' ? !this._allActivated() : node.id === 'rift' ? this.hiddenUnlocked.size === 0 : node.id === 'vault' ? !this._gateOpen(this.roomConfig.edges.find(edge => edge.to === 'vault')) || this.vaultStatus !== 'available' : false,
+        powered: this.powered.has(node.id), received: [...(this.received[node.id] || [])], mechanismHint: mechanisms.includes(node.id) ? this._mechanismHint(node.id) : '',
+        locked: mechanisms.includes(node.id) ? !this.powered.has(node.id) : node.id === 'exit' ? !this._allActivated() : node.id === 'rift' ? this.hiddenUnlocked.size === 0 : node.id === 'vault' ? !this._gateOpen(this.roomConfig.edges.find(edge => edge.to === 'vault')) || this.vaultStatus !== 'available' : false,
         ...(node.id === 'vault' ? { chestPresent: this._inLayer(this.roomConfig.challenge.entryLayer), chestVisibility: section(this.w, node.center) } : {}) };
     });
     const weaveTarget = this._weaveTarget();
@@ -810,6 +907,7 @@ export class GameModel {
     const resonanceScore = this.stats.perfectBeats * 3 + this.goodBeats + this.stats.grazes * 3 + this.maxPhaseStreak;
     const resonanceRank = resonanceScore >= 12 ? 'S+' : resonanceScore >= 7 ? 'S' : resonanceScore >= 3 ? 'A' : 'B';
     return {
+      mode: this.mode, roomTotal: this.roomPlan.length,
       phase: this.phase, seed: this.seed, room: this.room, roomId: this.roomPlan[this.room].template.id, roomName: this.roomPlan[this.room].template.name,
       roomDescription: this.roomPlan[this.room].template.description, roomSignature: this.roomPlan[this.room].signature,
       roomPlan: this.roomPlan.map(roomMetadata), nextRoom: this.roomPlan[this.room + 1] ? roomMetadata(this.roomPlan[this.room + 1]) : null,
@@ -828,6 +926,13 @@ export class GameModel {
         requirement: route.requirement, edge: { id: route.edge.id, from: route.edge.from, to: route.edge.to, layer: route.edge.layer } })),
       rift: { status: this.riftStatus, stake: this.roomConfig.rift.stake, reward: this.roomConfig.rift.reward, canStart: this._riftAvailable(),
         sequence: [...this.roomConfig.rift.sequence], ascension: this.ascension, exitEdge: { ...this.roomConfig.rift.exitEdge } },
+      sanctum: this.roomConfig.sanctum ? {
+        status: this.sanctumStatus,
+        reward: this.roomConfig.sanctum.reward,
+        sequence: [...this.roomConfig.sanctum.sequence],
+        ascension: this.sanctumAscension,
+        exitEdge: { ...this.roomConfig.sanctum.exitEdge },
+      } : null,
       charge: this.charge, shield: this.shieldUses > 0, shieldUses: this.shieldUses,
       claimedRoutes: [...this.claims, ...this.bankedClaims],
       activated: [...this.activated], powered: [...this.powered], shortcut: !!this.ghost, shadowRemaining: this.ghost?.remaining || 0,

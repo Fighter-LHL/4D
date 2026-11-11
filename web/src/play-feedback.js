@@ -93,7 +93,10 @@ export function mechanismFeedback(event, state, { hasSupplySlots = false } = {})
         state.activated.includes(state.node) && next) return `这边已经亮了 · 去${next.name}`;
     return event.text;
   }
-  if (event.type === 'activate') return `${name}已启动 · ${event.tier}/3`;
+  if (event.type === 'activate') {
+    const mechTotal = state.mechanismOrder?.length || state.nodes?.filter(n => n.kind === 'mechanism').length || 3;
+    return `${name}已启动 · ${event.tier}/${mechTotal}`;
+  }
   if (event.type === 'power') {
     // The second beat and the visible supply list already carry this feedback.
     if (['mechanism', 'mechanism-follow'].includes(state.courtyardMomentum?.beat)) return '';

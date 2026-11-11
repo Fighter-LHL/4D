@@ -273,7 +273,7 @@ export class ProgressiveOnboarding {
     const hasLearnedShift = this.skills.manualBridgeReveal || this.skills.manualLayerShift || !this.skillGated;
     const hasLearnedDodge = this.skills.manualWaveDodge || vaultEscaped || !this.skillGated;
 
-    let targetStage = 1;
+    let targetStage = state.mode === 'expedition' ? 4 : 1;
 
     if (
       roomIdx >= 2 ||
@@ -385,7 +385,7 @@ export function computeRiskDecisionPreview(state, targetId = null) {
     const n = nodes.find(item => item.id === id);
     return n && n.powered && !(state.activated || []).includes(id);
   });
-  const goalId = targetId || ((state.activated || []).length >= 3 ? 'exit' : primaryMechId);
+  const goalId = targetId || ((state.activated || []).length >= (order.length || 3) ? 'exit' : primaryMechId);
 
   let nextStep = null;
   if (goalId && goalId !== state.node) {
