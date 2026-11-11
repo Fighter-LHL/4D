@@ -147,7 +147,13 @@ body[data-theme="astral"] .action-button.accent{background:#221b38;border-color:
 body[data-theme="astral"] .stars li.earned{background:#292010;border-color:#c89333;color:#fde68a}
 body[data-theme="astral"] .visitor-goal,body[data-theme="astral"] .hint{background:rgba(15,29,41,.92);border-color:#356f84;color:#9be7f2}
 body[data-theme="astral"] .friend-card{background:#132230;border-color:#243e52}
-body[data-theme="astral"] .friend-card.found{background:#172a3a}
+body[data-theme="astral"] .friend-card.found{background:#172a3a;border-color:#2e5168}
+body[data-theme="astral"] .friend-portrait{background:#1a2d3d;color:#6e8fa1}
+body[data-theme="astral"] .found .friend-portrait{background:#252319;box-shadow:inset 0 0 0 1px rgba(243,184,82,.3)}
+body[data-theme="astral"] .friend-card [aria-pressed=true]{background:#14352e;border-color:var(--green);color:#8ef0d1}
+body[data-theme="astral"] .secondary-button:hover:not(:disabled),body[data-theme="astral"] .text-button:hover:not(:disabled){background:#1a3246;color:#ffffff}
+body[data-theme="astral"] .action-button.active,body[data-theme="astral"] .action-button[aria-pressed=true]{background:#231d38;border-color:#9f85d6;color:#e9ddff}
+body[data-theme="astral"] .result-stars span.off{color:#294154}
 body[data-theme="astral"] .garden-memories span{background:#132432;color:#9ab6c2}
 body[data-theme="astral"] .garden-memories .sprouting{background:#2b2212;color:#f5c86b}
 body[data-theme="astral"] .garden-memories .bloomed{background:#123328;color:#8cf0cf}

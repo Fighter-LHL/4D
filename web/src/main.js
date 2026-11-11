@@ -626,6 +626,13 @@ function choiceSynergy(state,id) {
   return synergyNotes(next).find(note=>note.ids.includes(id))?.text || ({prism:'＋ 接力线圈：探寻棱镜回廊',coil:'＋ 回流棱镜：探寻棱镜回廊',shadow:'＋ 织桥种：探寻影织暗径',weave:'＋ 留影扣或缓落壳：探寻隐藏路线',shell:'＋ 织桥种：探寻护生险径'}[id] || '');
 }
 
+function focusPlaySurface() {
+  const slider = $('w-slider');
+  const drawer = slider?.closest('details');
+  const target = (!drawer || drawer.open) && slider && !slider.disabled ? slider : $('scene');
+  target?.focus?.({ preventScroll: true });
+}
+
 function showChoice(state) {
   const next = state.phase === 'interlude';
   // Reuse the earned first-entry budget, once. Choosing still belongs to the
@@ -676,7 +683,7 @@ function showChoice(state) {
         model.chooseRelic(relic.id);
         if (!next && !momentum.firstEntry) guide.request(model.snapshot());
       });
-      $('w-slider').focus({preventScroll:true});
+      focusPlaySurface();
     });
     return button;
   });
@@ -1308,9 +1315,9 @@ function updateUI() {
 
 $('w-slider').addEventListener('input',e=>{ if(canAct()) action(()=>model.setW(Number(e.target.value))); });
 $('align').addEventListener('click',()=>{ if(canAct()) action(()=>model.setW(model.snapshot().range?.center ?? .5)); });
-$('safe-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(false)); if(e.detail>0) $('w-slider').focus({preventScroll:true}); } });
-$('risk-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(true)); if(e.detail>0) $('w-slider').focus({preventScroll:true}); } });
-$('move').addEventListener('click',()=>{ if(canAct()) { action(()=>model.move()); if(model.snapshot().travel) $('w-slider').focus({preventScroll:true}); } });
+$('safe-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(false)); if(e.detail>0) focusPlaySurface(); } });
+$('risk-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(true)); if(e.detail>0) focusPlaySurface(); } });
+$('move').addEventListener('click',()=>{ if(canAct()) { action(()=>model.move()); if(model.snapshot().travel) focusPlaySurface(); } });
 $('interact').addEventListener('click',e=>{
   if (!canAct()) return;
   const before = model.snapshot();
@@ -1318,7 +1325,7 @@ $('interact').addEventListener('click',e=>{
   // Match move/mode pointer handoffs so Space can take the next bridge.
   // Keyboard activation and unsuccessful E clicks retain native button focus.
   if (e.detail > 0 && momentum.firstEntry && !before.activated.includes(before.node) && model.snapshot().activated.includes(before.node))
-    $('w-slider').focus({preventScroll:true});
+    focusPlaySurface();
 });
 $('ask-friend').addEventListener('click', askFriend);
 $('onboarding-banner')?.querySelector('.onboarding-main')?.addEventListener('click', () => {
@@ -1492,7 +1499,19 @@ $('radar-vault-card')?.addEventListener('click', () => {
   if (canAct()) selectFromPanel('vault');
 });
 $('radar-rift-card')?.addEventListener('click', () => {
-  if (canAct()) selectFromPanel('rift');
+  if (!canAct()) return;
+  const s = model.snapshot();
+  const riftNode = s.nodes.find(n => n.id === 'rift');
+  const eligible = (s.hiddenRoutes || []).find(r => r.eligible && !r.unlocked);
+  if (riftNode?.locked && !eligible) {
+    handleCanvasSelect('rift');
+    $('secret-panel')?.scrollIntoView({
+      block: 'nearest',
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    });
+    return;
+  }
+  selectFromPanel('rift');
 });
 $('unlock-all-btn')?.addEventListener('click', () => {
   onboarding.unlockAllOverride = true;
@@ -1518,7 +1537,7 @@ for (const button of document.querySelectorAll('.layer-controls [data-layer]')) 
 }
 $('sound').addEventListener('click',()=>{ soundEnabled = !soundEnabled; audio.setEnabled(soundEnabled); unlockAudio(); savePreference('wslice-sound',soundEnabled?'on':'off'); updateSoundButton(); });
 function pauseGame() { if(model.snapshot().phase!=='playing'||isModal())return; paused=true; $('pause-dialog').showModal(); syncAudio(); }
-function resumeGame() { $('pause-dialog').close(); paused=false; lastFrame=performance.now(); syncAudio(); $('w-slider').focus({preventScroll:true}); }
+function resumeGame() { $('pause-dialog').close(); paused=false; lastFrame=performance.now(); updateUI(); syncAudio(); focusPlaySurface(); }
 $('pause').addEventListener('click',pauseGame); $('resume').addEventListener('click',resumeGame);
 $('pause-dialog').addEventListener('cancel',e=>{e.preventDefault();resumeGame();});
 function selectHelp(topic) {
@@ -1598,8 +1617,11 @@ window.addEventListener('scroll', () => { lastPageScrollAt = performance.now(); 
   // matching the layer stack (Ⅲ on top) and the W slider (higher values on the right).
   const wheelDelta = e.deltaY || -e.deltaX;
   if (s.travel?.risky) {
-    const delta = Math.sign(wheelDelta) * -0.022;
-    if (delta) action(() => model.setW(s.w + delta));
+    const discrete = e.deltaMode !== 0 || Math.abs(wheelDelta) >= 36;
+    const delta = discrete
+      ? Math.sign(wheelDelta) * -0.03
+      : Math.max(-0.032, Math.min(0.032, -wheelDelta * 0.0012));
+    if (Math.abs(delta) > 1e-4) action(() => model.setW(s.w + delta));
     return;
   }
   const nextLayer = onboarding.handleDiscreteWheel(wheelDelta, s.layer, now, {

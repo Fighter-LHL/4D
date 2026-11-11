@@ -575,3 +575,36 @@ test('phone momentum leaves platform names room and power notes have a shorter f
     renderer.destroy();
   }
 });
+
+test('astral mode renders holographic palette and risky crossing shows scroll direction cues', () => {
+  const model = hiddenGarden();
+  openHiddenGarden(model);
+  completeRift(model);
+  const { renderer, calls } = scene();
+  renderer.astralMode = true;
+  renderer.setState(model.snapshot());
+  renderer.render(.1);
+  assert.ok(calls.some(c => c.method === 'fill' && c.fill === '#443518'), 'astral ascended pillars render dark bronze');
+  assert.ok(calls.some(c => c.method === 'fill' && c.fill === '#493818cc'), 'astral rift shrine wings render dark bronze');
+  assert.equal(calls.some(c => c.method === 'fill' && c.fill === '#fff1c6'), false, 'no paper shrine fill in astral mode');
+
+  const m2 = start('shell', 42);
+  m2.setRisk(true);
+  const firstOpen = m2.snapshot().availableNodes[0];
+  m2.select(firstOpen);
+  assert.equal(m2.move(), true);
+
+  for (const [offset, expected] of [[0, '✦ 同频锁定'], [-0.06, '▲ 上滚追光'], [0.06, '▼ 下滚追光']]) {
+    const snap = m2.snapshot();
+    snap.w = Math.max(0, Math.min(1, snap.range.center + offset));
+    calls.length = 0;
+    renderer.setState(snap);
+    renderer.phaseResonance.update(.016, snap, { active: true });
+    renderer.render(.016);
+    assert.ok(
+      calls.some(c => c.method === 'fillText' && String(c.args[0]).includes(expected)),
+      `expected risky corridor cue "${expected}" for offset ${offset}`
+    );
+  }
+  renderer.destroy();
+});

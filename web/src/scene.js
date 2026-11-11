@@ -786,13 +786,14 @@ export class SceneRenderer {
       const complete = route.unlocked || i < route.progress;
       const next = route.eligible && !route.unlocked && i === route.progress;
       const cy = -42 + i * 21;
-      diamond(ctx, 0, cy, next ? 10 : 8, complete ? this.palette(layer).glow : '#edf1e5', this.palette(layer).color);
+      const sealStroke = this.astralMode ? (this.palette(layer).astralColor || this.palette(layer).color) : this.palette(layer).color;
+      diamond(ctx, 0, cy, next ? 10 : 8, complete ? this.palette(layer).glow : (this.astralMode ? '#182236' : '#edf1e5'), sealStroke);
       if (complete) {
         line(ctx, -3, cy, 0, cy + 3, this.palette(layer).color, 1.7);
         line(ctx, 0, cy + 3, 4, cy - 4, this.palette(layer).color, 1.7);
       }
-      for (let pip = 0; pip <= layer; pip++) ellipse(ctx, 16 + pip * 4, cy, 1.4, 1.4, this.palette(layer).color);
-      if (next) ellipse(ctx, 0, cy, 14, 14, null, this.palette(layer).color, 1.3);
+      for (let pip = 0; pip <= layer; pip++) ellipse(ctx, 16 + pip * 4, cy, 1.4, 1.4, sealStroke);
+      if (next) ellipse(ctx, 0, cy, 14, 14, null, sealStroke, 1.3);
     }
     ctx.restore();
   }
@@ -837,10 +838,11 @@ export class SceneRenderer {
     for (const side of [-1, 1]) {
       const x = side * sideX;
       path(ctx, [[x - 8, 13], [x - 6, -height], [x + 6, -height], [x + 9, 13], [x, 19]]);
-      ctx.fillStyle = '#ead8a4'; ctx.fill(); ctx.strokeStyle = COLORS.ascension; ctx.lineWidth = 1.6; ctx.stroke();
-      line(ctx, x - 3, 7, x - 3, -height + 8, '#fff9dd', 2.8);
+      ctx.fillStyle = this.astralMode ? '#443518' : '#ead8a4'; ctx.fill(); ctx.strokeStyle = COLORS.ascension; ctx.lineWidth = 1.6; ctx.stroke();
+      line(ctx, x - 3, 7, x - 3, -height + 8, this.astralMode ? '#ffe79c' : '#fff9dd', 2.8);
       for (let i = 0; i < 3; i++) {
-        ellipse(ctx, x, -height + 16 + i * 16, 11, 5.5, null, this.palette(i).color, 1.5);
+        const ringCol = this.astralMode ? (this.palette(i).astralColor || this.palette(i).color) : this.palette(i).color;
+        ellipse(ctx, x, -height + 16 + i * 16, 11, 5.5, null, ringCol, 1.5);
       }
       const layer = required === 3 ? this.state.rift.exitEdge.layer : this.state.rift.sequence?.[required - 1] ?? required - 1;
       diamond(ctx, x, -height - 6, 12, this.palette(layer).glow, COLORS.ascension);
@@ -872,30 +874,32 @@ export class SceneRenderer {
     const ctx = this.ctx, stage = this.state.rift?.ascension || 0;
     const awakened = stage > 0;
     const danger = this.state.wave?.node === node.id;
-    const color = danger ? COLORS.danger : awakened ? COLORS.ascension : COLORS.secret;
-    ellipse(ctx, 0, 4, 53, 28, '#ddd2e4', color, 2);
-    ellipse(ctx, 0, 1, 43, 22, '#eee5f0', '#fffaf2', 2);
+    const color = danger ? COLORS.danger : awakened ? COLORS.ascension : (this.astralMode ? '#b794f4' : COLORS.secret);
+    ellipse(ctx, 0, 4, 53, 28, this.astralMode ? '#1c1833' : '#ddd2e4', color, 2);
+    ellipse(ctx, 0, 1, 43, 22, this.astralMode ? '#272044' : '#eee5f0', this.astralMode ? '#6f5aa8' : '#fffaf2', 2);
     for (let i = 0; i < 3; i++) {
       const x = (i - 1) * (awakened ? 42 : 24), height = awakened ? Math.min(77, node.y - 30) - Math.abs(i - 1) * 17 : 48;
       path(ctx, [[x - 6, 0], [x - 5, -height], [x, -height - 9], [x + 5, -height], [x + 6, 0]]);
-      ctx.fillStyle = awakened ? '#ead8a4' : '#c8bbd7'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
-      diamond(ctx, x, -height - 12, awakened ? 10 : 7, this.palette(i).glow, this.palette(i).color);
+      ctx.fillStyle = awakened ? (this.astralMode ? '#4a3918' : '#ead8a4') : (this.astralMode ? '#2e244f' : '#c8bbd7'); ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+      const ringCol = this.astralMode ? (this.palette(i).astralColor || this.palette(i).color) : this.palette(i).color;
+      diamond(ctx, x, -height - 12, awakened ? 10 : 7, this.palette(i).glow, ringCol);
     }
     // Three intersecting section rings become a much larger permanent halo.
     const haloY = awakened ? -Math.min(52, node.y * .23) : -35;
     const haloHeight = awakened ? Math.min(79, node.y + haloY - 12) : 37;
     for (let i = 0; i < 3; i++) {
+      const ringCol = this.astralMode ? (this.palette(i).astralColor || this.palette(i).color) : this.palette(i).color;
       ctx.save(); ctx.translate(0, haloY); ctx.rotate((i - 1) * .78);
-      ellipse(ctx, 0, 0, awakened ? haloHeight * .74 : 27, haloHeight, null, this.palette(i).color, awakened ? 2.5 : 1.4);
+      ellipse(ctx, 0, 0, awakened ? haloHeight * .74 : 27, haloHeight, null, ringCol, awakened ? 2.5 : 1.4);
       const phase = this.reducedMotion ? -.7 + i : this.time * .18 + i * 2;
-      diamond(ctx, Math.cos(phase) * (awakened ? haloHeight * .74 : 27), Math.sin(phase) * haloHeight, awakened ? 6 : 3, this.palette(i).glow, this.palette(i).color);
+      diamond(ctx, Math.cos(phase) * (awakened ? haloHeight * .74 : 27), Math.sin(phase) * haloHeight, awakened ? 6 : 3, this.palette(i).glow, ringCol);
       ctx.restore();
     }
     if (awakened) {
       for (const side of [-1, 1]) {
         path(ctx, [[side * 35, -9], [side * 89, -46], [side * 69, -7], [side * 40, 10]]);
-        ctx.fillStyle = '#fff1c6'; ctx.fill(); ctx.strokeStyle = COLORS.ascension; ctx.lineWidth = 1.7; ctx.stroke();
-        line(ctx, side * 42, -2, side * 77, -31, '#d8bc6e', 2);
+        ctx.fillStyle = this.astralMode ? '#493818cc' : '#fff1c6'; ctx.fill(); ctx.strokeStyle = COLORS.ascension; ctx.lineWidth = 1.7; ctx.stroke();
+        line(ctx, side * 42, -2, side * 77, -31, this.astralMode ? '#ffd982' : '#d8bc6e', 2);
       }
       diamond(ctx, 0, haloY, 20, '#fff8d2', COLORS.ascension);
     } else diamond(ctx, 0, -35, 12, danger ? '#f1bcac' : '#e5d0fa', color);
@@ -1237,17 +1241,38 @@ export class SceneRenderer {
       diamond(ctx, gx, gy - 8, gate.status === 'perfect' ? 4.8 : 3.4, color, '#ffffff');
     }
 
-    // Floating Phase Compass above the player during active risky travel
+    // Floating Phase Compass + intuitive wheel-direction cue above the player during active risky travel
     if (s.travel?.risky) {
       const pos = this.playerPosition();
-      const cy = pos.y - 60;
-      ctx.globalAlpha = .88;
-      ellipse(ctx, pos.x, cy, 28, 10, '#182c28aa', info.locked ? COLORS.gold : COLORS.danger, 1.6);
+      const cy = pos.y - 58;
+      ctx.globalAlpha = .92;
+      ellipse(ctx, pos.x, cy, 30, 11, '#122429cc', info.sweetSpot ? '#4dd2ac' : info.locked ? COLORS.gold : COLORS.danger, 1.8);
       // Safe target zone bar
-      line(ctx, pos.x - 14, cy, pos.x + 14, cy, '#ffedb066', 4);
-      // Player W needle relative to moving corridor center
+      line(ctx, pos.x - 15, cy, pos.x + 15, cy, info.sweetSpot ? '#baf9df88' : '#ffedb066', 4.2);
+      // Player W needle relative to moving corridor center (both X and subtle Y reflect W offset)
       const needleX = pos.x + clamp(info.drift, -1.5, 1.5) * 14;
-      diamond(ctx, needleX, cy, info.sweetSpot ? 5.2 : 4.2, info.sweetSpot ? '#baf9df' : info.locked ? COLORS.lightGold : COLORS.danger, '#ffffff');
+      const needleY = cy - clamp(info.drift, -1.3, 1.3) * 3.2;
+      diamond(ctx, needleX, needleY, info.sweetSpot ? 5.4 : 4.4, info.sweetSpot ? '#baf9df' : info.locked ? COLORS.lightGold : COLORS.danger, '#ffffff');
+      const cueText = info.sweetSpot ? '✦ 同频锁定' : info.drift < 0 ? '▲ 上滚追光' : '▼ 下滚追光';
+      const cueBg = info.sweetSpot ? '#0e2f27ee' : info.locked ? '#31210bee' : '#3b1613f0';
+      const cueBorder = info.sweetSpot ? '#4dd2ac' : info.locked ? '#f59e0b' : '#ff7b5a';
+      const cueFg = info.sweetSpot ? '#d6fff2' : info.locked ? '#ffebb3' : '#ffd8ce';
+      ctx.font = `700 ${clamp(9.5 / this.scale, 11, 15)}px system-ui, sans-serif`;
+      const tw = Math.max(74, ctx.measureText(cueText).width + 18);
+      const th = 21;
+      const ty = Math.max(20, cy - 23);
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(pos.x - tw / 2, ty - th / 2, tw, th, 10.5);
+      else ctx.rect(pos.x - tw / 2, ty - th / 2, tw, th);
+      ctx.fillStyle = cueBg;
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = cueBorder;
+      ctx.stroke();
+      ctx.fillStyle = cueFg;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(cueText, pos.x, ty);
     }
     ctx.restore();
   }
@@ -1905,7 +1930,10 @@ export class SceneRenderer {
     ctx.beginPath(); ctx.ellipse(0, 0, 95, 52, 0, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - p));
     ctx.strokeStyle = safe ? '#299c80' : COLORS.danger; ctx.lineWidth = 5; ctx.stroke();
     ctx.font = `600 ${clamp(12 / this.scale, 18, 30)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center'; ctx.fillStyle = safe ? '#247b65' : '#9f4938';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = this.astralMode
+      ? (safe ? '#6ef5cb' : '#ff8e72')
+      : (safe ? '#247b65' : '#9f4938');
     ctx.fillText(wave.remaining.toFixed(1), 0, -92);
     for (let stage = 0; stage < (wave.steps || 1); stage++) {
       const done = stage < (wave.step || 1) - 1;
@@ -2228,22 +2256,23 @@ export class SceneRenderer {
 
   drawVault(node) {
     const ctx = this.ctx, palette = this.palette(node.layer);
-    ellipse(ctx, 0, 3, 43, 22, '#c8cbb4', '#f1eed7', 2);
+    const accent = this.astralMode ? (palette.astralColor || palette.color) : palette.color;
+    ellipse(ctx, 0, 3, 43, 22, this.astralMode ? '#182b3a' : '#c8cbb4', this.astralMode ? '#4a7f96' : '#f1eed7', 2);
     const visibility = clamp(node.chestVisibility ?? (this.state.layer === node.layer ? 1 : 0));
     if (visibility <= .01) {
-      ctx.save(); ctx.globalAlpha = .2; ctx.setLineDash([3, 5]);
+      ctx.save(); ctx.globalAlpha = this.astralMode ? .34 : .2; ctx.setLineDash([3, 5]);
       path(ctx, [[-27, 0], [-27, -25], [0, -39], [28, -25], [28, 0], [0, 15]]);
-      ctx.strokeStyle = this.palette(node.layer).color; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+      ctx.strokeStyle = accent; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore();
       return;
     }
     ctx.save(); ctx.scale(visibility, visibility);
     ctx.globalAlpha = .2 + visibility * .8;
     const open = this.state.vaultStatus === 'escaped';
     path(ctx, [[-29, -8], [0, 5], [29, -8], [29, 7], [0, 21], [-29, 7]]);
-    ctx.fillStyle = palette.side; ctx.fill(); ctx.strokeStyle = palette.color; ctx.stroke();
+    ctx.fillStyle = this.astralMode ? '#1b2c3d' : palette.side; ctx.fill(); ctx.strokeStyle = accent; ctx.stroke();
     path(ctx, [[-29, -8], [-22, -28 - (open ? 17 : 0)], [0, -36 - (open ? 17 : 0)], [22, -28 - (open ? 17 : 0)], [29, -8], [0, 5]]);
-    ctx.fillStyle = open ? '#efe3b5' : palette.pale; ctx.fill(); ctx.strokeStyle = palette.color; ctx.lineWidth = 1.5; ctx.stroke();
-    diamond(ctx, 0, -9, 11, node.locked ? '#a8a298' : '#edd295', '#9a814d');
+    ctx.fillStyle = this.astralMode ? (open ? '#453517' : '#243a4d') : (open ? '#efe3b5' : palette.pale); ctx.fill(); ctx.strokeStyle = open && this.astralMode ? '#f5c465' : accent; ctx.lineWidth = 1.5; ctx.stroke();
+    diamond(ctx, 0, -9, 11, node.locked ? (this.astralMode ? '#3b4a59' : '#a8a298') : (this.astralMode ? '#ffd670' : '#edd295'), this.astralMode ? '#f59e0b' : '#9a814d');
     if (this.state.wave) {
       line(ctx, -21, -22, 0, -6, COLORS.danger, 2); line(ctx, 0, -6, 21, -22, COLORS.danger, 2);
     }
@@ -2253,53 +2282,60 @@ export class SceneRenderer {
   drawMechanism(node, active) {
     const ctx = this.ctx;
     const beat = this.reducedMotion ? 0 : Math.sin(this.time * 2.5 + node.x) * 1.5;
+    const astral = this.astralMode;
     if (node.id === 'dew') {
-      ellipse(ctx, 0, 4, 37, 21, '#a4bca8', '#f2f5e1', 2);
-      ellipse(ctx, 0, 0, 32, 17, active ? '#51aaa0' : '#9ebdb0', '#7c9e8d', 1.5);
-      ellipse(ctx, 0, -1, 24, 11, null, active ? '#c1ffe2' : '#c7d7c3', 1);
-      ellipse(ctx, 0, -1, 14, 6, null, active ? '#a7e9cd' : '#bed1bd', 1);
+      ellipse(ctx, 0, 4, 37, 21, astral ? '#152d3c' : '#a4bca8', astral ? '#498ba3' : '#f2f5e1', 2);
+      ellipse(ctx, 0, 0, 32, 17, active ? (astral ? '#1d6c68' : '#51aaa0') : (astral ? '#193848' : '#9ebdb0'), astral ? '#4dd2ac' : '#7c9e8d', 1.5);
+      ellipse(ctx, 0, -1, 24, 11, null, active ? '#9ef5e0' : (astral ? '#3a6e82' : '#c7d7c3'), 1);
+      ellipse(ctx, 0, -1, 14, 6, null, active ? '#b8fff0' : (astral ? '#2e5869' : '#bed1bd'), 1);
       for (const x of [-25, 25]) {
         path(ctx, [[x - 5, 0], [x - 5, -26], [x + 5, -29], [x + 6, -2]]);
-        ctx.fillStyle = '#aec1a8'; ctx.fill();
-        diamond(ctx, x, -29, 4, active ? COLORS.lightGold : '#d7d9b5', '#a4a37e');
+        ctx.fillStyle = astral ? '#1f3e50' : '#aec1a8'; ctx.fill();
+        if (astral) { ctx.strokeStyle = '#477f96'; ctx.lineWidth = 1; ctx.stroke(); }
+        diamond(ctx, x, -29, 4, active ? COLORS.lightGold : (astral ? '#4f889e' : '#d7d9b5'), astral ? '#72e5f2' : '#a4a37e');
       }
-      diamond(ctx, 0, -25 + (active ? beat : 0), 14, active ? '#9cebd5' : '#a3bcae', '#509c89');
+      diamond(ctx, 0, -25 + (active ? beat : 0), 14, active ? '#9cebd5' : (astral ? '#28566b' : '#a3bcae'), active ? '#63f2d2' : '#509c89');
       path(ctx, [[0, -39 + (active ? beat : 0)], [0, -11 + (active ? beat : 0)], [-9.2, -25 + (active ? beat : 0)]]);
-      ctx.fillStyle = active ? '#d7ffe8' : '#d0ddc9'; ctx.fill();
-      if (active) ellipse(ctx, 0, -25 + beat, 23, 23, '#a9f7db12');
+      ctx.fillStyle = active ? '#d7ffe8' : (astral ? '#549bb2' : '#d0ddc9'); ctx.fill();
+      if (active) ellipse(ctx, 0, -25 + beat, 23, 23, astral ? '#5eead422' : '#a9f7db12');
     } else if (node.id === 'bell') {
-      ellipse(ctx, 0, 8, 36, 16, '#cad6be', '#f2f5df', 2);
+      ellipse(ctx, 0, 8, 36, 16, astral ? '#1c2338' : '#cad6be', astral ? '#6f60a3' : '#f2f5df', 2);
       for (const x of [-28, 28]) {
         path(ctx, [[x - 5, 8], [x - 5, -48], [x + 5, -48], [x + 5, 8]]);
-        ctx.fillStyle = '#a3b8a0'; ctx.fill(); line(ctx, x - 4, -47, x - 4, 5, '#f1f4dc', 1.5);
+        ctx.fillStyle = astral ? '#26304a' : '#a3b8a0'; ctx.fill();
+        line(ctx, x - 4, -47, x - 4, 5, astral ? '#8e7cc9' : '#f1f4dc', 1.5);
       }
       path(ctx, [[-36, -47], [-30, -55], [32, -55], [37, -47]]);
-      ctx.fillStyle = '#d9d7b0'; ctx.fill(); ctx.strokeStyle = '#b5b992'; ctx.stroke();
-      line(ctx, 0, -49, 0, -35, '#aa8953', 2);
+      ctx.fillStyle = astral ? '#332b4f' : '#d9d7b0'; ctx.fill(); ctx.strokeStyle = astral ? '#9f85e0' : '#b5b992'; ctx.stroke();
+      line(ctx, 0, -49, 0, -35, astral ? '#d6b065' : '#aa8953', 2);
       ctx.save(); ctx.translate(0, -36); ctx.rotate(active && !this.reducedMotion ? Math.sin(this.time * 2.7) * .07 : 0);
       ctx.beginPath(); ctx.moveTo(-5, 0); ctx.quadraticCurveTo(-18, 5, -18, 24); ctx.lineTo(-22, 28);
       ctx.quadraticCurveTo(0, 35, 22, 28); ctx.lineTo(18, 24); ctx.quadraticCurveTo(18, 5, 5, 0); ctx.closePath();
-      ctx.fillStyle = active ? '#dcb76a' : '#b8bb91'; ctx.fill(); ctx.strokeStyle = '#9f8c59'; ctx.lineWidth = 1.5; ctx.stroke();
-      line(ctx, -10, 8, -13, 22, active ? '#fff0b5' : '#dde0b4', 2);
-      ellipse(ctx, 0, 30, 3.5, 3.5, active ? '#fbefad' : '#a09f78'); ctx.restore();
+      ctx.fillStyle = active ? '#e5bd68' : (astral ? '#3b3559' : '#b8bb91'); ctx.fill(); ctx.strokeStyle = active ? '#ffe29a' : (astral ? '#9c86d8' : '#9f8c59'); ctx.lineWidth = 1.5; ctx.stroke();
+      line(ctx, -10, 8, -13, 22, active ? '#fff0b5' : (astral ? '#b8a6eb' : '#dde0b4'), 2);
+      ellipse(ctx, 0, 30, 3.5, 3.5, active ? '#fbefad' : (astral ? '#8574bd' : '#a09f78')); ctx.restore();
       if (active) {
         for (const side of [-1, 1]) {
           ctx.beginPath(); ctx.ellipse(side * 28, -20, 7, 13, 0, side > 0 ? -1.1 : Math.PI - 1.1, side > 0 ? 1.1 : Math.PI + 1.1);
-          ctx.strokeStyle = '#c49e5080'; ctx.lineWidth = 1.2; ctx.stroke();
+          ctx.strokeStyle = astral ? '#ffd982aa' : '#c49e5080'; ctx.lineWidth = 1.2; ctx.stroke();
         }
       }
     } else {
-      ellipse(ctx, 0, 5, 37, 17, '#c0d2b5', '#f5f5de', 2);
+      ellipse(ctx, 0, 5, 37, 17, astral ? '#23241c' : '#c0d2b5', astral ? '#9c8040' : '#f5f5de', 2);
       for (let i = 0; i < 7; i++) {
         const angle = i * TAU / 7 - Math.PI / 2;
         const radius = active ? 22 : 10;
         const px = Math.cos(angle) * radius, py = -17 + Math.sin(angle) * radius * .7;
         ctx.save(); ctx.translate(px, py); ctx.rotate(angle + Math.PI / 2);
         ctx.beginPath(); ctx.moveTo(0, 13); ctx.bezierCurveTo(-14, 1, -12, -13, 0, -19); ctx.bezierCurveTo(12, -13, 14, 1, 0, 13);
-        ctx.fillStyle = active ? ['#f4dfa2', '#eacb7d', '#f7e8b7'][i % 3] : i % 2 ? '#9fb895' : '#b2c49f';
-        ctx.fill(); ctx.strokeStyle = active ? '#c8af6a' : '#819f7e'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+        ctx.fillStyle = active
+          ? ['#f6de9c', '#ebca74', '#fff0be'][i % 3]
+          : astral
+            ? (i % 2 ? '#233b44' : '#2d4a52')
+            : (i % 2 ? '#9fb895' : '#b2c49f');
+        ctx.fill(); ctx.strokeStyle = active ? '#ffd878' : (astral ? '#5da69e' : '#819f7e'); ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
       }
-      ellipse(ctx, 0, -17, active ? 9 : 6, active ? 8 : 6, active ? '#fff7c8' : '#ccd4aa', '#c3b778', 1);
+      ellipse(ctx, 0, -17, active ? 9 : 6, active ? 8 : 6, active ? '#fff7c8' : (astral ? '#4a4326' : '#ccd4aa'), active ? '#ffd878' : '#c3b778', 1);
       if (active) {
         for (let i = 0; i < 4; i++) {
           const angle = i * TAU / 4 + (this.reducedMotion ? .5 : this.time * .3);
@@ -2321,9 +2357,9 @@ export class SceneRenderer {
       if (!source) continue;
       const received = (node.received || []).includes(source.id);
       const x = (i - (sources.length - 1) / 2) * gap;
-      const color = this.palette(source.layer).color;
-      ellipse(ctx, x, 24, 10, 6, received ? this.palette(source.layer).glow : '#edf1e5', color, received ? 2 : 1);
-      line(ctx, x, 18, x * .45, 5, color + (received ? 'bb' : '45'), received ? 2 : 1);
+      const color = this.astralMode ? (this.palette(source.layer).astralColor || this.palette(source.layer).color) : this.palette(source.layer).color;
+      ellipse(ctx, x, 24, 10, 6, received ? this.palette(source.layer).glow : (this.astralMode ? '#10212e' : '#edf1e5'), color, received ? 2 : 1);
+      line(ctx, x, 18, x * .45, 5, color + (received ? 'bb' : '55'), received ? 2 : 1);
       if (source.id === 'dew') diamond(ctx, x, 23, 4.8, received ? color : null, color);
       else if (source.id === 'bell') {
         ctx.beginPath(); ctx.arc(x, 23, 4.5, Math.PI, TAU); ctx.lineTo(x + 5.5, 26); ctx.lineTo(x - 5.5, 26); ctx.closePath();
@@ -2341,23 +2377,28 @@ export class SceneRenderer {
   drawGate(node) {
     const ctx = this.ctx, s = this.state;
     const open = !node.locked;
-    ellipse(ctx, 0, 4, 44, 19, '#b8ceb8', '#f3f6df', 2);
+    const astral = this.astralMode;
+    ellipse(ctx, 0, 4, 44, 19, astral ? '#172e3e' : '#b8ceb8', astral ? '#4b8ba3' : '#f3f6df', 2);
     if (open) {
       const glow = ctx.createRadialGradient(0, -29, 2, 0, -29, 60);
-      glow.addColorStop(0, '#fff0b88c'); glow.addColorStop(1, '#fff0b800');
+      glow.addColorStop(0, astral ? '#7ef0cb99' : '#fff0b88c'); glow.addColorStop(1, '#fff0b800');
       ctx.fillStyle = glow; ctx.fillRect(-66, -93, 132, 130);
     }
     for (const x of [-29, 29]) {
       path(ctx, [[x - 8, 6], [x - 8, -59], [x + 6, -61], [x + 9, 4]]);
-      ctx.fillStyle = '#bccdb4'; ctx.fill(); line(ctx, x - 7, 3, x - 7, -56, '#f9f7df', 2);
+      ctx.fillStyle = astral ? '#1d384b' : '#bccdb4'; ctx.fill(); line(ctx, x - 7, 3, x - 7, -56, astral ? '#76d8ea' : '#f9f7df', 2);
       path(ctx, [[x - 11, -52], [x - 10, -64], [x + 9, -64], [x + 12, -54]]);
-      ctx.fillStyle = '#d5ddc0'; ctx.fill();
+      ctx.fillStyle = astral ? '#274a61' : '#d5ddc0'; ctx.fill();
     }
     path(ctx, [[-41, -62], [-31, -74], [32, -74], [42, -62]]);
-    ctx.fillStyle = '#d9ddbf'; ctx.fill(); ctx.strokeStyle = '#a3b99d'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = astral ? '#24455b' : '#d9ddbf'; ctx.fill(); ctx.strokeStyle = astral ? '#5ebad0' : '#a3b99d'; ctx.lineWidth = 1; ctx.stroke();
     if (open) {
       const fill = ctx.createLinearGradient(0, -60, 0, 7);
-      fill.addColorStop(0, '#d7edc8b0'); fill.addColorStop(.55, '#fff1bfdd'); fill.addColorStop(1, '#e4eac48c');
+      if (astral) {
+        fill.addColorStop(0, '#45c4a0aa'); fill.addColorStop(.55, '#ffe7a3dd'); fill.addColorStop(1, '#39a0b888');
+      } else {
+        fill.addColorStop(0, '#d7edc8b0'); fill.addColorStop(.55, '#fff1bfdd'); fill.addColorStop(1, '#e4eac48c');
+      }
       ctx.fillStyle = fill; ctx.fillRect(-20, -57, 40, 58);
       for (let i = 0; i < 3; i++) {
         const y = -53 + (this.reducedMotion ? i * 17 : (this.time * 12 + i * 19) % 55);
@@ -2365,15 +2406,16 @@ export class SceneRenderer {
       }
       diamond(ctx, 0, -27, 11, '#fffbd8', '#dbbe79');
     } else {
-      line(ctx, -21, -48, 21, -7, '#9cb6a0', 1);
-      line(ctx, 21, -48, -21, -7, '#9cb6a0', 1);
-      diamond(ctx, 0, -28, 9, '#ced8bb', '#91ad95');
+      line(ctx, -21, -48, 21, -7, astral ? '#3b6a80' : '#9cb6a0', 1);
+      line(ctx, 21, -48, -21, -7, astral ? '#3b6a80' : '#9cb6a0', 1);
+      diamond(ctx, 0, -28, 9, astral ? '#1f3b4d' : '#ced8bb', astral ? '#589ab3' : '#91ad95');
     }
     const order = s.mechanismOrder || s.nodes.filter(item => item.kind === 'mechanism').map(item => item.id);
     for (let i = 0; i < order.length; i++) {
       const active = s.activated.includes(order[i]);
-      const color = this.palette(this.node(order[i])?.layer).color;
-      diamond(ctx, (i - (order.length - 1) / 2) * 15, -66, 4.3, active ? '#ffe8a1' : '#dce1cd', color);
+      const mechLayer = this.node(order[i])?.layer;
+      const color = astral ? (this.palette(mechLayer).astralColor || this.palette(mechLayer).color) : this.palette(mechLayer).color;
+      diamond(ctx, (i - (order.length - 1) / 2) * 15, -66, 4.3, active ? '#ffe8a1' : (astral ? '#142836' : '#dce1cd'), color);
     }
   }
 

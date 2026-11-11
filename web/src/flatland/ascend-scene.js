@@ -10,6 +10,7 @@ function polygon(ctx, points, fill, stroke) {
 
 export function drawAscendScene(renderer, view, dt) {
   const ctx = renderer.ctx, state = renderer.state, a = state.ascend;
+  const astral = !!renderer.astralMode;
   const moving = a.stage === 'transition';
   const t = moving ? a.progress : 1;
   const blend = renderer.reducedMotion ? Number(t >= .5) : t * t * (3 - 2 * t);
@@ -26,19 +27,34 @@ export function drawAscendScene(renderer, view, dt) {
   renderer.volumeOpacity ||= new Map();
   const prism = (item, opacity) => {
     const [x0, y0, z0] = item.min, [x1, y1, z1] = item.max;
-    const colors = item.role === 'goal' ? ['#efdba6','#cfb57a','#f9ebc8'] : item.role === 'floor' ? ['#d9e3d2','#afc7b3','#e9efdf'] : ['#b7d1c5','#8daea2','#d8e7dc'];
+    const colors = astral
+      ? (item.role === 'goal'
+        ? ['#4a3716', '#382910', '#63491c']
+        : item.role === 'floor'
+          ? ['#132635', '#0e1d2a', '#172e40']
+          : item.role === 'roof'
+            ? ['#1e3448', '#162838', '#294760']
+            : ['#1c3f52', '#153142', '#255268'])
+      : (item.role === 'goal'
+        ? ['#efdba6', '#cfb57a', '#f9ebc8']
+        : item.role === 'floor'
+          ? ['#d9e3d2', '#afc7b3', '#e9efdf']
+          : ['#b7d1c5', '#8daea2', '#d8e7dc']);
+    const edgeColor = astral
+      ? (item.role === 'goal' ? '#f5c465' : item.role === 'floor' ? '#2c526b' : '#54b6cc')
+      : '#6d9385';
     ctx.save(); ctx.globalAlpha = opacity;
-    polygon(ctx, [project(x0,y0,z1),project(x1,y0,z1),project(x1,y1,z1),project(x0,y1,z1)], colors[0], '#6d9385');
-    polygon(ctx, [project(x1,y0,z0),project(x1,y0,z1),project(x1,y1,z1),project(x1,y1,z0)], colors[1], '#6d9385');
-    polygon(ctx, [project(x0,y1,z0),project(x1,y1,z0),project(x1,y1,z1),project(x0,y1,z1)], colors[2], '#6d9385');
+    polygon(ctx, [project(x0,y0,z1),project(x1,y0,z1),project(x1,y1,z1),project(x0,y1,z1)], colors[0], edgeColor);
+    polygon(ctx, [project(x1,y0,z0),project(x1,y0,z1),project(x1,y1,z1),project(x1,y1,z0)], colors[1], edgeColor);
+    polygon(ctx, [project(x0,y1,z0),project(x1,y1,z0),project(x1,y1,z1),project(x0,y1,z1)], colors[2], edgeColor);
     if (renderer.flash.has(item.id) && renderer.flash.get(item.id) < .7) {
       ctx.globalAlpha = 1; ctx.lineWidth = 3;
-      ctx.strokeStyle = '#bd6146'; ctx.stroke();
+      ctx.strokeStyle = astral ? '#ff7b5a' : '#bd6146'; ctx.stroke();
     }
     ctx.restore();
   };
   prism(a.boxes.find(item => item.role === 'floor'), 1);
-  ctx.save(); ctx.strokeStyle = '#cfdaca'; ctx.lineWidth = .7;
+  ctx.save(); ctx.strokeStyle = astral ? '#1f3b4f' : '#cfdaca'; ctx.lineWidth = .7;
   for (let x = 0; x <= 20; x++) { ctx.beginPath(); ctx.moveTo(...project(x,0,0)); ctx.lineTo(...project(x,0,12)); ctx.stroke(); }
   for (let z = 0; z <= 12; z++) { ctx.beginPath(); ctx.moveTo(...project(0,0,z)); ctx.lineTo(...project(20,0,z)); ctx.stroke(); }
   ctx.restore();
@@ -46,31 +62,31 @@ export function drawAscendScene(renderer, view, dt) {
     const desired = item.present ? 1 : 0, before = renderer.volumeOpacity.get(item.id) ?? desired;
     const opacity = renderer.reducedMotion ? desired : before + (desired - before) * Math.min(1, dt * 12);
     renderer.volumeOpacity.set(item.id, opacity);
-    if (opacity > .01) prism(item, opacity * (item.role === 'wall' ? .65 : 1));
+    if (opacity > .01) prism(item, opacity * (item.role === 'wall' ? (astral ? .76 : .65) : 1));
     // A swept W change stops just before the wall exists. Briefly reveal that
     // impending volume so its absence does not hide the collision feedback.
-    if (!item.present && renderer.flash.has(item.id) && renderer.flash.get(item.id) < .7) prism(item, .3);
+    if (!item.present && renderer.flash.has(item.id) && renderer.flash.get(item.id) < .7) prism(item, .35);
     if (!item.present) {
-      ctx.save(); ctx.globalAlpha = .5; ctx.setLineDash([4,4]);
-      polygon(ctx, [project(item.min[0],0,item.min[2]),project(item.max[0],0,item.min[2]),project(item.max[0],0,item.max[2]),project(item.min[0],0,item.max[2])], null, '#889d91'); ctx.restore();
+      ctx.save(); ctx.globalAlpha = astral ? .62 : .5; ctx.setLineDash([4,4]);
+      polygon(ctx, [project(item.min[0],0,item.min[2]),project(item.max[0],0,item.min[2]),project(item.max[0],0,item.max[2]),project(item.min[0],0,item.max[2])], null, astral ? '#3e6e8a' : '#889d91'); ctx.restore();
     }
   }
   const player = moving ? { x: mix(a.fromPlayer.x, 10, blend), y: .4 * blend, z: mix(a.fromPlayer.y, 6, blend) } : a.position;
   const [px, py] = project(player.x, player.y, player.z), [sx, sy] = project(player.x, 0, player.z);
-  ctx.save(); ctx.fillStyle = '#28483b26'; ctx.beginPath(); ctx.ellipse(sx, sy, .65 * k, .24 * k, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#294b46'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(px, py, .4*k, .4*k, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(px+.12*k,py-.12*k,.11*k,.11*k,0,0,Math.PI*2); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.fillStyle = astral ? '#040a1075' : '#28483b26'; ctx.beginPath(); ctx.ellipse(sx, sy, .65 * k, .24 * k, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = astral ? '#d8f3ee' : '#294b46'; ctx.strokeStyle = astral ? '#5ad4ea' : '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(px, py, .4*k, .4*k, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = astral ? '#0b1722' : '#fff'; ctx.beginPath(); ctx.ellipse(px+.12*k,py-.12*k,.11*k,.11*k,0,0,Math.PI*2); ctx.fill(); ctx.restore();
   const friends = state.collection?.companion === 'all' ? FRIENDS : FRIENDS.filter(f => f.id === state.collection?.companion);
   friends.forEach((friend, i) => {
     const [x, y] = project(Math.max(.6, player.x - .9 - i * .65), player.y, player.z + .45);
     drawCreature(ctx, friend.id, x, y, renderer.reducedMotion ? 0 : renderer.time, { scale: k * .7, happy: state.petting > 0, crowned: state.gardenCollection?.complete });
   });
   const roof = a.boxes.find(item => item.role === 'roof');
-  if (roof.present && blend > 0) prism(roof, .22 * blend);
+  if (roof.present && blend > 0) prism(roof, (astral ? .3 : .22) * blend);
   const [gx, gy] = project(17, 1.1, 6);
-  ctx.fillStyle = '#8b6527'; ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center';
+  ctx.fillStyle = astral ? '#ffd878' : '#8b6527'; ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center';
   if (a.boxes.find(item => item.role === 'goal').present) ctx.fillText(state.phase === 'complete' ? '✓' : '出口', gx, gy - 12);
-  ctx.textAlign = 'right'; ctx.font = '600 22px system-ui, sans-serif'; ctx.fillStyle = '#397d93';
+  ctx.textAlign = 'right'; ctx.font = '600 22px system-ui, sans-serif'; ctx.fillStyle = astral ? '#72e5f2' : '#397d93';
   ctx.globalAlpha = 1 - blend; ctx.fillText('Z',box.x+box.w-24,box.y+32);
   ctx.globalAlpha = blend; ctx.fillText('W',box.x+box.w-24,box.y+32); ctx.globalAlpha = 1;
   if (!moving) { ctx.font = '600 12px system-ui, sans-serif'; ctx.fillText(state.s.toFixed(2), box.x + box.w - 24, box.y + 50); }

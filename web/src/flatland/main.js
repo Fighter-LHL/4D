@@ -98,7 +98,15 @@ function renderLevels(snap) {
     const seeds = level.garden ? gardenSeedList(model.gardenMemories, level.id) : [];
     const gardenBadge = seeds.length === GARDEN_SEEDS.length ? ' ✿' : seeds.length ? ` ${seeds.length}/3` : '';
     const badge = playStyle === 'explore' ? `${friend ? model.collection.found.includes(friend.id) ? friend.icon : '◌' : visits[level.id] ? '·' : ''}${gardenBadge}` : `${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`;
-    return `<li><button data-level="${i}" class="${level.endless ? 'endless' : ''}" ${i === snap.index ? 'aria-current="true"' : ''} ${unlocked(i) || i === snap.index ? '' : 'disabled'}>${escapeHTML(label)}<span class="level-stars">${badge}</span></button></li>`;
+    const isOpen = unlocked(i) || i === snap.index;
+    const reqId = UNLOCK_FROM[level.id] ?? FLATLAND_LEVELS[Math.max(0, i - 1)]?.id;
+    const reqTitle = FLATLAND_LEVELS.find(item => item.id === reqId)?.title || '前一关';
+    const lockHint = !isOpen
+      ? (level.endless
+        ? `切换到右上角「计分挑战」或先完成「${reqTitle}」即可解锁无尽风暴`
+        : `先在计分挑战中完成「${reqTitle}」即可解锁`)
+      : '';
+    return `<li><button data-level="${i}" class="${level.endless ? 'endless' : ''}" ${i === snap.index ? 'aria-current="true"' : ''} ${isOpen ? '' : `disabled title="${escapeHTML(lockHint)}"`}>${escapeHTML(label)}<span class="level-stars">${badge}</span></button></li>`;
   }).join(''));
   revealCurrentLevel();
 }

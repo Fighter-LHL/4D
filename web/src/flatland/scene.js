@@ -19,7 +19,16 @@ const ROLES = {
   pad: { fill: '#e4deee', stroke: '#78658f' },
   hazard: { fill: '#f1c2b4', stroke: '#c4553b' },
 };
-const role = id => ROLES[id] || ROLES.wall;
+const ASTRAL_ROLES = {
+  visitor: { fill: '#183a4a', stroke: '#69d8ee' },
+  wall: { fill: '#183948', stroke: '#4dc9ae' },
+  goal: { fill: '#3d2f14', stroke: '#f5c465' },
+  item: { fill: '#473612', stroke: '#ffd269' },
+  door: { fill: '#3d2f14', stroke: '#f5c465' },
+  pad: { fill: '#261e3c', stroke: '#b394f4' },
+  hazard: { fill: '#3f1d18', stroke: '#f27258' },
+};
+const role = (id, astral = false) => (astral ? (ASTRAL_ROLES[id] || ASTRAL_ROLES.wall) : (ROLES[id] || ROLES.wall));
 const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
 const ease = t => 1 - (1 - clamp(t)) ** 3;
 const mixColor = (a, b, t) => {
@@ -438,9 +447,10 @@ export class FlatlandRenderer {
 
   drawHazard(hazard, k) {
     const ctx = this.ctx, pulse = this.reducedMotion ? 0 : (Math.sin(this.time * 10) + 1) * .5;
+    const hz = role('hazard', this.astralMode);
     ctx.save(); shapePath(ctx, hazard.shape);
-    ctx.fillStyle = ROLES.hazard.fill; ctx.globalAlpha = .85; ctx.fill();
-    ctx.globalAlpha = 1; ctx.strokeStyle = COLORS.danger; ctx.lineWidth = (2 + pulse * 1.5) / k; ctx.stroke();
+    ctx.fillStyle = hz.fill; ctx.globalAlpha = .85; ctx.fill();
+    ctx.globalAlpha = 1; ctx.strokeStyle = hz.stroke; ctx.lineWidth = (2 + pulse * 1.5) / k; ctx.stroke();
     ctx.restore();
   }
   drawWarning(warning, k) {
@@ -517,8 +527,8 @@ export class FlatlandRenderer {
     for (const lock of this.state.mirror.locks) {
       const flash = this.flash.get(lock.id), jitter = flash !== undefined && flash < .3 && !this.reducedMotion ? Math.sin(flash * 80) * .12 : 0;
       ctx.save(); ctx.translate(jitter, 0); shapePath(ctx, keyShape(lock.x, lock.y, lock.chirality, lock.turns));
-      ctx.fillStyle = lock.open ? '#cfe5d6' : '#e3e6dc'; ctx.fill();
-      ctx.strokeStyle = lock.open ? COLORS.done : flash !== undefined && flash < FLASH ? COLORS.danger : '#5b7166';
+      ctx.fillStyle = this.astralMode ? (lock.open ? '#14382f' : '#152534') : (lock.open ? '#cfe5d6' : '#e3e6dc'); ctx.fill();
+      ctx.strokeStyle = lock.open ? COLORS.done : flash !== undefined && flash < FLASH ? COLORS.danger : (this.astralMode ? '#4c738a' : '#5b7166');
       ctx.lineWidth = (lock.open ? 3 : 2) / k; ctx.setLineDash(lock.open ? [] : [.16, .1]); ctx.stroke();
       ctx.restore();
     }
@@ -572,7 +582,7 @@ export class FlatlandRenderer {
   }
   drawSection(section, scale, k, alpha) {
     if (scale <= 0) return;
-    const ctx = this.ctx, colors = role(section.role), flash = this.flash.get(section.id);
+    const ctx = this.ctx, colors = role(section.role, this.astralMode), flash = this.flash.get(section.id);
     const [cx, cy] = shapeCentroid(section.shape);
     ctx.save(); ctx.globalAlpha = alpha;
     ctx.translate(cx, cy); ctx.scale(scale, scale); ctx.translate(-cx, -cy);
@@ -652,7 +662,7 @@ export class FlatlandRenderer {
     ctx.translate(ox, base); ctx.scale(kx, -kz); ctx.translate(0, -s.slice.min);
     const visible = new Set([...s.sections.map(section => section.id), ...(s.hazards || []).map(item => item.id)]);
     for (const item of s.profiles) {
-      const colors = role(item.role), flash = this.flash.get(item.id);
+      const colors = role(item.role, this.astralMode), flash = this.flash.get(item.id);
       shapePath(ctx, item.profile);
       ctx.globalAlpha = visible.has(item.id) ? .9 : .45;
       ctx.fillStyle = colors.fill; ctx.fill();
