@@ -564,11 +564,19 @@ html.theater .brand-icon{font-size:24px}
 html.theater .brand-sub{font-size:8px;letter-spacing:3px;margin-top:2px}
 html.theater .game-layout{flex:1;min-height:0;display:flex;flex-direction:column;max-width:none;margin:0;padding:6px 16px 8px;gap:0}
 html.theater .play-area{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
-html.theater .stage-heading{flex:none;height:34px;min-height:34px;align-items:center;padding:0 4px}
+html.theater .stage-heading{flex:none;height:28px;min-height:28px;align-items:center;padding:0 4px;opacity:.78}
 html.theater .stage-heading .eyebrow{font-size:8px;letter-spacing:1.8px}
-html.theater .stage-heading h1{font-size:16px;margin-top:0;letter-spacing:2px}
-html.theater .stage-heading .chapter>span:first-child{font-size:16px}
-html.theater #room-description,html.theater .footer,html.theater #visual-stepper{display:none}
+html.theater body[data-first-run="true"][data-onboarding-stage="1"] .stage-heading .eyebrow{display:none}
+html.theater .stage-heading h1{font-size:13px;font-weight:500;margin-top:0;letter-spacing:1.5px}
+html.theater .stage-heading .chapter>span:first-child{font-size:13px}
+html.theater #room-description,html.theater .footer,html.theater #visual-stepper,html.theater .scene-caption{display:none}
+html.theater .layer-badge{left:12px;top:10px;gap:6px;padding:4px 9px;font-size:11px;border-radius:999px;background:rgba(248,250,245,.82);border:1px solid var(--line);backdrop-filter:blur(6px)}
+html.theater .layer-badge>span{font-size:15px;line-height:1;font-weight:600}
+html.theater .layer-badge strong{font-size:11px;letter-spacing:1px}
+html.theater #position-readout{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+html.theater body[data-first-run="true"]:is([data-onboarding-stage="1"],[data-onboarding-stage="2"]) :is(#open-chapters,#open-codex,#open-hyper-lab,#theme-toggle,.topbar a[href="flatland.html"],#layout-toggle,#pause){display:none}
+html.theater body[data-first-run="true"][data-onboarding-stage="1"] .advanced-drawer{display:none}
+html.theater body[data-first-run="true"][data-onboarding-stage="1"] #unlock-all-btn{font-size:10.5px;opacity:.72;padding:3px 8px}
 html.theater #chapter-arrival{position:absolute;top:40px;left:50%;transform:translateX(-50%);z-index:4;margin:0;width:max-content;max-width:min(560px,92%);font-size:10px;line-height:1.45;padding:6px 12px}
 html.theater .scene-wrap{flex:1;min-height:0;height:auto;margin:0;display:block}
 html.theater .scene-wrap canvas{width:100%;height:100%;aspect-ratio:auto;min-height:0}
@@ -578,10 +586,9 @@ html.theater .onboarding-main{flex-direction:row;align-items:center;gap:9px;flex
 html.theater .onboarding-main strong{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 html.theater .onboarding-main{cursor:pointer}
 /* The description popover anchors to .controls and floats at the top of the scene
-   column (below the layer-badge row) so it never intersects the dock-float chips. */
+   column (below the layer-badge row) ONLY when explicitly clicked open. */
 html.theater #onboarding-desc{display:none;position:absolute;left:50%;transform:translateX(-50%);top:calc(44px - var(--scene-h,0px));width:max-content;max-width:min(560px,92vw);margin:0;padding:8px 12px;border-radius:9px;background:rgba(248,250,245,.95);border:1px solid var(--line);box-shadow:0 10px 30px rgba(32,59,48,.16);font-size:11px;line-height:1.5;z-index:8;pointer-events:none}
-@media(min-width:781px){html.theater .onboarding-banner:is(:not(.collapsed),.desc-open):not(.desc-dismissed) #onboarding-desc{display:block}}
-@media(max-width:780px){html.theater .onboarding-banner.desc-open #onboarding-desc{display:block}}
+html.theater .onboarding-banner.desc-open #onboarding-desc{display:block}
 html.theater .onboarding-actions{flex-wrap:nowrap;gap:5px}
 html.theater .onboarding-actions button{white-space:nowrap}
 html.theater #layer-controls{flex:none;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:min(300px,32%)}
@@ -596,7 +603,7 @@ html.theater .advanced-drawer-body{position:absolute;bottom:calc(100% + 8px);lef
 
 /* Transient decision chips float over the bottom mist band; the canvas never resizes.
    The toast chips and the popover stack into the same column via --f0/--af-h/--float-h. */
-html.theater .action-feedback{bottom:calc(38px + var(--f0,0px));z-index:7}
+html.theater #action-feedback{bottom:calc(38px + var(--f0,0px));z-index:7;font-size:11.5px;padding:5px 12px;font-weight:500}
 html.theater .wave-warning{bottom:calc(36px + var(--f0,0px) + var(--af-h,0px));z-index:7}
 html.theater .dock-float{display:flex;flex-direction:column;align-items:center;gap:6px;position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);width:max-content;max-width:min(760px,96%);pointer-events:none;z-index:7}
 html.theater .dock-float>*{pointer-events:none;margin:0;width:max-content;max-width:100%;backdrop-filter:blur(10px);box-shadow:0 10px 30px rgba(32,59,48,.2)}
@@ -612,8 +619,8 @@ html.theater .run-panel .run-tip{display:block}
   html.theater .topbar{min-height:48px;height:auto;padding:2px 12px}
   html.theater .topbar nav{gap:3px}
   html.theater .game-layout{padding:4px 6px 4px}
-  html.theater .stage-heading{height:30px;min-height:30px}
-  html.theater .stage-heading h1{font-size:14px}
+  html.theater .stage-heading{height:26px;min-height:26px}
+  html.theater .stage-heading h1{font-size:12.5px}
   html.theater .scene-wrap{margin:0 -6px}
   html.theater .controls{gap:6px;padding-top:6px;min-height:0}
   html.theater .onboarding-banner{flex:1 1 100%;padding:5px 9px}
@@ -656,15 +663,16 @@ html.theater .run-panel .run-tip{display:block}
   html.theater .run-panel.panel-open{opacity:1;transition:opacity .15s ease-out,visibility 0s}
 }
 @media(prefers-reduced-transparency:reduce){
-  html.theater .dock-float>*,html.theater .run-panel,html.theater .advanced-drawer-body,html.theater .onboarding-banner:not(.collapsed) #onboarding-desc{backdrop-filter:none;background:var(--card)}
+  html.theater .dock-float>*,html.theater .run-panel,html.theater .advanced-drawer-body,html.theater #onboarding-desc,html.theater .layer-badge{backdrop-filter:none;background:var(--card)}
 }
 @media(prefers-contrast:more){
   html.theater .dock-float>*,html.theater .run-panel{background:var(--card);border-color:var(--ink)}
 }
+html.theater body[data-theme="astral"] .layer-badge{background:rgba(14,27,38,.84);border-color:#26455a}
 html.theater body[data-theme="astral"] .run-panel{background:rgba(13,25,36,.94);border-color:#26445a;box-shadow:-18px 0 50px rgba(0,0,0,.5)}
 html.theater body[data-theme="astral"] .dock-float>*{box-shadow:0 10px 30px rgba(0,0,0,.42)}
 html.theater body[data-theme="astral"] .dock-float .friend-guide{background:rgba(15,29,41,.9);border-color:#26445a;color:#a8e6cf}
 html.theater body[data-theme="astral"] .advanced-drawer>summary{border-color:#2a4b63}
 html.theater body[data-theme="astral"] .advanced-drawer>summary:hover{border-color:#4dd2ac}
 html.theater body[data-theme="astral"] .advanced-drawer-body{background:rgba(13,25,36,.97);border-color:#26445a;box-shadow:0 20px 56px rgba(0,0,0,.55)}
-html.theater body[data-theme="astral"] .onboarding-banner:not(.collapsed) #onboarding-desc{background:rgba(15,29,41,.96);border-color:#26445a;color:#c4dde7}
+html.theater body[data-theme="astral"] #onboarding-desc{background:rgba(15,29,41,.96);border-color:#26445a;color:#c4dde7}
