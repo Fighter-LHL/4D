@@ -497,8 +497,9 @@ test('Stage 3+ switches layer prompts to deductive visual-clue mode and restores
   calls.length = 0;
   renderer.drawVisualActionGuide();
   const deductiveTexts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
-  assert.ok(deductiveTexts.some(t => t.includes('看虚线桥颜色与偏移')), `expected deductive pill, got ${JSON.stringify(deductiveTexts)}`);
-  assert.ok(!deductiveTexts.some(t => t.includes('潮汐层')), 'must not spoil target layer name in deductive mode');
+  assert.ok(deductiveTexts.includes('🖱️ 滚轮换层寻桥'), `expected compact deductive shift pill, got ${JSON.stringify(deductiveTexts)}`);
+  assert.ok(deductiveTexts.includes('②·异层'), `expected off-slice compact badge without layer spoiler, got ${JSON.stringify(deductiveTexts)}`);
+  assert.ok(!deductiveTexts.some(t => t.includes('Ⅰ层') || t.includes('潮汐层')), 'must not spoil target layer in deductive mode');
 
   // After 10s hesitation (or pressing H), explicit layer hint automatically unlocks
   onboarding.tickIdle(10.5, sStage3);
@@ -507,7 +508,8 @@ test('Stage 3+ switches layer prompts to deductive visual-clue mode and restores
   calls.length = 0;
   renderer.drawVisualActionGuide();
   const explicitTexts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
-  assert.ok(explicitTexts.some(t => t.includes('潮汐层')), `expected explicit layer name after idle fallback, got ${JSON.stringify(explicitTexts)}`);
+  assert.ok(explicitTexts.includes('🖱️ ▼ → Ⅰ层'), `expected compact explicit layer pill after idle fallback, got ${JSON.stringify(explicitTexts)}`);
+  assert.ok(explicitTexts.includes('②·Ⅰ层'), `expected explicit target layer badge, got ${JSON.stringify(explicitTexts)}`);
   renderer.destroy();
 });
 
@@ -563,7 +565,7 @@ test('Risk decision preview and Relic HUD surface novel bridge rewards, charging
   assert.equal(hudReady.readyAbility.id, 'prism');
   assert.ok(hudReady.readyAbility.ctaText.includes('点此远程点亮'));
 
-  // Verify SceneRenderer draws the on-canvas ability-ready callout pill
+  // Verify SceneRenderer keeps canvas uncluttered (no verbose relic paragraph above player; compact badges only)
   const canvas = createRecordingCanvas(1000, 650);
   const { calls } = canvas;
   const renderer = new SceneRenderer(canvas);
@@ -574,7 +576,8 @@ test('Risk decision preview and Relic HUD surface novel bridge rewards, charging
   calls.length = 0;
   renderer.drawVisualActionGuide();
   const texts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
-  assert.ok(texts.some(t => t.includes('点此远程点亮')), `expected on-canvas relic ability callout, got ${JSON.stringify(texts)}`);
+  assert.ok(texts.includes('🎯 ②'), `expected compact target badge on mechanism ②, got ${JSON.stringify(texts)}`);
+  assert.ok(!texts.some(t => t.includes('点此远程点亮')), 'verbose relic ability paragraph is omitted from canvas');
 
   // Firing prism remotely activates ② without crossing the bridge
   assert.ok(m.useAbility('prism'));
@@ -707,4 +710,92 @@ test('GameModel authoritatively scores 4D curiosities, perfect risky crossings a
   assert.equal(sReset.stats.perfectCrossings, 0);
   assert.equal(sReset.anomalyProgress.done, 0);
   assert.equal(sReset.phaseResonance.rank, 'B');
+});
+
+test('Stage 1 declutters canvas and off-slice exit always renders ghosted gate silhouette with 3-lamp lock progress', () => {
+  const prevWin = globalThis.window;
+  globalThis.window = {
+    devicePixelRatio: 1,
+    addEventListener() {},
+    removeEventListener() {},
+    matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }),
+  };
+  try {
+    const canvas = createRecordingCanvas(1000, 650);
+    const { calls } = canvas;
+    const renderer = new SceneRenderer(canvas);
+    renderer.visualGuide = true;
+    renderer.onboardingStage = 1;
+
+    // Find a seed where exit starts on an off-slice W layer relative to hub's starting layer
+    let m = new GameModel(1);
+    for (let seed = 1; seed <= 30; seed += 1) {
+      const cand = new GameModel(seed);
+      cand.chooseRelic('shell');
+      const snap = cand.snapshot();
+      const exitNode = snap.nodes.find(n => n.id === 'exit');
+      if (exitNode && !exitNode.present && exitNode.scale <= 0.08) {
+        m = cand;
+        break;
+      }
+    }
+    const s0 = m.snapshot();
+    const firstId = s0.mechanismOrder[0];
+    const firstNode = s0.nodes.find(n => n.id === firstId);
+    const exitNode = s0.nodes.find(n => n.id === 'exit');
+    const vaultNode = s0.nodes.find(n => n.id === 'vault');
+    assert.ok(exitNode && exitNode.scale <= 0.08, 'selected room starts with exit on an off-slice W layer');
+
+    renderer.liveGuide = s0.companionGuide;
+    renderer.setState(s0);
+    calls.length = 0;
+    renderer.render(0.016);
+    const stage1Texts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
+
+    // 1. Stage 1 minimal symbols & progressive decluttering
+    assert.ok(stage1Texts.includes('👆 ①'), `expected minimal Stage 1 target badge, got ${JSON.stringify(stage1Texts)}`);
+    assert.ok(stage1Texts.includes('⚓ 起点'), `expected Stage 1 hub role label, got ${JSON.stringify(stage1Texts)}`);
+    assert.ok(!stage1Texts.includes(firstNode.name), 'unhovered mechanism omits bottom poetic name pill');
+    assert.ok(!stage1Texts.some(t => t.includes('🔒')), 'Stage 1 hides locked unpowered mechanism badges');
+    assert.ok(!stage1Texts.some(t => t.includes('宝箱') || t.includes('✨')), 'Stage 1 hides locked vault');
+    assert.ok(!stage1Texts.some(t => t.includes('Ⅰ ▲') || t.includes('Ⅱ ●') || t.includes('Ⅲ ▼')), 'Stage 1 hides WStack');
+    assert.equal(renderer.hitWStackLayer({ clientX: 100, clientY: 110 }), null, 'WStack hit-test disabled in Stage 1');
+    if (vaultNode?.locked) {
+      assert.equal(renderer.hitTest({ clientX: vaultNode.x, clientY: vaultNode.y }), null, 'locked vault hit-test disabled before Stage 3');
+    }
+
+    // 2. Always-visible off-slice exit gate silhouette + 3-lamp lock progress
+    const exitRom = ['Ⅰ', 'Ⅱ', 'Ⅲ'][exitNode.layer];
+    const mechTotal = s0.mechanismOrder.length;
+    assert.ok(
+      stage1Texts.includes(`🚪 出口 (${exitRom}层 · 0/${mechTotal})`),
+      `expected ghosted off-slice exit micro-label, got ${JSON.stringify(stage1Texts)}`
+    );
+
+    // 3. Hover-only poetic name + short action tooltip
+    renderer.hover = firstId;
+    calls.length = 0;
+    renderer.render(0.016);
+    const hoverTexts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
+    assert.ok(hoverTexts.includes(`① ${firstNode.name}`), `hovering mechanism reveals poetic name, got ${JSON.stringify(hoverTexts)}`);
+    assert.ok(hoverTexts.includes('点此走过去点亮 ①'), `hovering mechanism expands concise tooltip, got ${JSON.stringify(hoverTexts)}`);
+
+    // 4. Off-slice exit silhouette updates lamp pips and micro-label when all mechanisms are lit
+    renderer.hover = null;
+    renderer.onboardingStage = 2;
+    renderer.setState({ ...s0, activated: [...s0.mechanismOrder] });
+    calls.length = 0;
+    renderer.drawIsland(renderer.node('exit'));
+    const openSilhouetteTexts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
+    assert.ok(
+      openSilhouetteTexts.includes(`🚪 出口已开 · 去${exitRom}层`),
+      `expected open off-slice exit micro-label, got ${JSON.stringify(openSilhouetteTexts)}`
+    );
+    const lampEllipses = calls.filter(c => c.method === 'ellipse');
+    assert.ok(lampEllipses.length >= 1 + mechTotal * 3, 'draws dashed platform ellipse plus lit 3-lamp glow/core/glint pips');
+
+    renderer.destroy();
+  } finally {
+    globalThis.window = prevWin;
+  }
 });

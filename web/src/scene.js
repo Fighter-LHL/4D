@@ -597,6 +597,7 @@ export class SceneRenderer {
 
   hitAnomaly(event) {
     if (!this.visualGuide || !this.state || this.state.phase !== 'playing' || this.state.travel || this.state.wave) return null;
+    if ((this.onboardingStage ?? 4) < 2) return null;
     const rect = this.canvas.getBoundingClientRect();
     const x = (event.clientX - rect.left - this.offsetX) / this.scale;
     const y = (event.clientY - rect.top - this.offsetY) / this.scale;
@@ -605,6 +606,7 @@ export class SceneRenderer {
 
   hitWStackLayer(event) {
     if (!this.visualGuide || !this.state || this.state.phase !== 'playing') return null;
+    if ((this.onboardingStage ?? 4) < 2) return null;
     const rect = this.canvas.getBoundingClientRect();
     const x = (event.clientX - rect.left - this.offsetX) / this.scale;
     const y = (event.clientY - rect.top - this.offsetY) / this.scale;
@@ -742,6 +744,7 @@ export class SceneRenderer {
   hitTest(event) {
     if (!this.state || this.state.phase !== 'playing' || this.disposed) return null;
     if (this.state.wave && this.visualGuide) return null;
+    const stage = this.onboardingStage ?? 4;
     const rect = this.canvas.getBoundingClientRect();
     const x = (event.clientX - rect.left - this.offsetX) / this.scale;
     const y = (event.clientY - rect.top - this.offsetY) / this.scale;
@@ -749,6 +752,7 @@ export class SceneRenderer {
     const visibleHit = [...this.state.nodes].reverse().find(node => {
       if (node.kind === 'ferry') return ((x - node.x) / 48) ** 2 + ((y - node.y) / 30) ** 2 <= 1;
       if (node.id === 'bloom' && this.node('crown')?.anchor) return false;
+      if (stage < 3 && node.id === 'vault' && node.locked) return false;
       if (!node.present || (!node.anchor && node.scale < .5)) return false;
       if (node.id === 'rift' && (node.locked || !this.state.availableNodes.includes(node.id))) return false;
       const section = node.anchor ? 1 : node.scale;
@@ -766,6 +770,8 @@ export class SceneRenderer {
     });
     return candidates.find(node => {
       if (node.id === 'bloom' && this.node('crown')?.anchor) return false;
+      if (stage < 3 && node.id === 'vault' && node.locked) return false;
+      if (stage < 2 && !node.present && node.id !== 'exit') return false;
       if (!order.includes(node.id) && !['exit', 'vault', 'rift'].includes(node.id) && !node.anchor) return false;
       const rx = node.id === 'hub' ? 112 : 84;
       const ry = node.id === 'hub' ? 60 : 56;
@@ -1284,11 +1290,14 @@ export class SceneRenderer {
     }
     this.drawBackground();
     if (this.state) {
+      const stage = this.onboardingStage ?? 4;
       this.drawAscensionCanopy();
       this.drawSliceVolumes();
-      this.drawDependencies();
-      this.drawDormantGrowth();
-      this.drawHiddenRoutes();
+      if (stage >= 2) this.drawDependencies();
+      if (stage >= 3) {
+        this.drawDormantGrowth();
+        this.drawHiddenRoutes();
+      }
       this.drawConnections();
       toys.drawFerryRail(this);
       this.drawRiskCorridor();
@@ -1296,7 +1305,7 @@ export class SceneRenderer {
       this.labelZones = [];
       const nodes = [...this.state.nodes].sort((a, b) => a.y - b.y);
       for (const node of nodes) this.drawIsland(node);
-      this.drawAnchorSliceBridges();
+      if (stage >= 2) this.drawAnchorSliceBridges();
       this.drawMomentum();
       this.drawSceneCues();
       toys.drawFireflies(this);
@@ -1313,7 +1322,7 @@ export class SceneRenderer {
       this.drawAtmosphere();
       toys.drawRelicCast(this);
       if (this.visualGuide) this.drawHyperLens();
-      this.drawWStack();
+      if (stage >= 2) this.drawWStack();
     }
     ctx.restore();
     if (this.flash && !this.reducedMotion) {
@@ -1798,48 +1807,54 @@ export class SceneRenderer {
     const w = this.currentW();
     const currentNode = this.node(s.node);
     const onAnchor = !!currentNode?.anchor;
+    const stage = this.onboardingStage ?? 4;
     const activePreviewLayer = this.isHyperLensActive() ? this.hyperLens.snappedLayer : (this.hoverWLayer ?? this.previewLayer);
     // 1. Neighboring W-volume bridge silhouettes: vertical offset (delta * 95) shows whether
     // the invisible bridge lies in a higher or lower W slice, brightened when standing on an anchor
     // or hovering a layer button / W-Stack plane.
-    for (const edge of this.connections()) {
-      if (!edge.open || edge.visible || edge.kind === 'ferry') continue;
-      const { a, b } = edge;
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist < 1) continue;
-      const nx = -dy / dist, ny = dx / dist;
-      const layerCenter = s.layers?.[edge.layer]?.center ?? .5;
-      const delta = layerCenter - w;
-      const lift = delta * 95;
-      const isPreviewed = activePreviewLayer === edge.layer;
-      const color = this.astralMode && edge.kind === 'normal' ? this.palette(edge.layer).astralColor : this.bridgeColor(edge);
-      const touchesHere = edge.from === s.node || edge.to === s.node;
-      const alpha = isPreviewed ? .84 : (onAnchor ? (touchesHere ? .58 : .36) : .22);
-      const ay = a.y - lift, by = b.y - lift;
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.setLineDash(isPreviewed ? [7, 4] : [5, 6]);
-      for (const side of [-1, 1]) {
-        line(ctx, a.x + nx * 8 * side, ay + ny * 8 * side, b.x + nx * 8 * side, by + ny * 8 * side, color, isPreviewed ? 2.4 : (touchesHere && onAnchor ? 1.8 : 1.2));
+    if (stage >= 2) {
+      for (const edge of this.connections()) {
+        if (!edge.open || edge.visible || edge.kind === 'ferry') continue;
+        const { a, b } = edge;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 1) continue;
+        const nx = -dy / dist, ny = dx / dist;
+        const layerCenter = s.layers?.[edge.layer]?.center ?? .5;
+        const delta = layerCenter - w;
+        const lift = delta * 95;
+        const isPreviewed = activePreviewLayer === edge.layer;
+        const color = this.astralMode && edge.kind === 'normal' ? this.palette(edge.layer).astralColor : this.bridgeColor(edge);
+        const touchesHere = edge.from === s.node || edge.to === s.node;
+        const alpha = isPreviewed ? .84 : (onAnchor ? (touchesHere ? .58 : .36) : .22);
+        const ay = a.y - lift, by = b.y - lift;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.setLineDash(isPreviewed ? [7, 4] : [5, 6]);
+        for (const side of [-1, 1]) {
+          line(ctx, a.x + nx * 8 * side, ay + ny * 8 * side, b.x + nx * 8 * side, by + ny * 8 * side, color, isPreviewed ? 2.4 : (touchesHere && onAnchor ? 1.8 : 1.2));
+        }
+        const planks = Math.max(4, Math.floor(dist / 36));
+        for (let i = 1; i < planks; i++) {
+          const t = i / planks;
+          const px = mix(a.x, b.x, t), py = mix(ay, by, t);
+          line(ctx, px - nx * 7, py - ny * 7, px + nx * 7, py + ny * 7, color, isPreviewed ? 1.5 : 1);
+        }
+        ctx.setLineDash([]);
+        const mx = mix(a.x, b.x, .5), my = mix(ay, by, .5);
+        for (let pip = 0; pip <= edge.layer; pip++) {
+          if (isPreviewed) diamond(ctx, mx + (pip - edge.layer / 2) * 8, my - 10, 3.2, this.palette(edge.layer).glow, color);
+          else ellipse(ctx, mx + (pip - edge.layer / 2) * 7, my - 10, 1.8, 1.8, color);
+        }
+        ctx.restore();
       }
-      const planks = Math.max(4, Math.floor(dist / 36));
-      for (let i = 1; i < planks; i++) {
-        const t = i / planks;
-        const px = mix(a.x, b.x, t), py = mix(ay, by, t);
-        line(ctx, px - nx * 7, py - ny * 7, px + nx * 7, py + ny * 7, color, isPreviewed ? 1.5 : 1);
-      }
-      ctx.setLineDash([]);
-      const mx = mix(a.x, b.x, .5), my = mix(ay, by, .5);
-      for (let pip = 0; pip <= edge.layer; pip++) {
-        if (isPreviewed) diamond(ctx, mx + (pip - edge.layer / 2) * 8, my - 10, 3.2, this.palette(edge.layer).glow, color);
-        else ellipse(ctx, mx + (pip - edge.layer / 2) * 7, my - 10, 1.8, 1.8, color);
-      }
-      ctx.restore();
     }
     // 2. Neighboring W-volume island silhouettes, never playable platforms.
     for (const node of s.nodes) {
       if (node.anchor) continue;
+      if (stage < 2 && !node.present) continue;
+      if (stage < 3 && node.id === 'vault' && node.locked) continue;
+      if (node.id === 'exit' && !node.present) continue;
       const isPreviewed = activePreviewLayer === node.layer && !node.present;
       const color = this.astralMode ? this.palette(node.layer).astralColor : this.palette(node.layer).color;
       const delta = (node.world?.w ?? node.center) - w;
@@ -2075,20 +2090,20 @@ export class SceneRenderer {
       ctx.stroke();
       diamond(ctx, cx, cy, inSweet ? 5.2 : 4, inSweet ? '#fffbeb' : pal.glow, railCol);
 
-      if (p >= .06) {
-        const label = inSweet ? '🌊 轻点 / 空格 · 踏浪冲刺' : '🌊 波峰冲刺';
-        ctx.globalAlpha = .94;
-        ctx.font = `700 ${clamp(9.4 / this.scale, 10.5, 14.5)}px system-ui, sans-serif`;
-        const tw = Math.max(88, ctx.measureText(label).width + 18);
-        const th = 21;
+      if (p >= .06 && (this.onboardingStage ?? 4) >= 2) {
+        const label = inSweet ? '🌊 轻点冲刺' : '🌊 冲刺';
+        ctx.globalAlpha = .92;
+        ctx.font = `600 ${clamp(9 / this.scale, 8.5, 11.5)}px system-ui, sans-serif`;
+        const tw = Math.max(54, ctx.measureText(label).width + 14);
+        const th = 19;
         const bx = clamp(pos.x, tw / 2 + 12, WORLD_W - tw / 2 - 12);
-        const by = Math.max(22, pos.y - 54);
+        const by = Math.max(22, pos.y - 52);
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(bx - tw / 2, by - th / 2, tw, th, 10.5);
+        if (ctx.roundRect) ctx.roundRect(bx - tw / 2, by - th / 2, tw, th, 9.5);
         else ctx.rect(bx - tw / 2, by - th / 2, tw, th);
         ctx.fillStyle = inSweet ? (this.astralMode ? '#2f230cf0' : '#33230bee') : (this.astralMode ? '#0f2734ee' : '#163139eb');
         ctx.fill();
-        ctx.lineWidth = 1.6;
+        ctx.lineWidth = 1.4;
         ctx.strokeStyle = inSweet ? '#fbbf24' : '#5eead4';
         ctx.stroke();
         ctx.fillStyle = inSweet ? '#fff7d6' : '#ccfbf1';
@@ -2106,20 +2121,20 @@ export class SceneRenderer {
       line(ctx, tx, ty, pos.x, pos.y, '#ffffff', 2.2);
       // Mid-dash pre-lock combo cue if destination is an untuned powered mechanism
       const dest = to;
-      if (dest.kind === 'mechanism' && dest.powered && !s.activated.includes(dest.id) && !s.tunedMechanisms?.includes(dest.id) && p < .92) {
-        const comboText = '⚡ 再点一下 · 凌空锁频 (+1◆)';
-        ctx.globalAlpha = .95;
-        ctx.font = `700 ${clamp(9.4 / this.scale, 10.5, 14.5)}px system-ui, sans-serif`;
-        const tw = Math.max(110, ctx.measureText(comboText).width + 18);
-        const th = 21;
+      if ((this.onboardingStage ?? 4) >= 2 && dest.kind === 'mechanism' && dest.powered && !s.activated.includes(dest.id) && !s.tunedMechanisms?.includes(dest.id) && p < .92) {
+        const comboText = '⚡ 再点锁频 +1◆';
+        ctx.globalAlpha = .94;
+        ctx.font = `600 ${clamp(9 / this.scale, 8.5, 11.5)}px system-ui, sans-serif`;
+        const tw = Math.max(76, ctx.measureText(comboText).width + 14);
+        const th = 19;
         const bx = clamp(dest.x, tw / 2 + 12, WORLD_W - tw / 2 - 12);
         const by = Math.max(24, dest.y - 84);
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(bx - tw / 2, by - th / 2, tw, th, 10.5);
+        if (ctx.roundRect) ctx.roundRect(bx - tw / 2, by - th / 2, tw, th, 9.5);
         else ctx.rect(bx - tw / 2, by - th / 2, tw, th);
         ctx.fillStyle = '#33230bf2';
         ctx.fill();
-        ctx.lineWidth = 1.6;
+        ctx.lineWidth = 1.4;
         ctx.strokeStyle = '#fbbf24';
         ctx.stroke();
         ctx.fillStyle = '#fffbeb';
@@ -2220,22 +2235,22 @@ export class SceneRenderer {
 
       // Subtle status / prompt micro-pill
       let lockTag = null;
-      if (isAltar) lockTag = '⚡ 轻点 / 空格 · 超频锁 (+1◆)';
-      else if (isTuned && !isLit) lockTag = '✦ 超频已锁 (+1◆)';
-      else if (isInteracting && !isTuned) lockTag = '↻ 拖拽对准金框 (+1◆)';
+      if (isAltar) lockTag = '⚡ 轻点超频 +1◆';
+      else if (isTuned && !isLit) lockTag = '✦ 已锁 +1◆';
+      else if (isInteracting && !isTuned) lockTag = '↻ 拖转对准 +1◆';
 
       if (lockTag) {
-        ctx.globalAlpha = .95;
-        ctx.font = `700 ${clamp(8.8 / this.scale, 10, 13.5)}px system-ui, sans-serif`;
-        const tw = Math.max(82, ctx.measureText(lockTag).width + 14);
-        const th = 19;
-        const ty = isAltar ? -(ringR * .68 + 18) : (ringR * .68 + 15);
+        ctx.globalAlpha = .94;
+        ctx.font = `600 ${clamp(8.8 / this.scale, 8.5, 11.5)}px system-ui, sans-serif`;
+        const tw = Math.max(64, ctx.measureText(lockTag).width + 12);
+        const th = 18;
+        const ty = isAltar ? -(ringR * .68 + 16) : (ringR * .68 + 14);
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(-tw / 2, ty - th / 2, tw, th, 9.5);
+        if (ctx.roundRect) ctx.roundRect(-tw / 2, ty - th / 2, tw, th, 9);
         else ctx.rect(-tw / 2, ty - th / 2, tw, th);
         ctx.fillStyle = isTuned || isAltar ? '#33230bf0' : '#122634ee';
         ctx.fill();
-        ctx.lineWidth = 1.4;
+        ctx.lineWidth = 1.3;
         ctx.strokeStyle = isTuned || isAltar ? '#fbbf24' : baseCol;
         ctx.stroke();
         ctx.fillStyle = isTuned || isAltar ? '#fffbeb' : '#daf4ef';
@@ -2352,9 +2367,11 @@ export class SceneRenderer {
     }
 
     // Continuously sliced 4D islands at lensW
+    const lensStage = this.onboardingStage ?? 4;
     const sortedNodes = [...s.nodes].sort((a, b) => a.y - b.y);
     for (const node of sortedNodes) {
       if (node.id === 'rift' && node.locked) continue;
+      if (lensStage < 3 && node.id === 'vault' && node.locked) continue;
       if (node.id === 'bloom' && this.node('crown')?.anchor) continue;
       const nodeCenter = node.center ?? node.world?.w ?? (s.layers?.[node.layer]?.center ?? .5);
       const sec = node.anchor ? 1 : this.sectionAt(nodeCenter, lensW);
@@ -2545,8 +2562,9 @@ export class SceneRenderer {
     // Wave active: collapse all callout pills and leave only the safe-layer green ring.
     if (s.wave) return;
     const ctx = this.ctx;
+    const stage = this.onboardingStage ?? 4;
     const currentNode = this.node(s.node);
-    const bounce = this.reducedMotion ? 0 : Math.sin(this.time * 4.2) * 4;
+    const bounce = this.reducedMotion ? 0 : Math.sin(this.time * 4.2) * 3;
     let fullPillCount = 0;
     const MAX_FULL_PILLS = 2;
     const pillRects = [];
@@ -2555,28 +2573,28 @@ export class SceneRenderer {
       if (fullPillCount >= MAX_FULL_PILLS) return;
       fullPillCount += 1;
       ctx.save();
-      ctx.font = `700 ${clamp(11 / this.scale, 13, 18)}px system-ui, sans-serif`;
-      const padX = 14;
-      const w = Math.max(116, ctx.measureText(text).width + padX * 2);
-      const h = 28;
-      let y = clamp(cy + bounce, 34, WORLD_H - 42);
-      // Avoid overlapping the top-left 4D W-stack (x: 45..268, y: 65..238)
-      const minX = y < 238 ? Math.max(125, 268 + w / 2) : Math.max(125, w / 2 + 12);
-      const maxX = WORLD_W - Math.max(125, w / 2 + 12);
+      ctx.font = `600 ${clamp(9.5 / this.scale, 9.5, 12.5)}px system-ui, sans-serif`;
+      const padX = 10;
+      const w = Math.max(48, ctx.measureText(text).width + padX * 2);
+      const h = 22;
+      let y = clamp(cy + bounce, 28, WORLD_H - 34);
+      // Avoid overlapping the top-left 4D W-stack when visible in Stage 2+
+      const minX = (stage >= 2 && y < 238) ? Math.max(72, 236 + w / 2) : Math.max(48, w / 2 + 12);
+      const maxX = WORLD_W - Math.max(48, w / 2 + 12);
       const x = clamp(cx, Math.min(minX, maxX), Math.max(minX, maxX));
-      const tipX = clamp(cx, x - w / 2 + 16, x + w / 2 - 16);
-      pillRects.push({ x1: x - w / 2 - 6, y1: y - h / 2 - 4, x2: x + w / 2 + 6, y2: y + h / 2 + 10 });
+      const tipX = clamp(cx, x - w / 2 + 12, x + w / 2 - 12);
+      pillRects.push({ x1: x - w / 2 - 5, y1: y - h / 2 - 3, x2: x + w / 2 + 5, y2: y + h / 2 + 8 });
       // Pointer triangle
-      path(ctx, [[tipX - 7, y + h / 2 - 1], [tipX + 7, y + h / 2 - 1], [tipX, y + h / 2 + 8]]);
+      path(ctx, [[tipX - 5, y + h / 2 - 1], [tipX + 5, y + h / 2 - 1], [tipX, y + h / 2 + 6]]);
       ctx.fillStyle = borderColor;
       ctx.fill();
       // Pill body
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, 14);
+      if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, 11);
       else ctx.rect(x - w / 2, y - h / 2, w, h);
       ctx.fillStyle = bgColor;
       ctx.fill();
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.6;
       ctx.strokeStyle = borderColor;
       ctx.stroke();
       ctx.fillStyle = textColor;
@@ -2588,23 +2606,23 @@ export class SceneRenderer {
 
     const drawCompactBadge = (cx, cy, badgeText, bgColor, borderColor, textColor) => {
       ctx.save();
-      ctx.font = `700 ${clamp(10 / this.scale, 11, 15)}px system-ui, sans-serif`;
-      const padX = 8;
-      const w = Math.max(28, ctx.measureText(badgeText).width + padX * 2);
-      const h = 22;
-      const x = clamp(cx, 32, WORLD_W - 32);
-      let y = clamp(cy + bounce * .45, 24, WORLD_H - 28);
+      ctx.font = `700 ${clamp(9 / this.scale, 9, 12)}px system-ui, sans-serif`;
+      const padX = 7;
+      const w = Math.max(24, ctx.measureText(badgeText).width + padX * 2);
+      const h = 20;
+      const x = clamp(cx, 28, WORLD_W - 28);
+      let y = clamp(cy + bounce * .45, 22, WORLD_H - 24);
       for (const rect of pillRects) {
         if (x + w / 2 > rect.x1 && x - w / 2 < rect.x2 && y + h / 2 > rect.y1 && y - h / 2 < rect.y2) {
-          y = Math.max(20, rect.y1 - h / 2 - 4);
+          y = Math.max(18, rect.y1 - h / 2 - 4);
         }
       }
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, 11);
+      if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, 10);
       else ctx.rect(x - w / 2, y - h / 2, w, h);
       ctx.fillStyle = bgColor;
       ctx.fill();
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.5;
       ctx.strokeStyle = borderColor;
       ctx.stroke();
       ctx.fillStyle = textColor;
@@ -2617,7 +2635,7 @@ export class SceneRenderer {
     // 1. Emergency Void Rescue visual alert if standing on disappearing floor
     if (s.phaseStability < .99 && !s.travel && currentNode) {
       const pos = this.playerPosition();
-      const safeLayerName = s.layers[currentNode.layer]?.name || '原切片';
+      const safeRoman = ['Ⅰ', 'Ⅱ', 'Ⅲ'][currentNode.layer] || '原';
       ctx.save();
       const pulse = this.reducedMotion ? .8 : .55 + .45 * Math.sin(this.time * 10);
       ellipse(ctx, pos.x, pos.y, 68, 36, '#bd614624', COLORS.danger, 3 * pulse);
@@ -2629,8 +2647,8 @@ export class SceneRenderer {
       ctx.restore();
       drawCalloutPill(
         pos.x,
-        pos.y - 78,
-        `⚠️ 脚下悬空！快切回 ${safeLayerName}`,
+        pos.y - 72,
+        `⚠️ 悬空 · 滚回${safeRoman}层`,
         '#3a1814ee',
         '#ff7b5a',
         '#ffe9e2'
@@ -2640,41 +2658,41 @@ export class SceneRenderer {
 
     if (s.travel) return;
 
-    const stage = this.onboardingStage ?? 4;
-
     // Draw crystal-clear numbered badges (① / ② / ③ / ④ / 🚪), causal energy wires, and role tags
     const order = s.mechanismOrder || s.nodes.filter(n => n.kind === 'mechanism').map(n => n.id);
     const mechTotal = order.length || 3;
     const numSymbols = ['①', '②', '③', '④'];
-    const layerShort = ['Ⅰ 潮汐层', 'Ⅱ 回声层', 'Ⅲ 绽放层'];
+    const layerRoman = ['Ⅰ', 'Ⅱ', 'Ⅲ'];
 
-    // 2A. Draw explicit causal energy wires between mechanisms (e.g. ① ──⚡──► ②)
-    for (const targetId of order) {
-      const target = this.node(targetId);
-      if (!target) continue;
-      for (const sourceId of target.required || []) {
-        const source = this.node(sourceId);
-        if (!source) continue;
-        const received = (target.received || []).includes(sourceId);
-        const samePosition = Math.hypot(target.x - source.x, target.y - source.y) < 2;
-        const ctrlX = samePosition ? source.x + 82 : (source.x + target.x) / 2;
-        const ctrlY = samePosition ? source.y - 125 : Math.min(source.y, target.y) - 95;
-        ctx.save();
-        ctx.globalAlpha = received ? .85 : .42;
-        ctx.setLineDash(received ? [] : [6, 6]);
-        ctx.beginPath();
-        ctx.moveTo(source.x, source.y - 36);
-        ctx.quadraticCurveTo(ctrlX, ctrlY, target.x, target.y - 36);
-        ctx.strokeStyle = received ? '#45c4a0' : '#fbbf24';
-        ctx.lineWidth = received ? 2.6 : 1.8;
-        ctx.stroke();
-        ctx.setLineDash([]);
-        // Animated energy pulse bead along the causal wire
-        const t = this.reducedMotion ? .5 : ((this.time * (received ? .65 : .35)) % 1);
-        const bx = (1 - t) ** 2 * source.x + 2 * (1 - t) * t * ctrlX + t ** 2 * target.x;
-        const by = (1 - t) ** 2 * (source.y - 36) + 2 * (1 - t) * t * ctrlY + t ** 2 * (target.y - 36);
-        diamond(ctx, bx, by, received ? 5 : 3.8, received ? '#b8f5dc' : '#fef3c7', received ? '#45c4a0' : '#fbbf24');
-        ctx.restore();
+    // 2A. Draw explicit causal energy wires between mechanisms from Stage 2+
+    if (stage >= 2) {
+      for (const targetId of order) {
+        const target = this.node(targetId);
+        if (!target) continue;
+        for (const sourceId of target.required || []) {
+          const source = this.node(sourceId);
+          if (!source) continue;
+          const received = (target.received || []).includes(sourceId);
+          const samePosition = Math.hypot(target.x - source.x, target.y - source.y) < 2;
+          const ctrlX = samePosition ? source.x + 82 : (source.x + target.x) / 2;
+          const ctrlY = samePosition ? source.y - 125 : Math.min(source.y, target.y) - 95;
+          ctx.save();
+          ctx.globalAlpha = received ? .85 : .42;
+          ctx.setLineDash(received ? [] : [6, 6]);
+          ctx.beginPath();
+          ctx.moveTo(source.x, source.y - 36);
+          ctx.quadraticCurveTo(ctrlX, ctrlY, target.x, target.y - 36);
+          ctx.strokeStyle = received ? '#45c4a0' : '#fbbf24';
+          ctx.lineWidth = received ? 2.6 : 1.8;
+          ctx.stroke();
+          ctx.setLineDash([]);
+          // Animated energy pulse bead along the causal wire
+          const t = this.reducedMotion ? .5 : ((this.time * (received ? .65 : .35)) % 1);
+          const bx = (1 - t) ** 2 * source.x + 2 * (1 - t) * t * ctrlX + t ** 2 * target.x;
+          const by = (1 - t) ** 2 * (source.y - 36) + 2 * (1 - t) * t * ctrlY + t ** 2 * (target.y - 36);
+          diamond(ctx, bx, by, received ? 5 : 3.8, received ? '#b8f5dc' : '#fef3c7', received ? '#45c4a0' : '#fbbf24');
+          ctx.restore();
+        }
       }
     }
 
@@ -2692,7 +2710,7 @@ export class SceneRenderer {
     if (pending && pending.targetLayer !== s.layer && (!pending.atNode || pending.atNode === s.node)) {
       hint = { layer: pending.targetLayer, here: true, kind: pending.kind || 'anchor' };
     }
-    if (primaryTarget && s.node !== primaryTarget.id) {
+    if (primaryTarget && s.node !== primaryTarget.id && (stage >= 2 || primaryTarget.present)) {
       const pos = this.playerPosition();
       ctx.save();
       ctx.globalAlpha = .52;
@@ -2706,48 +2724,26 @@ export class SceneRenderer {
       }
     }
 
-    // When standing on an anchor/portal and not yet aligned to the bridge layer, collapse
-    // all non-focus pills into compact circular badges so the player's eye stays on the bridges.
     const explicitHint = this.isExplicitLayerHint();
     const waitingForShiftHere = !!(stage >= 2 && hint?.here);
     if (waitingForShiftHere) {
       const pos = this.playerPosition();
-      const dirArrow = (s.layers?.[hint.layer]?.center ?? .5) > this.currentW() ? '上滚 ▲' : '下滚 ▼';
+      const dirArrow = (s.layers?.[hint.layer]?.center ?? .5) > this.currentW() ? '▲' : '▼';
       const shiftPillText = explicitHint
-        ? (hint.kind === 'same_xyz'
-          ? `🌀 在此【${dirArrow}】切至 ${layerShort[hint.layer]} 原地换台`
-          : hint.kind === 'anomaly'
-            ? `✦ 在此【${dirArrow}】切至 ${layerShort[hint.layer]} 收录奇物`
-            : `🌀 在此【${dirArrow}】切至 ${layerShort[hint.layer]} 显桥`)
-        : (hint.kind === 'anomaly'
-          ? '✦ 看奇物波纹色彩，在此【滚轮】对准收录'
-          : '🌀 看虚线桥颜色与偏移，在此【滚轮】对准显桥');
+        ? `🖱️ ${dirArrow} → ${layerRoman[hint.layer]}层`
+        : '🖱️ 滚轮换层寻桥';
       drawCalloutPill(
         pos.x,
-        pos.y - 68,
+        pos.y - 64,
         shiftPillText,
         hint.kind === 'anomaly' ? '#36240bee' : '#152b34ee',
         hint.kind === 'anomaly' ? '#fbbf24' : '#5eead4',
         hint.kind === 'anomaly' ? '#fffbeb' : '#ccfbf1'
       );
-    } else if (this.relicHud?.readyAbility) {
-      const pos = this.playerPosition();
-      drawCalloutPill(
-        pos.x,
-        pos.y - 68,
-        this.relicHud.readyAbility.ctaText,
-        '#281840f2',
-        '#c084fc',
-        '#f3e8ff'
-      );
     }
 
-    const shouldExpandNode = id => {
-      if (fullPillCount >= MAX_FULL_PILLS) return false;
-      if (hoverId && hoverId === id) return true;
-      if (waitingForShiftHere) return false;
-      return focusNodeId === id;
-    };
+    // Unhovered nodes NEVER expand into long sentences; only hover expands a short tooltip.
+    const shouldExpandNode = id => Boolean(hoverId && hoverId === id && fullPillCount < MAX_FULL_PILLS);
 
     const drawNodeTag = (id, cx, cy, fullText, badgeText, bgColor, borderColor, textColor) => {
       if (shouldExpandNode(id)) {
@@ -2762,42 +2758,38 @@ export class SceneRenderer {
     order.forEach((id, idx) => {
       const node = this.node(id);
       if (!node) return;
+      const isLit = s.activated.includes(id);
+      const isPowered = node.powered && !isLit;
+      const onCurrentLayer = node.layer === s.layer;
+      if (!isLit && isPowered && !onCurrentLayer && stage < 2) return;
+      if (!isLit && !isPowered && stage < 2) return;
+
       const coordKey = `${Math.round(node.x)},${Math.round(node.y)}`;
       const stackIdx = seenCoords.get(coordKey) || 0;
       seenCoords.set(coordKey, stackIdx + 1);
-      const yOffset = stackIdx * 30;
-      const isLit = s.activated.includes(id);
-      const isPowered = node.powered && !isLit;
+      const yOffset = stackIdx * 26;
       const num = numSymbols[idx] || `${idx + 1}`;
-      const lTag = layerShort[node.layer] || '';
+      const lRom = layerRoman[node.layer] || 'Ⅰ';
       if (isLit) {
-        drawNodeTag(id, node.x, node.y - 72 - yOffset, `✓ ${num} 已点亮`, `✓${num}`, '#133127dd', '#45c4a0', '#b8f5dc');
+        drawNodeTag(id, node.x, node.y - 70 - yOffset, `${num} 已点亮`, `✓${num}`, '#133127dd', '#45c4a0', '#b8f5dc');
       } else if (isPowered) {
         const isPrimary = primaryMechId === id;
         const pulse = this.reducedMotion ? .7 : .5 + .5 * Math.sin(this.time * 5);
         ctx.save();
         ellipse(ctx, node.x, node.y, (isPrimary ? 82 : 74) + pulse * 10, (isPrimary ? 44 : 40) + pulse * 5, '#dd9a1c24', COLORS.gold, isPrimary ? 3.4 : 2.4);
         ctx.restore();
-        const onCurrentLayer = node.layer === s.layer;
         if (this.altarWindow?.node === id && s.node === id && !s.travel) return;
-        const showRiskOption = (stage >= 3 || this.riskPreview?.chargesPrism || this.riskPreview?.chargesWeave) && isPrimary && this.riskPreview?.available && this.riskPreview.isNovel;
-        const actionText = s.node === id
-          ? `⚡ 点我点亮 ${num}`
-          : stage === 1 && isPrimary
-            ? `🎯 第一步：点我走过去（登岛自动点亮 ${num}）`
-            : onCurrentLayer
-              ? showRiskOption
-                ? `🎯 桥已显形 · 点我稳妥走(+1◆) 或点下方⚡冒险冲(+3◆)`
-                : `${isPrimary ? '🎯 桥已显形 · ' : '👉 '}点我走过去点亮 ${num}`
-              : explicitHint
-                ? `👻 ${num} 虚影在 ${lTag} · 先去 ⚓ 安全台切层`
-                : `👻 ${num} 在邻层切片 · 先去 ⚓ 安全台看虚线桥调谐`;
-        const badgeText = onCurrentLayer ? `🎯${num}` : `👻${num}`;
+        const hoverText = onCurrentLayer
+          ? (s.node === id ? `点击点亮 ${num}` : `点此走过去点亮 ${num}`)
+          : (explicitHint ? `在${lRom}层 · 先去 ⚓ 换层台` : '在异层 · 先去 ⚓ 换层台');
+        const badgeText = onCurrentLayer
+          ? (isPrimary ? (stage === 1 ? '👆 ①' : `🎯 ${num}`) : num)
+          : (explicitHint ? `${num}·${lRom}层` : `${num}·异层`);
         drawNodeTag(
           id,
           node.x,
-          node.y - 78 - yOffset,
-          actionText,
+          node.y - 76 - yOffset,
+          hoverText,
           badgeText,
           onCurrentLayer ? '#33230bee' : '#192a38ee',
           onCurrentLayer ? '#fbbf24' : '#5eead4',
@@ -2810,8 +2802,8 @@ export class SceneRenderer {
             const rIdx = order.indexOf(reqId);
             return numSymbols[rIdx] || '前序';
           });
-        const prereqText = missingSyms.length ? `需先点亮 ${missingSyms.join('+')}` : (explicitHint ? lTag : '前序供能');
-        drawNodeTag(id, node.x, node.y - 72 - yOffset, `🔒 ${num} 待解锁 · ${prereqText}`, `🔒${num}`, '#18242ccc', '#64748b', '#cbd5e1');
+        const hoverText = `需先点亮 ${missingSyms.join('+') || '前序'}`;
+        drawNodeTag(id, node.x, node.y - 70 - yOffset, hoverText, `🔒${num}`, '#18242ccc', '#64748b', '#cbd5e1');
       }
     });
 
@@ -2822,16 +2814,16 @@ export class SceneRenderer {
       const hubNode = this.node('hub');
       if (hubNode && s.node !== 'hub' && (anchorFocus('hub') || hoverId === 'hub')) {
         const hubText = anchorFocus('hub')
-          ? (explicitHint ? `⚓ 先回${hubNode.name} · 再${hint.layer > s.layer ? '上滚' : '下滚'}切至 ${layerShort[hint.layer]}` : `⚓ 先回${hubNode.name} · 观察虚线桥调谐`)
-          : '⚓ 站此可换层';
-        drawNodeTag('hub', hubNode.x, hubNode.y - 68, hubText, '⚓', '#152b28cc', '#4b9b8a', '#c9f2e7');
+          ? (explicitHint ? `去此滚至${layerRoman[hint.layer]}层` : '去此滚轮换层')
+          : '站此滚轮换层';
+        drawNodeTag('hub', hubNode.x, hubNode.y - 66, hubText, '⚓', '#152b28cc', '#4b9b8a', '#c9f2e7');
       }
       const relayNode = this.node('relay');
       if (relayNode && s.node !== 'relay' && (anchorFocus('relay') || hoverId === 'relay')) {
         const relayText = anchorFocus('relay')
-          ? (explicitHint ? `⚓ 先去${relayNode.name} · 再${hint.layer > s.layer ? '上滚' : '下滚'}切至 ${layerShort[hint.layer]}` : `⚓ 先去${relayNode.name} · 观察虚线桥调谐`)
-          : '⚓ 站此可换层';
-        drawNodeTag('relay', relayNode.x, relayNode.y - 66, relayText, '⚓', '#152b28cc', '#4b9b8a', '#c9f2e7');
+          ? (explicitHint ? `去此滚至${layerRoman[hint.layer]}层` : '去此滚轮换层')
+          : '站此滚轮换层';
+        drawNodeTag('relay', relayNode.x, relayNode.y - 64, relayText, '⚓', '#152b28cc', '#4b9b8a', '#c9f2e7');
       }
       // Highlight 4D Same-XYZ Folding if standing on an island that shares 3D coordinates with another layer's island
       if (currentNode && !currentNode.anchor && currentNode.world) {
@@ -2851,14 +2843,13 @@ export class SceneRenderer {
           }
           ctx.restore();
           if (!(waitingForShiftHere && hint?.kind === 'same_xyz')) {
-            const stackPrefix = sameSpots.length >= 2 ? '🌀 三层同位高塔' : '🌀 四维同位叠合';
             const portalText = explicitHint
-              ? `${stackPrefix}：直接滚轮切至${layerShort[sameSpot.layer]}可原地变成「${sameSpot.name}」！`
-              : `${stackPrefix}：看重影色彩与层标，直接滚轮原地切至「${sameSpot.name}」！`;
+              ? `滚至${layerRoman[sameSpot.layer]}层原地换岛`
+              : '滚轮原地换岛';
             drawNodeTag(
               sameSpot.id,
               currentNode.x,
-              currentNode.y + 56,
+              currentNode.y + 52,
               portalText,
               sameSpots.length >= 2 ? '🌀三叠' : '🌀同位',
               '#281840ee',
@@ -2878,16 +2869,16 @@ export class SceneRenderer {
         const trigIdx = order.indexOf(swapTrig);
         const trigSym = trigIdx >= 0 ? numSymbols[trigIdx] : '①';
         if ((hoverId === edge.from || hoverId === edge.to) && fullPillCount < MAX_FULL_PILLS) {
-          drawCalloutPill(mx, my - 26, `⇄ 换向桥 · 点亮 ${trigSym} 后自动收起换路`, '#38250bee', '#fbbf24', '#fff7d6');
+          drawCalloutPill(mx, my - 24, `⇄ 点亮${trigSym}后换路`, '#38250bee', '#fbbf24', '#fff7d6');
         } else {
-          drawCompactBadge(mx, my - 24, '⇄', '#38250bdd', '#fbbf24', '#fff7d6');
+          drawCompactBadge(mx, my - 22, '⇄', '#38250bdd', '#fbbf24', '#fff7d6');
         }
       }
     }
 
     if (stage >= 3) {
       const vaultNode = this.node('vault');
-      if (vaultNode) {
+      if (vaultNode && (!vaultNode.locked || stage >= 3)) {
         const vaultDone = s.vaultStatus === 'escaped';
         const vaultUnlocked = !vaultNode.locked && !vaultDone;
         if (vaultUnlocked) {
@@ -2897,15 +2888,15 @@ export class SceneRenderer {
           ctx.restore();
         }
         const vaultTag = vaultDone
-          ? '✓ ✨ 秘宝花匣已收录'
+          ? '✨ 宝箱已领'
           : vaultUnlocked
-            ? `✨ 秘宝花匣已开！点此夺宝 (+${s.roomChallenge?.reward || 4}◆)`
-            : `✨ 秘宝花匣 · 点亮机关后解封 (+${s.roomChallenge?.reward || 4}◆)`;
+            ? `✨ 点击领奖 +${s.roomChallenge?.reward || 4}◆`
+            : '✨ 点亮机关解锁';
         const vaultBadge = vaultDone ? '✓✨' : '✨';
         drawNodeTag(
           'vault',
           vaultNode.x,
-          vaultNode.y - 66,
+          vaultNode.y - 64,
           vaultTag,
           vaultBadge,
           vaultUnlocked ? '#38250bee' : '#2a2115cc',
@@ -2924,7 +2915,7 @@ export class SceneRenderer {
           ellipse(ctx, mx, my - 4, 22 + pulse * 6, 12 + pulse * 3, '#348d7025', '#45c4a0', 1.8);
           diamond(ctx, mx, my - 6, 7, '#fef3c7', '#f59e0b');
           ctx.restore();
-          drawCompactBadge(mx, my - 30, '🌺', '#162d26dd', '#45c4a0', '#d1fae5');
+          drawCompactBadge(mx, my - 28, '🌺', '#162d26dd', '#45c4a0', '#d1fae5');
         }
       }
     }
@@ -2939,13 +2930,12 @@ export class SceneRenderer {
         ellipse(ctx, riftNode.x, riftNode.y - 12, 62 + pulse * 8, 32 + pulse * 4, '#8563b322', '#a78bfa', 1.8);
         ctx.restore();
         if (!riftNode.locked) {
-          drawNodeTag('rift', riftNode.x, riftNode.y - 74, '🌌 隐星秘境已开启！登岛试炼 (+9◆)', '🌌', '#281840ee', '#c084fc', '#f3e8ff');
+          drawNodeTag('rift', riftNode.x, riftNode.y - 72, '🌌 点击进入试炼 +9◆', '🌌', '#281840ee', '#c084fc', '#f3e8ff');
         } else if (eligibleRoute) {
-          const entryName = this.node(eligibleRoute.entry)?.name || '锚台';
-          const seqText = (eligibleRoute.sequence || []).map(l => ['Ⅰ', 'Ⅱ', 'Ⅲ'][l]).join('→');
-          drawNodeTag('rift', riftNode.x, riftNode.y - 74, `🔮 封印松动！去${entryName}按 ${seqText} 换层开启`, '🔮', '#2e1a47ee', '#c084fc', '#f3e8ff');
+          const seqText = (eligibleRoute.sequence || []).map(l => layerRoman[l]).join('→');
+          drawNodeTag('rift', riftNode.x, riftNode.y - 72, `🔮 按${seqText}换层开启`, '🔮', '#2e1a47ee', '#c084fc', '#f3e8ff');
         } else {
-          drawNodeTag('rift', riftNode.x, riftNode.y - 72, '🌌 隐藏秘境 · 集齐双遗物共鸣解封 (+9◆)', '🌌', '#1f1630cc', '#8b5cf6', '#ddd6fe');
+          drawNodeTag('rift', riftNode.x, riftNode.y - 70, '🌌 双遗物共鸣开启', '🌌', '#1f1630cc', '#8b5cf6', '#ddd6fe');
         }
       }
     }
@@ -2980,9 +2970,9 @@ export class SceneRenderer {
           diamond(ctx, 0, 0, 6 + pulse * 2, '#fffbeb', '#f59e0b');
           ctx.restore();
           if (isHovered && fullPillCount < MAX_FULL_PILLS) {
-            drawCalloutPill(item.x, item.y - 44, `✦ 点击收录「${item.name}」(+${item.bonus}◆)`, '#3b2609f4', '#fbbf24', '#fffbeb');
+            drawCalloutPill(item.x, item.y - 40, `✦ 点击收录 +${item.bonus}◆`, '#3b2609f4', '#fbbf24', '#fffbeb');
           } else {
-            drawCompactBadge(item.x, item.y - 36, `✦+${item.bonus}`, '#3b2609f2', '#fbbf24', '#fffbeb');
+            drawCompactBadge(item.x, item.y - 34, `✦+${item.bonus}`, '#3b2609f2', '#fbbf24', '#fffbeb');
           }
         } else {
           ctx.globalAlpha = (isHovered ? .82 : .55) + pulse * .22;
@@ -2997,25 +2987,31 @@ export class SceneRenderer {
           diamond(ctx, 0, 0, 4.4, itemPalette.glow, itemColor);
           ctx.restore();
           if (isHovered && fullPillCount < MAX_FULL_PILLS) {
-            drawCalloutPill(item.x, item.y - 42, `✦「${item.name}」在异层 · 点击自动寻路切层`, '#162634f2', itemColor, '#e6f6ff');
+            drawCalloutPill(item.x, item.y - 38, '✦ 异层奇物·点击寻路', '#162634f2', itemColor, '#e6f6ff');
           } else {
-            drawCompactBadge(item.x, item.y - 32, '◌', '#16222ecc', itemColor, '#e2e8f0');
+            drawCompactBadge(item.x, item.y - 30, '◌', '#16222ecc', itemColor, '#e2e8f0');
           }
         }
       }
     }
 
     const exitNode = this.node('exit');
-    if (exitNode) {
-      if (s.activated.length >= mechTotal) {
-        const pulse = this.reducedMotion ? .7 : .5 + .5 * Math.sin(this.time * 5);
-        ctx.save();
-        ellipse(ctx, exitNode.x, exitNode.y, 82 + pulse * 10, 44 + pulse * 5, '#45c4a028', '#45c4a0', 3.2);
-        ctx.restore();
-        drawNodeTag('exit', exitNode.x, exitNode.y - 80, '🚪 大门已开！点我过关 ↗', '🚪↗', '#0f3328f2', '#45c4a0', '#e6fff6');
-      } else {
-        drawNodeTag('exit', exitNode.x, exitNode.y - 72, `🚪 终点门 (需点亮 ${s.activated.length}/${mechTotal})`, `🚪${s.activated.length}/${mechTotal}`, '#18242ccc', '#64748b', '#cbd5e1');
-      }
+    if (exitNode && s.activated.length >= mechTotal) {
+      const pulse = this.reducedMotion ? .7 : .5 + .5 * Math.sin(this.time * 5);
+      ctx.save();
+      ellipse(ctx, exitNode.x, exitNode.y, 82 + pulse * 10, 44 + pulse * 5, '#45c4a028', '#45c4a0', 3.2);
+      ctx.restore();
+      const exitRom = layerRoman[exitNode.layer] || 'Ⅰ';
+      drawNodeTag(
+        'exit',
+        exitNode.x,
+        exitNode.present ? exitNode.y - 102 : exitNode.y - 94,
+        exitNode.present ? '🚪 点击进门过关 ↗' : `🚪 去${exitRom}层进门`,
+        exitNode.present ? '🚪 进门 ↗' : `🚪 去${exitRom}层`,
+        '#0f3328f2',
+        '#45c4a0',
+        '#e6fff6'
+      );
     }
 
     const g = this.liveGuide;
@@ -3095,9 +3091,9 @@ export class SceneRenderer {
       for (let dot = 0; dot <= i; dot++) ellipse(ctx, 140 + dot * 7, 22 + y, 2, 2, color);
       if (this.visualGuide) {
         // Relative to the current layer: wheel up climbs towards Ⅲ (drawn on top).
-        const dirHint = `${['Ⅰ 潮汐', 'Ⅱ 回声', 'Ⅲ 绽放'][i]} ${i > s.layer ? '▲上滚' : i < s.layer ? '▼下滚' : '● 当前'}`;
+        const dirHint = `${['Ⅰ', 'Ⅱ', 'Ⅲ'][i]}${i > s.layer ? ' ▲' : i < s.layer ? ' ▼' : ' ●'}`;
         const isPrompted = this.isExplicitLayerHint() && this.pendingLayerPrompt?.targetLayer === i && s.layer !== i;
-        ctx.font = `${i === s.layer || isPrompted || isPreview ? 700 : 500} 9.5px system-ui, sans-serif`;
+        ctx.font = `${i === s.layer || isPrompted || isPreview ? 700 : 500} 9px system-ui, sans-serif`;
         ctx.textAlign = 'left';
         ctx.fillStyle = isPrompted ? (this.astralMode ? '#ffd86b' : COLORS.gold) : isPreview ? '#fef08a' : color;
         ctx.fillText(isPrompted ? `👉 ${dirHint}` : dirHint, 162, 25 + y);
@@ -3136,10 +3132,6 @@ export class SceneRenderer {
     path(ctx, corners.map(([x, y]) => [x, y + cutY]));
     ctx.strokeStyle = this.astralMode ? (this.palette().astralColor || '#69d8ee') : this.palette().color;
     ctx.lineWidth = 1.3; ctx.stroke(); ctx.setLineDash([]);
-    const labelSize = clamp(10 / (this.scale * miniScale), 12, 22);
-    ctx.font = `600 ${labelSize}px system-ui, sans-serif`; ctx.textAlign = 'left';
-    ctx.fillStyle = this.astralMode ? '#d8f3ee' : COLORS.ink;
-    ctx.fillText(`W  ${w.toFixed(2)}`, 10, 128);
     ctx.restore();
   }
 
@@ -3252,10 +3244,13 @@ export class SceneRenderer {
   drawSceneCues() {
     const s = this.state, ctx = this.ctx;
     if (s.phase !== 'playing' || s.travel || s.wave) return;
+    const stage = this.onboardingStage ?? 4;
     const reachable = new Set(this.momentumNode() ? [] : reachablePlatforms(s));
     const missing = new Set(missingSupplySources(s).map(node => node.id));
     const pulse = this.reducedMotion ? .65 : .5 + .5 * Math.sin(this.time * 3);
     for (const node of s.nodes) {
+      if (stage < 2 && !node.present) continue;
+      if (stage < 3 && node.id === 'vault' && node.locked) continue;
       const available = reachable.has(node.id), waiting = missing.has(node.id);
       if (!available && !waiting) continue;
       const color = available ? COLORS.gold : this.palette(node.layer).color;
@@ -3279,14 +3274,23 @@ export class SceneRenderer {
 
   drawIsland(node) {
     const ctx = this.ctx, s = this.state;
+    const stage = this.onboardingStage ?? 4;
     if (node.kind === 'ferry') { toys.drawFerrySkiff(this, node); return; }
-    if (node.id === 'rift' && node.locked) { this.drawRiftSilhouette(node); return; }
+    if (stage < 3 && node.id === 'vault' && node.locked) return;
+    if (node.id === 'rift' && node.locked) {
+      if (stage >= 3) this.drawRiftSilhouette(node);
+      return;
+    }
     if (node.id === 'bloom' && this.node('crown')?.anchor) return;
     const hub = node.id === 'hub', exit = node.id === 'exit';
     const rawScale = this.wTween
       ? this.sectionAt(node.center ?? node.world?.w ?? s.layers?.[node.layer]?.center ?? s.w) * (this.wrapAlpha ?? 1)
       : node.scale;
     const section = node.anchor ? 1 : clamp(rawScale);
+    if (exit && section <= .08) {
+      this.drawExitSilhouette(node);
+      return;
+    }
     if (section <= .01) return;
     const palette = this.palette(node.layer ?? s.layer);
     const active = s.activated.includes(node.id);
@@ -3396,28 +3400,45 @@ export class SceneRenderer {
     }
     ctx.restore();
     if (!node.present) { ctx.restore(); return; }
-    const labelY = Math.min((height + thickness) * section + 29, WORLD_H - node.y - 25);
+    const isHovered = this.hover === node.id;
+    const order = s.mechanismOrder || s.nodes.filter(n => n.kind === 'mechanism').map(n => n.id);
+    const mechTotal = order.length || 3;
+    let name = '';
+    if (isHovered) {
+      if (exit) name = `🚪 出口 · ${node.name || '庭门'}`;
+      else if (node.id === 'vault') name = `✨ 宝箱 · ${node.name || '花匣'}`;
+      else if (node.id === 'rift') name = `🌌 秘境 · ${node.name || '隐星台'}`;
+      else if (node.anchor) name = `⚓ 换层台 · ${node.name || (hub ? '归息台' : '中继台')}`;
+      else if (node.kind === 'mechanism') name = `${['①', '②', '③', '④'][order.indexOf(node.id)] || '◇'} ${node.name || node.id}`;
+      else name = node.name || node.id;
+    } else {
+      if (exit) name = s.activated.length >= mechTotal ? '🚪 出口 · 已开' : `🚪 出口 ${s.activated.length}/${mechTotal}`;
+      else if (node.id === 'vault') name = '✨ 宝箱';
+      else if (node.id === 'rift') name = '🌌 秘境';
+      else if (node.anchor) name = stage < 2 ? (hub ? '⚓ 起点' : '') : '⚓ 换层台';
+      else if (node.kind === 'mechanism') name = '';
+    }
+    if (!name) { ctx.restore(); return; }
+    const labelY = Math.min((height + thickness) * section + 22, WORLD_H - node.y - 18);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    // Labels retain a useful screen size when the whole garden fits a phone.
-    const labelSize = clamp(11 / this.scale, 16, 38);
-    ctx.font = `${selected ? 600 : 500} ${labelSize}px system-ui, -apple-system, sans-serif`;
-    // ⚓ marks every cross-layer platform, so the '⚓ 安全台' wording always maps to a visible label.
-    const name = (node.anchor ? '⚓ ' : '') + (node.name || { hub: '归息台', dew: '凝露坛', bell: '回声铃', bloom: '映光花', crown: '天穹冠', exit: '折光门' }[node.id] || node.id);
+    const labelSize = clamp(9.5 / this.scale, 8.5, 12.5);
+    ctx.font = `${isHovered || selected ? 600 : 500} ${labelSize}px system-ui, -apple-system, sans-serif`;
     const textWidth = ctx.measureText(name).width;
+    const padX = 7;
     ctx.fillStyle = this.astralMode ? '#0c1925eb' : '#edf2e9dd';
-    const labelHeight = labelSize + 8;
-    this.labelZones?.push({ left: node.x - textWidth / 2 - 8, right: node.x + textWidth / 2 + 8, top: node.y + labelY - labelHeight / 2, bottom: node.y + labelY + labelHeight / 2 });
-    ctx.beginPath(); ctx.roundRect?.(-textWidth / 2 - 8, labelY - labelHeight / 2, textWidth + 16, labelHeight, 8);
-    if (!ctx.roundRect) ctx.rect(-textWidth / 2 - 8, labelY - labelHeight / 2, textWidth + 16, labelHeight);
+    const labelHeight = labelSize + 6;
+    this.labelZones?.push({ left: node.x - textWidth / 2 - padX, right: node.x + textWidth / 2 + padX, top: node.y + labelY - labelHeight / 2, bottom: node.y + labelY + labelHeight / 2 });
+    ctx.beginPath(); ctx.roundRect?.(-textWidth / 2 - padX, labelY - labelHeight / 2, textWidth + padX * 2, labelHeight, 6);
+    if (!ctx.roundRect) ctx.rect(-textWidth / 2 - padX, labelY - labelHeight / 2, textWidth + padX * 2, labelHeight);
     ctx.fill();
-    if (this.astralMode) {
-      ctx.strokeStyle = selected ? '#f0b85aa8' : '#2c5068b8';
-      ctx.lineWidth = 1.2;
+    if (this.astralMode || isHovered) {
+      ctx.strokeStyle = selected || isHovered ? '#f0b85aa8' : '#2c5068b8';
+      ctx.lineWidth = 1.1;
       ctx.stroke();
     }
     ctx.fillStyle = this.astralMode
-      ? (selected ? '#ffd982' : '#e8f6f2')
-      : (selected ? '#936125' : COLORS.ink);
+      ? (selected || isHovered ? '#ffd982' : '#e8f6f2')
+      : (selected || isHovered ? '#936125' : COLORS.ink);
     ctx.fillText(name, 0, labelY);
     ctx.restore();
   }
@@ -3734,6 +3755,113 @@ export class SceneRenderer {
       const color = astral ? (this.palette(mechLayer).astralColor || this.palette(mechLayer).color) : this.palette(mechLayer).color;
       diamond(ctx, (i - (order.length - 1) / 2) * 15, -66, 4.3, active ? '#ffe8a1' : (astral ? '#142836' : '#dce1cd'), color);
     }
+    this.drawExitLampPips(order.length || 3, s.activated.length, -86, open);
+  }
+
+  drawExitLampPips(mechTotal, litCount, y, allLit) {
+    const ctx = this.ctx;
+    const total = Math.max(1, mechTotal || 3);
+    const gap = 16;
+    ctx.save();
+    for (let i = 0; i < total; i++) {
+      const px = (i - (total - 1) / 2) * gap;
+      const lit = i < litCount;
+      if (lit) {
+        ellipse(ctx, px, y, 7.2, 7.2, allLit ? '#45c4a038' : '#fbbf2438');
+        ellipse(ctx, px, y, 4.6, 4.6, allLit ? '#6ee7b7' : '#fde047', allLit ? '#10b981' : '#f59e0b', 1.5);
+        ellipse(ctx, px - 1.1, y - 1.1, 1.4, 1.4, '#ffffff');
+      } else {
+        ellipse(ctx, px, y, 4.5, 4.5, this.astralMode ? '#0f202dcc' : '#edf2e9cc', this.astralMode ? '#648ca3' : '#7b9486', 1.5);
+      }
+    }
+    ctx.restore();
+  }
+
+  drawExitSilhouette(node) {
+    const ctx = this.ctx, s = this.state;
+    const pal = this.palette(node.layer ?? s.layer);
+    const color = this.astralMode ? (pal.astralColor || pal.color) : pal.color;
+    const order = s.mechanismOrder || s.nodes.filter(item => item.kind === 'mechanism').map(item => item.id);
+    const mechTotal = order.length || 3;
+    const litCount = s.activated.length;
+    const allLit = litCount >= mechTotal;
+    const isHovered = this.hover === node.id;
+    const gateColor = allLit ? '#45c4a0' : color;
+    const layerRoman = ['Ⅰ', 'Ⅱ', 'Ⅲ'][node.layer] || 'Ⅰ';
+
+    ctx.save();
+    ctx.translate(node.x, node.y);
+
+    // Dashed platform ellipse (rx: 72, ry: 36)
+    ctx.globalAlpha = isHovered ? 0.62 : 0.42;
+    ctx.setLineDash([6, 6]);
+    ellipse(ctx, 0, 2, 72, 36, `${gateColor}14`, gateColor, isHovered ? 2.2 : 1.7);
+    ctx.setLineDash([]);
+
+    // Translucent arched doorway frame (twin pillars + arch)
+    ctx.globalAlpha = isHovered ? 0.58 : 0.42;
+    for (const side of [-1, 1]) {
+      const px = side * 24;
+      path(ctx, [[px - 6, 4], [px - 6, -48], [px + 6, -48], [px + 6, 4]]);
+      ctx.fillStyle = `${gateColor}28`;
+      ctx.fill();
+      ctx.strokeStyle = gateColor;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(-30, -48);
+    ctx.quadraticCurveTo(0, -68, 30, -48);
+    ctx.lineTo(22, -44);
+    ctx.quadraticCurveTo(0, -58, -22, -44);
+    ctx.closePath();
+    ctx.fillStyle = `${gateColor}30`;
+    ctx.fill();
+    ctx.strokeStyle = gateColor;
+    ctx.lineWidth = 1.7;
+    ctx.stroke();
+
+    if (allLit) {
+      diamond(ctx, 0, -24, 8, '#a7f3d0', '#45c4a0');
+    } else {
+      ctx.setLineDash([3, 4]);
+      line(ctx, -16, -40, 16, -8, gateColor, 1.2);
+      line(ctx, 16, -40, -16, -8, gateColor, 1.2);
+      ctx.setLineDash([]);
+    }
+
+    // 3-lamp lock progress pips above the ghosted gate
+    ctx.globalAlpha = 0.92;
+    this.drawExitLampPips(mechTotal, litCount, -74, allLit);
+
+    // Compact micro-label below the ghosted gate
+    const label = isHovered
+      ? `🚪 出口 · ${node.name || '庭门'} (${layerRoman}层 · ${litCount}/${mechTotal})`
+      : allLit
+        ? `🚪 出口已开 · 去${layerRoman}层`
+        : `🚪 出口 (${layerRoman}层 · ${litCount}/${mechTotal})`;
+    const labelSize = clamp(9.5 / this.scale, 8.5, 12.5);
+    const labelY = Math.min(48, WORLD_H - node.y - 16);
+    ctx.font = `${isHovered || allLit ? 600 : 500} ${labelSize}px system-ui, -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(label).width;
+    const lh = labelSize + 6;
+    ctx.globalAlpha = 0.92;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(-tw / 2 - 7, labelY - lh / 2, tw + 14, lh, 6);
+    else ctx.rect(-tw / 2 - 7, labelY - lh / 2, tw + 14, lh);
+    ctx.fillStyle = this.astralMode ? '#0c1925e6' : '#edf2e9e6';
+    ctx.fill();
+    ctx.strokeStyle = allLit ? '#45c4a0aa' : `${gateColor}88`;
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+    ctx.fillStyle = allLit
+      ? (this.astralMode ? '#a7f3d0' : '#166534')
+      : (this.astralMode ? '#d8f3ee' : COLORS.ink);
+    ctx.fillText(label, 0, labelY);
+
+    ctx.restore();
   }
 
   playerPosition() {
