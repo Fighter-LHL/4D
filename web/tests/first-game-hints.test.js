@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { describeNextStep, planLayerRoute } from '../src/progressive-onboarding.js';
+import { describeNextStep, planLayerRoute, clampIntroductoryW } from '../src/progressive-onboarding.js';
 import { start, reach, advance } from './model-helpers.js';
 
 const badgeOf = (state, id) => {
@@ -125,6 +125,41 @@ test('two anchors are named, and the anchor you already stand on says to switch 
   const atRelay = describeNextStep(model.snapshot());
   assert.equal(atRelay.action, 'shift');
   assert.match(atRelay.detail, /就在维度锚台/);
+});
+
+test('stage 1 continuous W cannot hide ① or close its bridge', () => {
+  const model = start('shell', 2);
+  const startW = model.snapshot().w;
+  const dew = () => model.snapshot().nodes.find(node => node.id === 'dew');
+  assert.equal(dew().present, true);
+  for (const raw of [0, 0.661, 0.999, 1, -1, startW - 5, startW + 5]) {
+    const clamped = clampIntroductoryW(model.snapshot(), raw);
+    model.setW(clamped);
+    const after = model.snapshot();
+    assert.equal(after.layer, 2, `raw ${raw} stayed on layer 2 at ${clamped}`);
+    assert.equal(dew().present, true, `① present at ${clamped} (from ${raw})`);
+    assert.equal(after.canMove, true, `bridge to ① still walkable at ${clamped}`);
+    model.setW(startW);
+  }
+  let w = startW;
+  for (let i = 0; i < 80; i++) w = clampIntroductoryW(model.snapshot(), w - 0.015);
+  model.setW(w);
+  assert.equal(dew().present, true);
+  assert.equal(model.snapshot().canMove, true);
+  for (let i = 0; i < 80; i++) w = clampIntroductoryW(model.snapshot(), w + 0.015);
+  model.setW(w);
+  assert.equal(dew().present, true);
+  assert.equal(model.snapshot().canMove, true);
+  assert.ok(Math.abs(w - startW) < 0.12, `clamp stayed near the layer center, got ${w}`);
+
+  model.setW(0.661);
+  const hidden = model.snapshot();
+  assert.equal(hidden.nodes.find(node => node.id === 'dew').present, false);
+  const recover = describeNextStep(hidden);
+  assert.equal(recover.action, 'recover');
+  assert.match(recover.banner, /回中心/);
+  assert.ok(recover.banner.includes('①'), recover.banner);
+  assert.ok(recover.banner.length <= 20, recover.banner);
 });
 
 test('planLayerRoute still walks to the anchor that actually holds the bridge', () => {

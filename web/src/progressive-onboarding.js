@@ -180,6 +180,54 @@ export function planLayerRoute(state, targetId, { finalLayer = null } = {}) {
 
 const STEP_BADGES = ['①', '②', '③', '④'];
 const STEP_ROMAN = ['Ⅰ', 'Ⅱ', 'Ⅲ'];
+const STEP_LAYER_KEYS = ['Z', 'X', 'C'];
+// Matches model.js section(): a platform is present while |W − center| is inside this.
+const PRESENT_HALF = 0.16 * Math.sqrt(0.75);
+
+/**
+ * Stage 1 continuous W (A/D, slider, dial) may drift inside the current slice,
+ * but not so far that the glowing ① leaves the screen or the bridge stops being walkable.
+ * Returns the clamped W. Callers skip this once layer switching has been introduced.
+ */
+export function clampIntroductoryW(state, nextW) {
+  if (!state || !Number.isFinite(nextW)) return nextW;
+  const center = state.layers?.[state.layer]?.center;
+  if (!Number.isFinite(center)) return nextW;
+  let half = PRESENT_HALF - 1e-3;
+  for (const edge of state.edges || []) {
+    if (!edge.open || edge.layer !== state.layer) continue;
+    if (edge.from !== state.node && edge.to !== state.node) continue;
+    const edgeHalf = Math.min(center - edge.min, edge.max - center);
+    if (edgeHalf > 0.02) half = Math.min(half, edgeHalf - 1e-3);
+  }
+  return Math.min(center + half, Math.max(center - half, nextW));
+}
+
+function bridgeOutOfRange(state, destId) {
+  const edges = (state.edges || []).filter(edge => edge.open && edge.layer === state.layer
+    && ((edge.from === state.node && edge.to === destId) || (edge.to === state.node && edge.from === destId)));
+  if (!edges.length) return false;
+  return edges.every(edge => state.w < edge.min - 1e-9 || state.w > edge.max + 1e-9);
+}
+
+function sameLayerUnusable(state, node) {
+  if (!node) return false;
+  if (!node.anchor && node.layer === state.layer && node.present === false) return true;
+  if (node.anchor || node.layer === state.layer) return bridgeOutOfRange(state, node.id);
+  return false;
+}
+
+function sliceRecover(state, sym, goalId) {
+  const key = STEP_LAYER_KEYS[state.layer] || '本层键';
+  return {
+    goalId,
+    action: 'recover',
+    banner: `按${key}回中心见${sym}`,
+    detail: `${sym}还在这一层，只是切片偏了。按 ${key} 或点本层按钮，回到层中心就能看见并点它。`,
+    targetId: goalId,
+    layer: state.layer,
+  };
+}
 
 function stepBadge(state, id) {
   if (id === 'exit') return '🚪';
@@ -255,6 +303,7 @@ export function describeNextStep(state) {
   if (plan.walk.length && !onShiftAnchor) {
     const step = plan.walk[0];
     const dest = byId(step.to);
+    if (sameLayerUnusable(state, dest)) return sliceRecover(state, sym, goalId);
     const goalVerb = sym === '🚪' ? '去🚪' : `点${sym}`;
     if (dest?.anchor && dest.id !== state.node) {
       const place = anchorHintName(dest);
@@ -312,6 +361,7 @@ export function describeNextStep(state) {
     };
   }
 
+  if (sameLayerUnusable(state, goal)) return sliceRecover(state, sym, goalId);
   return {
     goalId, action: 'move',
     banner: goalId === 'exit' ? '点击🚪过关' : `点击${sym}，走过去点亮`,

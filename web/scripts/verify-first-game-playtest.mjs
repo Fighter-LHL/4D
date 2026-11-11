@@ -172,6 +172,76 @@ async function waitSettled(page, timeoutMs = 12000) {
   throw new Error('timed out waiting for the hint follower to settle');
 }
 
+async function clearByHints(page, vp, { shot = false } = {}) {
+  const vpKey = `${vp.width}x${vp.height}`;
+  let sawBellHint = false;
+  let stuck = 0;
+  let lastSig = '';
+  for (let turn = 0; turn < 28; turn++) {
+    const settled = await waitSettled(page);
+    if (settled.state.phase === 'interlude' || settled.state.room >= 1) break;
+    const hint = await hintOf(page);
+    const g = await read(page);
+    assert.ok(hint.title, `${vpKey} turn ${turn}: next-step hint is empty`);
+    if (hint.goal && hint.goal !== 'exit') {
+      assert.ok(!g.state.activated.includes(hint.goal), `${vpKey} turn ${turn}: hint targets lit ${hint.goal}`);
+      const badge = BADGES[g.state.mechanismOrder.indexOf(hint.goal)];
+      assert.ok(hint.title.includes(badge), `${vpKey} turn ${turn}: "${hint.title}" does not name ${badge}`);
+    }
+    if (hint.goal === 'exit') {
+      assert.ok(hint.title.includes('🚪') || hint.title.includes('出口'), `${vpKey} turn ${turn}: exit hint missing ("${hint.title}")`);
+    }
+    if (hint.action === 'move') {
+      const target = g.state.nodes.find(node => node.id === hint.target);
+      if (target && !target.anchor && target.layer === g.state.layer) {
+        assert.equal(target.present, true, `${vpKey}: hint tells us to click ${hint.target} but it is not present`);
+      }
+    }
+    if (g.state.activated.length === 2 && hint.goal === 'bell') {
+      assert.ok(hint.title.includes('③'), `${vpKey}: 2/3 hint must name ③ ("${hint.title}")`);
+      assert.ok(!/点亮全部/.test(hint.title), `${vpKey}: 2/3 hint is still the generic stage line ("${hint.title}")`);
+      if (hint.action === 'shift') {
+        assert.ok(/上滚|下滚/.test(hint.title), `${vpKey}: 2/3 shift hint names a direction ("${hint.title}")`);
+        assert.equal(hint.desc.includes('同一位置'), true, `${vpKey}: 2/3 explanation says ③ shares a position`);
+      }
+      if (shot && g.state.node === 'hub' && hint.action === 'shift') {
+        await page.screenshot({ path: path.join(OUT, `${vpKey}-after-2of3-hint.png`) });
+        sawBellHint = true;
+      } else if (!shot) sawBellHint = true;
+    }
+    const sig = `${g.state.node}|${g.state.layer}|${g.state.activated.join(',')}|${hint.title}`;
+    stuck = sig === lastSig ? stuck + 1 : 0;
+    lastSig = sig;
+    assert.ok(stuck < 3, `${vpKey}: hint follower stuck on "${hint.title}" at ${g.state.node}@${g.state.layer} lit ${g.state.activated.join(',')}`);
+    receipt.hints.push({ viewport: vpKey, turn, node: g.state.node, layer: g.state.layer, activated: [...g.state.activated], ...hint });
+
+    if (hint.action === 'shift') {
+      const layer = Number(hint.layer);
+      assert.ok(Number.isInteger(layer), `${vpKey}: shift hint has a layer`);
+      if (vp.hasTouch) await page.locator(`#layer-${layer}`).click();
+      else await wheelTo(page, layer);
+    } else if (hint.action === 'move' || hint.action === 'done') {
+      await clickNode(page, hint.target || hint.goal);
+    } else if (hint.action === 'recover') {
+      await page.keyboard.press(['z', 'x', 'c'][Number(hint.layer)] || 'c');
+    } else if (hint.action === 'activate') {
+      await page.waitForTimeout(900);
+    } else {
+      await page.waitForTimeout(400);
+    }
+  }
+  await page.waitForFunction(() => {
+    const s = window.__g().state;
+    return s.phase === 'interlude' || s.room >= 1;
+  }, null, { timeout: 8000 });
+  const done = await read(page);
+  assert.equal(done.state.phase, 'interlude', `${vpKey}: hint follower reaches the relic choice`);
+  assert.equal(done.state.activated.length, 3, `${vpKey}: all three mechanisms were lit`);
+  assert.equal(done.state.stats.failures, 0, `${vpKey}: hint follower took no failing routes`);
+  if (shot) assert.ok(sawBellHint, `${vpKey}: captured the 2/3 hint`);
+  return done;
+}
+
 try {
   for (const vp of VIEWPORTS) {
     const vpKey = `${vp.width}x${vp.height}`;
@@ -230,13 +300,35 @@ try {
       assert.equal(keyed.stage, 1, `${vpKey}: layer keys do not advance onboarding`);
       assert.equal(keyedHint.stage, '1');
       assert.ok(keyedHint.badge.startsWith('1/4'), keyedHint.badge);
-      for (let i = 0; i < 40; i++) await page.keyboard.press('a');
+      for (let i = 0; i < 60; i++) await page.keyboard.press('a');
+      for (let i = 0; i < 60; i++) await page.keyboard.press('d');
       await page.waitForTimeout(80);
+      if (vp.label === 'desktop') {
+        await page.screenshot({ path: path.join(OUT, 'after-stage1-many-a-d.png') });
+      }
       const nudged = await read(page);
-      assert.equal(nudged.state.layer, before.state.layer, `${vpKey}: holding A cannot cross into another layer in Stage 1`);
-      assert.equal(nudged.stage, 1, `${vpKey}: A does not advance onboarding`);
-      await page.keyboard.press('c');
+      const nudgedHint = await hintOf(page);
+      const firstId = before.state.mechanismOrder[0];
+      const firstNode = nudged.state.nodes.find(node => node.id === firstId);
+      assert.equal(nudged.state.layer, before.state.layer, `${vpKey}: A/D cannot cross into another layer in Stage 1`);
+      assert.equal(nudged.stage, 1, `${vpKey}: A/D does not advance onboarding`);
+      assert.equal(firstNode.present, true, `${vpKey}: ① stays present after A/D (w=${nudged.state.w})`);
+      assert.equal(nudged.state.canMove, true, `${vpKey}: the bridge to ① stays walkable after A/D`);
+      assert.equal(nudgedHint.action, 'move', `${vpKey}: hint still says to click ① ("${nudgedHint.title}")`);
+      assert.ok(nudgedHint.title.includes('①'), nudgedHint.title);
+      await page.locator('#w-slider').evaluate(el => {
+        el.value = '0';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.value = '1';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      });
       await page.waitForTimeout(80);
+      const slid = await read(page);
+      const slidNode = slid.state.nodes.find(node => node.id === firstId);
+      assert.equal(slid.stage, 1, `${vpKey}: slider does not advance onboarding`);
+      assert.equal(slid.state.layer, before.state.layer, `${vpKey}: slider stays on the starting layer`);
+      assert.equal(slidNode.present, true, `${vpKey}: ① stays present after the slider (w=${slid.state.w})`);
+      assert.equal(slid.state.canMove, true, `${vpKey}: bridge stays walkable after the slider`);
 
       await clickNode(page, before.state.mechanismOrder[0]);
       await page.waitForFunction(id => {
@@ -255,6 +347,8 @@ try {
       assert.ok(switched.stage >= 2, `${vpKey}: Z after the lesson keeps stage ${switched.stage}`);
       assert.notEqual(switched.state.layer, taught.state.layer);
       receipt.checks.push({ viewport: vpKey, check: 'stage1-layer-inputs', stageBefore: 1, stageAfter: switched.stage, passed: true });
+      await clearByHints(page, vp);
+      receipt.checks.push({ viewport: vpKey, check: 'stage1-ad-then-clear', passed: true });
       await context.close();
     }
 
@@ -301,71 +395,8 @@ try {
     // (a) Hint-following newcomer clears the first game.
     {
       const { context, page } = await openCold(vp);
-      let shot = false;
-      const trace = [];
-      let stuck = 0;
-      let lastSig = '';
-      for (let turn = 0; turn < 28; turn++) {
-        const settled = await waitSettled(page);
-        if (settled.state.phase === 'interlude' || settled.state.room >= 1) break;
-        const hint = await hintOf(page);
-        const g = await read(page);
-        assert.ok(hint.title, `${vpKey} turn ${turn}: next-step hint is empty`);
-        if (hint.goal && hint.goal !== 'exit') {
-          assert.ok(!g.state.activated.includes(hint.goal), `${vpKey} turn ${turn}: hint targets lit ${hint.goal}`);
-          const badge = BADGES[g.state.mechanismOrder.indexOf(hint.goal)];
-          assert.ok(hint.title.includes(badge), `${vpKey} turn ${turn}: "${hint.title}" does not name ${badge}`);
-        }
-        if (hint.goal === 'exit') {
-          assert.ok(hint.title.includes('🚪') || hint.title.includes('出口'), `${vpKey} turn ${turn}: exit hint missing ("${hint.title}")`);
-        }
-        if (g.state.activated.length === 2 && hint.goal === 'bell') {
-          assert.ok(hint.title.includes('③'), `${vpKey}: 2/3 hint must name ③ ("${hint.title}")`);
-          assert.ok(!/点亮全部/.test(hint.title), `${vpKey}: 2/3 hint is still the generic stage line ("${hint.title}")`);
-          if (hint.action === 'shift') {
-            assert.ok(/上滚|下滚/.test(hint.title), `${vpKey}: 2/3 shift hint names a direction ("${hint.title}")`);
-            assert.equal(hint.desc.includes('同一位置'), true, `${vpKey}: 2/3 explanation says ③ shares a position`);
-          }
-          if (!shot && g.state.node === 'hub' && hint.action === 'shift') {
-            await page.screenshot({ path: path.join(OUT, `${vpKey}-after-2of3-hint.png`) });
-            shot = true;
-          }
-        }
-        const sig = `${g.state.node}|${g.state.layer}|${g.state.activated.join(',')}|${hint.title}`;
-        stuck = sig === lastSig ? stuck + 1 : 0;
-        lastSig = sig;
-        assert.ok(stuck < 3, `${vpKey}: hint follower stuck on "${hint.title}" at ${g.state.node}@${g.state.layer} lit ${g.state.activated.join(',')}`);
-        trace.push({ turn, node: g.state.node, layer: g.state.layer, activated: [...g.state.activated], ...hint });
-        receipt.hints.push({ viewport: vpKey, ...trace[trace.length - 1] });
-
-        if (hint.action === 'shift') {
-          const layer = Number(hint.layer);
-          assert.ok(Number.isInteger(layer), `${vpKey}: shift hint has a layer`);
-          if (vp.hasTouch) await page.locator(`#layer-${layer}`).click();
-          else await wheelTo(page, layer);
-        } else if (hint.action === 'move' || hint.action === 'done') {
-          await clickNode(page, hint.target || hint.goal);
-        } else if (hint.action === 'activate') {
-          await page.waitForTimeout(900);
-        } else {
-          await page.waitForTimeout(400);
-        }
-      }
-      await page.waitForFunction(() => {
-        const s = window.__g().state;
-        return s.phase === 'interlude' || s.room >= 1;
-      }, null, { timeout: 8000 });
-      const done = await read(page);
-      assert.equal(done.state.phase, 'interlude', `${vpKey}: hint follower reaches the relic choice`);
-      assert.equal(done.state.activated.length, 3, `${vpKey}: all three mechanisms were lit`);
-      assert.equal(done.state.stats.failures, 0, `${vpKey}: hint follower took no failing routes`);
-      assert.ok(shot, `${vpKey}: captured the 2/3 hint`);
-      receipt.checks.push({
-        viewport: vpKey,
-        check: 'hint-follower-clears-room0',
-        turns: trace.length,
-        passed: true,
-      });
+      await clearByHints(page, vp, { shot: true });
+      receipt.checks.push({ viewport: vpKey, check: 'hint-follower-clears-room0', passed: true });
       await context.close();
     }
   }

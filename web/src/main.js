@@ -7,7 +7,7 @@ import { FriendGuide } from './friend-guide.js';
 import { CourtyardMomentum } from './courtyard-momentum.js';
 import { STARTER_RELICS, mechanismFeedback, contextualHelp, courtyardActions } from './play-feedback.js';
 import { initThemeToggle, initHyperLab } from './hyper-lab-ui.js';
-import { ProgressiveOnboarding, planLayerRoute, findCurrentLayerRoute, computeRiskDecisionPreview, computeRelicHudStatus, resolveScrubReleaseTarget, describeNextStep } from './progressive-onboarding.js';
+import { ProgressiveOnboarding, planLayerRoute, findCurrentLayerRoute, computeRiskDecisionPreview, computeRelicHudStatus, resolveScrubReleaseTarget, describeNextStep, clampIntroductoryW } from './progressive-onboarding.js';
 import { CodexStore } from './codex.js';
 import { GameFeel } from './game-feel.js';
 import { ALL_ROOM_TEMPLATES, HIDDEN_ROUTE_RECIPES } from './rooms.js';
@@ -357,18 +357,11 @@ function layerSwitchTaught() {
   return (scene?.onboardingStage ?? 4) >= 2;
 }
 
-// Before layer switching is introduced, player W input may slide inside the
-// current slice but must not cross into another layer or count as the lesson.
+// Before layer switching is introduced, A/D, the slider and the dial may drift
+// inside the current slice, but not far enough for ① to vanish or the bridge to close.
 function clampWToCurrentLayer(nextW) {
   if (layerSwitchTaught()) return nextW;
-  const s = model.snapshot();
-  const centers = (s.layers || []).map(layer => layer.center);
-  const index = s.layer;
-  if (!Number.isInteger(index) || centers[index] == null) return s.w;
-  const lo = index <= 0 ? 0 : (centers[index - 1] + centers[index]) / 2;
-  const hi = index >= centers.length - 1 ? 1 : (centers[index] + centers[index + 1]) / 2;
-  const eps = 0.001;
-  return Math.min(hi - eps, Math.max(lo + (index <= 0 ? 0 : eps), nextW));
+  return clampIntroductoryW(model.snapshot(), nextW);
 }
 
 function manualSwitchLayer(layerIdx, source = 'manual') {
