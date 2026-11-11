@@ -131,6 +131,7 @@ export class SceneRenderer {
     this.wrapAlpha = 1;
     this.downPoint = null;
     this.grab = null;
+    this.capturedPointerId = null;
     this.cast = null;
     this.hoverGrab = null;
     this.pointerWorld = null;
@@ -331,7 +332,7 @@ export class SceneRenderer {
         lockHit: grab ? null : this.hitPolytopeLock(event),
         grab,
       };
-      if (grab) this.canvas.setPointerCapture?.(event.pointerId);
+      if (grab) this._setPointerCapture(event.pointerId);
     };
     this.onCanvasPointerUp = event => {
       if (event.button === 2) {
@@ -345,11 +346,13 @@ export class SceneRenderer {
       if (this.grab) {
         this._grabEnd(false);
         this.downPoint = null;
+        this._releasePointerCapture(event.pointerId ?? this.capturedPointerId);
         return;
       }
       if (this.polyLockDrag) {
         this.polyLockDrag = null;
         this.downPoint = null;
+        this._releasePointerCapture(event.pointerId ?? this.capturedPointerId);
         return;
       }
       if (this.hyperLens.active && this.hyperLens.mode === 'drag') {
@@ -358,11 +361,13 @@ export class SceneRenderer {
           this.hyperLens.mode = null;
         }
         this.downPoint = null;
+        this._releasePointerCapture(event.pointerId ?? this.capturedPointerId);
         return;
       }
       if (!this.downPoint) return;
       const dist = Math.hypot((event.clientX ?? 0) - this.downPoint.x, (event.clientY ?? 0) - this.downPoint.y);
       this.downPoint = null;
+      this._releasePointerCapture(event.pointerId ?? this.capturedPointerId);
       if (dist < 8) {
         this.pointerDown(event);
       }
@@ -375,7 +380,12 @@ export class SceneRenderer {
     canvas.addEventListener('pointerdown', this.onCanvasPointerDown);
     canvas.addEventListener('pointerup', this.onCanvasPointerUp);
     canvas.addEventListener('contextmenu', this.onContextMenu);
-    this.onPointerCancel = () => { if (this.grab) this._grabEnd(true); this.downPoint = null; };
+    this.onPointerCancel = event => {
+      if (this.grab) this._grabEnd(true);
+      this.downPoint = null;
+      if (event?.type === 'lostpointercapture') this.capturedPointerId = null;
+      else this._releasePointerCapture(event?.pointerId ?? this.capturedPointerId);
+    };
     canvas.addEventListener('pointercancel', this.onPointerCancel);
     canvas.addEventListener('lostpointercapture', this.onPointerCancel);
     this.onTouchStart = e => {
@@ -698,9 +708,34 @@ export class SceneRenderer {
     }
   }
 
+  _setPointerCapture(pointerId) {
+    if (pointerId === undefined || pointerId === null) return;
+    try {
+      this.canvas.setPointerCapture?.(pointerId);
+      this.capturedPointerId = pointerId;
+    } catch {}
+  }
+
+  _releasePointerCapture(pointerId = this.capturedPointerId) {
+    if (pointerId === undefined || pointerId === null) return;
+    if (this.capturedPointerId === pointerId) this.capturedPointerId = null;
+    try {
+      this.canvas.releasePointerCapture?.(pointerId);
+    } catch {}
+  }
+
   cancelGrab() {
-    if (this.grab) { this._grabEnd(true); this.downPoint = null; return true; }
-    if (this.downPoint?.grab) { this.downPoint = null; return true; }
+    if (this.grab) {
+      this._grabEnd(true);
+      this.downPoint = null;
+      this._releasePointerCapture();
+      return true;
+    }
+    if (this.downPoint?.grab) {
+      this.downPoint = null;
+      this._releasePointerCapture();
+      return true;
+    }
     return false;
   }
 
@@ -754,6 +789,7 @@ export class SceneRenderer {
       this.grab = null;
       this.cast = null;
       this.downPoint = null;
+      this._releasePointerCapture();
       this.hyperLens.irisWave = null;
       if (!this.hyperLens.pinned) {
         this.hyperLens.active = false;
@@ -4089,6 +4125,7 @@ export class SceneRenderer {
   destroy() {
     if (this.disposed) return;
     this.disposed = true;
+    this._releasePointerCapture();
     this.resizeObserver?.disconnect();
     window.removeEventListener('resize', this.resizeHandler);
     this.motionQuery?.removeEventListener?.('change', this.motionChange);
