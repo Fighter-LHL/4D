@@ -2729,9 +2729,12 @@ export class SceneRenderer {
     if (waitingForShiftHere) {
       const pos = this.playerPosition();
       const dirArrow = (s.layers?.[hint.layer]?.center ?? .5) > this.currentW() ? '▲' : '▼';
-      const shiftPillText = explicitHint
-        ? `🖱️ ${dirArrow} → ${layerRoman[hint.layer]}层`
-        : '🖱️ 滚轮换层寻桥';
+      const guidedShift = this.nextStepHint?.tutorial && this.nextStepHint.action === 'shift' && this.nextStepHint.banner;
+      const shiftPillText = guidedShift
+        ? this.nextStepHint.banner
+        : explicitHint
+          ? `🖱️ ${dirArrow} → ${layerRoman[hint.layer]}层`
+          : '🖱️ 滚轮换层寻桥';
       drawCalloutPill(
         pos.x,
         pos.y - 64,
@@ -2779,12 +2782,18 @@ export class SceneRenderer {
         ellipse(ctx, node.x, node.y, (isPrimary ? 82 : 74) + pulse * 10, (isPrimary ? 44 : 40) + pulse * 5, '#dd9a1c24', COLORS.gold, isPrimary ? 3.4 : 2.4);
         ctx.restore();
         if (this.altarWindow?.node === id && s.node === id && !s.travel) return;
+        const stackedLit = !onCurrentLayer && s.nodes.some(n =>
+          !n.anchor && n.id !== id && s.activated.includes(n.id) && n.world && node.world &&
+          Math.abs(n.world.x - node.world.x) < 1e-4 &&
+          Math.abs(n.world.y - node.world.y) < 1e-4 &&
+          Math.abs(n.world.z - node.world.z) < 1e-4);
+        const nameLayer = explicitHint || stackedLit || (this.nextStepHint?.tutorial && this.nextStepHint.goalId === id);
         const hoverText = onCurrentLayer
           ? (s.node === id ? `点击点亮 ${num}` : `点此走过去点亮 ${num}`)
-          : (explicitHint ? `在${lRom}层 · 先去 ⚓ 换层台` : '在异层 · 先去 ⚓ 换层台');
+          : (nameLayer ? `在${lRom}层 · 换层后出现` : '在异层 · 先去 ⚓ 换层台');
         const badgeText = onCurrentLayer
           ? (isPrimary ? (stage === 1 ? '👆 ①' : `🎯 ${num}`) : num)
-          : (explicitHint ? `${num}·${lRom}层` : `${num}·异层`);
+          : (nameLayer ? `${num}·${lRom}层` : `${num}·异层`);
         drawNodeTag(
           id,
           node.x,
