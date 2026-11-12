@@ -24,7 +24,8 @@ function closeAdvancedDrawers() {
   return true;
 }
 const onboarding = new ProgressiveOnboarding({ skillGated: true });
-const compactProgress = matchMedia('(max-width:480px)');
+const compactProgress = matchMedia('(max-width:480px) and (orientation:portrait)');
+const mobileLayout = matchMedia('(max-width:780px) and (orientation:portrait)');
 const syncProgressDetails = () => { if ($('run-details')) $('run-details').open = false; };
 compactProgress.addEventListener('change', syncProgressDetails);
 syncProgressDetails();
@@ -170,7 +171,7 @@ let relicHudKey = '';
 // `type` lets an accepted departure retire messages that belonged to the spot just left
 // ('refused' targets and 'prompt' layer instructions), while remote supply news stays.
 function showTransient(message, seconds = 3.2, type = 'hint') {
-  const compactTheater = isTheater() && window.innerWidth <= 480;
+  const compactTheater = isTheater() && compactProgress.matches;
   transient = message;
   transientTime = compactTheater ? Math.min(seconds, 1.2) : seconds;
   transientType = type;
@@ -525,7 +526,7 @@ function handleCanvasSelect(id) {
     if ($('run-details')) $('run-details').open = true;
     if ($('secret-panel')) $('secret-panel').open = true;
     openPanel();
-    const riftDrawerHint = isTheater() && window.innerWidth <= 780 ? '已在底部展开秘印配方。' : '已在右侧展开秘印配方。';
+    const riftDrawerHint = isTheater() && mobileLayout.matches ? '已在底部展开秘印配方。' : '已在右侧展开秘印配方。';
     transient = `🌌 隐藏秘境「隐星台」：跨庭集齐 2 件共鸣遗物并在指定的 ⚓ 安全台完成三印换层，即可开启隐藏第四岛 (+9◆)！${riftDrawerHint}`;
     transientTime = 3.8;
     actionFeedback = transient;
@@ -862,14 +863,14 @@ function consumeEvents() {
       const state=model.snapshot();
       message = `第 ${state.wave?.step || 1}/${state.wave?.steps || 1} 波将抵达，切到${(state.wave?.safeLayers || []).map(i=>state.layers[i].name).join('或')}。`;
       // On phones, the lower action button can scroll the actual hazard offscreen.
-      if (matchMedia('(max-width:780px)').matches && $('scene').getBoundingClientRect().top < 0)
+      if (mobileLayout.matches && $('scene').getBoundingClientRect().top < 0)
         $('scene').closest('.scene-wrap').scrollIntoView({block:'start',behavior:'instant'});
     }
     if (event.type === 'evade') message = '跨层避开回流，花匣中的回响归你。';
     if (event.type === 'dodge') message = model.snapshot().wave?.variant==='rift' ? '一枚星环点亮，切入下一枚符印对应的安全层。' : '躲过一波；下一波会追到这里，再换一次层。';
     if (message) {
       const theaterMode = isTheater();
-      const compactBannerActive = theaterMode && window.innerWidth <= 480 &&
+      const compactBannerActive = theaterMode && compactProgress.matches &&
         $('onboarding-banner') && !$('onboarding-banner').hidden && !$('onboarding-banner').classList.contains('collapsed');
       const isProgressToast = ['activate', 'harmonic_burst', 'power'].includes(event.type);
       transient = message;

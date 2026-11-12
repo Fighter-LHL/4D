@@ -426,6 +426,10 @@ export class SceneRenderer {
     this.offsetY = (this.height - WORLD_H * this.scale) / 2;
   }
 
+  isCompactPortrait() {
+    return this.width <= 480 && (globalThis.window?.innerHeight ?? this.height) > (globalThis.window?.innerWidth ?? this.width);
+  }
+
   toWorld(event) {
     const rect = this.canvas.getBoundingClientRect();
     return {
@@ -1007,7 +1011,7 @@ export class SceneRenderer {
         const from = this.node(event.from) || target, to = this.node(event.to) || target;
         // Completion belongs to the action feedback / activation CTA, never a second note.
         if (!this.hudProgressActive && !event.complete && mechanismFeedback(event, this.state, { hasSupplySlots: this.hasSupplySlots(event.to) }))
-          this.addEffect('note', to, { duration: this.width <= 480 ? 1.25 : 2.2, supply: true, text: `供能 ${event.received}/${event.required}`, color: this.astralMode ? '#4dd2ac' : COLORS.teal });
+          this.addEffect('note', to, { duration: this.isCompactPortrait() ? 1.25 : 2.2, supply: true, text: `供能 ${event.received}/${event.required}`, color: this.astralMode ? '#4dd2ac' : COLORS.teal });
         this.addEffect('power', from, { to: { x: to.x, y: to.y }, duration: 1.4,
           fromLayer: from.layer ?? this.state.layer, toLayer: to.layer ?? event.layer,
           color: this.palette(to.layer ?? event.layer).color, sourceColor: this.palette(from.layer).color });
@@ -2626,6 +2630,13 @@ export class SceneRenderer {
     const sScale = Math.max(.25, this.scale || 1);
     const currentNode = this.node(s.node);
     const bounce = this.reducedMotion ? 0 : Math.sin(this.time * 4.2) * 3;
+    const playerPos = !s.travel ? this.playerPosition() : null;
+    const playerHeadTop = playerPos
+      ? playerPos.y - Math.max(34 * clamp(.48 / (this.scale || 1), 1, 1.5), s.combo > 0 ? 52 : s.shield ? 42 : 34)
+      : null;
+    const clearPlayerY = (baseY, padPx) => (this.width > this.height && playerHeadTop !== null)
+      ? Math.min(baseY, playerHeadTop - padPx / sScale)
+      : baseY;
     let fullPillCount = 0;
     const MAX_FULL_PILLS = 2;
     const pillRects = [];
@@ -2717,7 +2728,7 @@ export class SceneRenderer {
       ctx.restore();
       drawCalloutPill(
         pos.x,
-        pos.y - 72,
+        clearPlayerY(pos.y - 72, 20),
         `⚠️ 悬空 · 滚回${safeRoman}层`,
         '#3a1814ee',
         '#ff7b5a',
@@ -2873,7 +2884,7 @@ export class SceneRenderer {
           : '🖱️ 滚轮换层寻桥';
       drawCalloutPill(
         pos.x,
-        pos.y - 64,
+        clearPlayerY(pos.y - 64, 20),
         shiftPillText,
         hint.kind === 'anomaly' ? '#36240bee' : '#152b34ee',
         hint.kind === 'anomaly' ? '#fbbf24' : '#5eead4',
@@ -2885,10 +2896,12 @@ export class SceneRenderer {
     const shouldExpandNode = id => Boolean(hoverId && hoverId === id && fullPillCount < MAX_FULL_PILLS);
 
     const drawNodeTag = (id, cx, cy, fullText, badgeText, bgColor, borderColor, textColor, badgeOpts = {}) => {
-      if (shouldExpandNode(id)) {
-        drawCalloutPill(cx, cy, fullText, bgColor, borderColor, textColor);
+      const expand = shouldExpandNode(id);
+      const y = id === s.node && cy < (playerPos?.y ?? -Infinity) ? clearPlayerY(cy, expand ? 20 : 13) : cy;
+      if (expand) {
+        drawCalloutPill(cx, y, fullText, bgColor, borderColor, textColor);
       } else {
-        drawCompactBadge(cx, cy, badgeText, bgColor, borderColor, textColor, badgeOpts);
+        drawCompactBadge(cx, y, badgeText, bgColor, borderColor, textColor, badgeOpts);
       }
     };
 
@@ -3348,7 +3361,7 @@ export class SceneRenderer {
     if (!node) return;
     const ctx = this.ctx, p = clamp(cue.age / cue.duration);
     const opacity = Math.min(1, cue.age / .25) * (1 - ease((p - .55) / .45));
-    const narrow = this.width <= 480, follow = cue.beat === 'follow' || cue.beat === 'mechanism-follow';
+    const narrow = this.isCompactPortrait(), follow = cue.beat === 'follow' || cue.beat === 'mechanism-follow';
     const pulse = this.reducedMotion ? 1 : .5 - .5 * Math.cos(TAU * cue.age / 1.4);
     const width = node.id === 'hub' ? 91 : 64;
     const swell = this.reducedMotion ? 0 : width * .06 * pulse;
@@ -4170,7 +4183,8 @@ export class SceneRenderer {
   drawEffects(foreground) {
     const ctx = this.ctx, noteZones = [...(this.labelZones || [])];
     const sScale = Math.max(.25, this.scale || 1);
-    if (foreground && this.width <= 480 && this.state?.nodes) {
+    const compactPortrait = this.isCompactPortrait();
+    if (foreground && compactPortrait && this.state?.nodes) {
       for (const n of this.state.nodes) {
         if (!n || (!n.anchor && (n.scale ?? 0) <= .08)) continue;
         const rx = n.id === 'hub' ? 92 : n.anchor ? 74 : 78;
@@ -4191,8 +4205,8 @@ export class SceneRenderer {
         ctx.font = `600 ${notePx}px system-ui, -apple-system, sans-serif`;
         const half = ctx.measureText(effect.text).width / 2 + 8 / sScale;
         const x = Math.max(half, Math.min(WORLD_W - half, effect.x));
-        let y = Math.max(notePx / 2 + 8, effect.y - 105 - (this.width <= 480 && effect.supply ? 18 / sScale : 0) - (this.reducedMotion || this.width <= 480 ? 0 : e * 12));
-        if (this.width <= 480) {
+        let y = Math.max(notePx / 2 + 8, effect.y - 105 - (compactPortrait && effect.supply ? 18 / sScale : 0) - (this.reducedMotion || compactPortrait ? 0 : e * 12));
+        if (compactPortrait) {
           const height = notePx, gap = 6 / sScale;
           // Move only a colliding phone note, keeping the authored platform names and anchors clear.
           for (let i = 0; i <= noteZones.length; i++) {
