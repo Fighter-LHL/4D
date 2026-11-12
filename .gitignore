@@ -21,14 +21,6 @@ test-results/
 __pycache__/
 *.py[cod]
 
-# Unity generated directories (WSliceProto/)
-/WSliceProto/[Ll]ibrary/
-/WSliceProto/[Tt]emp/
-/WSliceProto/[Oo]bj/
-/WSliceProto/[Bb]uild/
-/WSliceProto/[Bb]uilds/
-/WSliceProto/[Ll]ogs/
-/WSliceProto/[Uu]ser[Ss]ettings/
-/WSliceProto/[Mm]emoryCaptures/
-/WSliceProto/[Rr]ecordings/
-/WSliceProto/TestResults/
+
+# Local verification screenshots and receipts
+web/artifacts/
