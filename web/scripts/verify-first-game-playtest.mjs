@@ -136,6 +136,10 @@ const hintOf = page => page.evaluate(() => {
     target: banner?.dataset.nextTarget || '',
     layer: banner?.dataset.nextLayer || '',
     stage: document.body.dataset.onboardingStage || '',
+    collapsed: banner?.classList.contains('collapsed') ?? true,
+    firstRunDone: localStorage.getItem('wslice-first-run-done'),
+    firstRunAttr: document.body.dataset.firstRun || '',
+    firstRunPending: document.body.classList.contains('first-run-pending'),
   };
 });
 
@@ -179,24 +183,32 @@ async function waitSettled(page, timeoutMs = 12000) {
   throw new Error('timed out waiting for the hint follower to settle');
 }
 
-async function clearByHints(page, vp, { shot = false, tap = false } = {}) {
+async function clearByHints(page, vp, { shot = false, tap = false, expectedRoom = 0 } = {}) {
   const vpKey = `${vp.width}x${vp.height}`;
   let sawBellHint = false;
   let stuck = 0;
   let lastSig = '';
-  for (let turn = 0; turn < 28; turn++) {
+  for (let turn = 0; turn < 32; turn++) {
     const settled = await waitSettled(page);
-    if (settled.state.phase === 'interlude' || settled.state.room >= 1) break;
+    if (settled.state.phase !== 'playing' || settled.state.room > expectedRoom) break;
     const hint = await hintOf(page);
     const g = await read(page);
-    assert.ok(hint.title, `${vpKey} turn ${turn}: next-step hint is empty`);
+    assert.ok(hint.title, `${vpKey} room ${expectedRoom} turn ${turn}: next-step hint is empty`);
+    assert.equal(hint.collapsed, false, `${vpKey} room ${expectedRoom} turn ${turn}: onboarding banner stays expanded`);
+    assert.notEqual(hint.action, '', `${vpKey} room ${expectedRoom} turn ${turn}: onboarding banner exposes nextAction`);
+    assert.ok(!/点亮全部|先走到 ⚓/.test(hint.title),
+      `${vpKey} room ${expectedRoom} turn ${turn}: title is concrete next step, not stage summary ("${hint.title}")`);
+    assert.equal(hint.firstRunDone, null,
+      `${vpKey} room ${expectedRoom} turn ${turn}: wslice-first-run-done stays unset while playing`);
+    assert.equal(hint.firstRunAttr, 'true',
+      `${vpKey} room ${expectedRoom} turn ${turn}: data-first-run stays "true" while playing`);
     if (hint.goal && hint.goal !== 'exit') {
-      assert.ok(!g.state.activated.includes(hint.goal), `${vpKey} turn ${turn}: hint targets lit ${hint.goal}`);
+      assert.ok(!g.state.activated.includes(hint.goal), `${vpKey} room ${expectedRoom} turn ${turn}: hint targets lit ${hint.goal}`);
       const badge = BADGES[g.state.mechanismOrder.indexOf(hint.goal)];
-      assert.ok(hint.title.includes(badge), `${vpKey} turn ${turn}: "${hint.title}" does not name ${badge}`);
+      assert.ok(hint.title.includes(badge), `${vpKey} room ${expectedRoom} turn ${turn}: "${hint.title}" does not name ${badge}`);
     }
     if (hint.goal === 'exit') {
-      assert.ok(hint.title.includes('🚪') || hint.title.includes('出口'), `${vpKey} turn ${turn}: exit hint missing ("${hint.title}")`);
+      assert.ok(hint.title.includes('🚪') || hint.title.includes('出口'), `${vpKey} room ${expectedRoom} turn ${turn}: exit hint missing ("${hint.title}")`);
     }
     if (hint.action === 'move') {
       const target = g.state.nodes.find(node => node.id === hint.target);
@@ -204,7 +216,7 @@ async function clearByHints(page, vp, { shot = false, tap = false } = {}) {
         assert.equal(target.present, true, `${vpKey}: hint tells us to click ${hint.target} but it is not present`);
       }
     }
-    if (g.state.activated.length === 2 && hint.goal === 'bell') {
+    if (expectedRoom === 0 && g.state.activated.length === 2 && hint.goal === 'bell') {
       assert.ok(hint.title.includes('③'), `${vpKey}: 2/3 hint must name ③ ("${hint.title}")`);
       assert.ok(!/点亮全部/.test(hint.title), `${vpKey}: 2/3 hint is still the generic stage line ("${hint.title}")`);
       if (hint.action === 'shift') {
@@ -216,11 +228,11 @@ async function clearByHints(page, vp, { shot = false, tap = false } = {}) {
         sawBellHint = true;
       } else if (!shot) sawBellHint = true;
     }
-    const sig = `${g.state.node}|${g.state.layer}|${g.state.activated.join(',')}|${hint.title}`;
+    const sig = `${g.state.room}|${g.state.node}|${g.state.layer}|${g.state.activated.join(',')}|${hint.title}`;
     stuck = sig === lastSig ? stuck + 1 : 0;
     lastSig = sig;
-    assert.ok(stuck < 3, `${vpKey}: hint follower stuck on "${hint.title}" at ${g.state.node}@${g.state.layer} lit ${g.state.activated.join(',')}`);
-    receipt.hints.push({ viewport: vpKey, turn, node: g.state.node, layer: g.state.layer, activated: [...g.state.activated], ...hint });
+    assert.ok(stuck < 3, `${vpKey} room ${expectedRoom}: hint follower stuck on "${hint.title}" at ${g.state.node}@${g.state.layer} lit ${g.state.activated.join(',')}`);
+    receipt.hints.push({ viewport: vpKey, room: g.state.room, turn, node: g.state.node, layer: g.state.layer, activated: [...g.state.activated], ...hint });
 
     if (hint.action === 'shift') {
       const layer = Number(hint.layer);
@@ -239,15 +251,16 @@ async function clearByHints(page, vp, { shot = false, tap = false } = {}) {
       await page.waitForTimeout(400);
     }
   }
-  await page.waitForFunction(() => {
+  const expectedDonePhase = expectedRoom >= 2 ? 'won' : 'interlude';
+  await page.waitForFunction(({ expectedRoom, expectedDonePhase }) => {
     const s = window.__g().state;
-    return s.phase === 'interlude' || s.room >= 1;
-  }, null, { timeout: 8000 });
+    return s.phase === expectedDonePhase || s.room > expectedRoom;
+  }, { expectedRoom, expectedDonePhase }, { timeout: 8000 });
   const done = await read(page);
-  assert.equal(done.state.phase, 'interlude', `${vpKey}: hint follower reaches the relic choice`);
-  assert.equal(done.state.activated.length, 3, `${vpKey}: all three mechanisms were lit`);
-  assert.equal(done.state.stats.failures, 0, `${vpKey}: hint follower took no failing routes`);
-  if (shot) assert.ok(sawBellHint, `${vpKey}: captured the 2/3 hint`);
+  assert.equal(done.state.phase, expectedDonePhase, `${vpKey} room ${expectedRoom}: hint follower reaches ${expectedDonePhase}`);
+  assert.equal(done.state.activated.length, 3, `${vpKey} room ${expectedRoom}: all three mechanisms were lit`);
+  assert.equal(done.state.stats.failures, 0, `${vpKey} room ${expectedRoom}: hint follower took no failing routes`);
+  if (shot && expectedRoom === 0) assert.ok(sawBellHint, `${vpKey}: captured the 2/3 hint`);
   return done;
 }
 
@@ -442,11 +455,117 @@ try {
       await context.close();
     }
 
-    // (a) Hint-following newcomer clears the first game.
+    // (a) Hint-following newcomer clears all 3 courtyards of the first game,
+    // first-run-done stays unset until won (and never on interlude or lost),
+    // and returning players revert to the non-tutorial collapsible HUD.
     {
       const { context, page } = await openCold(vp);
-      await clearByHints(page, vp, { shot: true });
+      await clearByHints(page, vp, { shot: true, tap: vp.hasTouch, expectedRoom: 0 });
+      const interlude0 = await hintOf(page);
+      assert.equal(interlude0.firstRunDone, null, `${vpKey}: Room 0 interlude keeps wslice-first-run-done unset`);
+      assert.equal(interlude0.firstRunAttr, 'true', `${vpKey}: Room 0 interlude keeps data-first-run="true"`);
+      assert.equal(interlude0.firstRunPending, true, `${vpKey}: Room 0 interlude keeps first-run-pending`);
       receipt.checks.push({ viewport: vpKey, check: 'hint-follower-clears-room0', passed: true });
+
+      // Enter Room 1 (第 2 庭) and wait past the 4.5s stage-announcement window: banner must stay expanded with concrete next step.
+      await page.locator('#relic-choices button').first().click();
+      await page.waitForFunction(
+        () => window.__g().state.phase === 'playing' && window.__g().state.room === 1 && !document.getElementById('choice-dialog')?.open,
+        null,
+        { timeout: 10000 },
+      );
+      await page.waitForTimeout(4800);
+      const room1Entry = await hintOf(page);
+      assert.equal(room1Entry.collapsed, false, `${vpKey}: Room 1 entry banner stays expanded past 4.5s`);
+      assert.notEqual(room1Entry.action, '', `${vpKey}: Room 1 entry banner exposes describeNextStep action`);
+      assert.ok(room1Entry.title.length > 0 && room1Entry.title.length <= 20, `${vpKey}: Room 1 entry title length valid ("${room1Entry.title}")`);
+      assert.ok(!/点亮全部|先走到 ⚓/.test(room1Entry.title), `${vpKey}: Room 1 entry shows concrete hint, not stage summary ("${room1Entry.title}")`);
+      assert.equal(room1Entry.firstRunDone, null, `${vpKey}: Room 1 entry keeps wslice-first-run-done unset`);
+      await page.screenshot({ path: path.join(OUT, `after-room2-entry-${vp.width}.png`) });
+
+      await clearByHints(page, vp, { tap: vp.hasTouch, expectedRoom: 1 });
+      const interlude1 = await hintOf(page);
+      assert.equal(interlude1.firstRunDone, null, `${vpKey}: Room 1 interlude keeps wslice-first-run-done unset`);
+      assert.equal(interlude1.firstRunAttr, 'true', `${vpKey}: Room 1 interlude keeps data-first-run="true"`);
+      receipt.checks.push({ viewport: vpKey, check: 'hint-follower-clears-room1', entryHint: room1Entry.title, passed: true });
+
+      // Enter Room 2 (第 3 庭, where onboarding stage is 4) and wait past 4.5s: banner must still stay expanded with concrete next step.
+      await page.locator('#relic-choices button').first().click();
+      await page.waitForFunction(
+        () => window.__g().state.phase === 'playing' && window.__g().state.room === 2 && !document.getElementById('choice-dialog')?.open,
+        null,
+        { timeout: 10000 },
+      );
+      await page.waitForTimeout(4800);
+      const room2Entry = await hintOf(page);
+      assert.equal(room2Entry.stage, '4', `${vpKey}: Room 2 starts at onboarding stage 4`);
+      assert.equal(room2Entry.collapsed, false, `${vpKey}: Room 2 entry banner stays expanded past 4.5s`);
+      assert.notEqual(room2Entry.action, '', `${vpKey}: Room 2 entry banner exposes describeNextStep action`);
+      assert.ok(room2Entry.title.length > 0 && room2Entry.title.length <= 20, `${vpKey}: Room 2 entry title length valid ("${room2Entry.title}")`);
+      assert.ok(!/点亮全部/.test(room2Entry.title), `${vpKey}: Room 2 entry shows concrete hint, not Stage 4 summary ("${room2Entry.title}")`);
+      assert.equal(room2Entry.firstRunDone, null, `${vpKey}: Room 2 entry keeps wslice-first-run-done unset`);
+      await page.screenshot({ path: path.join(OUT, `after-room3-entry-${vp.width}.png`) });
+
+      await clearByHints(page, vp, { tap: vp.hasTouch, expectedRoom: 2 });
+      await page.locator('#result-dialog[open]').waitFor({ timeout: 5000 });
+      const wonHud = await hintOf(page);
+      assert.equal(wonHud.firstRunDone, 'yes', `${vpKey}: winning Room 2 sets wslice-first-run-done="yes"`);
+      assert.equal(wonHud.firstRunAttr, 'false', `${vpKey}: winning clears data-first-run to "false"`);
+      assert.equal(wonHud.firstRunPending, false, `${vpKey}: winning clears first-run-pending`);
+      receipt.checks.push({ viewport: vpKey, check: 'hint-follower-clears-room2-to-won', entryHint: room2Entry.title, passed: true });
+
+      // Returning player (#play-again after won): opens relic picker, uses non-tutorial HUD, aligns Stage 2 copy, and folds after 4.5s.
+      await page.locator('#play-again').click();
+      await page.locator('#choice-dialog[open]').waitFor({ timeout: 5000 });
+      await page.locator('#relic-choices button').first().click();
+      await page.waitForFunction(
+        () => window.__g().state.phase === 'playing' && !document.getElementById('choice-dialog')?.open,
+        null,
+        { timeout: 10000 },
+      );
+      const retStart = await hintOf(page);
+      assert.equal(retStart.firstRunDone, 'yes', `${vpKey}: returning run keeps wslice-first-run-done="yes"`);
+      assert.equal(retStart.firstRunAttr, 'false', `${vpKey}: returning run has data-first-run="false"`);
+      assert.equal(retStart.firstRunPending, false, `${vpKey}: returning run does not set first-run-pending`);
+      assert.equal(retStart.action, '', `${vpKey}: returning run does not show tutorial next-step action`);
+      const retFirstMech = (await read(page)).state.mechanismOrder[0];
+      await clickNode(page, retFirstMech, { tap: vp.hasTouch });
+      await page.waitForFunction(id => window.__g().state.activated.includes(id) && !window.__g().state.travel, retFirstMech, { timeout: 15000 });
+      const retStage2 = await hintOf(page);
+      assert.equal(retStage2.stage, '2', `${vpKey}: returning run enters Stage 2 after ①`);
+      assert.equal(retStage2.action, '', `${vpKey}: returning run Stage 2 shows stage summary instead of tutorial hint`);
+      assert.ok(retStage2.title.includes('⚓ 归响台'), `${vpKey}: Stage 2 fixed title names ⚓ 归响台 ("${retStage2.title}")`);
+      assert.ok(!retStage2.title.includes('换层台') && !retStage2.desc.includes('换层台'),
+        `${vpKey}: Stage 2 copy never says 换层台 ("${retStage2.title}" / "${retStage2.desc}")`);
+      await page.waitForTimeout(4800);
+      const retStage2Folded = await hintOf(page);
+      assert.equal(retStage2Folded.collapsed, true, `${vpKey}: returning run Stage 2 banner folds after announcement window`);
+      receipt.checks.push({ viewport: vpKey, check: 'returning-player-non-tutorial-hud', stage2Title: retStage2.title, passed: true });
+      await context.close();
+    }
+
+    // Cold first-run loss (phase === 'lost') must NOT mark wslice-first-run-done='yes'.
+    if (vp.label === 'desktop') {
+      const { context, page } = await openCold(vp);
+      await page.locator('#scene').focus();
+      await page.keyboard.press('r');
+      assert.equal((await read(page)).state.riskMode, true, `${vpKey}: R enables riskMode`);
+      for (let attempt = 0; attempt < 4; attempt++) {
+        await page.keyboard.press('1');
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(
+          () => !window.__g().state.travel || window.__g().state.phase === 'lost',
+          null,
+          { timeout: 8000 },
+        );
+      }
+      const lostG = await read(page);
+      const lostHud = await hintOf(page);
+      assert.equal(lostG.state.phase, 'lost', `${vpKey}: 4 failed risky crossings reach phase === 'lost'`);
+      assert.equal(await page.locator('#result-dialog').evaluate(d => d.open), true, `${vpKey}: result dialog opens on loss`);
+      assert.equal(lostHud.firstRunDone, null, `${vpKey}: losing first run leaves wslice-first-run-done unset`);
+      assert.equal(lostHud.firstRunAttr, 'true', `${vpKey}: losing first run keeps data-first-run="true"`);
+      receipt.checks.push({ viewport: vpKey, check: 'first-run-lost-keeps-first-run-unset', passed: true });
       await context.close();
     }
 

@@ -60,10 +60,13 @@ const fromFlatland = isFlatlandArrival(location.search, readJSON('wslice-flatlan
 $('chapter-arrival').hidden = !fromFlatland;
 rememberSeed(initialSeed, currentMode);
 // The very first run starts with the forgiving 缓落壳 so a new player meets zero decisions in
-// the tutorial courtyard; relic choices still arrive between rooms. Once a run reaches the
-// next room (or ends), every new run opens with the normal relic picker again.
+// the tutorial courtyard; relic choices still arrive between rooms. Once the first 3-room run
+// is won, every new run opens with the normal relic picker and non-tutorial HUD again.
 const FIRST_RUN_DONE_KEY = 'wslice-first-run-done';
 const isFirstRun = () => readPreference(FIRST_RUN_DONE_KEY, '') !== 'yes';
+const isFirstRunGuide = s => Boolean(
+  s && s.phase === 'playing' && s.mode !== 'expedition' && !onboarding.unlockAllOverride && isFirstRun()
+);
 // Arrivals from Flatland keep their own starter picker (the discovery arrival offers
 // "带缓落壳出发" as the primary choice with alternatives folded away).
 const arrivedFrom = new URLSearchParams(location.search).get('from');
@@ -241,7 +244,7 @@ function promptLayerShift(s, targetId, shift, finalLayer = null) {
     finalLayer,
   };
   const step = describeNextStep(s);
-  const tutorialCopy = s.room === 0 && step.banner && step.goalId === targetId;
+  const tutorialCopy = isFirstRunGuide(s) && step.banner && step.goalId === targetId;
   const promptMsg = tutorialCopy ? `🌀 ${step.banner}` : buildLayerShiftPromptMessage(s, promptInfo, revealExplicit);
   scene.pendingLayerPrompt = { ...promptInfo, message: promptMsg };
   showTransient(promptMsg, shift.kind === 'recover' ? 3.6 : 4.2, 'prompt');
@@ -1117,6 +1120,8 @@ function updateRoom(state) {
   if(roomKey===key)return;
   roomKey=key;destinationKey='';
   scene.pendingLayerPrompt = null;
+  scene.tutorialHint = null;
+  scene.nextStepHint = null;
   if (state.roomId) codex.recordRoomVisit(state.roomId);
   setText('room-description', state.roomDescription || '观察各层机关，让能量接力。');
   renderItinerary('room-itinerary',state,state.room);
@@ -1201,7 +1206,7 @@ function updateUI() {
   const anomProg = scene.explorationRadar.roomProgress(state);
   const stageInfo = onboarding.computeStage(state, anomProg.totalCollected);
   const roomStep = describeNextStep(state);
-  const tutorialHint = state.room === 0 && stageInfo.stage < 4 && state.phase === 'playing';
+  const tutorialHint = isFirstRunGuide(state);
   if (tutorialHint && roomStep.banner) scene.tutorialHint = { ...roomStep, tutorial: true };
   else if (!tutorialHint || state.phase !== 'playing') scene.tutorialHint = null;
   scene.nextStepHint = tutorialHint ? (scene.tutorialHint || null) : null;
@@ -1416,8 +1421,8 @@ function updateUI() {
     }
     // Stage 1 is the very first screen, so its single instruction stays until ① is lit.
     // Later stages expand briefly on arrival, then fold to a one-line badge (click to reopen).
-    // Room 0 keeps the next-step line on screen. The folded badge only says the stage name.
-    const keepRoomHint = state.room === 0 && stageInfo.stage < 4 && state.phase === 'playing';
+    // The first run keeps the next-step line expanded across all 3 courtyards until won.
+    const keepRoomHint = tutorialHint;
     $('onboarding-banner').classList.toggle('collapsed', !keepRoomHint && stageInfo.stage > 1 && bannerNow > bannerExpandedUntil);
     // The theater description popover is tap-only on small screens: .desc-open is
     // set by the banner click and cleared on expiry, stage change or canvas input.
@@ -1672,9 +1677,10 @@ function updateUI() {
   if (status !== lastStatus) { $('scene-state').textContent = status; lastStatus = status; }
   if (state.phase !== lastPhase) {
     lastPhase = state.phase;
-    if (['interlude','won','lost'].includes(state.phase)) {
+    if (state.phase === 'won') {
       savePreference(FIRST_RUN_DONE_KEY, 'yes');
       document.body.dataset.firstRun = String(isFirstRun());
+      document.body.classList.toggle('first-run-pending', state.mode !== 'expedition' && isFirstRun());
     }
     if (['choose','interlude'].includes(state.phase)) showChoice(state);
     else if (['won','lost'].includes(state.phase)) showResult(state);
@@ -1975,7 +1981,11 @@ function restartWithMode(nextMode = currentMode) {
   scene.cancelGrab?.();
   oneShotRiskCrossing = false;
   altarTune = null;
-  if (scene) scene.altarWindow = null;
+  if (scene) {
+    scene.altarWindow = null;
+    scene.tutorialHint = null;
+    scene.nextStepHint = null;
+  }
   transient = null;
   transientTime = 0;
   transientType = '';

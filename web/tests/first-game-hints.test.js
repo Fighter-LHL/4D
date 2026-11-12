@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { describeNextStep, planLayerRoute, clampIntroductoryW } from '../src/progressive-onboarding.js';
+import {
+  ONBOARDING_STAGES,
+  ProgressiveOnboarding,
+  describeNextStep,
+  planLayerRoute,
+  clampIntroductoryW,
+} from '../src/progressive-onboarding.js';
 import { SceneRenderer } from '../src/scene.js';
 import { start, reach, advance } from './model-helpers.js';
 
@@ -531,5 +537,81 @@ test('adjacent completable same_xyz seeds keep in-place transfer and all establi
       light(model, model.snapshot().mechanismOrder[0]);
       followHintsFromAfterFirstLight(model, { discreteShift, maxStepsToSecond: 30 });
     }
+  }
+});
+
+test('Stage 2 fixed onboarding copy aligns with 归响台 / 维度锚台 and never says 换层台', () => {
+  for (const stage of ONBOARDING_STAGES) {
+    assert.ok(!stage.title.includes('换层台'), `stage ${stage.stage} title must not say 换层台: ${stage.title}`);
+    assert.ok(!stage.instruction.includes('换层台'), `stage ${stage.stage} instruction must not say 换层台: ${stage.instruction}`);
+    assert.ok(!stage.badge.includes('换层台'), `stage ${stage.stage} badge must not say 换层台: ${stage.badge}`);
+  }
+  const stage2 = ONBOARDING_STAGES.find(s => s.stage === 2);
+  assert.ok(stage2, 'Stage 2 exists');
+  assert.equal(stage2.id, 'slice_shift');
+  assert.ok(stage2.title.length <= 20, `Stage 2 title stays <= 20 chars: "${stage2.title}" (${stage2.title.length})`);
+  assert.ok(stage2.title.includes('⚓ 归响台'), `Stage 2 title names ⚓ 归响台: ${stage2.title}`);
+  assert.ok(stage2.instruction.includes('⚓ 归响台'), `Stage 2 instruction names ⚓ 归响台: ${stage2.instruction}`);
+  assert.ok(stage2.instruction.includes('⚓ 维度锚台'), `Stage 2 instruction names ⚓ 维度锚台: ${stage2.instruction}`);
+});
+
+test('following describeNextStep clears all 3 courtyards (rooms 0, 1, 2) to won even when computeStage is 4', () => {
+  for (const seed of [2, 42, 401491695, 4097396765]) {
+    const model = start('shell', seed);
+    const onboarding = new ProgressiveOnboarding({ storage: null });
+    assert.equal(model.snapshot().roomTotal, 3, `seed ${seed} intro run has 3 rooms`);
+    let sawStage4HintInRoom1 = false;
+    let sawStage4HintInRoom2 = false;
+
+    for (const expectedRoom of [0, 1, 2]) {
+      assert.equal(model.snapshot().room, expectedRoom, `seed ${seed} enters room ${expectedRoom}`);
+      assert.equal(model.snapshot().phase, 'playing');
+
+      let cleared = false;
+      for (let stepIdx = 1; stepIdx <= 45; stepIdx++) {
+        const state = model.snapshot();
+        if (state.phase !== 'playing') {
+          cleared = true;
+          break;
+        }
+        const stageInfo = onboarding.computeStage(state, 0);
+        const hint = describeNextStep(state);
+        assert.ok(hint.banner && hint.banner.length <= 20,
+          `seed ${seed} room ${expectedRoom} step ${stepIdx}: valid banner "${hint.banner}"`);
+        assert.notEqual(hint.banner, stageInfo.title,
+          `seed ${seed} room ${expectedRoom} step ${stepIdx}: hint must be concrete next step, not stage summary "${stageInfo.title}"`);
+        assert.ok(hint.banner.includes(badgeOf(state, hint.goalId)),
+          `seed ${seed} room ${expectedRoom} step ${stepIdx}: "${hint.banner}" names ${badgeOf(state, hint.goalId)}`);
+        if (expectedRoom === 1 && stageInfo.stage === 4) sawStage4HintInRoom1 = true;
+        if (expectedRoom === 2) {
+          assert.equal(stageInfo.stage, 4, `seed ${seed} room 2 is at stage 4 from entry`);
+          sawStage4HintInRoom2 = true;
+        }
+
+        if (hint.action === 'move' || hint.action === 'done') {
+          reach(model, hint.targetId || hint.goalId);
+        } else if (hint.action === 'shift' || hint.action === 'recover') {
+          model.setW(state.layers[hint.layer].center);
+          advance(model, 0.05);
+        } else if (hint.action === 'activate') {
+          light(model, hint.goalId);
+        } else {
+          advance(model, 0.35);
+        }
+      }
+
+      if (!cleared) assert.notEqual(model.snapshot().phase, 'playing', `seed ${seed} room ${expectedRoom} cleared within 45 steps`);
+      assert.equal(model.snapshot().stats.failures, 0, `seed ${seed} room ${expectedRoom} zero falls`);
+
+      if (expectedRoom < 2) {
+        assert.equal(model.snapshot().phase, 'interlude', `seed ${seed} room ${expectedRoom} reaches interlude`);
+        assert.equal(model.chooseRelic(model.snapshot().choices[0].id), true);
+      } else {
+        assert.equal(model.snapshot().phase, 'won', `seed ${seed} room 2 reaches won`);
+      }
+    }
+
+    assert.equal(sawStage4HintInRoom1, true, `seed ${seed}: room 1 late steps reach stage 4 while keeping concrete hints`);
+    assert.equal(sawStage4HintInRoom2, true, `seed ${seed}: room 2 stays on concrete hints at stage 4`);
   }
 });
