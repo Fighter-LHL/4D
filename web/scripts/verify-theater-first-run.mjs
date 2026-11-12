@@ -1,6 +1,6 @@
 // End-to-end Playwright verification for cold-boot default Theater + First-Run onboarding.
 // Launches its own ephemeral static server on a free port, starts with completely empty
-// localStorage (zero overrides), and verifies desktop (1366x820) + mobile (390x844) through
+// localStorage (zero overrides), and verifies desktop (1366x820) + mobile landscape (844x390) through
 // full Room 0 playable completion using real canvas clicks and wheel layer shifts.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -20,7 +20,7 @@ await mkdir(OUT, { recursive: true });
 
 const VIEWPORTS = [
   { label: 'desktop', width: 1366, height: 820, desktop: true, hasTouch: false, minCanvasRatio: 0.75, minWorldRatio: 0.50 },
-  { label: 'mobile', width: 390, height: 844, desktop: false, hasTouch: true, minCanvasRatio: 0.65, minWorldRatio: 0.27 },
+  { label: 'mobile', width: 844, height: 390, desktop: false, hasTouch: true, minCanvasRatio: 0.65, minWorldRatio: 0.27 },
 ];
 
 const observer = `
@@ -423,10 +423,16 @@ try {
     assert.equal(stage2Hud.descDisplay, 'none', `${vpKey}: Stage 2 transition does not auto-pop #onboarding-desc`);
     assert.ok(stage2Hud.title.length > 0 && stage2Hud.title.length <= 20,
       `${vpKey}: Stage 2 #onboarding-title length (${stage2Hud.title.length}) <= 20 ("${stage2Hud.title}")`);
+    assert.ok(!stage2Hud.title.includes('站在 ⚓ 归响台上滚轮'),
+      `${vpKey}: Stage 2 title does not contain obsolete wheel prompt ("${stage2Hud.title}")`);
     assert.equal(await page.locator('#layer-controls').evaluate(el => el.hidden), false,
       `${vpKey}: #layer-controls is unhidden at Stage 2`);
     assert.equal(await page.locator('#layer-controls').isVisible(), true,
       `${vpKey}: #layer-controls is visible at Stage 2`);
+    for (const layerIdx of [0, 1, 2]) {
+      assert.equal(await page.locator(`#layer-${layerIdx}`).isVisible(), true,
+        `${vpKey}: #layer-${layerIdx} button remains present and visible on W-ruler`);
+    }
     const layerControlsBox = await page.locator('#layer-controls').boundingBox();
     assert.ok(inside(layerControlsBox, vp), `${vpKey}: #layer-controls fits inside viewport in theater mode`);
     await shot('03-stage2-unlocked');
@@ -462,6 +468,9 @@ try {
     assert.equal(gExit.state.phase, 'interlude', `${vpKey}: reaching exit enters interlude relic choice`);
     assert.equal(await page.locator('#choice-dialog').evaluate(d => d.open), true,
       `${vpKey}: #choice-dialog opens after Room 0 exit`);
+    const relicChoicesBox = await page.locator('#relic-choices').boundingBox();
+    assert.ok(inside(relicChoicesBox, vp),
+      `${vpKey}: #relic-choices fits completely inside viewport without clipping (${JSON.stringify(relicChoicesBox)})`);
     assert.equal(await page.evaluate(() => localStorage.getItem('wslice-first-run-done')), null,
       `${vpKey}: completing Room 0 leaves wslice-first-run-done unset until won`);
     assert.equal(await page.evaluate(() => document.body.dataset.firstRun), 'true',

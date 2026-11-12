@@ -10,20 +10,28 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="rotate-cue" class="rotate-cue" role="status" aria-label="请旋转至横屏游玩">
+    <svg class="rotate-cue-icon" viewBox="0 0 64 64" width="64" height="64" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="20" y="10" width="24" height="44" rx="4" opacity="0.38"/>
+      <rect x="10" y="22" width="44" height="24" rx="4"/>
+      <path d="M46 11a14 14 0 0 1 9 9"/>
+      <path d="M51 20h4v-4"/>
+    </svg>
+  </div>
   <header class="topbar">
-    <a class="brand" href="./" aria-label="回响庭院首页"><span class="brand-icon">◈</span><span>W–SLICE<span class="brand-sub">回响庭院</span></span></a>
+    <a class="brand" href="./" aria-label="回响庭院首页" title="W–SLICE 回响庭院"><span class="brand-icon">◈</span><span>W–SLICE<span class="brand-sub">回响庭院</span></span></a>
     <nav aria-label="游戏设置">
-      <button id="open-chapters" class="icon-button" title="打开维度章节星图（序章 / 初探三庭 / 深层五庭）">🗺️ <span class="nav-label">章节星图</span></button>
-      <button id="open-codex" class="icon-button" title="打开跨局《四维博物图鉴》">📖 <span class="nav-label">博物图鉴</span></button>
-      <button id="open-hyper-lab" class="icon-button prism-button" title="打开四维超多胞体全息观测台">◈ <span class="nav-label">四维观测台</span></button>
-      <button id="theme-toggle" class="icon-button" aria-pressed="false" title="切换星界棱镜全息主题">✦ <span class="nav-label">星界棱镜</span></button>
-      <button id="layout-toggle" class="icon-button" aria-pressed="false" title="切换剧场 / 经典布局">⛶ <span class="nav-label">剧场</span></button>
-      <button id="panel-toggle" class="icon-button" aria-expanded="false" aria-controls="run-panel" title="打开本局进度面板 (P)">☰ <span class="nav-label">进度</span></button>
-      <button id="sound" class="icon-button" aria-pressed="true" title="切换声音"><span aria-hidden="true">♫</span><span id="sound-label">声音开</span></button>
-      <a class="icon-button" href="flatland.html"><span class="nav-glyph" aria-hidden="true">◧</span><span class="nav-text">去平面国玩</span></a>
-      <button id="help" class="icon-button"><span class="nav-glyph" aria-hidden="true">？</span><span class="nav-text">怎么玩</span></button>
-      <button id="pause" class="icon-button" disabled><span class="nav-glyph" aria-hidden="true">⏸</span><span class="nav-text">暂停</span></button>
-      <button id="restart" class="icon-button"><span class="nav-glyph" aria-hidden="true">↻</span><span class="nav-text">新一局 ↗</span></button>
+      <button id="open-chapters" class="icon-button" aria-label="章节星图" title="打开维度章节星图（序章 / 初探三庭 / 深层五庭）">🗺️ <span class="nav-label">章节星图</span></button>
+      <button id="open-codex" class="icon-button" aria-label="博物图鉴" title="打开跨局《四维博物图鉴》">📖 <span class="nav-label">博物图鉴</span></button>
+      <button id="open-hyper-lab" class="icon-button prism-button" aria-label="四维观测台" title="打开四维超多胞体全息观测台">◈ <span class="nav-label">四维观测台</span></button>
+      <button id="theme-toggle" class="icon-button" aria-pressed="false" aria-label="星界棱镜" title="切换星界棱镜全息主题">✦ <span class="nav-label">星界棱镜</span></button>
+      <button id="layout-toggle" class="icon-button" aria-pressed="false" aria-label="剧场布局" title="切换剧场 / 经典布局">⛶ <span class="nav-label">剧场</span></button>
+      <button id="panel-toggle" class="icon-button" aria-expanded="false" aria-controls="run-panel" aria-label="本局进度" title="打开本局进度面板 (P)">☰ <span class="nav-label">进度</span></button>
+      <button id="sound" class="icon-button" aria-pressed="true" aria-label="切换声音" title="切换声音"><span aria-hidden="true">♫</span><span id="sound-label">声音开</span></button>
+      <a class="icon-button" href="flatland.html" aria-label="去平面国玩" title="去平面国玩"><span class="nav-glyph" aria-hidden="true">◧</span><span class="nav-text">去平面国玩</span></a>
+      <button id="help" class="icon-button" aria-label="怎么玩" title="怎么玩"><span class="nav-glyph" aria-hidden="true">？</span><span class="nav-text">怎么玩</span></button>
+      <button id="pause" class="icon-button" disabled aria-label="暂停" title="暂停 (Esc)"><span class="nav-glyph" aria-hidden="true">⏸</span><span class="nav-text">暂停</span></button>
+      <button id="restart" class="icon-button" aria-label="新一局" title="新一局"><span class="nav-glyph" aria-hidden="true">↻</span><span class="nav-text">新一局 ↗</span></button>
     </nav>
   </header>
 
@@ -104,9 +112,9 @@
         </div>
         <div id="seal-prompt" class="seal-prompt" hidden aria-live="polite"></div>
         </div>
-        <div id="layer-controls" class="layer-controls" role="group" aria-label="切换四维切片"><button data-layer="0" id="layer-0"><span>Ⅰ</span>潮汐层 <kbd>Z</kbd><em id="layer-pill-0" class="layer-safety-pill">⚓ 稳固</em></button><button data-layer="1" id="layer-1"><span>Ⅱ</span>回声层 <kbd>X</kbd><em id="layer-pill-1" class="layer-safety-pill">⚓ 稳固</em></button><button data-layer="2" id="layer-2"><span>Ⅲ</span>绽放层 <kbd>C</kbd><em id="layer-pill-2" class="layer-safety-pill">⚓ 稳固</em></button></div>
+        <div id="layer-controls" class="layer-controls" role="group" aria-label="切换四维切片"><span class="w-ruler-track" aria-hidden="true"></span><span id="w-ruler-thumb" class="w-ruler-thumb" aria-hidden="true"></span><button type="button" data-layer="0" id="layer-0" aria-label="Ⅰ (Z)"><span class="layer-num">Ⅰ</span><span class="layer-label-text">潮汐层 <kbd>Z</kbd></span><em id="layer-pill-0" class="layer-safety-pill"></em></button><button type="button" data-layer="1" id="layer-1" aria-label="Ⅱ (X)"><span class="layer-num">Ⅱ</span><span class="layer-label-text">回声层 <kbd>X</kbd></span><em id="layer-pill-1" class="layer-safety-pill"></em></button><button type="button" data-layer="2" id="layer-2" aria-label="Ⅲ (C)"><span class="layer-num">Ⅲ</span><span class="layer-label-text">绽放层 <kbd>C</kbd></span><em id="layer-pill-2" class="layer-safety-pill"></em></button></div>
         <details class="advanced-drawer">
-          <summary>🎛️ 展开手动 W 滑杆与高阶冒险操控（默认直接点画布圆盘即可自动寻路）</summary>
+          <summary title="展开手动 W 滑杆与高阶冒险操控"><span class="sr-only">展开手动 W 滑杆与高阶冒险操控（默认直接点画布圆盘即可自动寻路）</span></summary>
           <div class="advanced-drawer-body">
             <div class="guide-bar">
               <div class="guide-slot">
@@ -224,8 +232,8 @@
     <button id="next-expedition" class="primary-button expedition-cta" hidden>开启第二幕 · 深层五庭巡礼 ↗</button>
     <button id="play-again" class="primary-button">换一种走法，再来一局 ↗</button>
     <div class="dialog-actions result-sub-actions">
-      <button id="result-open-chapters" class="secondary-button" type="button">🗺️ 维度章节星图</button>
-      <button id="result-open-codex" class="secondary-button" type="button">📖 四维博物图鉴</button>
+      <button id="result-open-chapters" class="secondary-button" type="button" aria-label="维度章节星图" title="维度章节星图">🗺️ <span class="result-btn-label">维度章节星图</span></button>
+      <button id="result-open-codex" class="secondary-button" type="button" aria-label="四维博物图鉴" title="四维博物图鉴">📖 <span class="result-btn-label">四维博物图鉴</span></button>
     </div>
   </dialog>
   <dialog id="chapter-dialog" class="chapter-dialog" aria-labelledby="chapter-dialog-title">

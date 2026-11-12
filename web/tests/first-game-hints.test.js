@@ -47,7 +47,7 @@ test('seed 2 next-step hint stays non-empty and never aims at a lit mechanism', 
   light(model, 'dew');
   record('1/3 on dew');
   assert.equal(describeNextStep(model.snapshot()).goalId, 'bloom');
-  assert.equal(describeNextStep(model.snapshot()).banner, '去归响台，走上斜桥点②');
+  assert.equal(describeNextStep(model.snapshot()).banner, '去⚓走斜桥点②');
   reach(model, 'hub');
   record('1/3 at hub');
   const bloomLayer = model.snapshot().nodes.find(n => n.id === 'bloom').layer;
@@ -57,11 +57,12 @@ test('seed 2 next-step hint stays non-empty and never aims at a lit mechanism', 
   assert.equal(toBloom.walk[0].to, 'bloom');
   assert.equal(toBloom.walk[0].ramp, true);
   assert.equal(toBloom.walk[0].toLayer, bloomLayer);
-  assert.equal(describeNextStep(model.snapshot()).banner, '走上斜桥，点亮②');
+  assert.equal(describeNextStep(model.snapshot()).banner, '走上斜桥点亮②');
 
   light(model, 'bloom');
   record('2/3 on bloom');
   assert.equal(describeNextStep(model.snapshot()).goalId, 'bell');
+  assert.equal(describeNextStep(model.snapshot()).banner, '沿斜桥回⚓点③');
   reach(model, 'hub');
   record('2/3 at hub on bloom layer');
 
@@ -100,7 +101,7 @@ test('seed 2 next-step hint stays non-empty and never aims at a lit mechanism', 
   assert.equal(onDew.targetId, 'hub');
   assert.equal(onDew.goalId, 'bell');
   assert.equal(onDew.layer, bell.layer);
-  assert.equal(onDew.banner, '去归响台换层点③');
+  assert.equal(onDew.banner, '去⚓换层点③');
   assert.match(onDew.detail, /同一位置/);
   assert.match(onDew.banner, /③/);
 
@@ -119,9 +120,9 @@ test('two anchors are named, and the anchor you already stand on says to switch 
   assert.equal(onRelay.action, 'move');
   assert.equal(onRelay.targetId, 'hub');
   assert.equal(onRelay.goalId, 'bell');
-  assert.ok(onRelay.banner.includes('归响台'), `standing on 维度锚台 must name 归响台: ${onRelay.banner}`);
+  assert.ok(onRelay.banner.includes('主⚓'), `standing on 维度锚台 must distinguish 主⚓: ${onRelay.banner}`);
   assert.ok(!onRelay.banner.includes('先回⚓台'), onRelay.banner);
-  assert.ok(onRelay.banner.length <= 20, onRelay.banner);
+  assert.ok(onRelay.banner.length <= 10, onRelay.banner);
   assert.match(onRelay.detail, /维度锚台/);
   assert.match(onRelay.detail, /归响台/);
 
@@ -129,7 +130,7 @@ test('two anchors are named, and the anchor you already stand on says to switch 
   const onHub = describeNextStep(model.snapshot());
   assert.equal(onHub.action, 'move', `already on 归响台 should board W-ramp, got ${onHub.banner}`);
   assert.equal(onHub.targetId, 'bell');
-  assert.equal(onHub.banner, '走上斜桥，点亮②');
+  assert.equal(onHub.banner, '走上斜桥点亮②');
   assert.ok(onHub.banner.includes('②'), onHub.banner);
 
   light(model, 'bell');
@@ -137,9 +138,10 @@ test('two anchors are named, and the anchor you already stand on says to switch 
   reach(model, 'hub');
   const toExit = describeNextStep(model.snapshot());
   assert.equal(toExit.targetId, 'relay');
-  assert.ok(toExit.banner.includes('维度锚台'), toExit.banner);
+  assert.ok(toExit.banner.includes('远⚓'), toExit.banner);
+  assert.match(toExit.detail, /维度锚台/);
   assert.ok(!toExit.banner.includes('先回⚓台'), toExit.banner);
-  assert.ok(toExit.banner.length <= 20, `${toExit.banner} (${toExit.banner.length})`);
+  assert.ok(toExit.banner.length <= 10, `${toExit.banner} (${toExit.banner.length})`);
   reach(model, 'relay');
   const atRelay = describeNextStep(model.snapshot());
   assert.equal(atRelay.action, 'shift');
@@ -190,7 +192,7 @@ test('planLayerRoute still walks to the anchor that actually holds the bridge', 
   assert.deepEqual(rampPlan.walk.map(s => s.to), ['relay', 'bell'], 'walks via relay onto the W-ramp to ②');
   assert.equal(rampPlan.walk[1].ramp, true);
   assert.equal(rampPlan.shift, null);
-  assert.equal(describeNextStep(model.snapshot()).banner, '去维度锚台，走上斜桥点②');
+  assert.equal(describeNextStep(model.snapshot()).banner, '去远⚓走斜桥点②');
 
   light(model, second);
   reach(model, 'hub');
@@ -204,7 +206,7 @@ test('drifting W after lighting ① never claims an off-layer ② is still on th
   light(model, 'dew');
   const baseline = describeNextStep(model.snapshot());
   assert.equal(baseline.goalId, 'bloom');
-  assert.equal(baseline.banner, '去归响台，走上斜桥点②');
+  assert.equal(baseline.banner, '去⚓走斜桥点②');
 
   for (const driftedW of [0.93, 0.99, 1.0, 0.70]) {
     model.setW(driftedW);
@@ -218,7 +220,7 @@ test('drifting W after lighting ① never claims an off-layer ② is still on th
     assert.notEqual(step.action, 'recover', `w=${driftedW} must not emit same-layer recover for off-layer ②: ${step.banner}`);
     assert.doesNotMatch(step.banner, /回中心见②/);
     assert.doesNotMatch(step.detail, /还在这一层/);
-    assert.equal(step.banner, '去归响台，走上斜桥点②');
+    assert.equal(step.banner, '去⚓走斜桥点②');
     assert.equal(step.targetId, 'hub');
     assert.equal(step.layer, state.layer);
     assert.ok(step.banner.length <= 20, step.banner);
@@ -228,7 +230,7 @@ test('drifting W after lighting ① never claims an off-layer ② is still on th
   const centerW = model.snapshot().layers[model.snapshot().layer].center;
   model.setW(centerW);
   const centered = describeNextStep(model.snapshot());
-  assert.equal(centered.banner, '去归响台，走上斜桥点②');
+  assert.equal(centered.banner, '去⚓走斜桥点②');
   assert.equal(centered.action, 'move');
   assert.equal(centered.targetId, 'hub');
 
@@ -256,7 +258,7 @@ test('seed 5 drifting W after lighting ① never claims an off-layer goal is on 
   light(model, first);
   const originW = model.snapshot().w;
   assert.equal(model.snapshot().layer, 0);
-  assert.equal(describeNextStep(model.snapshot()).banner, '去归响台，走上斜桥点②');
+  assert.equal(describeNextStep(model.snapshot()).banner, '去⚓走斜桥点②');
 
   for (const driftedW of [0, 0.01, 0.07, 0.30, 0.339, 0.35, 0.70, 0.93, 1.0]) {
     model.setW(originW);
@@ -274,14 +276,14 @@ test('seed 5 drifting W after lighting ① never claims an off-layer goal is on 
     }
     if (driftedW < 0.34) {
       assert.equal(state.layer, 0);
-      assert.equal(step.banner, '去归响台，走上斜桥点②');
+      assert.equal(step.banner, '去⚓走斜桥点②');
       assert.equal(step.action, 'move');
       assert.equal(step.targetId, 'hub');
     }
   }
 
   model.setW(originW);
-  assert.equal(describeNextStep(model.snapshot()).banner, '去归响台，走上斜桥点②');
+  assert.equal(describeNextStep(model.snapshot()).banner, '去⚓走斜桥点②');
 });
 
 test('seed 4097396765 mobile canvas tap on ③ (bloom) selects bloom instead of hitting WStack layer 0', () => {
@@ -340,7 +342,7 @@ test('seed 4097396765 mobile canvas tap on ③ (bloom) selects bloom instead of 
     const clickBloomStep = describeNextStep(atRelayLayer2);
     assert.equal(clickBloomStep.action, 'move');
     assert.equal(clickBloomStep.targetId, 'bloom');
-    assert.equal(clickBloomStep.banner, '点击③，走过去点亮');
+    assert.equal(clickBloomStep.banner, '点击③走去点亮');
 
     const bloom = atRelayLayer2.nodes.find(node => node.id === 'bloom');
     assert.deepEqual({ x: bloom.x, y: bloom.y, present: bloom.present }, { x: 292, y: 192, present: true });
@@ -493,7 +495,7 @@ test('seeds 42, 90210, 2026111 route via anchor instead of void same_xyz on dew 
     assert.equal(nextHint.action, 'move', `seed ${seed}: standing on dew moves to anchor, got ${nextHint.banner}`);
     assert.equal(nextHint.targetId, 'hub');
     assert.equal(nextHint.goalId, 'bell');
-    assert.equal(nextHint.banner, '去归响台，走上斜桥点②');
+    assert.equal(nextHint.banner, '去⚓走斜桥点②');
     assert.doesNotMatch(nextHint.banner, /显现②/);
 
     // If the player is already stranded on the unsupported middle layer, recover returns to dew's layer,
@@ -511,7 +513,7 @@ test('seeds 42, 90210, 2026111 route via anchor instead of void same_xyz on dew 
     const stabilizedHint = describeNextStep(model.snapshot());
     assert.equal(stabilizedHint.action, 'move');
     assert.equal(stabilizedHint.targetId, 'hub');
-    assert.equal(stabilizedHint.banner, '去归响台，走上斜桥点②');
+    assert.equal(stabilizedHint.banner, '去⚓走斜桥点②');
 
     // Repeatedly executing describeNextStep clears ② within <= 30 steps, then ③ and exit (both setW and 1-layer steps).
     const directRun = followHintsFromAfterFirstLight(model, { discreteShift: false, maxStepsToSecond: 30 });
@@ -543,7 +545,7 @@ test('adjacent completable same_xyz seeds keep in-place transfer and all establi
     const hint = describeNextStep(atDew);
     assert.equal(hint.action, 'move');
     assert.equal(hint.targetId, 'hub');
-    assert.equal(hint.banner, '去归响台，走上斜桥点②');
+    assert.equal(hint.banner, '去⚓走斜桥点②');
 
     model.setW(atDew.layers[bell.layer].center);
     const transferred = model.snapshot();
@@ -570,8 +572,9 @@ test('Stage 2 fixed onboarding copy aligns with 归响台 / 维度锚台 and nev
   const stage2 = ONBOARDING_STAGES.find(s => s.stage === 2);
   assert.ok(stage2, 'Stage 2 exists');
   assert.equal(stage2.id, 'slice_shift');
-  assert.ok(stage2.title.length <= 20, `Stage 2 title stays <= 20 chars: "${stage2.title}" (${stage2.title.length})`);
-  assert.ok(stage2.title.includes('⚓ 归响台'), `Stage 2 title names ⚓ 归响台: ${stage2.title}`);
+  assert.ok(stage2.title.length <= 10, `Stage 2 title stays <= 10 chars: "${stage2.title}" (${stage2.title.length})`);
+  assert.ok(!stage2.title.includes('站在 ⚓ 归响台上滚轮'), `Stage 2 title must not say obsolete wheel prompt: ${stage2.title}`);
+  assert.ok(stage2.title.includes('⚓') && stage2.title.includes('W尺'), `Stage 2 title names ⚓ and W尺: ${stage2.title}`);
   assert.ok(stage2.instruction.includes('⚓ 归响台'), `Stage 2 instruction names ⚓ 归响台: ${stage2.instruction}`);
   assert.ok(stage2.instruction.includes('⚓ 维度锚台'), `Stage 2 instruction names ⚓ 维度锚台: ${stage2.instruction}`);
 });

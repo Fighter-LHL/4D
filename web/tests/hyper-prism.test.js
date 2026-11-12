@@ -502,9 +502,9 @@ test('Stage 3+ switches layer prompts to deductive visual-clue mode and restores
   calls.length = 0;
   renderer.drawVisualActionGuide();
   const deductiveTexts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
-  assert.ok(deductiveTexts.includes('🖱️ 滚轮换层寻桥'), `expected compact deductive shift pill, got ${JSON.stringify(deductiveTexts)}`);
-  assert.ok(deductiveTexts.includes('②·异层'), `expected off-slice compact badge without layer spoiler, got ${JSON.stringify(deductiveTexts)}`);
-  assert.ok(!deductiveTexts.some(t => t.includes('Ⅰ层') || t.includes('潮汐层')), 'must not spoil target layer in deductive mode');
+  assert.ok(deductiveTexts.includes('⇅'), `expected compact deductive shift symbol, got ${JSON.stringify(deductiveTexts)}`);
+  assert.ok(deductiveTexts.includes('②'), `expected off-slice number badge without Chinese layer name, got ${JSON.stringify(deductiveTexts)}`);
+  assert.ok(!deductiveTexts.some(t => t.includes('▼') || t.includes('▲') || t.includes('Ⅰ层') || t.includes('潮汐层') || t.includes('异层')), 'must not spoil target layer or emit Chinese layer prose in deductive mode');
 
   // After 10s hesitation (or pressing H), explicit layer hint automatically unlocks
   onboarding.tickIdle(10.5, sStage3);
@@ -513,8 +513,9 @@ test('Stage 3+ switches layer prompts to deductive visual-clue mode and restores
   calls.length = 0;
   renderer.drawVisualActionGuide();
   const explicitTexts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
-  assert.ok(explicitTexts.includes('🖱️ ▼ → Ⅰ层'), `expected compact explicit layer pill after idle fallback, got ${JSON.stringify(explicitTexts)}`);
-  assert.ok(explicitTexts.includes('②·Ⅰ层'), `expected explicit target layer badge, got ${JSON.stringify(explicitTexts)}`);
+  assert.ok(explicitTexts.includes('▼'), `expected explicit directional chevron after idle fallback, got ${JSON.stringify(explicitTexts)}`);
+  assert.ok(explicitTexts.includes('②'), `expected target number badge, got ${JSON.stringify(explicitTexts)}`);
+  assert.ok(!explicitTexts.includes('⇅'), 'explicit directional chevron replaces deductive ⇅');
   renderer.destroy();
 });
 
@@ -769,23 +770,22 @@ test('Stage 1 declutters canvas and off-slice exit always renders ghosted gate s
       assert.equal(renderer.hitTest({ clientX: vaultNode.x, clientY: vaultNode.y }), null, 'locked vault hit-test disabled before Stage 3');
     }
 
-    // 2. Always-visible off-slice exit gate silhouette + 3-lamp lock progress
-    const exitRom = ['Ⅰ', 'Ⅱ', 'Ⅲ'][exitNode.layer];
+    // 2. Always-visible off-slice exit gate silhouette + 3-lamp lock progress (icon + pips only, no Chinese prose)
     const mechTotal = s0.mechanismOrder.length;
     assert.ok(
-      stage1Texts.includes(`🚪 出口 (${exitRom}层 · 0/${mechTotal})`),
-      `expected ghosted off-slice exit micro-label, got ${JSON.stringify(stage1Texts)}`
+      stage1Texts.includes('🚪') && !stage1Texts.some(t => t.includes('出口')),
+      `expected icon-only ghosted off-slice exit 🚪, got ${JSON.stringify(stage1Texts)}`
     );
 
-    // 3. Hover-only poetic name + short action tooltip
+    // 3. Hovering mechanism keeps minimal badge without duplicating bottom hint sentence or Chinese mechanism name
     renderer.hover = firstId;
     calls.length = 0;
     renderer.render(0.016);
     const hoverTexts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
-    assert.ok(hoverTexts.includes(`① ${firstNode.name}`), `hovering mechanism reveals poetic name, got ${JSON.stringify(hoverTexts)}`);
-    assert.ok(hoverTexts.includes('点此走过去点亮 ①'), `hovering mechanism expands concise tooltip, got ${JSON.stringify(hoverTexts)}`);
+    assert.ok(hoverTexts.includes('👆 ①'), `hovering mechanism keeps minimal target badge, got ${JSON.stringify(hoverTexts)}`);
+    assert.ok(!hoverTexts.includes(firstNode.name) && !hoverTexts.includes('点此走过去点亮 ①'), `hovering mechanism omits duplicate canvas prose, got ${JSON.stringify(hoverTexts)}`);
 
-    // 4. Off-slice exit silhouette updates lamp pips and micro-label when all mechanisms are lit
+    // 4. Off-slice exit silhouette updates lamp pips and keeps icon-only 🚪 when all mechanisms are lit
     renderer.hover = null;
     renderer.onboardingStage = 2;
     renderer.setState({ ...s0, activated: [...s0.mechanismOrder] });
@@ -793,8 +793,8 @@ test('Stage 1 declutters canvas and off-slice exit always renders ghosted gate s
     renderer.drawIsland(renderer.node('exit'));
     const openSilhouetteTexts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
     assert.ok(
-      openSilhouetteTexts.includes(`🚪 出口已开 · 去${exitRom}层`),
-      `expected open off-slice exit micro-label, got ${JSON.stringify(openSilhouetteTexts)}`
+      openSilhouetteTexts.includes('🚪') && !openSilhouetteTexts.some(t => t.includes('出口')),
+      `expected icon-only open off-slice exit 🚪, got ${JSON.stringify(openSilhouetteTexts)}`
     );
     const lampEllipses = calls.filter(c => c.method === 'ellipse');
     assert.ok(lampEllipses.length >= 1 + mechTotal * 3, 'draws dashed platform ellipse plus lit 3-lamp glow/core/glint pips');

@@ -24,8 +24,8 @@ function closeAdvancedDrawers() {
   return true;
 }
 const onboarding = new ProgressiveOnboarding({ skillGated: true });
-const compactProgress = matchMedia('(max-width:480px) and (orientation:portrait)');
-const mobileLayout = matchMedia('(max-width:780px) and (orientation:portrait)');
+const compactProgress = matchMedia('(max-height: 500px) and (max-width: 1000px)');
+const mobileLayout = matchMedia('(max-height: 500px) and (max-width: 1000px), (max-width: 780px)');
 const syncProgressDetails = () => { if ($('run-details')) $('run-details').open = false; };
 compactProgress.addEventListener('change', syncProgressDetails);
 syncProgressDetails();
@@ -123,6 +123,30 @@ let oneShotRiskCrossing = false;
 let scrubSession = null;
 let scrubGlide = null;
 function cancelScrubGlide() { scrubGlide = null; }
+function syncWRulerThumb(w, state) {
+  const ruler = $('layer-controls');
+  if (!ruler) return;
+  const wVal = Number.isFinite(w) ? w : (state?.w ?? 0.5);
+  const centers = state?.layers?.map(l => l.center) || [0.18, 0.5, 0.82];
+  const c0 = centers[0] ?? 0.18;
+  const c2 = centers[centers.length - 1] ?? 0.82;
+  const span = Math.max(0.01, c2 - c0);
+  const t = Math.max(-0.14, Math.min(1.14, (wVal - c0) / span));
+  ruler.style.setProperty('--w-t', t.toFixed(4));
+  const mid = centers[1] ?? 0.5;
+  const thumbColor = wVal < (c0 + mid) / 2 ? '#2aa89a' : wVal > (mid + c2) / 2 ? '#d69d2a' : '#7b66d0';
+  ruler.style.setProperty('--thumb-color', thumbColor);
+  if (state) {
+    const cur = state.nodes?.find(n => n.id === state.node);
+    const sameAny = cur && !cur.anchor && state.nodes?.some(n =>
+      !n.anchor && n.id !== cur.id && n.world && cur.world &&
+      Math.abs(n.world.x - cur.world.x) < 1e-4 &&
+      Math.abs(n.world.y - cur.world.y) < 1e-4 &&
+      Math.abs(n.world.z - cur.world.z) < 1e-4);
+    const canShift = !!(state.phase === 'playing' && !state.travel && (state.wave || cur?.anchor || sameAny));
+    ruler.dataset.canShift = String(canShift);
+  }
+}
 function finishScrubSession(session) {
   if (!session?.before) return;
   layerShiftAftermath(session.before, 'scrub');
@@ -267,7 +291,7 @@ function stepAutoPilot() {
     s = model.snapshot();
     currentNode = s.nodes.find(n => n.id === s.node);
     if (!autoPilot) {
-      showTransient(`💎 已自动存入 ${savedCarried} 枚随身回响 (+${savedCarried}◆)`, 2.6, 'bank');
+      showTransient(isTheater() ? `+${savedCarried}◆` : `💎 已自动存入 ${savedCarried} 枚随身回响 (+${savedCarried}◆)`, isTheater() ? 1.8 : 2.6, 'bank');
       updateUI();
       return;
     }
@@ -808,14 +832,17 @@ function consumeEvents() {
       if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
         $('mechanism-count').animate([{ transform: 'scale(1.3)', color: '#a06c24' }, { transform: 'scale(1)' }], { duration: 550 });
       }
-      if (isTheater() && onboarding.computeStage(state).stage <= 2) {
-        message = `✓ 已点亮 (${state.activated.length}/${mechCountOf(state)})`;
+      if (isTheater()) {
+        message = `启动！${state.activated.length}/${mechCountOf(state)}`;
       }
+    }
+    if (event.type === 'power' && isTheater() && message) {
+      message = `供能 ${event.received}/${event.required}`;
     }
     if (event.type === 'harmonic_burst') {
       const mechName = state.nodes.find(n => n.id === event.node)?.name || '机关';
-      message = isTheater() && onboarding.computeStage(state).stage <= 2
-        ? `✓ 已点亮 (${state.activated.length}/${mechCountOf(state)}) · +1◆`
+      message = isTheater()
+        ? `启动！${state.activated.length}/${mechCountOf(state)} · +1◆`
         : `${mechName}已启动 · ${state.activated.length}/${mechCountOf(state)} · ${event.surfCombo ? '⚡踏浪超频 +1◆' : '✦超频谐振 +1◆'}`;
     }
     if (event.type === 'fail') {
@@ -828,7 +855,7 @@ function consumeEvents() {
       onboarding.recordWaveDodge();
     }
     if (event.type === 'bank') message = `已存入 ${event.value} 枚回响。`;
-    if (event.type === 'unlock') message = isTheater() ? '🚪 出口已开启！点击前往过关' : '机关共鸣，通往庭门的实体桥已打开。';
+    if (event.type === 'unlock') message = isTheater() ? '🚪 已开启' : '机关共鸣，通往庭门的实体桥已打开。';
     if (event.type === 'reward' && event.risky) message = `冒险成功，收获 ${event.value} 枚回响。`;
     if (event.type === 'ability') message = event.relic === 'prism' ? '脉冲送达，已供能的机关响应了。' : model.snapshot().shadowDescription;
     if (event.type === 'coil') message = `换层接力：${model.snapshot().nodes.find(n=>n.id===event.to)?.name || '下游机关'}回应了。`;
@@ -905,9 +932,12 @@ function synergyNotes(relics) {
   return notes;
 }
 
-function choiceSynergy(state,id) {
-  const next={...state.relics,[id]:(state.relics[id]||0)+1};
-  return synergyNotes(next).find(note=>note.ids.includes(id))?.text || ({prism:'＋ 任意第二遗物：共鸣解封十相秘境',coil:'＋ 任意第二遗物：共鸣解封十相秘境',shadow:'＋ 任意第二遗物：共鸣解封十相秘境',weave:'＋ 任意第二遗物：共鸣解封十相秘境',shell:'＋ 任意第二遗物：共鸣解封十相秘境'}[id] || '');
+function choiceSynergyIcons(state, id) {
+  const next = { ...state.relics, [id]: (state.relics?.[id] || 0) + 1 };
+  const pair = synergyNotes(next).find(note => note.ids.includes(id));
+  if (!pair) return '';
+  const otherId = pair.ids.find(x => x !== id);
+  return otherId ? `${icons[otherId]} + ${icons[id]} 🌌` : '';
 }
 
 function focusPlaySurface() {
@@ -919,49 +949,59 @@ function focusPlaySurface() {
 
 function showChoice(state) {
   const next = state.phase === 'interlude';
+  const theater = isTheater();
   // Reuse the earned first-entry budget, once. Choosing still belongs to the
   // player; restarting or reaching the next room restores the ordinary picker.
   const discoveryStart = !next && discoveryChoicePending;
   discoveryChoicePending = false;
   $('choice-dialog').classList.toggle('starter-choice', !next);
   $('choice-dialog').classList.toggle('discovery-choice', discoveryStart);
-  const upcoming=next ? state.nextRoom : state.roomPlan?.[0];
+  $('choice-dialog').classList.toggle('interlude-choice', next);
+  const upcoming = next ? state.nextRoom : state.roomPlan?.[0];
   const isExpedition = state.mode === 'expedition';
-  $('choice-kicker').textContent = next ? `第 ${state.room + 1}/${state.roomTotal || 3} 庭完成 · 已带回 ${state.banked} 回响` : `${isExpedition ? '第二幕 · 深层五庭巡礼' : '随机旅程'} #${state.seed.toString(16).toUpperCase().padStart(8,'0')}`;
-  $('choice-title').innerHTML = next ? '下一庭，<br>换一种解法。' : (isExpedition ? '深层五庭，<br>带一件遗物启程。' : '带一件，就出发。');
-  $('choice-intro').textContent = next ? '已有遗物全部保留。任意两件遗物都能共鸣一条专属隐藏秘径；也可升阶现有能力。' : (isExpedition ? '五座递进庭院（经典双庭 → 三叠/换向进阶庭 → 四象升维圣殿）· 点选即出发' : '点选即出发 · 详细能力随时看「本局构筑」');
+  $('choice-kicker').textContent = next
+    ? `第 ${state.room + 1}/${state.roomTotal || 3} 庭 · ${state.banked}◆`
+    : `${isExpedition ? '第二幕 · 深层五庭巡礼' : '随机旅程'} #${state.seed.toString(16).toUpperCase().padStart(8,'0')}`;
+  $('choice-title').innerHTML = next ? '下一庭，换一种解法。' : (isExpedition ? '深层五庭，带一件遗物启程。' : '带一件，就出发。');
+  $('choice-intro').hidden = next || theater;
+  $('choice-intro').textContent = (next || theater) ? '' : (isExpedition ? '五座递进庭院（经典双庭 → 三叠/换向进阶庭 → 四象升维圣殿）· 点选即出发' : '点选即出发 · 详细能力随时看「本局构筑」');
   $('choice-route').hidden = !next;
   $('choice-route').classList.toggle('five-stops', (state.roomPlan?.length || 3) >= 5);
-  if (next) renderItinerary('choice-route',state,state.room+1);
+  if (next) renderItinerary('choice-route', state, state.room + 1);
   document.querySelector('.choice-preview').hidden = !next;
-  document.querySelector('.intro-rules').hidden = !next;
-  document.querySelector('.dialog-foot').hidden = !next;
-  if ($('choice-foot')) {
+  document.querySelector('.intro-rules').hidden = !next || theater;
+  document.querySelector('.dialog-foot').hidden = !next || theater;
+  if ($('choice-foot') && !theater) {
     setText('choice-foot', isExpedition
       ? '本幕共五座递进庭院（终章为四象升维圣殿） · 遗物跨庭保留并升级 · 任意双遗物共鸣十相秘境'
       : '每局抽取三座不同庭院 · 遗物跨庭保留并升级 · 复制网页地址可重走同一旅程');
   }
   if (fromFlatland && !next) {
+    $('choice-intro').hidden = false;
     $('choice-intro').textContent = scene.friends.length ? '伙伴也来了 · 带一件遗物出发' : '带一件出发，看看 W 里的新世界。';
   }
   if (discoveryStart) {
+    $('choice-intro').hidden = false;
     setText('choice-kicker', '平面国 → 庭院');
     setText('choice-title', `${scene.friends.length === 1 ? scene.friends[0].name : '伙伴们'}也来了。`);
     setText('choice-intro', '带上缓落壳，先走一座桥。');
   }
-  setText('choice-room-name',`${next?'即将进入':'首先进入'} · ${upcoming?.name || state.roomName}`);
-  setText('choice-room-description',upcoming?.description || state.roomDescription);
+  setText('choice-room-name', next ? `${upcoming?.name || state.roomName}` : `${upcoming?.name || state.roomName}`);
+  $('choice-room-description').hidden = next || theater;
+  setText('choice-room-description', (next || theater) ? '' : (upcoming?.description || state.roomDescription));
   $('choice-build').hidden = !next;
-  $('choice-build').textContent = '已有：'+RELICS.filter(r=>state.relics?.[r.id]>0).map(r=>`${r.name} ${'ⅠⅡⅢ'[state.relics[r.id]-1]}`).join(' ＋ ');
+  $('choice-build').textContent = RELICS.filter(r => state.relics?.[r.id] > 0).map(r => `${icons[r.id]}${'ⅠⅡⅢ'[state.relics[r.id] - 1]}`).join('  ');
   const choices = (state.choices || RELICS).map(relic => {
     const rank = state.relics?.[relic.id] || 0;
     const button = document.createElement('button');
     button.className = 'relic-choice';
     button.setAttribute('aria-label', `选择${relic.name}`);
-    const combo=choiceSynergy(state,relic.id);
-    button.innerHTML = next ? `<span class="relic-art" aria-hidden="true">${icons[relic.id]}</span><span class="choice-arrow" aria-hidden="true">↗</span><h3>${relic.name}</h3><p>${relic.description}</p><small>${rank?`进阶 ${'ⅠⅡⅢ'[rank-1]} → ${'ⅠⅡⅢ'[rank] || 'Ⅲ'}`:'获得新能力'} · ${traits[relic.id]}</small>${combo?`<span class="choice-synergy">${combo}</span>`:''}`
+    const synIcons = next ? choiceSynergyIcons(state, relic.id) : '';
+    const rankBadge = rank ? ` <small class="relic-rank-up">${'ⅠⅡⅢ'[rank - 1]}→${'ⅠⅡⅢ'[rank] || 'Ⅲ'}</small>` : '';
+    button.innerHTML = next
+      ? `<span class="relic-art" aria-hidden="true">${icons[relic.id]}</span><h3>${relic.name}${rankBadge}</h3><p>${STARTER_RELICS[relic.id]}</p>${synIcons ? `<span class="choice-synergy" aria-hidden="true">${synIcons}</span>` : ''}`
       : `<span class="relic-art" aria-hidden="true">${icons[relic.id]}</span><h3>${relic.name}</h3><p>${STARTER_RELICS[relic.id]}</p>`;
-    button.classList.toggle('has-synergy',!!combo);
+    button.classList.toggle('has-synergy', !!synIcons);
     if (discoveryStart && relic.id === 'shell') {
       button.classList.add('primary-button');
       button.setAttribute('aria-label', '带缓落壳出发');
@@ -991,26 +1031,33 @@ function showChoice(state) {
     $('relic-choices').replaceChildren(shell, alternatives);
   } else $('relic-choices').replaceChildren(...choices);
   $('choice-dialog').showModal();
+  $('choice-dialog').scrollTop = 0;
 }
 
 function showResult(state) {
   const won = state.phase === 'won';
   const isExpedition = state.mode === 'expedition';
+  const theater = isTheater();
   const pr = state.phaseResonance || scene.phaseResonance.summary();
   codex.recordRunFinish({ mode: state.mode, won, banked: state.banked, rank: pr.rank });
   $('result-symbol').textContent = won ? (isExpedition ? '👑' : '✧') : '◌';
   $('result-kicker').textContent = won ? (isExpedition ? 'SANCTUM ASCENDED · 深层五庭贯通' : 'JOURNEY COMPLETE') : 'UNTIL THE NEXT ECHO';
   $('result-title').textContent = won ? (isExpedition ? '四象圣殿记住了你的升维回响。' : '庭院记住了你的回响。') : '这一程，先到这里。';
-  $('result-description').textContent = won
+  $('result-description').hidden = theater;
+  $('result-description').textContent = theater ? '' : (won
     ? (isExpedition
       ? '你走完了五座递进庭院与四象升维圣殿，所有奇物、秘印与拓扑拓片已永久收录进《四维博物图鉴》。'
       : '你让回响穿过了三层空间，也把这一路的能力组合带到了终点。可继续开启第二幕「深层五庭巡礼」！')
-    : '回程结已用完，之前存下的回响仍计入本次成绩。';
+    : '回程结已用完，之前存下的回响仍计入本次成绩。');
   $('result-score').textContent = state.banked;
-  const tactileSummary = (state.stats.harmonicLocks || state.stats.perfectDashes)
-    ? ` · 超频锁 ${state.stats.harmonicLocks || 0} 次 · 踏浪冲刺 ${state.stats.perfectDashes || 0} 次`
-    : '';
-  $('result-stats').textContent = `冒险成功 ${state.stats.risks} 次 · 点亮机关 ${state.stats.chains} 次 · 收录奇物 ${state.stats.anomalies || 0} 件${tactileSummary} · 完美同频 ${pr.perfectBeats} 次 · 刹那折光 ${pr.grazes} 次 · 共鸣评级 ${pr.rank}`;
+  if (theater) {
+    $('result-stats').textContent = `⚡${state.stats.risks}  ·  ✓${state.stats.chains}  ·  ✦${state.stats.anomalies || 0}  ·  ${pr.rank}`;
+  } else {
+    const tactileSummary = (state.stats.harmonicLocks || state.stats.perfectDashes)
+      ? ` · 超频锁 ${state.stats.harmonicLocks || 0} 次 · 踏浪冲刺 ${state.stats.perfectDashes || 0} 次`
+      : '';
+    $('result-stats').textContent = `冒险成功 ${state.stats.risks} 次 · 点亮机关 ${state.stats.chains} 次 · 收录奇物 ${state.stats.anomalies || 0} 件${tactileSummary} · 完美同频 ${pr.perfectBeats} 次 · 刹那折光 ${pr.grazes} 次 · 共鸣评级 ${pr.rank}`;
+  }
   if ($('next-expedition')) {
     $('next-expedition').hidden = !(won && !isExpedition);
   }
@@ -1270,39 +1317,49 @@ function updateUI() {
     const sameSpot = sameSpotNodeOnLayer(i);
     const isVoidHere = !state.wave && !state.travel && currentNode && !currentNode.anchor && currentNode.layer !== i && !sameSpot;
     button.classList.toggle('void-warning-layer', !!isVoidHere);
+    button.classList.toggle('same-xyz-layer', !!sameSpot);
     const pill = $('layer-pill-' + i);
     if (pill) {
       const theater = isTheater();
-      if (state.wave) {
+      if (theater) {
+        setText('layer-pill-' + i, '');
+        pill.className = 'layer-safety-pill';
+      } else if (state.wave) {
         const waveSafe = state.wave.safeLayers?.includes(i);
-        setText('layer-pill-' + i, theater ? (waveSafe ? '🛡️ 安全' : '⚡ 危险') : (waveSafe ? '🛡️ 安全躲避' : '⚡ 回流危险'));
+        setText('layer-pill-' + i, waveSafe ? '🛡️ 安全躲避' : '⚡ 回流危险');
         pill.className = `layer-safety-pill ${waveSafe ? 'pill-safe' : 'pill-void'}`;
       } else if (isVoidHere) {
-        setText('layer-pill-' + i, theater ? '⚠️ 悬空' : '⚠️ 悬空无地');
+        setText('layer-pill-' + i, '⚠️ 悬空无地');
         pill.className = 'layer-safety-pill pill-void';
       } else if (isTargetLayer) {
-        setText('layer-pill-' + i, theater ? '✨ 有桥' : '✨ 点此切入');
+        setText('layer-pill-' + i, '✨ 点此切入');
         pill.className = 'layer-safety-pill pill-target';
       } else if (sameSpot) {
-        setText('layer-pill-' + i, theater ? '🌀 同位' : `🌀 同位→${sameSpot.name}`);
+        setText('layer-pill-' + i, `🌀 同位→${sameSpot.name}`);
         pill.className = 'layer-safety-pill pill-portal';
       } else {
-        setText('layer-pill-' + i, theater
-          ? (i === state.layer ? '● 当前' : (currentNode?.anchor ? '⚓ 可换层' : '● 当前'))
-          : (currentNode?.anchor ? '⚓ 安全台' : '● 本层平台'));
+        setText('layer-pill-' + i, currentNode?.anchor ? '⚓ 安全台' : '● 本层平台');
         pill.className = 'layer-safety-pill pill-safe';
       }
     }
-    button.title=state.wave?`${state.layers[i].name} · ${state.wave.safeLayers.includes(i)?'安全切片':'回流危险'}`:isVoidHere?`${state.layers[i].name} · 当前圆盘不在此层，请先走回 ⚓ 安全台再换层`:state.layers[i].name;
+    button.title=state.wave?`${layerSymbols[i]} · ${state.wave.safeLayers.includes(i)?'安全':'危险'}`:isVoidHere?`${layerSymbols[i]} · 先回 ⚓ 再换层`:`${layerSymbols[i]} (${['Z','X','C'][i] || ''})`;
   }
+  syncWRulerThumb(scene.currentW(), state);
   if ($('void-rescue-banner')) {
     const voidDanger = state.phase === 'playing' && !state.travel && state.phaseStability < .99 && currentNode && !currentNode.anchor;
     $('void-rescue-banner').hidden = !voidDanger;
     if (voidDanger) {
       const safeName = state.layers[currentNode.layer]?.name || '原切片';
-      setText('void-rescue-title', `⚠️ 脚下悬空（剩余 ${(state.phaseStability * 2.2).toFixed(1)}s）！当前圆盘不在这一层`);
-      setText('void-rescue-sub', `「${currentNode.name}」只存在于${safeName}，需先走回「⚓ 安全台」才能安全换层`);
-      setText('void-rescue-btn', `🛡️ 一键切回${safeName}`);
+      const safeRom = layerSymbols[currentNode.layer] || 'Ⅰ';
+      if (isTheater()) {
+        setText('void-rescue-title', '');
+        setText('void-rescue-sub', '');
+        setText('void-rescue-btn', `🛡️ 回${safeRom}`);
+      } else {
+        setText('void-rescue-title', `⚠️ 脚下悬空（剩余 ${(state.phaseStability * 2.2).toFixed(1)}s）！当前圆盘不在这一层`);
+        setText('void-rescue-sub', `「${currentNode.name}」只存在于${safeName}，需先走回「⚓ 安全台」才能安全换层`);
+        setText('void-rescue-btn', `🛡️ 一键切回${safeName}`);
+      }
     }
   }
   if ($('visual-stepper')) {
@@ -1442,7 +1499,15 @@ function updateUI() {
     setText('onboarding-desc', shownHint ? shownHint.detail : stageInfo.instruction);
     if ($('unlock-all-btn')) {
       $('unlock-all-btn').hidden = stageInfo.stage >= 4;
-      setText('unlock-all-btn', isTheater() ? '跳过引导' : '🔓 展开全部高阶');
+      if (isTheater()) {
+        $('unlock-all-btn').title = '跳过引导';
+        $('unlock-all-btn').setAttribute('aria-label', '跳过引导');
+        setHTML('unlock-all-btn', '<span aria-hidden="true">⏭</span><span class="skip-tooltip" aria-hidden="true">跳过引导</span>');
+      } else {
+        $('unlock-all-btn').title = '跳过渐进教学，立即展开全部高阶操作与秘境雷达';
+        $('unlock-all-btn').removeAttribute('aria-label');
+        setText('unlock-all-btn', '🔓 展开全部高阶');
+      }
     }
     if ($('open-hyper-lab')) {
       $('open-hyper-lab').hidden = stageInfo.stage < 2;
@@ -1463,7 +1528,8 @@ function updateUI() {
       $('quick-risk-btn').hidden = stageInfo.stage < 4;
       $('quick-risk-btn').setAttribute('aria-pressed', String(!!state.riskMode));
       $('quick-risk-btn').classList.toggle('risk-active', !!state.riskMode);
-      setText('quick-risk-btn', state.riskMode ? '⚡ 黄金冒险桥：已开启' : '⚡ 黄金冒险桥：关');
+      $('quick-risk-btn').setAttribute('aria-label', state.riskMode ? '黄金冒险桥：已开启' : '黄金冒险桥：关');
+      setText('quick-risk-btn', isTheater() ? '⚡' : (state.riskMode ? '⚡ 黄金冒险桥：已开启' : '⚡ 黄金冒险桥：关'));
     }
     if ($('exploration-radar-section')) {
       $('exploration-radar-section').hidden = stageInfo.stage < 2;
@@ -1473,7 +1539,19 @@ function updateUI() {
     if ($('radar-rift-card')) $('radar-rift-card').hidden = stageInfo.stage < 4;
     if ($('auto-next-btn')) {
       $('auto-next-btn').hidden = !onboarding.shouldShowAssistButton();
-      if (state.activated.length >= mechTotal) {
+      $('auto-next-btn').title = '帮我走这一步';
+      $('auto-next-btn').setAttribute('aria-label', '帮我走这一步');
+      if (isTheater()) {
+        if (state.activated.length >= mechTotal) {
+          setText('auto-next-btn', '🧭🚪');
+        } else if (primaryMechId) {
+          const pIdx = orderList.indexOf(primaryMechId);
+          const pSym = numBadges[pIdx] || '①';
+          setText('auto-next-btn', `🧭${pSym}`);
+        } else {
+          setText('auto-next-btn', '🧭');
+        }
+      } else if (state.activated.length >= mechTotal) {
         setText('auto-next-btn', '🧭 帮我前往终点 ↗');
       } else if (primaryMechId) {
         const pIdx = orderList.indexOf(primaryMechId);
@@ -1497,30 +1575,44 @@ function updateUI() {
       relicHud.readyAbility?.id !== 'prism';
     $('risk-decision-bar').hidden = !showRiskDecision;
     if (showRiskDecision) {
-      setText('risk-decision-title', `通往「${riskPreview.toName}」新桥 · 首通⚡冒险 ${riskPreview.bonusLabel}`);
-      setText('risk-decision-sub', `首次⚡冒险过桥可获：${riskPreview.bonusLabel}（过桥时顺着金色波浪微调滚轮）`);
-      const extraTag = riskPreview.chargesPrism ? ' · ◇蓄能+1' : riskPreview.chargesWeave ? ' · ❋桥种+1' : riskPreview.awakensFlowerBridge ? ' · 🌺唤醒花桥' : '';
-      setText('risk-go-btn', `⚡ 冒险冲过去 (+3◆${extraTag})`);
-      setText('safe-go-btn', '🛡️ 稳妥走 (+1◆)');
+      if (isTheater()) {
+        setText('risk-decision-title', '');
+        setText('risk-decision-sub', '');
+        const riskMark = riskPreview.chargesPrism ? ' ◇' : riskPreview.chargesWeave ? ' ❋' : '';
+        setText('risk-go-btn', `⚡+3${riskMark}`);
+        setText('safe-go-btn', '🛡+1');
+        $('risk-go-btn').title = `冒险过桥 (+3◆${riskPreview.bonusLabel ? ` · ${riskPreview.bonusLabel}` : ''})`;
+        $('safe-go-btn').title = '稳妥过桥 (+1◆)';
+      } else {
+        setText('risk-decision-title', `通往「${riskPreview.toName}」新桥 · 首通⚡冒险 ${riskPreview.bonusLabel}`);
+        setText('risk-decision-sub', `首次⚡冒险过桥可获：${riskPreview.bonusLabel}（过桥时顺着金色波浪微调滚轮）`);
+        const extraTag = riskPreview.chargesPrism ? ' · ◇蓄能+1' : riskPreview.chargesWeave ? ' · ❋桥种+1' : riskPreview.awakensFlowerBridge ? ' · 🌺唤醒花桥' : '';
+        setText('risk-go-btn', `⚡ 冒险冲过去 (+3◆${extraTag})`);
+        setText('safe-go-btn', '🛡️ 稳妥走 (+1◆)');
+      }
     }
   }
   if ($('relic-hud-bar')) {
+    const theater = isTheater();
     // Starter 缓落壳 shield is already displayed in #lives; only show #relic-hud-bar when
     // active/relay relics, ready abilities, or tactical positioning hints are present.
-    const showRelicHud = hasNonStarterRelic || !!relicHud.readyAbility || !!relicHud.positioningHint;
+    const showRelicHud = hasNonStarterRelic || !!relicHud.readyAbility || (!theater && !!relicHud.positioningHint);
     $('relic-hud-bar').hidden = !showRelicHud;
     if (showRelicHud) {
       const visibleItems = hasNonStarterRelic ? relicHud.items.filter(item => item.id !== 'shell') : relicHud.items;
-      const nextHudKey = JSON.stringify([visibleItems, relicHud.positioningHint]);
+      const nextHudKey = JSON.stringify([theater, visibleItems, relicHud.positioningHint]);
       if (relicHudKey !== nextHudKey && $('relic-chips')) {
         relicHudKey = nextHudKey;
         const chips = visibleItems.map(item => {
           const span = document.createElement('span');
           span.className = `relic-chip${item.available ? ' ready' : item.charged ? ' charged' : ''}`;
-          span.innerHTML = `<span class="relic-chip-icon" aria-hidden="true">${item.icon}</span><strong>${item.name} ${item.rankSymbol}</strong><small>${item.statusText}</small>`;
+          span.title = `${item.name} ${item.rankSymbol} · ${item.statusText}`;
+          span.innerHTML = theater
+            ? `<span class="relic-chip-icon" aria-hidden="true">${item.icon}</span><strong>${item.shortText}</strong>`
+            : `<span class="relic-chip-icon" aria-hidden="true">${item.icon}</span><strong>${item.name} ${item.rankSymbol}</strong><small>${item.statusText}</small>`;
           return span;
         });
-        if (relicHud.positioningHint) {
+        if (!theater && relicHud.positioningHint) {
           const hintChip = document.createElement('span');
           hintChip.className = 'relic-chip charged';
           hintChip.innerHTML = `<strong>${relicHud.positioningHint}</strong>`;
@@ -1531,7 +1623,8 @@ function updateUI() {
       if ($('quick-ability-btn')) {
         $('quick-ability-btn').hidden = !relicHud.readyAbility;
         if (relicHud.readyAbility) {
-          setText('quick-ability-btn', relicHud.readyAbility.ctaText);
+          $('quick-ability-btn').title = relicHud.readyAbility.ctaText;
+          setText('quick-ability-btn', theater ? relicHud.readyAbility.shortCta : relicHud.readyAbility.ctaText);
         }
       }
     }
@@ -1644,8 +1737,13 @@ function updateUI() {
     const safe=state.wave.safeLayers.includes(state.layer)&&Math.abs(state.w-currentLayer.center)<=Math.sqrt(.75)*.16&&(state.wave.variant!=='rift'||state.wave.entered);
     setText('wave-time',state.wave.remaining.toFixed(1));$('wave-warning').classList.toggle('evading',safe);
     const waveTitles = { rift: '隐星三重回流', sanctum: '圣殿三重回响', lock: '双层封锁', shift_lock: '双波易位', cascade_wave: '顺次折光' };
-    setText('wave-label',safe?`已在安全层 · 第 ${state.wave.step}/${state.wave.steps} 波`:`${waveTitles[state.wave.variant] || '回流接近'} · 第 ${state.wave.step}/${state.wave.steps} 波`);
-    setText('wave-instruction',`${state.wave.variant==='rift'&&!state.wave.entered?'本波需切入':'安全 →'} ${state.wave.safeLayers.map(i=>`${layerSymbols[i]} ${state.layers[i].name}`).join(' / ')}`);
+    if (isTheater()) {
+      setText('wave-label', `${state.wave.step}/${state.wave.steps}`);
+      setText('wave-instruction', `→ ${state.wave.safeLayers.map(i => layerSymbols[i]).join('/')}`);
+    } else {
+      setText('wave-label',safe?`已在安全层 · 第 ${state.wave.step}/${state.wave.steps} 波`:`${waveTitles[state.wave.variant] || '回流接近'} · 第 ${state.wave.step}/${state.wave.steps} 波`);
+      setText('wave-instruction',`${state.wave.variant==='rift'&&!state.wave.entered?'本波需切入':'安全 →'} ${state.wave.safeLayers.map(i=>`${layerSymbols[i]} ${state.layers[i].name}`).join(' / ')}`);
+    }
   }
   const aligned = range && state.w >= range.min && state.w <= range.max;
   setText('slice-hint',state.wave?(state.wave.variant==='rift'?'每波都需真正切入指定安全层；三波全过才领奖':state.wave.steps>1?'追波会改变危险层，每一波都要重新观察':'切到标记安全的层，层间隙不能躲过回流'):state.travel ? (state.travel.risky ? '额外冒险 · 调 W 跟随光带' : '保持当前切片，直到落地') : range ? `${aligned?'这段路径已显现':'路径在另一个切片'} · W ${range.min.toFixed(2)} — ${range.max.toFixed(2)}` : '切换 W 观察平台和机关，或选择落脚点');
@@ -1660,9 +1758,11 @@ function updateUI() {
     $('phase-resonance-badge').hidden = stageInfo.stage < 3 || !hasActivity;
     if (!($('phase-resonance-badge').hidden)) {
       const syncPct = activeRisk ? Math.round(corridor.accuracy * 100) : Math.round((state.travel?.stability ?? state.phaseStability) * 100);
-      setText('phase-resonance-badge', activeRisk
-        ? `◈ 同频 ${syncPct}% · 连击 ×${pr.streak} · 评级 ${pr.rank}`
-        : `◈ 相位连击 ×${pr.streak} · 折光 ${pr.grazes} · 评级 ${pr.rank}`);
+      setText('phase-resonance-badge', isTheater()
+        ? (activeRisk ? `◈ ${syncPct}% · ×${pr.streak}` : `◈ ×${pr.streak} · ${pr.rank}`)
+        : (activeRisk
+          ? `◈ 同频 ${syncPct}% · 连击 ×${pr.streak} · 评级 ${pr.rank}`
+          : `◈ 相位连击 ×${pr.streak} · 折光 ${pr.grazes} · 评级 ${pr.rank}`));
       $('phase-resonance-badge').classList.toggle('active-corridor', !!(activeRisk && corridor.sweetSpot));
       $('phase-resonance-badge').classList.toggle('high-streak', pr.streak >= 2);
     }
@@ -1907,9 +2007,13 @@ $('unlock-all-btn')?.addEventListener('click', () => {
   $('announcement').textContent = transient;
   updateUI();
 });
+let suppressRulerClickUntil = -Infinity;
 for (const button of document.querySelectorAll('.layer-controls [data-layer]')) {
   const idx = Number(button.dataset.layer);
-  button.addEventListener('click', () => { if (canAct()) manualSwitchLayer(idx, 'button'); });
+  button.addEventListener('click', () => {
+    if (performance.now() < suppressRulerClickUntil) return;
+    if (canAct()) manualSwitchLayer(idx, 'button');
+  });
   button.addEventListener('pointerenter', () => {
     if (!button.disabled) {
       scene.previewLayer = idx;
@@ -1920,6 +2024,86 @@ for (const button of document.querySelectorAll('.layer-controls [data-layer]')) 
     if (scene.previewLayer === idx) scene.previewLayer = null;
     button.classList.remove('preview-hover');
   });
+}
+{
+  const rulerEl = $('layer-controls');
+  let rulerDrag = null;
+  const wFromRulerClientY = clientY => {
+    const b0 = $('layer-0')?.getBoundingClientRect();
+    const b2 = $('layer-2')?.getBoundingClientRect();
+    if (!b0 || !b2) return model.snapshot().w;
+    const y0 = b0.top + b0.height / 2;
+    const y2 = b2.top + b2.height / 2;
+    const spanPx = Math.max(24, y0 - y2);
+    const u = (y0 - clientY) / spanPx;
+    const s = model.snapshot();
+    const c0 = s.layers?.[0]?.center ?? 0.18;
+    const c2 = s.layers?.[s.layers.length - 1]?.center ?? 0.82;
+    return Math.max(0, Math.min(1, c0 + u * (c2 - c0)));
+  };
+  rulerEl?.addEventListener('pointerdown', e => {
+    if (!isTheater() || !canAct() || !layerSwitchTaught() || e.button > 0) return;
+    const s = model.snapshot();
+    if (s.travel?.ramp && !s.travel.risky) return;
+    const onTick = !!e.target.closest('button[data-layer]');
+    const now = performance.now();
+    const w = wFromRulerClientY(e.clientY);
+    rulerDrag = {
+      pointerId: e.pointerId,
+      startY: e.clientY,
+      lastW: w,
+      lastT: now,
+      vel: 0,
+      scrubbing: !onTick,
+    };
+    if (!onTick) {
+      e.preventDefault();
+      try { rulerEl.setPointerCapture(e.pointerId); } catch {}
+      handleScrubW(w, { phase: 'start' });
+      handleScrubW(w, { phase: 'move', velocity: 0 });
+    }
+  });
+  rulerEl?.addEventListener('pointermove', e => {
+    if (!rulerDrag || e.pointerId !== rulerDrag.pointerId) return;
+    if (!canAct()) { rulerDrag = null; return; }
+    if (!rulerDrag.scrubbing) {
+      if (Math.abs(e.clientY - rulerDrag.startY) < 6) return;
+      rulerDrag.scrubbing = true;
+      try { rulerEl.setPointerCapture(e.pointerId); } catch {}
+      handleScrubW(rulerDrag.lastW, { phase: 'start' });
+    }
+    const now = performance.now();
+    const w = wFromRulerClientY(e.clientY);
+    const dt = Math.max(0.004, (now - rulerDrag.lastT) / 1000);
+    rulerDrag.vel = (w - rulerDrag.lastW) / dt;
+    rulerDrag.lastW = w;
+    rulerDrag.lastT = now;
+    handleScrubW(w, { phase: 'move', velocity: rulerDrag.vel });
+  });
+  const endRulerDrag = (e, cancelled = false) => {
+    if (!rulerDrag || (e && e.pointerId !== undefined && e.pointerId !== rulerDrag.pointerId)) return;
+    const stateDrag = rulerDrag;
+    rulerDrag = null;
+    try { if (rulerEl.hasPointerCapture?.(stateDrag.pointerId)) rulerEl.releasePointerCapture(stateDrag.pointerId); } catch {}
+    if (!stateDrag.scrubbing) return;
+    suppressRulerClickUntil = performance.now() + 180;
+    const w = e ? wFromRulerClientY(e.clientY) : stateDrag.lastW;
+    handleScrubW(w, { phase: cancelled ? 'cancel' : 'end', velocity: stateDrag.vel });
+  };
+  rulerEl?.addEventListener('pointerup', e => endRulerDrag(e, false));
+  rulerEl?.addEventListener('pointercancel', e => endRulerDrag(e, true));
+  rulerEl?.addEventListener('wheel', e => {
+    if (!isTheater() || !canAct() || e.ctrlKey || e.metaKey) return;
+    const s = model.snapshot();
+    if (!layerSwitchTaught() && !s.wave) return;
+    e.preventDefault();
+    const nextLayer = onboarding.handleDiscreteWheel(e.deltaY || -e.deltaX, s.layer, performance.now(), {
+      ctrlKey: e.ctrlKey,
+      metaKey: e.metaKey,
+      deltaMode: e.deltaMode,
+    });
+    if (nextLayer !== null) manualSwitchLayer(nextLayer, 'wheel');
+  }, { passive: false });
 }
 $('sound').addEventListener('click',()=>{ soundEnabled = !soundEnabled; audio.setEnabled(soundEnabled); unlockAudio(); savePreference('wslice-sound',soundEnabled?'on':'off'); updateSoundButton(); });
 function pauseGame() { if(model.snapshot().phase!=='playing'||isModal())return; paused=true; $('pause-dialog').showModal(); syncAudio(); }
@@ -2601,6 +2785,6 @@ function frame(now) {
   }
   guide.update(dt, model.snapshot(), active, scene.friends.length > 0 && !momentum.firstEntry);
   momentum.update(dt, model.snapshot(), guide, active);
-  consumeEvents();updateUI();syncAudio();syncAmbient();scene.render(paused||document.hidden?0:gameDt);requestAnimationFrame(frame);
+  consumeEvents();updateUI();syncAudio();syncAmbient();scene.render(paused||document.hidden?0:gameDt);syncWRulerThumb(scene.currentW(), model.snapshot());requestAnimationFrame(frame);
 }
 updateSoundButton();consumeEvents();updateUI();requestAnimationFrame(frame);

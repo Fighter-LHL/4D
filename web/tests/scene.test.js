@@ -150,7 +150,7 @@ test('mobile scale keeps canvas labels >=12px screen and distinguishes 归响台
   renderer.height = 640;
   renderer.scale = 0.41;
 
-  // Stage 1: hub is ⚓ 起点, relay is ⚓ 维度锚台
+  // Stage 1: hub is ⚓ 起点, relay is icon-only ⚓
   renderer.onboardingStage = 1;
   calls.length = 0;
   renderer.labelZones = [];
@@ -161,10 +161,10 @@ test('mobile scale keeps canvas labels >=12px screen and distinguishes 归响台
   renderer.drawVisualActionGuide();
   const stage1Texts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
   assert.ok(stage1Texts.includes('⚓ 起点'), `expected ⚓ 起点 in Stage 1, got ${JSON.stringify(stage1Texts)}`);
-  assert.ok(stage1Texts.includes('⚓ 维度锚台'), `expected ⚓ 维度锚台 in Stage 1, got ${JSON.stringify(stage1Texts)}`);
-  assert.ok(!stage1Texts.some(t => t.includes('换层台')), `unexpected 换层台 label in ${JSON.stringify(stage1Texts)}`);
+  assert.ok(stage1Texts.includes('⚓'), `expected ⚓ on relay in Stage 1, got ${JSON.stringify(stage1Texts)}`);
+  assert.ok(!stage1Texts.some(t => t.includes('归响台') || t.includes('维度锚台') || t.includes('换层台')), `unexpected Chinese anchor label in ${JSON.stringify(stage1Texts)}`);
 
-  // Stage 2+: hub becomes ⚓ 归响台, relay stays ⚓ 维度锚台
+  // Stage 2+: both hub and relay use icon-only ⚓ (distinguished by halo/scale, no persistent Chinese name)
   renderer.onboardingStage = 2;
   calls.length = 0;
   renderer.labelZones = [];
@@ -172,9 +172,8 @@ test('mobile scale keeps canvas labels >=12px screen and distinguishes 归响台
     if (n.id !== 'exit') renderer.drawIsland(n);
   }
   const stage2Texts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
-  assert.ok(stage2Texts.includes('⚓ 归响台'), `expected ⚓ 归响台 in Stage 2, got ${JSON.stringify(stage2Texts)}`);
-  assert.ok(stage2Texts.includes('⚓ 维度锚台'), `expected ⚓ 维度锚台 in Stage 2, got ${JSON.stringify(stage2Texts)}`);
-  assert.ok(!stage2Texts.some(t => t.includes('换层台')), `unexpected 换层台 label in ${JSON.stringify(stage2Texts)}`);
+  assert.ok(stage2Texts.filter(t => t === '⚓').length >= 2, `expected ⚓ on both anchors in Stage 2, got ${JSON.stringify(stage2Texts)}`);
+  assert.ok(!stage2Texts.some(t => t.includes('起点') || t.includes('归响台') || t.includes('维度锚台') || t.includes('换层台')), `unexpected Chinese anchor label in ${JSON.stringify(stage2Texts)}`);
   renderer.destroy();
 });
 
