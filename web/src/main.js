@@ -900,14 +900,12 @@ function consumeEvents() {
     if (event.type === 'dodge') message = model.snapshot().wave?.variant==='rift' ? '一枚星环点亮，切入下一枚符印对应的安全层。' : '躲过一波；下一波会追到这里，再换一次层。';
     if (message) {
       const theaterMode = isTheater();
-      const compactBannerActive = theaterMode && compactProgress.matches &&
-        $('onboarding-banner') && !$('onboarding-banner').hidden && !$('onboarding-banner').classList.contains('collapsed');
       const isProgressToast = ['activate', 'harmonic_burst', 'power'].includes(event.type);
       transient = message;
       transientTime = theaterMode ? 1.2 : 2.8;
       transientType = event.type;
       $('announcement').textContent = message;
-      actionFeedback = (['interact_blocked', 'activate', 'harmonic_burst', 'power'].includes(event.type) && !(compactBannerActive && isProgressToast))
+      actionFeedback = (['interact_blocked', 'activate', 'harmonic_burst', 'power'].includes(event.type) && !(theaterMode && isProgressToast))
         ? message
         : '';
     }
