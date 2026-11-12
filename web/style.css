@@ -654,19 +654,35 @@ html.theater .run-panel .run-tip{display:block}
   html.theater .topbar .brand>span:not(.brand-icon){display:none}
   html.theater .topbar nav{gap:1px}
   html.theater .topbar .icon-button{padding:6px 3px;font-size:11px}
-  html.theater .game-layout{padding:3px 4px 4px}
+  html.theater .game-layout{padding:3px 4px 8px}
   html.theater .scene-wrap{margin:0 -4px}
-  html.theater .dock-float{max-width:96%}
+  html.theater .controls{gap:7px;padding-top:4px;min-height:0}
+  html.theater .onboarding-banner{min-height:40px;margin:0 9px;flex:1 1 calc(100% - 18px);padding:5px 11px}
+  html.theater .onboarding-main strong{font-size:13px;font-weight:700}
+  html.theater body[data-theme="astral"] .onboarding-main strong{color:#e1ce9f}
+  html.theater .controls:has(.onboarding-banner:not([hidden]):not(.collapsed)) .advanced-drawer{display:none}
+  html.theater .onboarding-banner.collapsed{min-height:36px;flex:1 1 auto;margin:0 0 0 9px}
+  html.theater .controls:has(.onboarding-banner.collapsed) .advanced-drawer{margin-right:9px}
+  html.theater #layer-controls{flex:1 1 100%;order:2}
+  html.theater .dock-float{max-width:96%;gap:5px;bottom:calc(100% + 8px)}
+  html.theater #action-feedback{bottom:calc(14px + var(--f0,0px));font-size:11px;padding:4px 10px}
+  html.theater .wave-warning{bottom:calc(14px + var(--f0,0px) + var(--af-h,0px))}
+  html.theater .dock-float .risk-decision-bar,html.theater body[data-theme="astral"] .dock-float .risk-decision-bar{padding:0;border:0;background:transparent;box-shadow:none;backdrop-filter:none}
+  html.theater .risk-decision-actions{gap:8px}
+  html.theater .risk-decision-actions button{height:32px;min-height:32px;padding:0 11px;border-radius:999px;font-size:11px;line-height:1;display:inline-flex;align-items:center;justify-content:center;background:rgba(43,31,13,.92);backdrop-filter:blur(8px);box-shadow:0 4px 14px rgba(0,0,0,.38)}
+  html.theater body[data-theme="astral"] .risk-go-btn{background:rgba(43,31,13,.92);border:1.5px solid #f59e0b;color:#ffe29a}
+  html.theater body[data-theme="astral"] .safe-go-btn{background:rgba(43,31,13,.92);border:1px solid #6b7f90;color:#e6eff5}
 }
 @media(prefers-reduced-motion:reduce){
   html.theater .run-panel{opacity:0;transition:opacity .15s ease-out,visibility 0s linear .15s}
   html.theater .run-panel.panel-open{opacity:1;transition:opacity .15s ease-out,visibility 0s}
 }
 @media(prefers-reduced-transparency:reduce){
-  html.theater .dock-float>*,html.theater .run-panel,html.theater .advanced-drawer-body,html.theater #onboarding-desc,html.theater .layer-badge{backdrop-filter:none;background:var(--card)}
+  html.theater .dock-float>*:not(.risk-decision-bar),html.theater .run-panel,html.theater .advanced-drawer-body,html.theater #onboarding-desc,html.theater .layer-badge{backdrop-filter:none;background:var(--card)}
+  html.theater .risk-decision-actions button{backdrop-filter:none}
 }
 @media(prefers-contrast:more){
-  html.theater .dock-float>*,html.theater .run-panel{background:var(--card);border-color:var(--ink)}
+  html.theater .dock-float>*:not(.risk-decision-bar),html.theater .run-panel{background:var(--card);border-color:var(--ink)}
 }
 html.theater body[data-theme="astral"] .layer-badge{background:rgba(14,27,38,.84);border-color:#26455a}
 html.theater body[data-theme="astral"] .run-panel{background:rgba(13,25,36,.94);border-color:#26445a;box-shadow:-18px 0 50px rgba(0,0,0,.5)}

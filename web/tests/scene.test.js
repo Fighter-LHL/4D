@@ -109,6 +109,75 @@ test('power and activation labels render, pause, expire and stay still with redu
   }
 });
 
+test('astral activation note uses #4dd2ac and hudProgressActive suppresses duplicate canvas progress notes', () => {
+  const { renderer, calls } = scene();
+  renderer.astralMode = true;
+  renderer.setState(state());
+  renderer.pushEvents([
+    { type: 'activate', node: 'dew', tier: 1 },
+    { type: 'activate', node: 'bloom', tier: 2 },
+  ]);
+  const activeNotes = renderer.effects.filter(e => e.kind === 'note' && e.activationNote);
+  assert.equal(activeNotes.length, 1, 'only latest activation note is retained when HUD progress is inactive');
+  calls.length = 0;
+  renderer.render(.1);
+  const fillCall = calls.find(c => c.method === 'fillText' && c.args[0] === '启动！2/3');
+  assert.ok(fillCall, 'expected latest activation note text');
+  assert.equal(fillCall.fill.toLowerCase(), '#4dd2ac');
+
+  // When HUD progress is active (theater mode), pushEvents suppresses duplicate canvas notes while keeping ring/bloom
+  renderer.effects.length = 0;
+  renderer.hudProgressActive = true;
+  renderer.pushEvents([
+    { type: 'activate', node: 'dew', tier: 1 },
+    { type: 'power', from: 'dew', to: 'bell', complete: false, received: 1, required: 2 },
+  ]);
+  assert.equal(renderer.effects.filter(e => e.kind === 'note').length, 0);
+  assert.ok(renderer.effects.some(e => e.kind === 'ring'));
+  assert.ok(renderer.effects.some(e => e.kind === 'bloom'));
+  renderer.destroy();
+});
+
+test('mobile scale keeps canvas labels >=12px screen and distinguishes 归响台 and 维度锚台 across stages', () => {
+  const { renderer, calls } = scene();
+  renderer.astralMode = true;
+  renderer.visualGuide = true;
+  const m = start('shell', 401491695);
+  const s = m.snapshot();
+  assert.equal(s.roomId, 'split');
+  renderer.setState(s);
+  renderer.width = 390;
+  renderer.height = 640;
+  renderer.scale = 0.41;
+
+  // Stage 1: hub is ⚓ 起点, relay is ⚓ 维度锚台
+  renderer.onboardingStage = 1;
+  calls.length = 0;
+  renderer.labelZones = [];
+  for (const n of s.nodes) {
+    if (n.id === 'exit') renderer.drawExitSilhouette(n);
+    else renderer.drawIsland(n);
+  }
+  renderer.drawVisualActionGuide();
+  const stage1Texts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
+  assert.ok(stage1Texts.includes('⚓ 起点'), `expected ⚓ 起点 in Stage 1, got ${JSON.stringify(stage1Texts)}`);
+  assert.ok(stage1Texts.includes('⚓ 维度锚台'), `expected ⚓ 维度锚台 in Stage 1, got ${JSON.stringify(stage1Texts)}`);
+  assert.ok(!stage1Texts.some(t => t.includes('换层台')), `unexpected 换层台 label in ${JSON.stringify(stage1Texts)}`);
+
+  // Stage 2+: hub becomes ⚓ 归响台, relay stays ⚓ 维度锚台
+  renderer.onboardingStage = 2;
+  calls.length = 0;
+  renderer.labelZones = [];
+  for (const n of s.nodes) {
+    if (n.id !== 'exit') renderer.drawIsland(n);
+  }
+  const stage2Texts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
+  assert.ok(stage2Texts.includes('⚓ 归响台'), `expected ⚓ 归响台 in Stage 2, got ${JSON.stringify(stage2Texts)}`);
+  assert.ok(stage2Texts.includes('⚓ 维度锚台'), `expected ⚓ 维度锚台 in Stage 2, got ${JSON.stringify(stage2Texts)}`);
+  assert.ok(!stage2Texts.some(t => t.includes('换层台')), `unexpected 换层台 label in ${JSON.stringify(stage2Texts)}`);
+  renderer.destroy();
+});
+
 test('visible momentum owns reachable rims and expiry restores them while missing supply stays dashed', () => {
   const m = start('shell', 2), { renderer, calls } = scene();
   travel(m, m.selected); m.interact();

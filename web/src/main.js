@@ -167,8 +167,9 @@ let relicHudKey = '';
 // `type` lets an accepted departure retire messages that belonged to the spot just left
 // ('refused' targets and 'prompt' layer instructions), while remote supply news stays.
 function showTransient(message, seconds = 3.2, type = 'hint') {
+  const compactTheater = isTheater() && window.innerWidth <= 480;
   transient = message;
-  transientTime = seconds;
+  transientTime = compactTheater ? Math.min(seconds, 1.2) : seconds;
   transientType = type;
   actionFeedback = message;
   $('announcement').textContent = message;
@@ -404,7 +405,7 @@ function manualSwitchLayer(layerIdx, source = 'manual') {
     const partner = s.nodes.find(n => !n.anchor && n.id !== here.id && n.layer === layerIdx && n.world && here.world &&
       Math.abs(n.world.x - here.world.x) < 1e-4 && Math.abs(n.world.y - here.world.y) < 1e-4 && Math.abs(n.world.z - here.world.z) < 1e-4);
     if (!partner) {
-      showTransient(isTheater() ? '⚓ 先点亮 ①，再去 ⚓ 换层台换层' : '⚓ 外圈平台只存在于当前层，现在换层会踩空。先点亮 ①，之后会教你在中央的 ⚓ 归响台换层', 3.2, 'refused');
+      showTransient(isTheater() ? '⚓ 先点亮 ①，再去 ⚓ 归响台换层' : '⚓ 外圈平台只存在于当前层，现在换层会踩空。先点亮 ①，之后会教你在中央的 ⚓ 归响台换层', 3.2, 'refused');
       updateUI();
       return;
     }
@@ -593,8 +594,9 @@ function handleCanvasSelect(id) {
   }
   autoPilot = { targetNode: id, finalLayer };
   if (plan.shift) {
-    const atName = s.nodes.find(n => n.id === plan.shift.at)?.name || '安全台';
-    showTransient(isTheater() ? '⚓ 先走到换层台，再滚轮换层' : `⚓「${targetNode?.name || '目标'}」的桥不在这一层：先带你走到「${atName}」，到了请亲手滚轮换层`, 3.4);
+    const atNode = s.nodes.find(n => n.id === plan.shift.at);
+    const atName = plan.shift.at === 'relay' ? '维度锚台' : plan.shift.at === 'hub' ? '归响台' : (atNode?.name || '归响台');
+    showTransient(isTheater() ? `⚓ 先去${atName}，再滚轮换层` : `⚓「${targetNode?.name || '目标'}」的桥不在这一层：先带你走到「${atName}」，到了请亲手滚轮换层`, isTheater() ? 1.5 : 3.4);
   }
   stepAutoPilot();
 }
@@ -744,6 +746,7 @@ const scene = new SceneRenderer($('scene'), {
   hasSupplySlots,
 });
 scene.visualGuide = true;
+scene.hudProgressActive = isTheater();
 const feel = new GameFeel({ reducedMotion: scene.reducedMotion });
 scene.feel = feel;
 scene.motionQuery?.addEventListener?.('change', e => feel.setReducedMotion(e.matches));
@@ -770,13 +773,14 @@ function consumeEvents() {
   const state = guide.present(snapshot);
   state.courtyardMomentum = momentum.view(snapshot, guide);
   scene.liveGuide = snapshot.companionGuide;
+  scene.hudProgressActive = isTheater();
   scene.setState(state);
   scene.pushEvents(events);
   audio.handle(events);
   for (const event of events) {
     // Local E feedback belongs to the platform just used, not the next crossing.
     // A rejected move emits no move event; remote supply messages stay relevant.
-    if (event.type === 'move' && ['interact_blocked', 'activate', 'harmonic_burst', 'tune', 'refused', 'prompt'].includes(transientType)) {
+    if (event.type === 'move' && (['interact_blocked', 'activate', 'harmonic_burst', 'tune', 'refused', 'prompt'].includes(transientType) || (isTheater() && transientType === 'power'))) {
       transient = null; transientTime = 0; transientType = ''; actionFeedback = '';
       $('announcement').textContent = '';
     }
@@ -861,8 +865,17 @@ function consumeEvents() {
     if (event.type === 'evade') message = '跨层避开回流，花匣中的回响归你。';
     if (event.type === 'dodge') message = model.snapshot().wave?.variant==='rift' ? '一枚星环点亮，切入下一枚符印对应的安全层。' : '躲过一波；下一波会追到这里，再换一次层。';
     if (message) {
-      transient = message; transientTime = 2.8; transientType = event.type; $('announcement').textContent = message;
-      actionFeedback = ['interact_blocked', 'activate', 'harmonic_burst', 'power'].includes(event.type) ? message : '';
+      const theaterMode = isTheater();
+      const compactBannerActive = theaterMode && window.innerWidth <= 480 &&
+        $('onboarding-banner') && !$('onboarding-banner').hidden && !$('onboarding-banner').classList.contains('collapsed');
+      const isProgressToast = ['activate', 'harmonic_burst', 'power'].includes(event.type);
+      transient = message;
+      transientTime = theaterMode ? 1.2 : 2.8;
+      transientType = event.type;
+      $('announcement').textContent = message;
+      actionFeedback = (['interact_blocked', 'activate', 'harmonic_burst', 'power'].includes(event.type) && !(compactBannerActive && isProgressToast))
+        ? message
+        : '';
     }
     if (['restart','room'].includes(event.type)) {
       altarTune = null;
@@ -1200,6 +1213,7 @@ function updateUI() {
   });
   scene.onboardingStage = stageInfo.stage;
   scene.explicitLayerHint = revealExplicit;
+  scene.hudProgressActive = isTheater();
   if (scene.pendingLayerPrompt && Number.isInteger(scene.pendingLayerPrompt.targetLayer)) {
     scene.pendingLayerPrompt.message = buildLayerShiftPromptMessage(state, scene.pendingLayerPrompt, revealExplicit);
   }

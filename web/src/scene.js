@@ -53,10 +53,10 @@ function line(ctx, ax, ay, bx, by, stroke, width = 1) {
   ctx.strokeStyle = stroke; ctx.lineWidth = width; ctx.stroke();
 }
 
-function diamond(ctx, x, y, size, fill, stroke) {
+function diamond(ctx, x, y, size, fill, stroke, width = 1.5) {
   path(ctx, [[x, y - size], [x + size * .66, y], [x, y + size], [x - size * .66, y]]);
   if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = width; ctx.stroke(); }
 }
 
 function hash(n) {
@@ -114,6 +114,7 @@ export class SceneRenderer {
     this.seed = 301;
     this.astralMode = false;
     this.visualGuide = false;
+    this.hudProgressActive = false;
     this.onboardingStage = 4;
     this.explicitLayerHint = null;
     this.liveGuide = null;
@@ -437,11 +438,18 @@ export class SceneRenderer {
     if (!this.visualGuide || !this.state || this.state.phase !== 'playing' || this.state.wave) return false;
     if ((this.onboardingStage ?? 4) < 2) return false;
     const { x, y } = this.toWorld(event);
+    const s = Math.max(.25, this.scale || 1);
     const cx = 868 + this.parallaxX * 11.9;
     const cy = 114 + this.parallaxY * 7.65;
+    const th = 22 / s;
+    const py = Math.max(64, 52 + th / 2);
+    const halfW = Math.max(46, (this.hyperLens.pinned || this.hoverLensToggle ? 46 : 36) / s);
+    const px = Math.min(0, WORLD_W - 8 - cx - halfW);
     const onOrb = Math.hypot(x - cx, y - cy) <= 58;
-    const onPill = Math.abs(x - cx) <= 68 && y >= cy + 50 && y <= cy + 80;
-    return onOrb || onPill;
+    if (onOrb) return true;
+    const onPill = Math.abs(x - (cx + px)) <= halfW && y >= cy + py - th / 2 - 2 && y <= cy + py + th / 2 + 2;
+    if (!onPill) return false;
+    return !this.hitTest(event);
   }
 
   hitPolytopeLock(event) {
@@ -998,8 +1006,8 @@ export class SceneRenderer {
       } else if (event.type === 'power') {
         const from = this.node(event.from) || target, to = this.node(event.to) || target;
         // Completion belongs to the action feedback / activation CTA, never a second note.
-        if (!event.complete && mechanismFeedback(event, this.state, { hasSupplySlots: this.hasSupplySlots(event.to) }))
-          this.addEffect('note', to, { duration: this.width <= 480 ? 1.25 : 2.2, supply: true, text: `供能 ${event.received}/${event.required}`, color: COLORS.teal });
+        if (!this.hudProgressActive && !event.complete && mechanismFeedback(event, this.state, { hasSupplySlots: this.hasSupplySlots(event.to) }))
+          this.addEffect('note', to, { duration: this.width <= 480 ? 1.25 : 2.2, supply: true, text: `供能 ${event.received}/${event.required}`, color: this.astralMode ? '#4dd2ac' : COLORS.teal });
         this.addEffect('power', from, { to: { x: to.x, y: to.y }, duration: 1.4,
           fromLayer: from.layer ?? this.state.layer, toLayer: to.layer ?? event.layer,
           color: this.palette(to.layer ?? event.layer).color, sourceColor: this.palette(from.layer).color });
@@ -1017,7 +1025,15 @@ export class SceneRenderer {
         this.addEffect('section', target, { duration: 1.1, radius: 130, color: this.palette().color });
       } else if (event.type === 'activate') {
         const mechTotal = this.state?.mechanismOrder?.length || 3;
-        this.addEffect('note', target, { duration: 2.2, text: `启动！${this.state?.activated?.length || event.tier}/${mechTotal}`, color: COLORS.teal });
+        if (!this.hudProgressActive) {
+          this.effects = this.effects.filter(effect => !effect.activationNote);
+          this.addEffect('note', target, {
+            duration: 2.2,
+            text: `启动！${this.state?.activated?.length || event.tier}/${mechTotal}`,
+            color: this.astralMode ? '#4dd2ac' : COLORS.teal,
+            activationNote: true,
+          });
+        }
         this.addEffect('ring', target, { duration: 1.2, radius: 110, color, tier: 2 });
         this.addEffect('bloom', target, { duration: 1, radius: 85, color });
         this.burst(target, this.palette(target.layer ?? this.state?.layer).glow, 28, 1.25);
@@ -1459,24 +1475,27 @@ export class SceneRenderer {
       diamond(ctx, v.x, v.y, 2.2 + v.proximity * 1.8, palette.glow, palette.color);
     }
     if (interactive) {
+      const sScale = Math.max(.25, this.scale || 1);
       const label = this.hyperLens.pinned
         ? '🔍 透视镜 · 开'
         : this.hoverLensToggle
           ? '🔍 开启透视镜'
           : '🔍 透视镜';
       ctx.globalAlpha = hot ? .96 : .76;
-      ctx.font = `600 ${clamp(9.2 / this.scale, 10.5, 13.5)}px system-ui, sans-serif`;
-      const tw = Math.max(82, ctx.measureText(label).width + 16);
-      const th = 20;
-      const py = 64;
+      const pillPx = 12 / sScale;
+      ctx.font = `600 ${pillPx}px system-ui, -apple-system, sans-serif`;
+      const tw = Math.max(82, ctx.measureText(label).width + 16 / sScale);
+      const th = 22 / sScale;
+      const py = Math.max(64, 52 + th / 2);
+      const px = Math.min(0, WORLD_W - 8 - cx - tw / 2);
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(-tw / 2, py - th / 2, tw, th, 10);
-      else ctx.rect(-tw / 2, py - th / 2, tw, th);
+      if (ctx.roundRect) ctx.roundRect(px - tw / 2, py - th / 2, tw, th, th / 2);
+      else ctx.rect(px - tw / 2, py - th / 2, tw, th);
       ctx.fillStyle = this.hyperLens.pinned
         ? (this.astralMode ? '#2f230ce8' : '#fef3c7ee')
         : (this.astralMode ? '#0d202ee0' : '#f1f7f2e8');
       ctx.fill();
-      ctx.lineWidth = this.hyperLens.pinned || this.hoverLensToggle ? 1.6 : 1.1;
+      ctx.lineWidth = (this.hyperLens.pinned || this.hoverLensToggle ? 1.6 : 1.2) / sScale;
       ctx.strokeStyle = this.hyperLens.pinned
         ? '#fbbf24'
         : this.hoverLensToggle
@@ -1488,7 +1507,7 @@ export class SceneRenderer {
         : (this.astralMode ? '#daf4ef' : '#244b45');
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(label, 0, py);
+      ctx.fillText(label, px, py);
     }
     ctx.restore();
   }
@@ -2054,26 +2073,28 @@ export class SceneRenderer {
       const needleX = pos.x + clamp(info.drift, -1.5, 1.5) * 14;
       const needleY = cy - clamp(info.drift, -1.3, 1.3) * 3.2;
       diamond(ctx, needleX, needleY, info.sweetSpot ? 5.4 : 4.4, info.sweetSpot ? '#baf9df' : info.locked ? COLORS.lightGold : COLORS.danger, '#ffffff');
+      const sScale = Math.max(.25, this.scale || 1);
       const cueText = info.sweetSpot ? '✦ 同频锁定' : info.drift < 0 ? '▲ 上滚追光' : '▼ 下滚追光';
       const cueBg = info.sweetSpot ? '#0e2f27ee' : info.locked ? '#31210bee' : '#3b1613f0';
       const cueBorder = info.sweetSpot ? '#4dd2ac' : info.locked ? '#f59e0b' : '#ff7b5a';
       const cueFg = info.sweetSpot ? '#d6fff2' : info.locked ? '#ffebb3' : '#ffd8ce';
-      ctx.font = `700 ${clamp(9.5 / this.scale, 11, 15)}px system-ui, sans-serif`;
-      const tw = Math.max(74, ctx.measureText(cueText).width + 18);
-      const th = 21;
-      const ty = Math.max(20, cy - 23);
+      ctx.font = `700 ${12 / sScale}px system-ui, -apple-system, sans-serif`;
+      const tw = Math.min(WORLD_W - 16, Math.max(74 / sScale, ctx.measureText(cueText).width + 18 / sScale));
+      const th = 22 / sScale;
+      const tx = clamp(pos.x, tw / 2 + 8, WORLD_W - tw / 2 - 8);
+      const ty = Math.max(th / 2 + 6, cy - 12 - th / 2);
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(pos.x - tw / 2, ty - th / 2, tw, th, 10.5);
-      else ctx.rect(pos.x - tw / 2, ty - th / 2, tw, th);
+      if (ctx.roundRect) ctx.roundRect(tx - tw / 2, ty - th / 2, tw, th, th / 2);
+      else ctx.rect(tx - tw / 2, ty - th / 2, tw, th);
       ctx.fillStyle = cueBg;
       ctx.fill();
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.5 / sScale;
       ctx.strokeStyle = cueBorder;
       ctx.stroke();
       ctx.fillStyle = cueFg;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(cueText, pos.x, ty);
+      ctx.fillText(cueText, tx, ty);
     }
     ctx.restore();
   }
@@ -2121,19 +2142,20 @@ export class SceneRenderer {
       diamond(ctx, cx, cy, inSweet ? 5.2 : 4, inSweet ? '#fffbeb' : pal.glow, railCol);
 
       if (p >= .06 && (this.onboardingStage ?? 4) >= 2) {
+        const sScale = Math.max(.25, this.scale || 1);
         const label = inSweet ? '🌊 轻点冲刺' : '🌊 冲刺';
         ctx.globalAlpha = .92;
-        ctx.font = `600 ${clamp(9 / this.scale, 8.5, 11.5)}px system-ui, sans-serif`;
-        const tw = Math.max(54, ctx.measureText(label).width + 14);
-        const th = 19;
+        ctx.font = `600 ${12 / sScale}px system-ui, -apple-system, sans-serif`;
+        const tw = Math.min(WORLD_W - 24, Math.max(54 / sScale, ctx.measureText(label).width + 16 / sScale));
+        const th = 22 / sScale;
         const bx = clamp(pos.x, tw / 2 + 12, WORLD_W - tw / 2 - 12);
-        const by = Math.max(22, pos.y - 52);
+        const by = Math.max(th / 2 + 8, pos.y - 42 - th / 2);
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(bx - tw / 2, by - th / 2, tw, th, 9.5);
+        if (ctx.roundRect) ctx.roundRect(bx - tw / 2, by - th / 2, tw, th, th / 2);
         else ctx.rect(bx - tw / 2, by - th / 2, tw, th);
         ctx.fillStyle = inSweet ? (this.astralMode ? '#2f230cf0' : '#33230bee') : (this.astralMode ? '#0f2734ee' : '#163139eb');
         ctx.fill();
-        ctx.lineWidth = 1.4;
+        ctx.lineWidth = 1.5 / sScale;
         ctx.strokeStyle = inSweet ? '#fbbf24' : '#5eead4';
         ctx.stroke();
         ctx.fillStyle = inSweet ? '#fff7d6' : '#ccfbf1';
@@ -2152,19 +2174,20 @@ export class SceneRenderer {
       // Mid-dash pre-lock combo cue if destination is an untuned powered mechanism
       const dest = to;
       if ((this.onboardingStage ?? 4) >= 2 && dest.kind === 'mechanism' && dest.powered && !s.activated.includes(dest.id) && !s.tunedMechanisms?.includes(dest.id) && p < .92) {
+        const sScale = Math.max(.25, this.scale || 1);
         const comboText = '⚡ 再点锁频 +1◆';
         ctx.globalAlpha = .94;
-        ctx.font = `600 ${clamp(9 / this.scale, 8.5, 11.5)}px system-ui, sans-serif`;
-        const tw = Math.max(76, ctx.measureText(comboText).width + 14);
-        const th = 19;
+        ctx.font = `600 ${12 / sScale}px system-ui, -apple-system, sans-serif`;
+        const tw = Math.min(WORLD_W - 24, Math.max(76 / sScale, ctx.measureText(comboText).width + 16 / sScale));
+        const th = 22 / sScale;
         const bx = clamp(dest.x, tw / 2 + 12, WORLD_W - tw / 2 - 12);
-        const by = Math.max(24, dest.y - 84);
+        const by = Math.max(th / 2 + 8, dest.y - 74 - th / 2);
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(bx - tw / 2, by - th / 2, tw, th, 9.5);
+        if (ctx.roundRect) ctx.roundRect(bx - tw / 2, by - th / 2, tw, th, th / 2);
         else ctx.rect(bx - tw / 2, by - th / 2, tw, th);
         ctx.fillStyle = '#33230bf2';
         ctx.fill();
-        ctx.lineWidth = 1.4;
+        ctx.lineWidth = 1.5 / sScale;
         ctx.strokeStyle = '#fbbf24';
         ctx.stroke();
         ctx.fillStyle = '#fffbeb';
@@ -2270,23 +2293,26 @@ export class SceneRenderer {
       else if (isInteracting && !isTuned) lockTag = '↻ 拖转对准 +1◆';
 
       if (lockTag) {
+        const sScale = Math.max(.25, this.scale || 1);
         ctx.globalAlpha = .94;
-        ctx.font = `600 ${clamp(8.8 / this.scale, 8.5, 11.5)}px system-ui, sans-serif`;
-        const tw = Math.max(64, ctx.measureText(lockTag).width + 12);
-        const th = 18;
-        const ty = isAltar ? -(ringR * .68 + 16) : (ringR * .68 + 14);
+        ctx.font = `600 ${12 / sScale}px system-ui, -apple-system, sans-serif`;
+        const tw = Math.min(WORLD_W - 16, Math.max(64 / sScale, ctx.measureText(lockTag).width + 14 / sScale));
+        const th = 22 / sScale;
+        const loX = 8 - cx + tw / 2, hiX = WORLD_W - 8 - cx - tw / 2;
+        const tx = clamp(0, Math.min(loX, hiX), Math.max(loX, hiX));
+        const ty = isAltar ? -(ringR * .68 + 6 + th / 2) : (ringR * .68 + 5 + th / 2);
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(-tw / 2, ty - th / 2, tw, th, 9);
-        else ctx.rect(-tw / 2, ty - th / 2, tw, th);
+        if (ctx.roundRect) ctx.roundRect(tx - tw / 2, ty - th / 2, tw, th, th / 2);
+        else ctx.rect(tx - tw / 2, ty - th / 2, tw, th);
         ctx.fillStyle = isTuned || isAltar ? '#33230bf0' : '#122634ee';
         ctx.fill();
-        ctx.lineWidth = 1.3;
+        ctx.lineWidth = 1.4 / sScale;
         ctx.strokeStyle = isTuned || isAltar ? '#fbbf24' : baseCol;
         ctx.stroke();
         ctx.fillStyle = isTuned || isAltar ? '#fffbeb' : '#daf4ef';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(lockTag, 0, ty);
+        ctx.fillText(lockTag, tx, ty);
       }
       ctx.restore();
     }
@@ -2427,8 +2453,9 @@ export class SceneRenderer {
               ? '⚓'
               : '◇';
       if (sec > .32) {
+        const sScale = Math.max(.25, this.scale || 1);
         diamond(ctx, 0, -14 * sec, Math.max(4, 9 * sec), s.activated.includes(node.id) ? '#fde68a' : nPal.glow, nCol);
-        ctx.font = `700 ${clamp(10 / this.scale, 11, 15)}px system-ui, sans-serif`;
+        ctx.font = `700 ${clamp(11 / sScale, 11, 32)}px system-ui, -apple-system, sans-serif`;
         ctx.fillStyle = this.astralMode ? '#f0fdf9' : COLORS.ink;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -2515,20 +2542,21 @@ export class SceneRenderer {
     }
 
     // Top W-slice readout pill
+    const sScale = Math.max(.25, this.scale || 1);
     const layerLabels = ['Ⅰ 潮汐层', 'Ⅱ 回声层', 'Ⅲ 绽放层'];
     const topLabel = `🔍 透视 ${layerLabels[lensLayer] || ''} · W ${lensW.toFixed(2)}${this.hyperLens.detent ? ' ✦磁吸' : ''}`;
     ctx.globalAlpha = .96;
-    ctx.font = `700 ${clamp(9.4 / this.scale, 11, 14.5)}px system-ui, sans-serif`;
-    const topW = Math.max(128, ctx.measureText(topLabel).width + 18);
-    const topH = 22;
-    const topX = clamp(lx, topW / 2 + 10, WORLD_W - topW / 2 - 10);
-    const topY = ly - r - 18 >= 20 ? ly - r - 16 : ly + r + 16;
+    ctx.font = `700 ${12 / sScale}px system-ui, -apple-system, sans-serif`;
+    const topW = Math.min(WORLD_W - 20, Math.max(128, ctx.measureText(topLabel).width + 18 / sScale));
+    const topH = 22 / sScale;
+    const topX = clamp(lx, Math.min(topW / 2 + 10, WORLD_W / 2), Math.max(WORLD_W - topW / 2 - 10, WORLD_W / 2));
+    const topY = ly - r - topH / 2 - 8 >= topH / 2 + 6 ? ly - r - topH / 2 - 6 : Math.min(WORLD_H - topH / 2 - 6, ly + r + topH / 2 + 6);
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(topX - topW / 2, topY - topH / 2, topW, topH, 11);
+    if (ctx.roundRect) ctx.roundRect(topX - topW / 2, topY - topH / 2, topW, topH, topH / 2);
     else ctx.rect(topX - topW / 2, topY - topH / 2, topW, topH);
     ctx.fillStyle = this.astralMode ? '#0b1d2bf2' : '#132933f0';
     ctx.fill();
-    ctx.lineWidth = 1.6;
+    ctx.lineWidth = 1.6 / sScale;
     ctx.strokeStyle = bezelCol;
     ctx.stroke();
     ctx.fillStyle = this.hyperLens.detent ? '#fff7d6' : '#daf4ef';
@@ -2541,18 +2569,18 @@ export class SceneRenderer {
     const subLabel = this.hyperLens.pinned
       ? (onAnchor && lensLayer !== s.layer ? '点击镜内异层岛直达 · 点右上角关' : '移鼠透视四维 · 站 ⚓ 台点镜内岛可切入')
       : (onAnchor ? '↕ 上下拖移调 W · 滚轮直接潜入此层' : '↕ 上下拖移透视异层 · 松手不改当前层');
-    if (ly + r + 18 <= WORLD_H - 14 && topY < ly) {
-      ctx.font = `600 ${clamp(8.6 / this.scale, 10, 13)}px system-ui, sans-serif`;
-      const subW = Math.max(132, ctx.measureText(subLabel).width + 16);
-      const subH = 19;
-      const subX = clamp(lx, subW / 2 + 10, WORLD_W - subW / 2 - 10);
-      const subY = ly + r + 15;
+    const subH = 20 / sScale;
+    if (ly + r + subH / 2 + 6 <= WORLD_H - subH / 2 - 6 && topY < ly) {
+      ctx.font = `600 ${11 / sScale}px system-ui, -apple-system, sans-serif`;
+      const subW = Math.min(WORLD_W - 20, Math.max(132, ctx.measureText(subLabel).width + 16 / sScale));
+      const subX = clamp(lx, Math.min(subW / 2 + 10, WORLD_W / 2), Math.max(WORLD_W - subW / 2 - 10, WORLD_W / 2));
+      const subY = ly + r + subH / 2 + 6;
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(subX - subW / 2, subY - subH / 2, subW, subH, 9.5);
+      if (ctx.roundRect) ctx.roundRect(subX - subW / 2, subY - subH / 2, subW, subH, subH / 2);
       else ctx.rect(subX - subW / 2, subY - subH / 2, subW, subH);
       ctx.fillStyle = this.astralMode ? '#091722e8' : '#162b33e6';
       ctx.fill();
-      ctx.lineWidth = 1.1;
+      ctx.lineWidth = 1.2 / sScale;
       ctx.strokeStyle = `${accent}aa`;
       ctx.stroke();
       ctx.fillStyle = '#cbeee7';
@@ -2565,19 +2593,21 @@ export class SceneRenderer {
     const beats = this.phaseResonance?.floatingBeats || [];
     if (!beats.length) return;
     const ctx = this.ctx, pos = this.playerPosition();
+    const sScale = Math.max(.25, this.scale || 1);
+    const beatPx = Math.max(15, 12 / sScale);
     for (let i = 0; i < beats.length; i++) {
       const beat = beats[i];
-      const stackOffset = (beats.length - 1 - i) * 22;
+      const stackOffset = (beats.length - 1 - i) * (beatPx + 6 / sScale);
       const p = clamp(beat.age / beat.duration);
       const lift = this.reducedMotion ? 16 : ease(p) * 34;
       ctx.save();
       ctx.globalAlpha = (1 - p) ** .75;
-      ctx.font = `700 ${clamp(11 / this.scale, 15, 26)}px system-ui, sans-serif`;
+      ctx.font = `700 ${beatPx}px system-ui, -apple-system, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       const x = clamp(pos.x, 80, WORLD_W - 80);
-      const y = Math.max(24, pos.y - 78 - lift - stackOffset);
-      ctx.lineWidth = 4;
+      const y = Math.max(beatPx / 2 + 8, pos.y - 78 - lift - stackOffset);
+      ctx.lineWidth = Math.max(4, 3 / sScale);
       ctx.strokeStyle = this.astralMode ? '#0f1c24' : '#fff8dd';
       ctx.fillStyle = beat.type === 'phase_graze' ? '#24968d' : beat.rating === 'perfect' ? (this.astralMode ? '#ffd166' : '#c58b2b') : '#378d9c';
       ctx.strokeText(beat.text, x, y);
@@ -2593,6 +2623,7 @@ export class SceneRenderer {
     if (s.wave) return;
     const ctx = this.ctx;
     const stage = this.onboardingStage ?? 4;
+    const sScale = Math.max(.25, this.scale || 1);
     const currentNode = this.node(s.node);
     const bounce = this.reducedMotion ? 0 : Math.sin(this.time * 4.2) * 3;
     let fullPillCount = 0;
@@ -2603,28 +2634,34 @@ export class SceneRenderer {
       if (fullPillCount >= MAX_FULL_PILLS) return;
       fullPillCount += 1;
       ctx.save();
-      ctx.font = `600 ${clamp(9.5 / this.scale, 9.5, 12.5)}px system-ui, sans-serif`;
-      const padX = 10;
-      const w = Math.max(48, ctx.measureText(text).width + padX * 2);
-      const h = 22;
-      let y = clamp(cy + bounce, 28, WORLD_H - 34);
+      const pillPx = 12.5 / sScale;
+      ctx.font = `600 ${pillPx}px system-ui, -apple-system, sans-serif`;
+      const padX = 10 / sScale;
+      const w = Math.min(WORLD_W - 16, Math.max(48 / sScale, ctx.measureText(text).width + padX * 2));
+      const h = 22 / sScale;
+      const ptrW = 5 / sScale;
+      const ptrH = 6 / sScale;
+      let y = clamp(cy + bounce, h / 2 + 6, WORLD_H - h / 2 - ptrH - 6);
       // Avoid overlapping the top-left 4D W-stack when visible in Stage 2+
-      const minX = (stage >= 2 && y < 238) ? Math.max(72, 236 + w / 2) : Math.max(48, w / 2 + 12);
-      const maxX = WORLD_W - Math.max(48, w / 2 + 12);
-      const x = clamp(cx, Math.min(minX, maxX), Math.max(minX, maxX));
-      const tipX = clamp(cx, x - w / 2 + 12, x + w / 2 - 12);
-      pillRects.push({ x1: x - w / 2 - 5, y1: y - h / 2 - 3, x2: x + w / 2 + 5, y2: y + h / 2 + 8 });
+      const edgeMinX = w / 2 + 8;
+      const edgeMaxX = WORLD_W - w / 2 - 8;
+      const wStackMinX = (stage >= 2 && y < 238) ? Math.min(edgeMaxX, Math.max(edgeMinX, 236 + w / 2)) : edgeMinX;
+      const loX = Math.min(wStackMinX, edgeMaxX), hiX = Math.max(edgeMinX, edgeMaxX);
+      const x = clamp(cx, Math.min(loX, hiX), Math.max(loX, hiX));
+      const tipPad = Math.min(w / 2 - 2, 12 / sScale);
+      const tipX = clamp(cx, x - w / 2 + tipPad, x + w / 2 - tipPad);
+      pillRects.push({ x1: x - w / 2 - 5 / sScale, y1: y - h / 2 - 3 / sScale, x2: x + w / 2 + 5 / sScale, y2: y + h / 2 + ptrH + 2 / sScale });
       // Pointer triangle
-      path(ctx, [[tipX - 5, y + h / 2 - 1], [tipX + 5, y + h / 2 - 1], [tipX, y + h / 2 + 6]]);
+      path(ctx, [[tipX - ptrW, y + h / 2 - 1], [tipX + ptrW, y + h / 2 - 1], [tipX, y + h / 2 + ptrH]]);
       ctx.fillStyle = borderColor;
       ctx.fill();
       // Pill body
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, 11);
+      if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, h / 2);
       else ctx.rect(x - w / 2, y - h / 2, w, h);
       ctx.fillStyle = bgColor;
       ctx.fill();
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.6 / sScale;
       ctx.strokeStyle = borderColor;
       ctx.stroke();
       ctx.fillStyle = textColor;
@@ -2634,27 +2671,30 @@ export class SceneRenderer {
       ctx.restore();
     };
 
-    const drawCompactBadge = (cx, cy, badgeText, bgColor, borderColor, textColor) => {
+    const drawCompactBadge = (cx, cy, badgeText, bgColor, borderColor, textColor, opts = {}) => {
       ctx.save();
-      ctx.font = `700 ${clamp(9 / this.scale, 9, 12)}px system-ui, sans-serif`;
-      const padX = 7;
-      const w = Math.max(24, ctx.measureText(badgeText).width + padX * 2);
-      const h = 20;
-      const x = clamp(cx, 28, WORLD_W - 28);
-      let y = clamp(cy + bounce * .45, 22, WORLD_H - 24);
+      const badgePx = 12.5 / sScale;
+      ctx.font = `700 ${badgePx}px system-ui, -apple-system, sans-serif`;
+      const padX = 7 / sScale;
+      const w = Math.min(WORLD_W - 12, Math.max(24 / sScale, ctx.measureText(badgeText).width + padX * 2));
+      const h = 22 / sScale;
+      const x = clamp(cx, w / 2 + 6, WORLD_W - w / 2 - 6);
+      let y = clamp(cy + bounce * .45, h / 2 + 6, WORLD_H - h / 2 - 6);
       for (const rect of pillRects) {
         if (x + w / 2 > rect.x1 && x - w / 2 < rect.x2 && y + h / 2 > rect.y1 && y - h / 2 < rect.y2) {
-          y = Math.max(18, rect.y1 - h / 2 - 4);
+          y = Math.max(h / 2 + 6, rect.y1 - h / 2 - 4 / sScale);
         }
       }
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, 10);
+      if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, h / 2);
       else ctx.rect(x - w / 2, y - h / 2, w, h);
       ctx.fillStyle = bgColor;
       ctx.fill();
-      ctx.lineWidth = 1.5;
+      if (opts.dashed) ctx.setLineDash([4.5 / sScale, 3.2 / sScale]);
+      ctx.lineWidth = (opts.borderWidth ?? (opts.dashed ? 2 : 1.6)) / sScale;
       ctx.strokeStyle = borderColor;
       ctx.stroke();
+      if (opts.dashed) ctx.setLineDash([]);
       ctx.fillStyle = textColor;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -2693,6 +2733,11 @@ export class SceneRenderer {
     const mechTotal = order.length || 3;
     const numSymbols = ['①', '②', '③', '④'];
     const layerRoman = ['Ⅰ', 'Ⅱ', 'Ⅲ'];
+    const guideId = stage >= 2 && this.nextStepHint?.tutorial && this.nextStepHint.action === 'move' ? this.nextStepHint.targetId : null;
+    const guideAnchor = guideId && guideId !== s.node ? this.node(guideId) : null;
+    const anchorBadgePos = guideAnchor?.anchor
+      ? { x: guideAnchor.x, y: guideAnchor.y - (guideAnchor.id === 'relay' ? 76 : 66) }
+      : null;
 
     // 2A. Draw explicit causal energy wires between mechanisms from Stage 2+
     if (stage >= 2) {
@@ -2705,7 +2750,17 @@ export class SceneRenderer {
           const received = (target.received || []).includes(sourceId);
           const samePosition = Math.hypot(target.x - source.x, target.y - source.y) < 2;
           const ctrlX = samePosition ? source.x + 82 : (source.x + target.x) / 2;
-          const ctrlY = samePosition ? source.y - 125 : Math.min(source.y, target.y) - 95;
+          let ctrlY = samePosition ? source.y - 125 : Math.min(source.y, target.y) - 95;
+          if (anchorBadgePos) {
+            for (const sampleT of [.25, .5, .75]) {
+              const qx = (1 - sampleT) ** 2 * source.x + 2 * (1 - sampleT) * sampleT * ctrlX + sampleT ** 2 * target.x;
+              const qy = (1 - sampleT) ** 2 * (source.y - 36) + 2 * (1 - sampleT) * sampleT * ctrlY + sampleT ** 2 * (target.y - 36);
+              if (Math.abs(qx - anchorBadgePos.x) < 62 / sScale && Math.abs(qy - anchorBadgePos.y) < 24 / sScale) {
+                ctrlY -= 52 / sScale;
+                break;
+              }
+            }
+          }
           ctx.save();
           ctx.globalAlpha = received ? .85 : .42;
           ctx.setLineDash(received ? [] : [6, 6]);
@@ -2742,15 +2797,66 @@ export class SceneRenderer {
     }
     if (primaryTarget && s.node !== primaryTarget.id && (stage >= 2 || primaryTarget.present)) {
       const pos = this.playerPosition();
+      const x1 = pos.x, y1 = pos.y - 14, x2 = primaryTarget.x, y2 = primaryTarget.y - 18;
       ctx.save();
       ctx.globalAlpha = .52;
       ctx.setLineDash([5, 7]);
-      line(ctx, pos.x, pos.y - 14, primaryTarget.x, primaryTarget.y - 18, COLORS.lightGold, 2.2);
+      let bowed = false;
+      if (anchorBadgePos) {
+        const segDx = x2 - x1, segDy = y2 - y1;
+        const segLenSq = segDx * segDx + segDy * segDy;
+        if (segLenSq > 1) {
+          const projT = clamp(((anchorBadgePos.x - x1) * segDx + (anchorBadgePos.y - y1) * segDy) / segLenSq);
+          const nearX = x1 + segDx * projT, nearY = y1 + segDy * projT;
+          if (Math.abs(nearX - anchorBadgePos.x) < 62 / sScale && Math.abs(nearY - anchorBadgePos.y) < 24 / sScale) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.quadraticCurveTo((x1 + x2) / 2, anchorBadgePos.y + 42 / sScale, x2, y2);
+            ctx.strokeStyle = COLORS.lightGold;
+            ctx.lineWidth = 2.2;
+            ctx.stroke();
+            bowed = true;
+          }
+        }
+      }
+      if (!bowed) line(ctx, x1, y1, x2, y2, COLORS.lightGold, 2.2);
       ctx.setLineDash([]);
       ctx.restore();
       if (!hint) {
         const plan = planLayerRoute(s, primaryTarget.id);
         if (plan?.shift) hint = { layer: plan.shift.layer, here: plan.walk.length === 0, at: this.node(plan.shift.at), kind: plan.shift.kind };
+      }
+    }
+
+    // Draw animated directional chevrons UNDERNEATH badges/pills so paths never cut badge glyphs
+    const g = this.liveGuide;
+    if (g && g.kind === 'move') {
+      const from = currentNode;
+      const to = this.node(g.node);
+      if (from && to) {
+        const layerPalette = this.palette(g.layer);
+        ctx.save();
+        const dx = to.x - from.x, dy = to.y - from.y;
+        const len = Math.max(1, Math.hypot(dx, dy));
+        const ux = dx / len, uy = dy / len;
+        const nx = -uy, ny = ux;
+        for (let i = 0; i < 3; i++) {
+          const t = this.reducedMotion ? (.28 + i * .22) : (((this.time * .55 + i / 3) % 1) * .68 + .16);
+          const cx = mix(from.x, to.x, t);
+          const cy = mix(from.y, to.y, t);
+          if (anchorBadgePos && Math.abs(cx - anchorBadgePos.x) < 58 / sScale && Math.abs(cy - anchorBadgePos.y) < 22 / sScale) continue;
+          const alpha = Math.sin(clamp((t - .16) / .68, 0, 1) * Math.PI);
+          ctx.globalAlpha = .45 + alpha * .55;
+          path(ctx, [
+            [cx - ux * 9 + nx * 8, cy - uy * 9 + ny * 8],
+            [cx + ux * 7, cy + uy * 7],
+            [cx - ux * 9 - nx * 8, cy - uy * 9 - ny * 8],
+          ]);
+          ctx.strokeStyle = g.aligned ? COLORS.lightGold : layerPalette.color;
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+        ctx.restore();
       }
     }
 
@@ -2778,11 +2884,11 @@ export class SceneRenderer {
     // Unhovered nodes NEVER expand into long sentences; only hover expands a short tooltip.
     const shouldExpandNode = id => Boolean(hoverId && hoverId === id && fullPillCount < MAX_FULL_PILLS);
 
-    const drawNodeTag = (id, cx, cy, fullText, badgeText, bgColor, borderColor, textColor) => {
+    const drawNodeTag = (id, cx, cy, fullText, badgeText, bgColor, borderColor, textColor, badgeOpts = {}) => {
       if (shouldExpandNode(id)) {
         drawCalloutPill(cx, cy, fullText, bgColor, borderColor, textColor);
       } else {
-        drawCompactBadge(cx, cy, badgeText, bgColor, borderColor, textColor);
+        drawCompactBadge(cx, cy, badgeText, bgColor, borderColor, textColor, badgeOpts);
       }
     };
 
@@ -2800,11 +2906,11 @@ export class SceneRenderer {
       const coordKey = `${Math.round(node.x)},${Math.round(node.y)}`;
       const stackIdx = seenCoords.get(coordKey) || 0;
       seenCoords.set(coordKey, stackIdx + 1);
-      const yOffset = stackIdx * 26;
+      const yOffset = stackIdx * (26 / sScale);
       const num = numSymbols[idx] || `${idx + 1}`;
       const lRom = layerRoman[node.layer] || 'Ⅰ';
       if (isLit) {
-        drawNodeTag(id, node.x, node.y - 70 - yOffset, `${num} 已点亮`, `✓${num}`, '#133127dd', '#45c4a0', '#b8f5dc');
+        drawNodeTag(id, node.x, node.y - 70 - yOffset, `${num} 已点亮`, `✓${num}`, '#133127dd', '#45c4a0', '#b8f5dc', { borderWidth: 2 });
       } else if (isPowered) {
         const isPrimary = primaryMechId === id;
         const pulse = this.reducedMotion ? .7 : .5 + .5 * Math.sin(this.time * 5);
@@ -2818,9 +2924,11 @@ export class SceneRenderer {
           Math.abs(n.world.y - node.world.y) < 1e-4 &&
           Math.abs(n.world.z - node.world.z) < 1e-4);
         const nameLayer = explicitHint || stackedLit || (this.nextStepHint?.tutorial && this.nextStepHint.goalId === id);
+        const shiftAnchorId = hint?.at?.id === 'relay' || (!s.availableNodes?.includes('hub') && s.availableNodes?.includes('relay')) ? 'relay' : 'hub';
+        const shiftAnchorLabel = shiftAnchorId === 'relay' ? '维度锚台' : '归响台';
         const hoverText = onCurrentLayer
           ? (s.node === id ? `点击点亮 ${num}` : `点此走过去点亮 ${num}`)
-          : (nameLayer ? `在${lRom}层 · 换层后出现` : '在异层 · 先去 ⚓ 换层台');
+          : (nameLayer ? `在${lRom}层 · 换层后出现` : `在异层 · 先去 ⚓ ${shiftAnchorLabel}`);
         const badgeText = onCurrentLayer
           ? (isPrimary ? (stage === 1 ? '👆 ①' : `🎯 ${num}`) : num)
           : (nameLayer ? `${num}·${lRom}层` : `${num}·异层`);
@@ -2832,7 +2940,8 @@ export class SceneRenderer {
           badgeText,
           onCurrentLayer ? '#33230bee' : '#192a38ee',
           onCurrentLayer ? '#fbbf24' : '#5eead4',
-          onCurrentLayer ? '#fff7d6' : '#ccfbf1'
+          onCurrentLayer ? '#fff7d6' : '#ccfbf1',
+          onCurrentLayer ? { borderWidth: isPrimary ? 2 : 1.5 } : { dashed: true, borderWidth: 2 }
         );
       } else {
         const missingSyms = (node.required || [])
@@ -2842,7 +2951,7 @@ export class SceneRenderer {
             return numSymbols[rIdx] || '前序';
           });
         const hoverText = `需先点亮 ${missingSyms.join('+') || '前序'}`;
-        drawNodeTag(id, node.x, node.y - 70 - yOffset, hoverText, `🔒${num}`, '#18242ccc', '#64748b', '#cbd5e1');
+        drawNodeTag(id, node.x, node.y - 70 - yOffset, hoverText, `🔒${num}`, '#18242ccc', '#64748b', '#cbd5e1', { borderWidth: 1.5 });
       }
     });
 
@@ -2850,25 +2959,36 @@ export class SceneRenderer {
     if (stage >= 2) {
       // Anchor labels already carry ⚓; their tags appear only when they are the next step or hovered.
       const anchorFocus = id => focusNodeId === id && hint?.at?.id === id;
-      const guideId = this.nextStepHint?.tutorial && this.nextStepHint.action === 'move' ? this.nextStepHint.targetId : null;
-      const guideAnchor = guideId && guideId !== s.node ? this.node(guideId) : null;
       if (guideAnchor?.anchor) {
         const place = guideAnchor.id === 'hub' ? '去归响台' : guideAnchor.id === 'relay' ? '去维度锚台' : `去${guideAnchor.name}`;
-        drawCompactBadge(guideAnchor.x, guideAnchor.y - 66, place, '#152b28ee', '#5eead4', '#ccfbf1');
+        const fullAnchorText = anchorFocus(guideAnchor.id)
+          ? (explicitHint ? `去此滚至${layerRoman[hint.layer]}层` : '去此滚轮换层')
+          : '站此滚轮换层';
+        drawNodeTag(
+          guideAnchor.id,
+          anchorBadgePos.x,
+          anchorBadgePos.y,
+          fullAnchorText,
+          place,
+          '#152b28ee',
+          '#5eead4',
+          '#ccfbf1',
+          { borderWidth: 1.8 }
+        );
       }
       const hubNode = this.node('hub');
-      if (hubNode && s.node !== 'hub' && (anchorFocus('hub') || hoverId === 'hub')) {
+      if (hubNode && s.node !== 'hub' && guideAnchor?.id !== 'hub' && (anchorFocus('hub') || hoverId === 'hub')) {
         const hubText = anchorFocus('hub')
           ? (explicitHint ? `去此滚至${layerRoman[hint.layer]}层` : '去此滚轮换层')
           : '站此滚轮换层';
         drawNodeTag('hub', hubNode.x, hubNode.y - 66, hubText, '⚓', '#152b28cc', '#4b9b8a', '#c9f2e7');
       }
       const relayNode = this.node('relay');
-      if (relayNode && s.node !== 'relay' && (anchorFocus('relay') || hoverId === 'relay')) {
+      if (relayNode && s.node !== 'relay' && guideAnchor?.id !== 'relay' && (anchorFocus('relay') || hoverId === 'relay')) {
         const relayText = anchorFocus('relay')
           ? (explicitHint ? `去此滚至${layerRoman[hint.layer]}层` : '去此滚轮换层')
           : '站此滚轮换层';
-        drawNodeTag('relay', relayNode.x, relayNode.y - 64, relayText, '⚓', '#152b28cc', '#4b9b8a', '#c9f2e7');
+        drawNodeTag('relay', relayNode.x, relayNode.y - 76, relayText, '⚓', '#152b28cc', '#4b9b8a', '#c9f2e7');
       }
       // Highlight 4D Same-XYZ Folding if standing on an island that shares 3D coordinates with another layer's island
       if (currentNode && !currentNode.anchor && currentNode.world) {
@@ -3057,38 +3177,6 @@ export class SceneRenderer {
         '#45c4a0',
         '#e6fff6'
       );
-    }
-
-    const g = this.liveGuide;
-    if (!g) return;
-
-    // Draw animated directional chevrons along the next bridge step
-    if (g.kind === 'move') {
-      const from = currentNode;
-      const to = this.node(g.node);
-      if (!from || !to) return;
-      const layerPalette = this.palette(g.layer);
-      ctx.save();
-      const dx = to.x - from.x, dy = to.y - from.y;
-      const len = Math.max(1, Math.hypot(dx, dy));
-      const ux = dx / len, uy = dy / len;
-      const nx = -uy, ny = ux;
-      for (let i = 0; i < 3; i++) {
-        const t = this.reducedMotion ? (.28 + i * .22) : (((this.time * .55 + i / 3) % 1) * .68 + .16);
-        const cx = mix(from.x, to.x, t);
-        const cy = mix(from.y, to.y, t);
-        const alpha = Math.sin(clamp((t - .16) / .68, 0, 1) * Math.PI);
-        ctx.globalAlpha = .45 + alpha * .55;
-        path(ctx, [
-          [cx - ux * 9 + nx * 8, cy - uy * 9 + ny * 8],
-          [cx + ux * 7, cy + uy * 7],
-          [cx - ux * 9 - nx * 8, cy - uy * 9 - ny * 8],
-        ]);
-        ctx.strokeStyle = g.aligned ? COLORS.lightGold : layerPalette.color;
-        ctx.lineWidth = 3;
-        ctx.stroke();
-      }
-      ctx.restore();
     }
   }
 
@@ -3420,7 +3508,7 @@ export class SceneRenderer {
     else if (node.id === 'relay') this.drawAnchor();
     else if (node.id === 'vault') this.drawVault(node);
     else if (node.id === 'rift') this.drawRift(node);
-    else { this.drawMechanism(node, active); this.drawInputSlots(node); }
+    else { this.drawMechanism(node, active, section); this.drawInputSlots(node); }
     this.drawSecretSeals(node, width, height);
     if (node.powered && !active && !node.locked && !node.anchor) {
       const h = node.id === 'bell' ? -74 : -54;
@@ -3448,43 +3536,48 @@ export class SceneRenderer {
     const isHovered = this.hover === node.id;
     const order = s.mechanismOrder || s.nodes.filter(n => n.kind === 'mechanism').map(n => n.id);
     const mechTotal = order.length || 3;
+    const anchorTitle = hub ? (stage < 2 ? '⚓ 起点' : '⚓ 归响台') : (node.id === 'relay' ? '⚓ 维度锚台' : `⚓ ${node.name || '维度锚台'}`);
     let name = '';
     if (isHovered) {
       if (exit) name = `🚪 出口 · ${node.name || '庭门'}`;
       else if (node.id === 'vault') name = `✨ 宝箱 · ${node.name || '花匣'}`;
       else if (node.id === 'rift') name = `🌌 秘境 · ${node.name || '隐星台'}`;
-      else if (node.anchor) name = `⚓ 换层台 · ${node.name || (hub ? '归息台' : '中继台')}`;
+      else if (node.anchor) name = anchorTitle;
       else if (node.kind === 'mechanism') name = `${['①', '②', '③', '④'][order.indexOf(node.id)] || '◇'} ${node.name || node.id}`;
       else name = node.name || node.id;
     } else {
       if (exit) name = s.activated.length >= mechTotal ? '🚪 出口 · 已开' : `🚪 出口 ${s.activated.length}/${mechTotal}`;
       else if (node.id === 'vault') name = '✨ 宝箱';
       else if (node.id === 'rift') name = '🌌 秘境';
-      else if (node.anchor) name = stage < 2 ? (hub ? '⚓ 起点' : '') : '⚓ 换层台';
+      else if (node.anchor) name = anchorTitle;
       else if (node.kind === 'mechanism') name = '';
     }
     if (!name) { ctx.restore(); return; }
-    const labelY = Math.min((height + thickness) * section + 22, WORLD_H - node.y - 18);
+    const sScale = Math.max(.25, this.scale || 1);
+    const labelSize = 12.5 / sScale;
+    const labelHeight = labelSize + 8 / sScale;
+    const padX = 7 / sScale;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const labelSize = clamp(9.5 / this.scale, 8.5, 12.5);
     ctx.font = `${isHovered || selected ? 600 : 500} ${labelSize}px system-ui, -apple-system, sans-serif`;
     const textWidth = ctx.measureText(name).width;
-    const padX = 7;
+    const loX = textWidth / 2 + padX + 4 - node.x;
+    const hiX = WORLD_W - textWidth / 2 - padX - 4 - node.x;
+    const labelX = clamp(0, Math.min(loX, hiX), Math.max(loX, hiX));
+    const labelY = Math.min((height + thickness) * section + 8 + labelHeight / 2, WORLD_H - node.y - labelHeight / 2 - 4);
     ctx.fillStyle = this.astralMode ? '#0c1925eb' : '#edf2e9dd';
-    const labelHeight = labelSize + 6;
-    this.labelZones?.push({ left: node.x - textWidth / 2 - padX, right: node.x + textWidth / 2 + padX, top: node.y + labelY - labelHeight / 2, bottom: node.y + labelY + labelHeight / 2 });
-    ctx.beginPath(); ctx.roundRect?.(-textWidth / 2 - padX, labelY - labelHeight / 2, textWidth + padX * 2, labelHeight, 6);
-    if (!ctx.roundRect) ctx.rect(-textWidth / 2 - padX, labelY - labelHeight / 2, textWidth + padX * 2, labelHeight);
+    this.labelZones?.push({ left: node.x + labelX - textWidth / 2 - padX, right: node.x + labelX + textWidth / 2 + padX, top: node.y + labelY - labelHeight / 2, bottom: node.y + labelY + labelHeight / 2 });
+    ctx.beginPath(); ctx.roundRect?.(labelX - textWidth / 2 - padX, labelY - labelHeight / 2, textWidth + padX * 2, labelHeight, 6 / sScale);
+    if (!ctx.roundRect) ctx.rect(labelX - textWidth / 2 - padX, labelY - labelHeight / 2, textWidth + padX * 2, labelHeight);
     ctx.fill();
     if (this.astralMode || isHovered) {
       ctx.strokeStyle = selected || isHovered ? '#f0b85aa8' : '#2c5068b8';
-      ctx.lineWidth = 1.1;
+      ctx.lineWidth = 1.2 / sScale;
       ctx.stroke();
     }
     ctx.fillStyle = this.astralMode
       ? (selected || isHovered ? '#ffd982' : '#e8f6f2')
       : (selected || isHovered ? '#936125' : COLORS.ink);
-    ctx.fillText(name, 0, labelY);
+    ctx.fillText(name, labelX, labelY);
     ctx.restore();
   }
 
@@ -3622,44 +3715,59 @@ export class SceneRenderer {
     ctx.restore();
   }
 
-  drawMechanism(node, active) {
+  drawMechanism(node, active, section = 1) {
     const ctx = this.ctx;
     const sway = this.life ? this.life.swayAngle(`mech:${node.id}`, node.x, node.y) : 0;
     ctx.save();
     if (sway) ctx.rotate(sway * .18);
     const beat = this.reducedMotion ? 0 : Math.sin(this.time * 2.5 + node.x) * 1.5;
     const astral = this.astralMode;
+    const sScale = Math.max(.25, this.scale || 1);
+    const sw2 = 2 / (sScale * Math.max(.35, section));
     if (node.id === 'dew') {
+      const unlitStroke = 'rgba(90, 212, 234, 0.8)';
       ellipse(ctx, 0, 4, 37, 21, astral ? '#152d3c' : '#a4bca8', astral ? '#498ba3' : '#f2f5e1', 2);
-      ellipse(ctx, 0, 0, 32, 17, active ? (astral ? '#1d6c68' : '#51aaa0') : (astral ? '#193848' : '#9ebdb0'), astral ? '#4dd2ac' : '#7c9e8d', 1.5);
-      ellipse(ctx, 0, -1, 24, 11, null, active ? '#9ef5e0' : (astral ? '#3a6e82' : '#c7d7c3'), 1);
-      ellipse(ctx, 0, -1, 14, 6, null, active ? '#b8fff0' : (astral ? '#2e5869' : '#bed1bd'), 1);
+      ellipse(
+        ctx, 0, 0, 32, 17,
+        active ? (astral ? '#1d6c68' : '#51aaa0') : (astral ? '#142634' : '#9ebdb0'),
+        active ? (astral ? '#4dd2ac' : '#7c9e8d') : (astral ? unlitStroke : '#7c9e8d'),
+        !active && astral ? sw2 : 1.5
+      );
+      ellipse(ctx, 0, -1, 24, 11, null, active ? '#9ef5e0' : (astral ? '#5ad4ea66' : '#c7d7c3'), 1);
+      ellipse(ctx, 0, -1, 14, 6, null, active ? '#b8fff0' : (astral ? '#5ad4ea44' : '#bed1bd'), 1);
       for (const x of [-25, 25]) {
         path(ctx, [[x - 5, 0], [x - 5, -26], [x + 5, -29], [x + 6, -2]]);
         ctx.fillStyle = astral ? '#1f3e50' : '#aec1a8'; ctx.fill();
-        if (astral) { ctx.strokeStyle = '#477f96'; ctx.lineWidth = 1; ctx.stroke(); }
-        diamond(ctx, x, -29, 4, active ? COLORS.lightGold : (astral ? '#4f889e' : '#d7d9b5'), astral ? '#72e5f2' : '#a4a37e');
+        if (astral) { ctx.strokeStyle = '#5ad4ea88'; ctx.lineWidth = 1; ctx.stroke(); }
+        diamond(ctx, x, -29, 4, active ? COLORS.lightGold : (astral ? null : '#d7d9b5'), astral ? '#72e5f2cc' : '#a4a37e', !active && astral ? 1.4 / (sScale * Math.max(.35, section)) : 1.5);
       }
-      diamond(ctx, 0, -25 + (active ? beat : 0), 14, active ? '#9cebd5' : (astral ? '#28566b' : '#a3bcae'), active ? '#63f2d2' : '#509c89');
-      path(ctx, [[0, -39 + (active ? beat : 0)], [0, -11 + (active ? beat : 0)], [-9.2, -25 + (active ? beat : 0)]]);
-      ctx.fillStyle = active ? '#d7ffe8' : (astral ? '#549bb2' : '#d0ddc9'); ctx.fill();
-      if (active) ellipse(ctx, 0, -25 + beat, 23, 23, astral ? '#5eead422' : '#a9f7db12');
+      if (!active && astral) {
+        diamond(ctx, 0, -25, 14, null, unlitStroke, sw2);
+      } else {
+        diamond(ctx, 0, -25 + (active ? beat : 0), 14, active ? '#9cebd5' : '#a3bcae', active ? '#63f2d2' : '#509c89');
+        path(ctx, [[0, -39 + (active ? beat : 0)], [0, -11 + (active ? beat : 0)], [-9.2, -25 + (active ? beat : 0)]]);
+        ctx.fillStyle = active ? '#d7ffe8' : '#d0ddc9'; ctx.fill();
+      }
+      if (active) ellipse(ctx, 0, -25 + beat, 23, 23, astral ? '#4dd2ac38' : '#a9f7db12');
     } else if (node.id === 'bell') {
-      ellipse(ctx, 0, 8, 36, 16, astral ? '#1c2338' : '#cad6be', astral ? '#6f60a3' : '#f2f5df', 2);
+      ellipse(ctx, 0, 8, 36, 16, astral ? '#1c2338' : '#cad6be', astral ? '#7e6dbe' : '#f2f5df', 2);
       for (const x of [-28, 28]) {
         path(ctx, [[x - 5, 8], [x - 5, -48], [x + 5, -48], [x + 5, 8]]);
         ctx.fillStyle = astral ? '#26304a' : '#a3b8a0'; ctx.fill();
-        line(ctx, x - 4, -47, x - 4, 5, astral ? '#8e7cc9' : '#f1f4dc', 1.5);
+        line(ctx, x - 4, -47, x - 4, 5, astral ? '#9b88db' : '#f1f4dc', 1.5);
       }
       path(ctx, [[-36, -47], [-30, -55], [32, -55], [37, -47]]);
-      ctx.fillStyle = astral ? '#332b4f' : '#d9d7b0'; ctx.fill(); ctx.strokeStyle = astral ? '#9f85e0' : '#b5b992'; ctx.stroke();
+      ctx.fillStyle = astral ? '#332b4f' : '#d9d7b0'; ctx.fill(); ctx.strokeStyle = astral ? '#ae94ee' : '#b5b992'; ctx.stroke();
       line(ctx, 0, -49, 0, -35, astral ? '#d6b065' : '#aa8953', 2);
       ctx.save(); ctx.translate(0, -36); ctx.rotate(active && !this.reducedMotion ? Math.sin(this.time * 2.7) * .07 : 0);
       ctx.beginPath(); ctx.moveTo(-5, 0); ctx.quadraticCurveTo(-18, 5, -18, 24); ctx.lineTo(-22, 28);
       ctx.quadraticCurveTo(0, 35, 22, 28); ctx.lineTo(18, 24); ctx.quadraticCurveTo(18, 5, 5, 0); ctx.closePath();
-      ctx.fillStyle = active ? '#e5bd68' : (astral ? '#3b3559' : '#b8bb91'); ctx.fill(); ctx.strokeStyle = active ? '#ffe29a' : (astral ? '#9c86d8' : '#9f8c59'); ctx.lineWidth = 1.5; ctx.stroke();
-      line(ctx, -10, 8, -13, 22, active ? '#fff0b5' : (astral ? '#b8a6eb' : '#dde0b4'), 2);
-      ellipse(ctx, 0, 30, 3.5, 3.5, active ? '#fbefad' : (astral ? '#8574bd' : '#a09f78')); ctx.restore();
+      ctx.fillStyle = active ? '#e5bd68' : (astral ? '#3b3559' : '#b8bb91'); ctx.fill();
+      ctx.strokeStyle = active ? '#ffe29a' : (astral ? 'rgba(190, 156, 248, 0.8)' : '#9f8c59');
+      ctx.lineWidth = !active && astral ? sw2 : 1.5;
+      ctx.stroke();
+      line(ctx, -10, 8, -13, 22, active ? '#fff0b5' : (astral ? '#c8b4fa' : '#dde0b4'), 2);
+      ellipse(ctx, 0, 30, 3.8, 3.8, active ? '#fbefad' : (astral ? '#be9cf8cc' : '#a09f78')); ctx.restore();
       if (active) {
         for (const side of [-1, 1]) {
           ctx.beginPath(); ctx.ellipse(side * 28, -20, 7, 13, 0, side > 0 ? -1.1 : Math.PI - 1.1, side > 0 ? 1.1 : Math.PI + 1.1);
@@ -3703,6 +3811,7 @@ export class SceneRenderer {
         }
       }
     } else {
+      const unlitBloomStroke = 'rgba(245, 196, 101, 0.7)';
       ellipse(ctx, 0, 5, 37, 17, astral ? '#23241c' : '#c0d2b5', astral ? '#9c8040' : '#f5f5de', 2);
       for (let i = 0; i < 7; i++) {
         const angle = i * TAU / 7 - Math.PI / 2;
@@ -3713,11 +3822,22 @@ export class SceneRenderer {
         ctx.fillStyle = active
           ? ['#f6de9c', '#ebca74', '#fff0be'][i % 3]
           : astral
-            ? (i % 2 ? '#233b44' : '#2d4a52')
+            ? (i % 2 ? '#1f282c' : '#253136')
             : (i % 2 ? '#9fb895' : '#b2c49f');
-        ctx.fill(); ctx.strokeStyle = active ? '#ffd878' : (astral ? '#5da69e' : '#819f7e'); ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+        ctx.fill();
+        ctx.strokeStyle = active ? '#ffd878' : (astral ? unlitBloomStroke : '#819f7e');
+        ctx.lineWidth = !active && astral ? sw2 : 1;
+        ctx.stroke();
+        ctx.restore();
       }
-      ellipse(ctx, 0, -17, active ? 9 : 6, active ? 8 : 6, active ? '#fff7c8' : (astral ? '#4a4326' : '#ccd4aa'), active ? '#ffd878' : '#c3b778', 1);
+      ellipse(
+        ctx, 0, -17,
+        active ? 9 : 6,
+        active ? 8 : 6,
+        active ? '#fff7c8' : (astral ? null : '#ccd4aa'),
+        active ? '#ffd878' : (astral ? unlitBloomStroke : '#c3b778'),
+        !active && astral ? sw2 : 1
+      );
       if (active) {
         for (let i = 0; i < 4; i++) {
           const angle = i * TAU / 4 + (this.reducedMotion ? .5 : this.time * .3);
@@ -3805,18 +3925,21 @@ export class SceneRenderer {
 
   drawExitLampPips(mechTotal, litCount, y, allLit) {
     const ctx = this.ctx;
+    const sScale = Math.max(.25, this.scale || 1);
     const total = Math.max(1, mechTotal || 3);
-    const gap = 16;
+    const gap = Math.max(16, 12 / sScale);
+    const litR = 3.5 / sScale;   // 7×7px screen diameter
+    const unlitR = 3 / sScale;   // 6×6px screen diameter
     ctx.save();
     for (let i = 0; i < total; i++) {
       const px = (i - (total - 1) / 2) * gap;
       const lit = i < litCount;
       if (lit) {
-        ellipse(ctx, px, y, 7.2, 7.2, allLit ? '#45c4a038' : '#fbbf2438');
-        ellipse(ctx, px, y, 4.6, 4.6, allLit ? '#6ee7b7' : '#fde047', allLit ? '#10b981' : '#f59e0b', 1.5);
-        ellipse(ctx, px - 1.1, y - 1.1, 1.4, 1.4, '#ffffff');
+        ellipse(ctx, px, y, litR * 1.55, litR * 1.55, allLit ? '#45c4a038' : '#fbbf2438');
+        ellipse(ctx, px, y, litR, litR, this.astralMode ? '#fbbf24' : (allLit ? '#6ee7b7' : '#fbbf24'), this.astralMode ? null : (allLit ? '#10b981' : '#f59e0b'), 1.2 / sScale);
+        ellipse(ctx, px - litR * .26, y - litR * .26, litR * .28, litR * .28, '#fffbeb');
       } else {
-        ellipse(ctx, px, y, 4.5, 4.5, this.astralMode ? '#0f202dcc' : '#edf2e9cc', this.astralMode ? '#648ca3' : '#7b9486', 1.5);
+        ellipse(ctx, px, y, unlitR, unlitR, this.astralMode ? null : '#edf2e9cc', this.astralMode ? '#5ad4ea' : '#7b9486', 2 / sScale);
       }
     }
     ctx.restore();
@@ -3824,6 +3947,7 @@ export class SceneRenderer {
 
   drawExitSilhouette(node) {
     const ctx = this.ctx, s = this.state;
+    const sScale = Math.max(.25, this.scale || 1);
     const pal = this.palette(node.layer ?? s.layer);
     const color = this.astralMode ? (pal.astralColor || pal.color) : pal.color;
     const order = s.mechanismOrder || s.nodes.filter(item => item.kind === 'mechanism').map(item => item.id);
@@ -3831,27 +3955,30 @@ export class SceneRenderer {
     const litCount = s.activated.length;
     const allLit = litCount >= mechTotal;
     const isHovered = this.hover === node.id;
-    const gateColor = allLit ? '#45c4a0' : color;
+    const gateColor = allLit ? '#45c4a0' : (this.astralMode ? '#5ad4ea' : color);
     const layerRoman = ['Ⅰ', 'Ⅱ', 'Ⅲ'][node.layer] || 'Ⅰ';
+    const outlineW = this.astralMode ? 2.5 / sScale : (isHovered ? 2.2 : 1.7);
+    const outlineAlpha = this.astralMode ? (isHovered ? .94 : .85) : (isHovered ? .62 : .42);
 
     ctx.save();
     ctx.translate(node.x, node.y);
 
     // Dashed platform ellipse (rx: 72, ry: 36)
-    ctx.globalAlpha = isHovered ? 0.62 : 0.42;
-    ctx.setLineDash([6, 6]);
-    ellipse(ctx, 0, 2, 72, 36, `${gateColor}14`, gateColor, isHovered ? 2.2 : 1.7);
-    ctx.setLineDash([]);
+    ctx.globalAlpha = outlineAlpha;
+    ctx.setLineDash([6 / sScale, 5 / sScale]);
+    ellipse(ctx, 0, 2, 72, 36, `${gateColor}14`, gateColor, outlineW);
 
     // Translucent arched doorway frame (twin pillars + arch)
-    ctx.globalAlpha = isHovered ? 0.58 : 0.42;
+    const frameW = allLit ? 2.2 / sScale : 2 / sScale;
+    ctx.setLineDash([4 / sScale, 2.5 / sScale]);
+    ctx.globalAlpha = outlineAlpha;
     for (const side of [-1, 1]) {
       const px = side * 24;
       path(ctx, [[px - 6, 4], [px - 6, -48], [px + 6, -48], [px + 6, 4]]);
-      ctx.fillStyle = `${gateColor}28`;
+      ctx.fillStyle = `${gateColor}20`;
       ctx.fill();
       ctx.strokeStyle = gateColor;
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = frameW;
       ctx.stroke();
     }
     ctx.beginPath();
@@ -3860,24 +3987,26 @@ export class SceneRenderer {
     ctx.lineTo(22, -44);
     ctx.quadraticCurveTo(0, -58, -22, -44);
     ctx.closePath();
-    ctx.fillStyle = `${gateColor}30`;
+    ctx.fillStyle = `${gateColor}24`;
     ctx.fill();
     ctx.strokeStyle = gateColor;
-    ctx.lineWidth = 1.7;
+    ctx.lineWidth = frameW;
     ctx.stroke();
+    ctx.setLineDash([]);
 
     if (allLit) {
       diamond(ctx, 0, -24, 8, '#a7f3d0', '#45c4a0');
     } else {
-      ctx.setLineDash([3, 4]);
-      line(ctx, -16, -40, 16, -8, gateColor, 1.2);
-      line(ctx, 16, -40, -16, -8, gateColor, 1.2);
+      ctx.setLineDash([3 / sScale, 4 / sScale]);
+      line(ctx, -16, -40, 16, -8, gateColor, 1.5 / sScale);
+      line(ctx, 16, -40, -16, -8, gateColor, 1.5 / sScale);
       ctx.setLineDash([]);
     }
 
     // 3-lamp lock progress pips above the ghosted gate
-    ctx.globalAlpha = 0.92;
-    this.drawExitLampPips(mechTotal, litCount, -74, allLit);
+    ctx.globalAlpha = .96;
+    const lampY = -74 - Math.max(0, 4 / sScale - 4);
+    this.drawExitLampPips(mechTotal, litCount, lampY, allLit);
 
     // Compact micro-label below the ghosted gate
     const label = isHovered
@@ -3885,26 +4014,31 @@ export class SceneRenderer {
       : allLit
         ? `🚪 出口已开 · 去${layerRoman}层`
         : `🚪 出口 (${layerRoman}层 · ${litCount}/${mechTotal})`;
-    const labelSize = clamp(9.5 / this.scale, 8.5, 12.5);
-    const labelY = Math.min(48, WORLD_H - node.y - 16);
+    const labelSize = 12.5 / sScale;
+    const lh = labelSize + 8 / sScale;
+    const padX = 7 / sScale;
     ctx.font = `${isHovered || allLit ? 600 : 500} ${labelSize}px system-ui, -apple-system, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const tw = ctx.measureText(label).width;
-    const lh = labelSize + 6;
-    ctx.globalAlpha = 0.92;
+    const loX = tw / 2 + padX + 4 - node.x;
+    const hiX = WORLD_W - tw / 2 - padX - 4 - node.x;
+    const labelX = clamp(0, Math.min(loX, hiX), Math.max(loX, hiX));
+    const labelY = Math.min(36 + lh / 2, WORLD_H - node.y - lh / 2 - 4);
+    this.labelZones?.push({ left: node.x + labelX - tw / 2 - padX, right: node.x + labelX + tw / 2 + padX, top: node.y + labelY - lh / 2, bottom: node.y + labelY + lh / 2 });
+    ctx.globalAlpha = .94;
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-tw / 2 - 7, labelY - lh / 2, tw + 14, lh, 6);
-    else ctx.rect(-tw / 2 - 7, labelY - lh / 2, tw + 14, lh);
-    ctx.fillStyle = this.astralMode ? '#0c1925e6' : '#edf2e9e6';
+    if (ctx.roundRect) ctx.roundRect(labelX - tw / 2 - padX, labelY - lh / 2, tw + padX * 2, lh, 6 / sScale);
+    else ctx.rect(labelX - tw / 2 - padX, labelY - lh / 2, tw + padX * 2, lh);
+    ctx.fillStyle = this.astralMode ? '#0c1925eb' : '#edf2e9e6';
     ctx.fill();
-    ctx.strokeStyle = allLit ? '#45c4a0aa' : `${gateColor}88`;
-    ctx.lineWidth = 1.1;
+    ctx.strokeStyle = allLit ? '#45c4a0aa' : `${gateColor}99`;
+    ctx.lineWidth = 1.2 / sScale;
     ctx.stroke();
     ctx.fillStyle = allLit
       ? (this.astralMode ? '#a7f3d0' : '#166534')
       : (this.astralMode ? '#d8f3ee' : COLORS.ink);
-    ctx.fillText(label, 0, labelY);
+    ctx.fillText(label, labelX, labelY);
 
     ctx.restore();
   }
@@ -4035,6 +4169,16 @@ export class SceneRenderer {
 
   drawEffects(foreground) {
     const ctx = this.ctx, noteZones = [...(this.labelZones || [])];
+    const sScale = Math.max(.25, this.scale || 1);
+    if (foreground && this.width <= 480 && this.state?.nodes) {
+      for (const n of this.state.nodes) {
+        if (!n || (!n.anchor && (n.scale ?? 0) <= .08)) continue;
+        const rx = n.id === 'hub' ? 92 : n.anchor ? 74 : 78;
+        const top = n.y - (n.id === 'relay' ? 68 : 54);
+        const bottom = n.y + 42;
+        noteZones.push({ left: n.x - rx, right: n.x + rx, top, bottom });
+      }
+    }
     for (const effect of this.effects) {
       if (effect.age < (effect.delay || 0)) continue;
       const p = clamp((effect.age - (effect.delay || 0)) / effect.duration);
@@ -4042,14 +4186,15 @@ export class SceneRenderer {
       if (foreground !== ['note', 'pulse', 'power', 'section', 'crown', 'shield', 'bank', 'break', 'gather', 'value', 'collect', 'bridge_echo', 'growth_signal', 'root_growth', 'coil_arc', 'seal_turn', 'ascension_signal', 'astral_bridge'].includes(effect.kind)) continue;
       ctx.save(); ctx.globalAlpha = (1 - p) ** .7;
       if (effect.kind === 'note') {
+        const notePx = Math.max(16, 12.5 / sScale);
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.font = `600 ${clamp(12 / this.scale, 16, 30)}px system-ui, sans-serif`;
-        const half = ctx.measureText(effect.text).width / 2 + 8;
+        ctx.font = `600 ${notePx}px system-ui, -apple-system, sans-serif`;
+        const half = ctx.measureText(effect.text).width / 2 + 8 / sScale;
         const x = Math.max(half, Math.min(WORLD_W - half, effect.x));
-        let y = Math.max(28, effect.y - 105 - (this.width <= 480 && effect.supply ? 18 / this.scale : 0) - (this.reducedMotion || this.width <= 480 ? 0 : e * 12));
+        let y = Math.max(notePx / 2 + 8, effect.y - 105 - (this.width <= 480 && effect.supply ? 18 / sScale : 0) - (this.reducedMotion || this.width <= 480 ? 0 : e * 12));
         if (this.width <= 480) {
-          const height = clamp(12 / this.scale, 16, 30), gap = 6 / this.scale;
-          // Move only a colliding phone note, keeping the authored platform names.
+          const height = notePx, gap = 6 / sScale;
+          // Move only a colliding phone note, keeping the authored platform names and anchors clear.
           for (let i = 0; i <= noteZones.length; i++) {
             const hit = noteZones.find(z => x + half > z.left && x - half < z.right && y + height / 2 + gap > z.top && y - height / 2 - gap < z.bottom);
             if (!hit) break;
@@ -4057,7 +4202,12 @@ export class SceneRenderer {
           }
           noteZones.push({ left: x - half, right: x + half, top: y - height / 2, bottom: y + height / 2 });
         }
-        ctx.lineWidth = 5; ctx.strokeStyle = this.astralMode ? '#08131d' : '#f3f5ec'; ctx.fillStyle = this.astralMode && effect.color === COLORS.ink ? '#eaf6f3' : effect.color;
+        const noteFill = this.astralMode
+          ? (effect.color === COLORS.ink ? '#eaf6f3' : effect.color === COLORS.teal ? '#4dd2ac' : effect.color)
+          : effect.color;
+        ctx.lineWidth = Math.max(4, 3.2 / sScale);
+        ctx.strokeStyle = this.astralMode ? '#08131d' : '#f3f5ec';
+        ctx.fillStyle = noteFill;
         ctx.strokeText(effect.text, x, y); ctx.fillText(effect.text, x, y);
       } else if (effect.kind === 'seal_turn') {
         const radius = this.reducedMotion ? 42 : 24 + e * 55;
