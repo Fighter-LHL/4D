@@ -237,22 +237,30 @@ export async function readLayerInstruction(page, { allowDeduction = false } = {}
   const title = await page.locator('#vstep-shift-title').innerText();
   const sub = await page.locator('#vstep-shift-sub').innerText();
   assert.equal(await page.locator('#visual-stepper').isVisible(), true, 'the visual stepper is visible');
+  const expected = f.prompt.layer > f.state.layer ? 'up' : 'down';
   if (allowDeduction && /调谐/.test(title)) {
     assert.ok(f.stage >= 3, 'layer hints are only withheld after the shift has been learned');
     assert.ok(!LAYER_NAMES.some(name => title.includes(name) || sub.includes(name)), `deduction mode does not name the layer: ${title} / ${sub}`);
     assert.match(sub, /揭晓/, 'the stepper offers to reveal the layer');
-    const pill = f.pills.find(t => /虚线桥/.test(t));
+    const guidedPill = f.pills.find(t => /(上滚|下滚)/.test(t));
+    if (guidedPill) {
+      assert.ok(guidedPill.includes(expected === 'up' ? '上滚' : '下滚'), `tutorial canvas pill direction matches: ${guidedPill}`);
+      return { deduction: true, title, sub, pill: guidedPill, prompt: f.prompt, layer: f.state.layer, node: f.state.node };
+    }
+    const pill = f.pills.find(t => /虚线桥|换层寻桥/.test(t));
     assert.ok(pill, `the canvas points at the dashed bridge: ${JSON.stringify(f.pills)}`);
-    assert.ok(!LAYER_NAMES.some(name => pill.includes(name)) && !/上滚|下滚/.test(pill), `the canvas pill does not leak the answer: ${pill}`);
+    assert.ok(!LAYER_NAMES.some(name => pill.includes(name)) && !/上滚|下滚|▲|▼/.test(pill), `the canvas pill does not leak the answer: ${pill}`);
     return { deduction: true, title, sub, pill, prompt: f.prompt, layer: f.state.layer, node: f.state.node };
   }
   const direction = /上滚/.test(sub) ? 'up' : /下滚/.test(sub) ? 'down' : null;
-  const expected = f.prompt.layer > f.state.layer ? 'up' : 'down';
   assert.ok(title.includes(LAYER_NAMES[f.prompt.layer]), `stepper names the target layer: ${title}`);
   assert.equal(direction, expected, `stepper wheel direction matches the target layer: ${sub}`);
-  const pill = f.pills.find(t => /【(上滚|下滚)/.test(t));
+  const pill = f.pills.find(t => /(上滚|下滚)|🖱️\s*[▲▼]\s*→/.test(t));
   assert.ok(pill, `the canvas pill repeats the instruction where the player stands: ${JSON.stringify(f.pills)}`);
-  assert.ok(pill.includes(expected === 'up' ? '上滚' : '下滚'), `canvas pill direction matches: ${pill}`);
+  assert.ok(
+    pill.includes(expected === 'up' ? '上滚' : '下滚') || pill.includes(expected === 'up' ? '▲' : '▼'),
+    `canvas pill direction matches: ${pill}`
+  );
   return { title, sub, pill, direction, prompt: f.prompt, layer: f.state.layer, node: f.state.node };
 }
 
