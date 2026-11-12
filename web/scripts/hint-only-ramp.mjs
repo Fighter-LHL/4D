@@ -11,6 +11,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ONBOARDING_STAGES } from '../src/progressive-onboarding.js';
@@ -21,7 +22,7 @@ const { chromium } = process.env.PLAYWRIGHT_MODULE
   : await import('playwright').catch(() => require('playwright'));
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BASE = (process.env.BASE_URL || 'http://127.0.0.1:4198').replace(/\/$/, '');
+let BASE = process.env.BASE_URL ? process.env.BASE_URL.replace(/\/$/, '') : '';
 const OUT = path.resolve(process.env.OUT_DIR || 'hint-only-ramp-out');
 const MAC_CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const CHROME = process.env.PLAYWRIGHT_EXECUTABLE_PATH || (existsSync(MAC_CHROME) ? MAC_CHROME : undefined);
@@ -69,6 +70,10 @@ function parseTitle(title, g) {
     const m = t.match(/按\s*([ZXC])/i);
     return { type: 'recover', key: m ? m[1].toLowerCase() : (LAYER_KEYS[g.layer] || 'z') };
   }
+  const tapLayer = t.match(/点\s*([ⅠⅡⅢ])/);
+  if (tapLayer) {
+    return { type: 'shift', layer: ROMAN[tapLayer[1]] };
+  }
   if (/上滚|下滚/.test(t)) {
     let layer = null;
     for (const [sym, i] of Object.entries(ROMAN)) if (t.includes(sym)) layer = i;
@@ -89,7 +94,10 @@ function parseTitle(title, g) {
 }
 
 const isGeneric = title => !title || GENERIC.includes(title);
-const visibleTitle = page => page.evaluate(() => (document.getElementById('onboarding-title')?.textContent || '').trim());
+const visibleHint = page => page.evaluate(() => ({
+  title: (document.getElementById('onboarding-title')?.textContent || '').trim(),
+  desc: (document.getElementById('onboarding-desc')?.textContent || '').trim(),
+}));
 
 async function clickNode(page, id) {
   const g = await obs(page);
@@ -219,10 +227,16 @@ async function playSeed(browser, seed, vp) {
         continue;
       }
       if (g.phase !== 'playing') throw new Error(`unexpected phase ${g.phase}`);
-      const title = await visibleTitle(page);
+      const { title, desc } = await visibleHint(page);
       if (isGeneric(title)) throw new Error(`turn ${turn}: generic/empty hint "${title}"`);
+      if (vp.hasTouch && /上滚|下滚|滚轮/.test(`${title} ${desc}`)) {
+        throw new Error(`turn ${turn}: touch hint still mentions wheel ("${title}" / "${desc}")`);
+      }
       const action = parseTitle(title, g);
       if (action.type === 'unknown') throw new Error(`turn ${turn}: unparsed "${title}"`);
+      if (!vp.hasTouch && action.type === 'shift' && !/上滚|下滚/.test(title)) {
+        throw new Error(`turn ${turn}: desktop shift hint lost wheel wording ("${title}")`);
+      }
       route.trace.push(`r${g.room} ${g.node}@L${g.layer} w=${g.w.toFixed(3)} "${title}" -> ${action.type}${action.id ? ':' + action.id : ''}${Number.isInteger(action.layer) ? ':L' + action.layer : ''}`);
       const sig = `${g.room}|${g.node}|${g.layer}|${g.activated.join(',')}|${title}`;
       stuck = sig === lastSig ? stuck + 1 : 0;
@@ -256,10 +270,25 @@ async function playSeed(browser, seed, vp) {
   return route;
 }
 
+function findFreePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.unref();
+    srv.on('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const addr = srv.address();
+      const port = typeof addr === 'object' && addr ? addr.port : 0;
+      srv.close(err => (err ? reject(err) : resolve(port)));
+    });
+  });
+}
+
 async function ensureServer() {
-  if (process.env.BASE_URL || await fetch(`${BASE}/`).then(r => r.ok, () => false)) return () => {};
+  if (BASE) return () => {};
+  const port = await findFreePort();
+  BASE = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, [path.resolve(__dirname, '../serve.js')], {
-    env: { ...process.env, PORT: new URL(BASE).port || '80' }, stdio: 'ignore',
+    env: { ...process.env, PORT: String(port) }, stdio: 'ignore',
   });
   for (let i = 0; i < 100 && !await fetch(`${BASE}/`).then(r => r.ok, () => false); i++) {
     if (child.exitCode !== null) throw new Error(`serve.js exited with code ${child.exitCode}`);

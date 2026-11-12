@@ -202,6 +202,12 @@ async function clearByHints(page, vp, { shot = false, tap = false, expectedRoom 
       `${vpKey} room ${expectedRoom} turn ${turn}: wslice-first-run-done stays unset while playing`);
     assert.equal(hint.firstRunAttr, 'true',
       `${vpKey} room ${expectedRoom} turn ${turn}: data-first-run stays "true" while playing`);
+    if (vp.hasTouch) {
+      assert.doesNotMatch(hint.title, /上滚|下滚|滚轮/,
+        `${vpKey} room ${expectedRoom} turn ${turn}: touch banner must not say wheel ("${hint.title}")`);
+      assert.doesNotMatch(hint.desc, /上滚|下滚|滚轮/,
+        `${vpKey} room ${expectedRoom} turn ${turn}: touch detail must not say wheel ("${hint.desc}")`);
+    }
     if (hint.goal && hint.goal !== 'exit') {
       assert.ok(!g.state.activated.includes(hint.goal), `${vpKey} room ${expectedRoom} turn ${turn}: hint targets lit ${hint.goal}`);
       const badge = BADGES[g.state.mechanismOrder.indexOf(hint.goal)];
@@ -220,7 +226,11 @@ async function clearByHints(page, vp, { shot = false, tap = false, expectedRoom 
       assert.ok(hint.title.includes('③'), `${vpKey}: 2/3 hint must name ③ ("${hint.title}")`);
       assert.ok(!/点亮全部/.test(hint.title), `${vpKey}: 2/3 hint is still the generic stage line ("${hint.title}")`);
       if (hint.action === 'shift') {
-        assert.ok(/上滚|下滚/.test(hint.title), `${vpKey}: 2/3 shift hint names a direction ("${hint.title}")`);
+        if (vp.hasTouch) {
+          assert.ok(/点[ⅠⅡⅢ]/.test(hint.title), `${vpKey}: 2/3 touch shift hint names target layer bead ("${hint.title}")`);
+        } else {
+          assert.ok(/上滚|下滚/.test(hint.title), `${vpKey}: 2/3 shift hint names a direction ("${hint.title}")`);
+        }
         assert.equal(hint.desc.includes('同一位置'), true, `${vpKey}: 2/3 explanation says ③ shares a position`);
       }
       if (shot && g.state.node === 'hub' && hint.action === 'shift') {
@@ -416,7 +426,13 @@ try {
       await page.waitForFunction(() => window.__g().state.node === 'relay' && !window.__g().state.travel && !window.__g().autoPilot, null, { timeout: 15000 });
       const onRelayShift = await hintOf(page);
       assert.equal(onRelayShift.action, 'shift', `${vpKey}: on 维度锚台 for ③ the hint switches layers (${onRelayShift.title})`);
-      assert.match(onRelayShift.title, /上滚|下滚/);
+      if (vp.hasTouch) {
+        assert.match(onRelayShift.title, /点[ⅠⅡⅢ]/);
+        assert.doesNotMatch(onRelayShift.title, /上滚|下滚|滚轮/);
+        assert.doesNotMatch(onRelayShift.desc, /上滚|下滚|滚轮/);
+      } else {
+        assert.match(onRelayShift.title, /上滚|下滚/);
+      }
       assert.ok(onRelayShift.title.includes('③'), onRelayShift.title);
       assert.match(onRelayShift.desc, /就在维度锚台/);
       receipt.checks.push({ viewport: vpKey, check: 'named-anchor-hint', onRelay: onRelay.title, onHub: onHub.title, onRelayShift: onRelayShift.title, passed: true });
