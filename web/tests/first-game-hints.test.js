@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   ONBOARDING_STAGES,
   ProgressiveOnboarding,
+  computeRelicHudStatus,
   describeNextStep,
+  isCoarsePointer,
   planLayerRoute,
   clampIntroductoryW,
 } from '../src/progressive-onboarding.js';
@@ -638,4 +641,212 @@ test('following describeNextStep clears all 3 courtyards (rooms 0, 1, 2) to won 
     assert.equal(sawStage4HintInRoom1, true, `seed ${seed}: room 1 late steps reach stage 4 while keeping concrete hints`);
     assert.equal(sawStage4HintInRoom2, true, `seed ${seed}: room 2 stays on concrete hints at stage 4`);
   }
+});
+
+test('touch / coarsePointer hints replace wheel copy across shift, same_xyz, and recover while desktop defaults stay unchanged', () => {
+  const WHEEL_RE = /上滚|下滚|滚轮/;
+
+  // 1. Anchor shift to mechanism: 下滚到Ⅰ点亮③ -> 点Ⅰ点亮③
+  const mShift = start('shell', 2);
+  light(mShift, 'dew');
+  light(mShift, 'bloom');
+  reach(mShift, 'hub');
+  const shiftState = mShift.snapshot();
+  const desktopShift = describeNextStep(shiftState);
+  const touchShift = describeNextStep(shiftState, { coarsePointer: true });
+  assert.equal(desktopShift.action, 'shift');
+  assert.equal(desktopShift.banner, '下滚到Ⅰ点亮③');
+  assert.match(desktopShift.detail, /或下滚/);
+  assert.equal(touchShift.action, 'shift');
+  assert.equal(touchShift.layer, desktopShift.layer);
+  assert.equal(touchShift.banner, '点Ⅰ点亮③');
+  assert.doesNotMatch(touchShift.banner, WHEEL_RE);
+  assert.doesNotMatch(touchShift.detail, WHEEL_RE);
+  assert.match(touchShift.detail, /右侧 W 尺Ⅰ珠/);
+
+  // Walk-to-anchor-before-shift detail also drops "（或滚轮）" on coarse pointers
+  mShift.setW(shiftState.layers[shiftState.nodes.find(n => n.id === 'dew').layer].center);
+  reach(mShift, 'dew');
+  const walkBeforeShiftDesktop = describeNextStep(mShift.snapshot());
+  const walkBeforeShiftTouch = describeNextStep(mShift.snapshot(), { coarsePointer: true });
+  assert.equal(walkBeforeShiftDesktop.banner, '去归响换层点③');
+  assert.match(walkBeforeShiftDesktop.detail, /滚轮/);
+  assert.equal(walkBeforeShiftTouch.banner, '去归响换层点③');
+  assert.doesNotMatch(walkBeforeShiftTouch.banner, WHEEL_RE);
+  assert.doesNotMatch(walkBeforeShiftTouch.detail, WHEEL_RE);
+  assert.match(walkBeforeShiftTouch.detail, /右侧 W 尺Ⅰ珠/);
+
+  // 2. Anchor shift to exit: 下滚到Ⅱ去🚪 -> 点Ⅱ去🚪
+  const mExit = start('shell', 31337);
+  for (const id of mExit.snapshot().mechanismOrder) light(mExit, id);
+  reach(mExit, 'hub');
+  mExit.setW(mExit.snapshot().layers[2].center);
+  const exitShiftState = mExit.snapshot();
+  const desktopExitShift = describeNextStep(exitShiftState);
+  const touchExitShift = describeNextStep(exitShiftState, { coarsePointer: true });
+  assert.equal(desktopExitShift.action, 'shift');
+  assert.equal(desktopExitShift.banner, '下滚到Ⅱ去🚪');
+  assert.equal(touchExitShift.action, 'shift');
+  assert.equal(touchExitShift.layer, 1);
+  assert.equal(touchExitShift.banner, '点Ⅱ去🚪');
+  assert.doesNotMatch(touchExitShift.banner, WHEEL_RE);
+  assert.doesNotMatch(touchExitShift.detail, WHEEL_RE);
+  assert.match(touchExitShift.detail, /右侧 W 尺Ⅱ珠/);
+
+  // 3. same_xyz shift (must include target layer Roman numeral): 站①下滚显现② -> 站①点Ⅱ显现②
+  const mSame = start('shell', 42);
+  for (const id of mSame.snapshot().mechanismOrder) light(mSame, id);
+  reach(mSame, 'exit');
+  assert.equal(mSame.chooseRelic(mSame.snapshot().choices[0].id), true);
+  light(mSame, mSame.snapshot().mechanismOrder[0]);
+  const sameState = mSame.snapshot();
+  const desktopSame = describeNextStep(sameState);
+  const touchSame = describeNextStep(sameState, { coarsePointer: true });
+  assert.equal(desktopSame.action, 'shift');
+  assert.equal(desktopSame.banner, '站①下滚显现②');
+  assert.equal(touchSame.action, 'shift');
+  assert.equal(touchSame.layer, 1);
+  assert.equal(touchSame.banner, '站①点Ⅱ显现②');
+  assert.doesNotMatch(touchSame.banner, WHEEL_RE);
+  assert.doesNotMatch(touchSame.detail, WHEEL_RE);
+  assert.match(touchSame.detail, /同一位置/);
+  assert.match(touchSame.detail, /右侧 W 尺Ⅱ珠/);
+
+  // 4. recover shift (both downward to Ⅰ and upward to Ⅲ): 下滚回Ⅰ站稳点③ -> 点Ⅰ站稳点③
+  const mRecoverDown = start('shell', 5);
+  light(mRecoverDown, 'dew');
+  light(mRecoverDown, 'bloom');
+  reach(mRecoverDown, 'dew');
+  mRecoverDown.setW(mRecoverDown.snapshot().layers[1].center);
+  const recoverDownState = mRecoverDown.snapshot();
+  const desktopRecoverDown = describeNextStep(recoverDownState);
+  const touchRecoverDown = describeNextStep(recoverDownState, { coarsePointer: true });
+  assert.equal(desktopRecoverDown.action, 'shift');
+  assert.equal(desktopRecoverDown.banner, '下滚回Ⅰ站稳点③');
+  assert.equal(touchRecoverDown.action, 'shift');
+  assert.equal(touchRecoverDown.layer, 0);
+  assert.equal(touchRecoverDown.banner, '点Ⅰ站稳点③');
+  assert.doesNotMatch(touchRecoverDown.banner, WHEEL_RE);
+  assert.doesNotMatch(touchRecoverDown.detail, WHEEL_RE);
+  assert.match(touchRecoverDown.detail, /右侧 W 尺Ⅰ珠/);
+
+  const mRecoverUp = start('shell', 42);
+  light(mRecoverUp, 'dew');
+  mRecoverUp.setW(mRecoverUp.snapshot().layers[1].center);
+  const recoverUpState = mRecoverUp.snapshot();
+  assert.equal(describeNextStep(recoverUpState).banner, '上滚回Ⅲ站稳点②');
+  const touchRecoverUp = describeNextStep(recoverUpState, { coarsePointer: true });
+  assert.equal(touchRecoverUp.banner, '点Ⅲ站稳点②');
+  assert.doesNotMatch(touchRecoverUp.banner, WHEEL_RE);
+  assert.doesNotMatch(touchRecoverUp.detail, WHEEL_RE);
+
+  // 5. Charged prism positioningHint on an anchor avoids wheel copy when coarsePointer is true
+  const prismAnchorState = {
+    ...shiftState,
+    relics: { ...shiftState.relics, prism: 1 },
+    charge: 1,
+    abilities: [{ id: 'prism', available: false }],
+  };
+  const desktopPrismHud = computeRelicHudStatus(prismAnchorState);
+  const touchPrismHud = computeRelicHudStatus(prismAnchorState, { coarsePointer: true });
+  assert.match(desktopPrismHud.positioningHint, /下滚/);
+  assert.doesNotMatch(touchPrismHud.positioningHint, WHEEL_RE);
+  assert.match(touchPrismHud.positioningHint, /右侧 W 尺 Ⅰ 珠/);
+});
+
+test('isCoarsePointer defaults to desktop without window and detects pointer:coarse / touch', () => {
+  assert.equal(isCoarsePointer(undefined, undefined), false);
+  assert.equal(
+    isCoarsePointer({ matchMedia: q => ({ matches: q === '(pointer: fine)' }) }, { maxTouchPoints: 0 }),
+    false,
+  );
+  assert.equal(
+    isCoarsePointer({ matchMedia: q => ({ matches: q === '(pointer: coarse)' }) }, { maxTouchPoints: 5 }),
+    true,
+  );
+  assert.equal(
+    isCoarsePointer({ ontouchstart: null }, { maxTouchPoints: 1 }),
+    true,
+  );
+  // Touchscreen laptop with fine primary pointer keeps desktop wheel copy
+  assert.equal(
+    isCoarsePointer({ matchMedia: q => ({ matches: q === '(pointer: fine)' }), ontouchstart: null }, { maxTouchPoints: 10 }),
+    false,
+  );
+
+  const m = start('shell', 2);
+  light(m, 'dew');
+  light(m, 'bloom');
+  reach(m, 'hub');
+  const snap = m.snapshot();
+  const prevWin = globalThis.window;
+  try {
+    delete globalThis.window;
+    assert.equal(describeNextStep(snap).banner, '下滚到Ⅰ点亮③');
+    globalThis.window = { matchMedia: q => ({ matches: q === '(pointer: coarse)' }), navigator: { maxTouchPoints: 5 } };
+    assert.equal(describeNextStep(snap).banner, '点Ⅰ点亮③');
+    assert.equal(describeNextStep(snap, { coarsePointer: false }).banner, '下滚到Ⅰ点亮③');
+  } finally {
+    globalThis.window = prevWin;
+  }
+});
+
+test('coarsePointer hints clear all 3 courtyards across standard seeds without any wheel words', () => {
+  const WHEEL_RE = /上滚|下滚|滚轮/;
+  const ROMAN_BY_LAYER = ['Ⅰ', 'Ⅱ', 'Ⅲ'];
+  for (const seed of [2, 42, 401491695, 4097396765, 5, 777, 31337, 123456789]) {
+    const model = start('shell', seed);
+    for (const expectedRoom of [0, 1, 2]) {
+      assert.equal(model.snapshot().room, expectedRoom);
+      for (let stepIdx = 1; stepIdx <= 45; stepIdx++) {
+        const state = model.snapshot();
+        if (state.phase !== 'playing') break;
+        const hint = describeNextStep(state, { coarsePointer: true });
+        assert.ok(hint.banner && hint.banner.length <= 20, `seed ${seed} r${expectedRoom}: "${hint.banner}"`);
+        assert.doesNotMatch(hint.banner, WHEEL_RE, `seed ${seed} r${expectedRoom} banner has wheel word: "${hint.banner}"`);
+        assert.doesNotMatch(hint.detail, WHEEL_RE, `seed ${seed} r${expectedRoom} detail has wheel word: "${hint.detail}"`);
+        if (hint.action === 'shift') {
+          assert.ok(
+            hint.banner.includes(`点${ROMAN_BY_LAYER[hint.layer]}`),
+            `seed ${seed} r${expectedRoom} shift banner must name 点${ROMAN_BY_LAYER[hint.layer]}: "${hint.banner}"`,
+          );
+        }
+        if (hint.action === 'move' || hint.action === 'done') {
+          reach(model, hint.targetId || hint.goalId);
+        } else if (hint.action === 'shift' || hint.action === 'recover') {
+          model.setW(state.layers[hint.layer].center);
+          advance(model, 0.05);
+        } else if (hint.action === 'activate') {
+          light(model, hint.goalId);
+        } else {
+          advance(model, 0.35);
+        }
+      }
+      if (expectedRoom < 2) {
+        assert.equal(model.snapshot().phase, 'interlude');
+        assert.equal(model.chooseRelic(model.snapshot().choices[0].id), true);
+      } else {
+        assert.equal(model.snapshot().phase, 'won');
+      }
+    }
+  }
+});
+
+test('target W-ruler bead CSS defines visible #ff7b5a pulse, solid target ring, 44px hit box, and reduced-motion override', () => {
+  const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(css, /@keyframes ruler-target-pulse\{0%,100%\{[^}]+\}50%\{[^}]*scale\(1\.12\)[^}]*rgba\(255,123,90,\.85\)\}\}/);
+  assert.match(css, /@keyframes ruler-target-ring\{0%,100%\{[^}]+\}50%\{[^}]*scale\(1\.22\)[^}]*opacity:1\}\}/);
+  assert.match(css, /html\.theater #layer-controls button\{[^}]*width:44px;height:44px;min-width:44px;min-height:44px/);
+  assert.match(
+    css,
+    /html\.theater #layer-controls button\.attention-action:not\(\[aria-pressed="true"\]\)::before\{[^}]*border:2\.5px solid #ff7b5a[^}]*animation:ruler-target-pulse/,
+  );
+  assert.match(
+    css,
+    /html\.theater #layer-controls button\.attention-action:not\(\[aria-pressed="true"\]\) \.target-ring-svg\{display:block;animation:ruler-target-ring/,
+  );
+  assert.match(
+    css,
+    /@media\(prefers-reduced-motion:reduce\)\{[\s\S]*?button\.attention-action:not\(\[aria-pressed="true"\]\)::before,html\.theater #layer-controls button\.attention-action:not\(\[aria-pressed="true"\]\) \.target-ring-svg\{animation:none\}/,
+  );
 });

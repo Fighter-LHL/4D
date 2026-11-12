@@ -283,13 +283,31 @@ function sharesSpot(a, b) {
 }
 
 /**
+ * Detects touch / coarse-pointer environments where mouse-wheel scrolling does not exist
+ * and layer changes are performed by tapping the right-side W-ruler beads.
+ * Defaults to false (desktop wheel copy) when `window` is absent (e.g. Node unit tests).
+ */
+export function isCoarsePointer(win = globalThis.window, nav = win?.navigator ?? globalThis.navigator) {
+  if (!win) return false;
+  if (typeof win.matchMedia === 'function') {
+    const coarse = Boolean(win.matchMedia('(pointer: coarse)')?.matches);
+    const fine = Boolean(win.matchMedia('(pointer: fine)')?.matches);
+    if (coarse && !fine) return true;
+    if (fine && !coarse) return false;
+  }
+  const touchPoints = Number(nav?.maxTouchPoints ?? win.navigator?.maxTouchPoints ?? 0);
+  return ('ontouchstart' in win) || touchPoints > 0;
+}
+
+/**
  * The single next action a newcomer can follow. The goal is always an unlit
  * mechanism (or the exit once they are all lit) — never an already-lit island.
  * Banners stay within 20 characters so the theater onboarding line can show them.
  */
-export function describeNextStep(state) {
+export function describeNextStep(state, options = {}) {
   const blank = { goalId: null, action: 'wait', banner: '', detail: '', targetId: null, layer: null };
   if (!state || state.phase !== 'playing' || state.travel || state.wave) return blank;
+  const coarsePointer = typeof options?.coarsePointer === 'boolean' ? options.coarsePointer : isCoarsePointer();
   const nodes = state.nodes || [];
   const byId = id => nodes.find(node => node.id === id);
   const order = state.mechanismOrder || nodes.filter(node => node.kind === 'mechanism').map(node => node.id);
@@ -372,9 +390,12 @@ export function describeNextStep(state) {
         };
       }
       if (plan.shift) {
+        const shiftMark = roman(plan.shift.layer);
         return {
           goalId, action: 'move', banner: `去${anchorShort}换层${goalVerb}`,
-          detail: `${which}到了${place}再用右侧 W 尺（或滚轮）换层，通往${sym}的桥才会出现。${stackNote}`,
+          detail: coarsePointer
+            ? `${which}到了${place}再点右侧 W 尺${shiftMark}珠换层，通往${sym}的桥才会出现。${stackNote}`
+            : `${which}到了${place}再用右侧 W 尺（或滚轮）换层，通往${sym}的桥才会出现。${stackNote}`,
           targetId: step.to, layer: plan.shift.layer, ...rampMeta,
         };
       }
@@ -415,8 +436,10 @@ export function describeNextStep(state) {
       const goalVerb = sym === '🚪' ? '去🚪' : `点${sym}`;
       return {
         goalId, action: 'shift',
-        banner: `${arrow}回${mark}站稳${goalVerb}`,
-        detail: `脚下平台只在${mark}层存在。先${arrow}回${mark}层站稳，再继续换层前往${sym}。${stackNote}`,
+        banner: coarsePointer ? `点${mark}站稳${goalVerb}` : `${arrow}回${mark}站稳${goalVerb}`,
+        detail: coarsePointer
+          ? `脚下平台只在${mark}层存在。先点右侧 W 尺${mark}珠回${mark}层站稳，再继续换层前往${sym}。${stackNote}`
+          : `脚下平台只在${mark}层存在。先${arrow}回${mark}层站稳，再继续换层前往${sym}。${stackNote}`,
         targetId: state.node, layer,
       };
     }
@@ -424,18 +447,26 @@ export function describeNextStep(state) {
       const fromSym = stepBadge(state, plan.shift.at) || twinSym || '①';
       return {
         goalId, action: 'shift',
-        banner: `站${fromSym}${arrow}显现${sym}`,
-        detail: `${sym}和${fromSym}叠在同一位置。站在${fromSym}，${arrow}到${mark}层，${sym}才会出现。`,
+        banner: coarsePointer ? `站${fromSym}点${mark}显现${sym}` : `站${fromSym}${arrow}显现${sym}`,
+        detail: coarsePointer
+          ? `${sym}和${fromSym}叠在同一位置。站在${fromSym}，点右侧 W 尺${mark}珠切到${mark}层，${sym}才会出现。`
+          : `${sym}和${fromSym}叠在同一位置。站在${fromSym}，${arrow}到${mark}层，${sym}才会出现。`,
         targetId: plan.shift.at, layer,
       };
     }
-    const shiftBanner = sym === '🚪' ? `${arrow}到${mark}去🚪` : `${arrow}到${mark}点亮${sym}`;
+    const shiftBanner = coarsePointer
+      ? (sym === '🚪' ? `点${mark}去🚪` : `点${mark}点亮${sym}`)
+      : (sym === '🚪' ? `${arrow}到${mark}去🚪` : `${arrow}到${mark}点亮${sym}`);
     return {
       goalId, action: 'shift',
       banner: shiftBanner,
-      detail: here?.anchor
-        ? `就在${anchorHintName(here)}，用右侧 W 尺点${mark}（或${arrow}），通往${sym}的桥会显形。${stackNote}`
-        : `在⚓台用右侧 W 尺点${mark}（或${arrow}），通往${sym}的桥会显形。${stackNote}`,
+      detail: coarsePointer
+        ? (here?.anchor
+          ? `就在${anchorHintName(here)}，点右侧 W 尺${mark}珠，通往${sym}的桥会显形。${stackNote}`
+          : `在⚓台点右侧 W 尺${mark}珠，通往${sym}的桥会显形。${stackNote}`)
+        : (here?.anchor
+          ? `就在${anchorHintName(here)}，用右侧 W 尺点${mark}（或${arrow}），通往${sym}的桥会显形。${stackNote}`
+          : `在⚓台用右侧 W 尺点${mark}（或${arrow}），通往${sym}的桥会显形。${stackNote}`),
       targetId: state.node, layer,
     };
   }
@@ -765,8 +796,9 @@ export function computeRiskDecisionPreview(state, targetId = null) {
  * Summarizes equipped relics, how they charge, whether an active relic ability is ready to fire right now,
  * or what positioning step is needed to release an already-charged relic.
  */
-export function computeRelicHudStatus(state) {
+export function computeRelicHudStatus(state, options = {}) {
   if (!state || !state.relics) return { items: [], readyAbility: null, positioningHint: null };
+  const coarsePointer = typeof options?.coarsePointer === 'boolean' ? options.coarsePointer : isCoarsePointer();
   const nodes = state.nodes || [];
   const items = [];
   for (const id of ['prism', 'weave', 'shadow', 'coil', 'shell']) {
@@ -866,7 +898,9 @@ export function computeRelicHudStatus(state) {
       if (targetMech) {
         const lSym = ['Ⅰ', 'Ⅱ', 'Ⅲ'][targetMech.layer] || '';
         positioningHint = curNode?.anchor
-          ? `◇ 棱镜已蓄满！${targetMech.layer > state.layer ? '上滚' : '下滚'}切至 ${lSym} 层即可远程点亮「${targetMech.name}」（免过桥）`
+          ? (coarsePointer
+            ? `◇ 棱镜已蓄满！点右侧 W 尺 ${lSym} 珠切至 ${lSym} 层即可远程点亮「${targetMech.name}」（免过桥）`
+            : `◇ 棱镜已蓄满！${targetMech.layer > state.layer ? '上滚' : '下滚'}切至 ${lSym} 层即可远程点亮「${targetMech.name}」（免过桥）`)
           : `◇ 棱镜已蓄满！走回 ⚓ 安全台切至 ${lSym} 层即可远程点亮「${targetMech.name}」`;
       }
     } else if ((state.relics.weave || 0) > 0 && (state.weaveCharge || 0) > 0) {

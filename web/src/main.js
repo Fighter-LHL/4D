@@ -7,7 +7,7 @@ import { FriendGuide } from './friend-guide.js';
 import { CourtyardMomentum } from './courtyard-momentum.js';
 import { STARTER_RELICS, mechanismFeedback, contextualHelp, courtyardActions } from './play-feedback.js';
 import { initThemeToggle, initHyperLab } from './hyper-lab-ui.js';
-import { ProgressiveOnboarding, planLayerRoute, findCurrentLayerRoute, computeRiskDecisionPreview, computeRelicHudStatus, resolveScrubReleaseTarget, describeNextStep, clampIntroductoryW } from './progressive-onboarding.js';
+import { ProgressiveOnboarding, planLayerRoute, findCurrentLayerRoute, computeRiskDecisionPreview, computeRelicHudStatus, resolveScrubReleaseTarget, describeNextStep, clampIntroductoryW, isCoarsePointer } from './progressive-onboarding.js';
 import { CodexStore } from './codex.js';
 import { GameFeel } from './game-feel.js';
 import { ALL_ROOM_TEMPLATES, HIDDEN_ROUTE_RECIPES } from './rooms.js';
@@ -26,8 +26,10 @@ function closeAdvancedDrawers() {
 const onboarding = new ProgressiveOnboarding({ skillGated: true });
 const compactProgress = matchMedia('(max-height: 500px) and (max-width: 1000px)');
 const mobileLayout = matchMedia('(max-height: 500px) and (max-width: 1000px), (max-width: 780px)');
+const coarsePointerMedia = matchMedia('(pointer: coarse)');
 const syncProgressDetails = () => { if ($('run-details')) $('run-details').open = false; };
 compactProgress.addEventListener('change', syncProgressDetails);
+coarsePointerMedia.addEventListener('change', () => { if (typeof updateUI === 'function') updateUI(); });
 syncProgressDetails();
 const hasSupplySlots = id => [...$('mechanisms').children].some(row =>
   row.dataset.mechanism === id && row.querySelector('[data-source]') && row.getClientRects().length > 0);
@@ -207,18 +209,32 @@ function showTransient(message, seconds = 3.2, type = 'hint') {
 
 function buildLayerShiftPromptMessage(s, { targetId, targetLayer, atNode, toNode, kind, anomalyName }, revealExplicit) {
   if (isTheater()) {
+    const sym = layerSymbols[targetLayer];
+    if (isCoarsePointer()) {
+      if (kind === 'recover') return `⚠️ 脚下悬空！点右侧${sym}回层`;
+      if (kind === 'anomaly') {
+        return revealExplicit ? `✦ 在 ⚓ 台点${sym}寻宝` : '✦ 在 ⚓ 台点右侧 W 尺收录奇物';
+      }
+      if (kind === 'same_xyz') {
+        return revealExplicit ? `🌀 原地点${sym}切层` : '🌀 在此点右侧 W 尺原地切岛';
+      }
+      if (atNode === targetId) {
+        return revealExplicit ? `🌀 在此点${sym}开启` : '🌀 在此点右侧 W 尺切到对应层开启';
+      }
+      return revealExplicit ? `🌀 站在 ⚓ 台点${sym}显桥` : '🌀 站在 ⚓ 台点右侧 W 尺让虚线桥显形';
+    }
     const wheelDir = targetLayer > s.layer ? '上滚' : '下滚';
-    if (kind === 'recover') return `⚠️ 脚下悬空！滚轮切回 ${layerSymbols[targetLayer]} 层`;
+    if (kind === 'recover') return `⚠️ 脚下悬空！滚轮切回 ${sym} 层`;
     if (kind === 'anomaly') {
-      return revealExplicit ? `✦ 在 ⚓ 台${wheelDir}切到 ${layerSymbols[targetLayer]} 层寻宝` : '✦ 在 ⚓ 台滚轮切层收录奇物';
+      return revealExplicit ? `✦ 在 ⚓ 台${wheelDir}切到 ${sym} 层寻宝` : '✦ 在 ⚓ 台滚轮切层收录奇物';
     }
     if (kind === 'same_xyz') {
-      return revealExplicit ? `🌀 原地${wheelDir}切到 ${layerSymbols[targetLayer]} 层` : '🌀 在此滚轮换层，原地切岛';
+      return revealExplicit ? `🌀 原地${wheelDir}切到 ${sym} 层` : '🌀 在此滚轮换层，原地切岛';
     }
     if (atNode === targetId) {
-      return revealExplicit ? `🌀 在此${wheelDir}切到 ${layerSymbols[targetLayer]} 层开启` : '🌀 在此滚轮切到对应层开启';
+      return revealExplicit ? `🌀 在此${wheelDir}切到 ${sym} 层开启` : '🌀 在此滚轮切到对应层开启';
     }
-    return revealExplicit ? `🌀 站在 ⚓ 台${wheelDir}切到 ${layerSymbols[targetLayer]} 层显桥` : '🌀 站在 ⚓ 台滚轮换层，让虚线桥显形';
+    return revealExplicit ? `🌀 站在 ⚓ 台${wheelDir}切到 ${sym} 层显桥` : '🌀 站在 ⚓ 台滚轮换层，让虚线桥显形';
   }
   const layerLabel = `${layerSymbols[targetLayer]} ${s.layers[targetLayer]?.name || '目标层'}`;
   const atName = s.nodes.find(n => n.id === atNode)?.name || '安全台';
@@ -270,7 +286,7 @@ function promptLayerShift(s, targetId, shift, finalLayer = null) {
     kind: shift.kind,
     finalLayer,
   };
-  const step = describeNextStep(s);
+  const step = describeNextStep(s, { coarsePointer: isCoarsePointer() });
   const tutorialCopy = isFirstRunGuide(s) && step.banner && step.goalId === targetId;
   const promptMsg = tutorialCopy ? `🌀 ${step.banner}` : buildLayerShiftPromptMessage(s, promptInfo, revealExplicit);
   scene.pendingLayerPrompt = { ...promptInfo, message: promptMsg };
@@ -627,7 +643,7 @@ function handleCanvasSelect(id) {
   if (plan.shift) {
     const atNode = s.nodes.find(n => n.id === plan.shift.at);
     const atName = plan.shift.at === 'relay' ? '维度锚台' : plan.shift.at === 'hub' ? '归响台' : (atNode?.name || '归响台');
-    showTransient(isTheater() ? `⚓ 先去${atName}，再滚轮换层` : `⚓「${targetNode?.name || '目标'}」的桥不在这一层：先带你走到「${atName}」，到了请亲手滚轮换层`, isTheater() ? 1.5 : 3.4);
+    showTransient(isTheater() ? (isCoarsePointer() ? `⚓ 先去${atName}，再点 W 尺换层` : `⚓ 先去${atName}，再滚轮换层`) : `⚓「${targetNode?.name || '目标'}」的桥不在这一层：先带你走到「${atName}」，到了请亲手滚轮换层`, isTheater() ? 1.5 : 3.4);
   }
   stepAutoPilot();
 }
@@ -1254,7 +1270,8 @@ function updateUI() {
   const currentNode = state.nodes.find(n=>n.id===state.node);
   const anomProg = scene.explorationRadar.roomProgress(state);
   const stageInfo = onboarding.computeStage(state, anomProg.totalCollected);
-  const roomStep = describeNextStep(state);
+  const coarsePointer = isCoarsePointer();
+  const roomStep = describeNextStep(state, { coarsePointer });
   const tutorialHint = isFirstRunGuide(state);
   if (tutorialHint && roomStep.banner) scene.tutorialHint = { ...roomStep, tutorial: true };
   else if (!tutorialHint || state.phase !== 'playing') scene.tutorialHint = null;
@@ -1580,7 +1597,7 @@ function updateUI() {
   }
   const activeGoalId = activePrompt?.targetId || (state.activated.length >= mechTotal ? 'exit' : primaryMechId);
   const riskPreview = computeRiskDecisionPreview(state, activeGoalId);
-  const relicHud = computeRelicHudStatus(state);
+  const relicHud = computeRelicHudStatus(state, { coarsePointer });
   scene.relicHud = relicHud;
   scene.riskPreview = riskPreview;
   const hasNonStarterRelic = relicHud.items.some(item => item.id !== 'shell');
@@ -1970,7 +1987,7 @@ $('safe-go-btn')?.addEventListener('click', () => {
 $('quick-ability-btn')?.addEventListener('click', () => {
   if (!canAct()) return;
   const s = model.snapshot();
-  const hud = computeRelicHudStatus(s);
+  const hud = computeRelicHudStatus(s, { coarsePointer: isCoarsePointer() });
   const abilityId = hud.readyAbility?.id;
   if (!abilityId) return;
   autoPilot = null;
