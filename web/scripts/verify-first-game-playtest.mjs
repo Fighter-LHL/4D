@@ -406,11 +406,19 @@ try {
       await clickNode(page, 'hub');
       await page.waitForFunction(() => window.__g().state.node === 'hub' && !window.__g().state.travel && !window.__g().autoPilot, null, { timeout: 15000 });
       const onHub = await hintOf(page);
-      assert.equal(onHub.action, 'shift', `${vpKey}: on 归响台 the hint switches layers (${onHub.title})`);
-      assert.match(onHub.title, /上滚|下滚/);
-      assert.ok(onHub.title.includes('②'), onHub.title);
-      assert.match(onHub.desc, /就在归响台/);
-      receipt.checks.push({ viewport: vpKey, check: 'named-anchor-hint', onRelay: onRelay.title, onHub: onHub.title, passed: true });
+      assert.equal(onHub.action, 'move', `${vpKey}: on 归响台 the hint boards the W-ramp (${onHub.title})`);
+      assert.equal(onHub.target, 'bell');
+      assert.equal(onHub.title, '走上斜桥，点亮②');
+      await clickNode(page, 'bell');
+      await page.waitForFunction(() => window.__g().state.activated.includes('bell') && !window.__g().state.travel && !window.__g().autoPilot, null, { timeout: 15000 });
+      await clickNode(page, 'relay');
+      await page.waitForFunction(() => window.__g().state.node === 'relay' && !window.__g().state.travel && !window.__g().autoPilot, null, { timeout: 15000 });
+      const onRelayShift = await hintOf(page);
+      assert.equal(onRelayShift.action, 'shift', `${vpKey}: on 维度锚台 for ③ the hint switches layers (${onRelayShift.title})`);
+      assert.match(onRelayShift.title, /上滚|下滚/);
+      assert.ok(onRelayShift.title.includes('③'), onRelayShift.title);
+      assert.match(onRelayShift.desc, /就在维度锚台/);
+      receipt.checks.push({ viewport: vpKey, check: 'named-anchor-hint', onRelay: onRelay.title, onHub: onHub.title, onRelayShift: onRelayShift.title, passed: true });
       await context.close();
     }
 

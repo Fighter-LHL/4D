@@ -79,6 +79,7 @@ export class GameModel {
     this.anchorW = this.w;
     this.riskMode = false;
     this.travel = null;
+    this.wRamp = null;
     this.carried = 0;
     this.combo = 0;
     this.charge = 0;
@@ -160,6 +161,11 @@ export class GameModel {
   }
 
   setW(value) {
+    if (this.travel?.ramp && !this.travel.risky) return false;
+    return this._applyW(value);
+  }
+
+  _applyW(value) {
     if (this.phase !== 'playing' || typeof value !== 'number' || !Number.isFinite(value)) return false;
     const fromLayer = nearestLayer(this.w);
     const previousActualLayer = this.lastActualLayer;
@@ -187,6 +193,7 @@ export class GameModel {
   // in danger, but capped to the safe band everywhere support is conditional.
   scrubW(value) {
     if (this.phase !== 'playing') return false;
+    if (this.travel?.ramp && !this.travel.risky) return this.w;
     let clamped = value;
     if (this.wave || this.travel?.risky) clamped = value;
     else if (this.travel) {
@@ -265,8 +272,11 @@ export class GameModel {
         : closedBySwap.length ? `因${closedBySwap.map(item => this._node(item).name).join('与')}启动已换向收起`
         : config.gate?.power && !this.powered.has(config.gate.power) ? `等待${this._node(config.gate.power).name}供能`
         : needs.length ? `先启动${needs.map(item => this._node(item).name).join('与')}` : '';
-      return { id, from, to, layer, min: LAYERS[layer].center - this.safeWidth, max: LAYERS[layer].center + this.safeWidth,
-        open, visible: this._inLayer(layer), kind,
+      const ramp = kind === 'normal' && open && this.wRamp?.edgeId === id ? this.wRamp : null;
+      const startLayer = ramp ? (this.node === to ? ramp.toLayer : ramp.fromLayer) : layer;
+      return { id, from, to, layer: startLayer, min: LAYERS[startLayer].center - this.safeWidth, max: LAYERS[startLayer].center + this.safeWidth,
+        open, visible: ramp ? (this._inLayer(ramp.fromLayer) || this._inLayer(ramp.toLayer) || this.travel?.edgeId === id) : this._inLayer(layer), kind,
+        ...(ramp ? { ramp: true, fromLayer: ramp.fromLayer, toLayer: ramp.toLayer } : {}),
         ...(swapNames.length ? { phaseSwap: true, swapTriggers: swapNames } : {}),
         ...(reason ? { reason } : {}) };
     };
@@ -321,7 +331,9 @@ export class GameModel {
       const { id, path } = queue.shift();
       if (id === target) return path;
       const current = this._node(id);
-      const steps = edges.filter(edge => edge.from === id || edge.to === id).map(edge => ({ type: 'move', to: edge.from === id ? edge.to : edge.from, layer: edge.layer }));
+      const steps = edges.filter(edge => edge.from === id || edge.to === id).map(edge => ({
+        type: 'move', to: edge.from === id ? edge.to : edge.from, layer: edge.ramp ? (edge.from === id ? edge.fromLayer : edge.toLayer) : edge.layer,
+      }));
       if (!current.anchor) for (const node of this.nodes) {
         if (!node.anchor && node.id !== id && sameXYZ(current, node)) steps.push({ type: 'shift', to: node.id, layer: node.layer });
       }
@@ -356,10 +368,13 @@ export class GameModel {
   }
   _range() {
     if (this.travel) {
-      const { layer, risky, progress, min, max } = this.travel;
-      const center = LAYERS[layer].center + (risky ? Math.sin(progress * Math.PI * 2) * RISK_SWAY : 0);
+      const { layer, risky, progress, min, max, ramp, fromLayer, toLayer } = this.travel;
+      const base = ramp
+        ? LAYERS[fromLayer].center + (LAYERS[toLayer].center - LAYERS[fromLayer].center) * progress
+        : LAYERS[layer].center;
+      const center = base + (risky ? Math.sin(progress * Math.PI * 2) * RISK_SWAY : 0);
       const width = risky ? RISK_WIDTH : (max - min) / 2;
-      return { min: center - width, max: center + width, center, layer };
+      return { min: center - width, max: center + width, center, layer: ramp ? nearestLayer(base) : layer };
     }
     if (!this._availableNodes().includes(this.selected)) return null;
     const edge = this._selectedEdge();
@@ -374,10 +389,18 @@ export class GameModel {
   move() {
     if (!this._canMove()) return false;
     const edge = this._selectedEdge();
+    const source = { node: this.node, w: this.w };
+    const ramp = edge.ramp ? {
+      ramp: true,
+      fromLayer: this.node === edge.to ? edge.toLayer : edge.fromLayer,
+      toLayer: this.node === edge.to ? edge.fromLayer : edge.toLayer,
+    } : null;
+    const endLayer = ramp ? ramp.toLayer : edge.layer;
     this.travel = { from: this.node, to: this.selected, progress: 0, duration: this.riskMode ? 2.5 : 1.35,
-      risky: this.riskMode, stability: 1, center: LAYERS[edge.layer].center, layer: edge.layer,
-      edgeId: edge.id, kind: edge.kind, min: edge.min, max: edge.max, source: { node: this.node, w: this.w },
+      risky: this.riskMode, stability: 1, center: LAYERS[endLayer].center, layer: endLayer,
+      edgeId: edge.id, kind: edge.kind, min: edge.min, max: edge.max, source, ...(ramp || {}),
       gates: ['pending', 'pending', 'pending'], dashed: null, dashBoost: 1, dashedAt: null };
+    if (ramp && !this.riskMode) this._applyW(LAYERS[ramp.fromLayer].center);
     this._emit('move', { from: this.node, to: this.selected, risky: this.riskMode, layer: edge.layer });
     if (this.riskMode) this._emit('risk', { from: this.node, to: this.selected, tier: Math.min(3, this.combo + 1) });
     return true;
@@ -443,12 +466,28 @@ export class GameModel {
     return true;
   }
 
+  _tryInstallWRamp() {
+    if (this.wRamp || this.mode !== 'intro' || this.room !== 0 || !this.activated.has('dew') || this.activated.size !== 1) return;
+    const goal = this.roomConfig.order.find(id => this.powered.has(id) && !this.activated.has(id));
+    const dewLayer = this._node('dew')?.layer;
+    if (!goal || !Number.isInteger(dewLayer)) return;
+    const edge = this.roomConfig.edges.find(cfg => cfg.to !== 'vault' && this._gateOpen(cfg) && cfg.layer !== dewLayer
+      && (((cfg.from === 'hub' || cfg.from === 'relay') && cfg.to === goal) || ((cfg.to === 'hub' || cfg.to === 'relay') && cfg.from === goal)));
+    if (!edge) return;
+    this.wRamp = {
+      edgeId: edge.id,
+      fromLayer: edge.from === goal ? edge.layer : dewLayer,
+      toLayer: edge.from === goal ? dewLayer : edge.layer,
+    };
+  }
+
   _activate(id, via = 'touch') {
     const mechanisms = this._mechanisms();
     if (!mechanisms.includes(id) || !this.powered.has(id) || this.activated.has(id) || !this._inLayer(this._node(id).layer)) return false;
     const overcharged = this.tunedMechanisms.has(id);
     this.tunedMechanisms.delete(id);
     this.activated.add(id);
+    this._tryInstallWRamp();
     if (via === 'prism' || via === 'coil') this.remoteActivation = true;
     this.coilArmed.delete(id);
     this.stats.chains += 1;
@@ -818,6 +857,7 @@ export class GameModel {
             this.powered.add(cue.to);
             if (this.relics.coil > this.coilUsed && !this.activated.has(cue.to) && this.roomConfig.requires[cue.to].length) this.coilArmed.add(cue.to);
           }
+          this._tryInstallWRamp();
           this._emit('power', { from: cue.from, to: cue.to, node: cue.to, layer: this._node(cue.to).layer, complete: this.powered.has(cue.to), received: this.received[cue.to].size, required: this.roomConfig.requires[cue.to].length });
           if (!this.travel && !this.wave) this._chooseTarget({ passive: true });
         } else if (cue.kind === 'resonance') {
@@ -845,6 +885,10 @@ export class GameModel {
       } else if (this.travel) {
         const speedBoost = this.travel.dashBoost || 1;
         this.travel.progress = Math.min(1, this.travel.progress + (dt * speedBoost) / this.travel.duration);
+        if (this.travel.ramp && !this.travel.risky) {
+          const a = LAYERS[this.travel.fromLayer].center, b = LAYERS[this.travel.toLayer].center;
+          this._applyW(this.travel.progress >= 1 - EPSILON ? b : a + (b - a) * this.travel.progress);
+        }
         const range = this._range();
         if (this.travel.risky && range) {
           const width = Math.max(.01, (range.max - range.min) / 2);

@@ -819,7 +819,10 @@ export class SceneRenderer {
       const ry = node.id === 'hub' ? 60 : 56;
       const onIsland = ((x - node.x) / rx) ** 2 + ((y - node.y + 12) / ry) ** 2 <= 1;
       const onBadge = Math.abs(x - node.x) <= 95 && y >= node.y - 154 && y <= node.y - 50;
-      return onIsland || onBadge;
+      const liftY = node.y - ((node.world?.w ?? node.center ?? this.currentW()) - this.currentW()) * 95;
+      const onRampEnd = !node.anchor && !node.present && this.state.edges?.some(e => e.open && e.ramp && (e.from === node.id || e.to === node.id))
+        && (((x - node.x) / rx) ** 2 + ((y - liftY + 12) / ry) ** 2 <= 1 || (Math.abs(x - node.x) <= 95 && y >= liftY - 154 && y <= liftY - 50));
+      return onIsland || onBadge || onRampEnd;
     }) ?? null;
   }
 
@@ -845,7 +848,7 @@ export class SceneRenderer {
         this.hyperLens.open = 0;
       }
     } else if (snapshot && Number.isFinite(snapshot.w)) {
-      if (this.displayW === null || this.reducedMotion || snapshot.travel?.risky) {
+      if (this.displayW === null || this.reducedMotion || snapshot.travel?.risky || snapshot.travel?.ramp || this.state?.travel?.ramp) {
         this.displayW = snapshot.w;
         this.wTween = null;
         this.wrapAlpha = 1;
@@ -1228,7 +1231,7 @@ export class SceneRenderer {
       const k = Math.min(1, dt * 7);
       this.parallaxX += (this.targetTiltX - this.parallaxX) * k;
       this.parallaxY += (this.targetTiltY - this.parallaxY) * k;
-      if (this.state?.travel?.risky) {
+      if (this.state?.travel?.risky || this.state?.travel?.ramp) {
         this.displayW = this.state.w;
         this.wTween = null;
         this.wrapAlpha = 1;
@@ -1753,6 +1756,12 @@ export class SceneRenderer {
     }
   }
 
+  rampEnds(spec, a, b) {
+    const w = this.currentW(), s = this.state;
+    const fc = s?.layers?.[spec.fromLayer]?.center ?? w, tc = s?.layers?.[spec.toLayer]?.center ?? w;
+    return { ax: a.x, ay: a.y - (fc - w) * 95, bx: b.x, by: b.y - (tc - w) * 95 };
+  }
+
   drawConnections() {
     const ctx = this.ctx, s = this.state;
     for (const edge of this.connections()) {
@@ -1761,6 +1770,38 @@ export class SceneRenderer {
       const traversing = s.travel?.edgeId === edge.id;
       if (edge.kind === 'ferry' && !traversing) continue;
       const relevant = selected || traversing;
+      if (edge.ramp && edge.open) {
+        const { ax, ay, bx, by } = this.rampEnds(edge, a, b);
+        const rdx = bx - ax, rdy = by - ay, rdist = Math.hypot(rdx, rdy);
+        if (rdist < 1) continue;
+        const rnx = -rdy / rdist, rny = rdx / rdist, rsteps = Math.max(6, Math.floor(rdist / 22));
+        const palA = this.palette(edge.fromLayer), palB = this.palette(edge.toLayer);
+        const colA = this.astralMode ? (palA.astralColor || palA.color) : palA.color;
+        const colB = this.astralMode ? (palB.astralColor || palB.color) : palB.color;
+        const grad = ctx.createLinearGradient(ax, ay, bx, by);
+        grad.addColorStop(0, colA); grad.addColorStop(1, colB);
+        ctx.save();
+        ctx.globalAlpha = relevant ? .28 : .17;
+        line(ctx, ax, ay, bx, by, grad, relevant ? 25 : 17);
+        ctx.globalAlpha = relevant ? .88 : .68;
+        for (const side of [-1, 1]) line(ctx, ax + rnx * 15 * side, ay + rny * 15 * side, bx + rnx * 15 * side, by + rny * 15 * side, grad, relevant ? 2 : 1.4);
+        const vx = rdx / rdist * 6, vy = rdy / rdist * 6, pw = relevant ? 13 : 10.5;
+        for (let i = 1; i < rsteps; i++) {
+          const t = i / rsteps, px = mix(ax, bx, t), py = mix(ay, by, t);
+          ctx.globalAlpha = relevant ? .95 : .78;
+          path(ctx, [[px + rnx * pw - vx, py + rny * pw - vy], [px + rnx * pw + vx, py + rny * pw + vy], [px - rnx * pw + vx, py - rny * pw + vy], [px - rnx * pw - vx, py - rny * pw - vy]]);
+          ctx.fillStyle = this.astralMode ? '#193140' : '#f7f4e5';
+          ctx.fill(); ctx.strokeStyle = grad; ctx.lineWidth = relevant ? 1.7 : 1.1; ctx.stroke();
+          if (i % 2 === 0) diamond(ctx, px, py, 2.4, t < .5 ? palA.glow : palB.glow, t < .5 ? colA : colB);
+        }
+        if (!this.reducedMotion) {
+          const t = (this.time * .42) % 1, rev = s.node === b.id;
+          ctx.globalAlpha = .85;
+          diamond(ctx, mix(rev ? bx : ax, rev ? ax : bx, t), mix(rev ? by : ay, rev ? ay : by, t), 3.4, (rev ? t > .5 : t < .5) ? palA.glow : palB.glow, grad);
+        }
+        ctx.restore();
+        continue;
+      }
       const range = relevant && s.range?.layer === edge.layer ? s.range : edge;
       const fits = edge.visible && s.w >= range.min && s.w <= range.max;
       const solid = edge.open && fits || traversing;
@@ -1867,7 +1908,7 @@ export class SceneRenderer {
     // or hovering a layer button / W-Stack plane.
     if (stage >= 2) {
       for (const edge of this.connections()) {
-        if (!edge.open || edge.visible || edge.kind === 'ferry') continue;
+        if (!edge.open || edge.visible || edge.ramp || edge.kind === 'ferry') continue;
         const { a, b } = edge;
         const dx = b.x - a.x, dy = b.y - a.y;
         const dist = Math.hypot(dx, dy);
@@ -1974,7 +2015,7 @@ export class SceneRenderer {
     const plan = targetId ? planLayerRoute(s, targetId, { finalLayer: this.pendingLayerPrompt?.finalLayer ?? null }) : null;
     const nextMoveEdgeId = plan?.steps?.find(st => st.type === 'move')?.edgeId || null;
     for (const edge of this.connections()) {
-      if (!edge.open || edge.visible || edge.kind === 'ferry') continue;
+      if (!edge.open || edge.visible || edge.ramp || edge.kind === 'ferry') continue;
       if (edge.from !== s.node && edge.to !== s.node) continue;
       const from = edge.from === s.node ? edge.a : edge.b;
       const to = edge.from === s.node ? edge.b : edge.a;
@@ -2846,15 +2887,19 @@ export class SceneRenderer {
       const to = this.node(g.node);
       if (from && to) {
         const layerPalette = this.palette(g.layer);
+        const rampEdge = s.edges?.find(e => e.open && e.ramp && ((e.from === from.id && e.to === to.id) || (e.to === from.id && e.from === to.id)));
+        const ends = rampEdge
+          ? this.rampEnds({ fromLayer: rampEdge.from === from.id ? rampEdge.fromLayer : rampEdge.toLayer, toLayer: rampEdge.from === from.id ? rampEdge.toLayer : rampEdge.fromLayer }, from, to)
+          : { ax: from.x, ay: from.y, bx: to.x, by: to.y };
         ctx.save();
-        const dx = to.x - from.x, dy = to.y - from.y;
+        const dx = ends.bx - ends.ax, dy = ends.by - ends.ay;
         const len = Math.max(1, Math.hypot(dx, dy));
         const ux = dx / len, uy = dy / len;
         const nx = -uy, ny = ux;
         for (let i = 0; i < 3; i++) {
           const t = this.reducedMotion ? (.28 + i * .22) : (((this.time * .55 + i / 3) % 1) * .68 + .16);
-          const cx = mix(from.x, to.x, t);
-          const cy = mix(from.y, to.y, t);
+          const cx = mix(ends.ax, ends.bx, t);
+          const cy = mix(ends.ay, ends.by, t);
           if (anchorBadgePos && Math.abs(cx - anchorBadgePos.x) < 58 / sScale && Math.abs(cy - anchorBadgePos.y) < 22 / sScale) continue;
           const alpha = Math.sin(clamp((t - .16) / .68, 0, 1) * Math.PI);
           ctx.globalAlpha = .45 + alpha * .55;
@@ -4062,6 +4107,10 @@ export class SceneRenderer {
       const from = this.node(s.travel.from), to = this.node(s.travel.to);
       if (from && to) {
         const t = clamp(s.travel.progress);
+        if (s.travel.ramp) {
+          const { ax, ay, bx, by } = this.rampEnds(s.travel, from, to);
+          return { x: mix(ax, bx, t), y: mix(ay, by, t) };
+        }
         return { x: mix(from.x, to.x, t), y: mix(from.y, to.y, t) };
       }
     }
@@ -4079,13 +4128,14 @@ export class SceneRenderer {
     if (travel?.dashed && !risky && !this.reducedMotion) {
       const from = this.node(travel.from), to = this.node(travel.to);
       if (from && to) {
-        const dx = to.x - from.x, dy = to.y - from.y, len = Math.max(1, Math.hypot(dx, dy));
+        const ends = travel.ramp ? this.rampEnds(travel, from, to) : { ax: from.x, ay: from.y, bx: to.x, by: to.y };
+        const dx = ends.bx - ends.ax, dy = ends.by - ends.ay, len = Math.max(1, Math.hypot(dx, dy));
         const ux = dx / len, uy = dy / len;
         const avatarScale = clamp(.48 / this.scale, 1, 1.5);
         const wakeCol = travel.dashed === 'perfect' ? COLORS.lightGold : this.palette().glow;
         for (let i = 4; i >= 1; i--) {
           const backT = clamp(travel.progress - i * .055, 0, 1);
-          const ax = mix(from.x, to.x, backT), ay = mix(from.y, to.y, backT);
+          const ax = mix(ends.ax, ends.bx, backT), ay = mix(ends.ay, ends.by, backT);
           ctx.save();
           ctx.translate(ax, ay);
           ctx.globalAlpha = (.46 - i * .09);

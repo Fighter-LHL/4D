@@ -374,6 +374,7 @@ function manualSwitchLayer(layerIdx, source = 'manual') {
   onboarding.recordActivity();
   const s = model.snapshot();
   if (layerIdx < 0 || layerIdx >= s.layers.length) return;
+  if (s.travel?.ramp && !s.travel.risky) return;
   // Wheel, Z/X/C, layer buttons, the W stack, the lens and assist all come
   // through here. None of them may change layer until the lesson starts.
   if (!layerSwitchTaught() && !s.wave && layerIdx !== s.layer) return;

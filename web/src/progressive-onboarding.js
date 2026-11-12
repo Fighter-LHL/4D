@@ -48,26 +48,42 @@ export const ONBOARDING_STAGES = [
  * that exist on the player's current W layer (`state.layer`).
  * Never inserts automatic layer-shift steps, preserving the 4D puzzle for the player.
  */
+function edgeStepLayers(edge, nodeId) {
+  if (Number.isInteger(edge.fromLayer) && Number.isInteger(edge.toLayer)) {
+    return edge.from === nodeId
+      ? { depart: edge.fromLayer, arrive: edge.toLayer }
+      : { depart: edge.toLayer, arrive: edge.fromLayer };
+  }
+  return { depart: edge.layer, arrive: edge.layer };
+}
+
 export function findCurrentLayerRoute(state, targetId) {
   if (!state || !targetId) return null;
   if (state.node === targetId) return [];
-  const currentLayer = state.layer;
-  const openCurrentEdges = (state.edges || []).filter(e => e.open && e.layer === currentLayer
+  const openEdges = (state.edges || []).filter(e => e.open
     && (e.kind !== 'ferry' || state.node === 'ferry' || targetId === 'ferry'));
-  const queue = [{ id: state.node, path: [] }];
-  const visited = new Set([state.node]);
+  const queue = [{ id: state.node, layer: state.layer, path: [] }];
+  const visited = new Set([`${state.node}@${state.layer}`]);
 
   while (queue.length) {
-    const { id, path } = queue.shift();
+    const { id, layer, path } = queue.shift();
     if (id === targetId) return path;
-    for (const edge of openCurrentEdges) {
+    for (const edge of openEdges) {
       if (edge.from !== id && edge.to !== id) continue;
+      const { depart, arrive } = edgeStepLayers(edge, id);
+      if (depart !== layer) continue;
       const nextId = edge.from === id ? edge.to : edge.from;
-      if (!visited.has(nextId)) {
-        visited.add(nextId);
+      const k = `${nextId}@${arrive}`;
+      if (!visited.has(k)) {
+        visited.add(k);
         queue.push({
           id: nextId,
-          path: [...path, { type: 'move', to: nextId, layer: edge.layer, edgeId: edge.id }],
+          layer: arrive,
+          path: [...path, {
+            type: 'move', to: nextId, layer: depart,
+            ...(depart !== arrive ? { toLayer: arrive, ramp: true } : {}),
+            edgeId: edge.id,
+          }],
         });
       }
     }
@@ -149,11 +165,14 @@ export function planLayerRoute(state, targetId, { finalLayer = null } = {}) {
     const shifted = cur.steps.some(step => step.type === 'shift');
     const moveCost = shifted ? 1 : WALK_BEFORE_SHIFT;
     for (const edge of edges) {
-      if (edge.layer !== cur.layer || (edge.from !== cur.id && edge.to !== cur.id)) continue;
+      if (edge.from !== cur.id && edge.to !== cur.id) continue;
+      const { depart, arrive } = edgeStepLayers(edge, cur.id);
+      if (depart !== cur.layer) continue;
       const otherId = edge.from === cur.id ? edge.to : edge.from;
-      if (!exists(byId.get(otherId), cur.layer)) continue;
-      next.push({ id: otherId, layer: cur.layer, cost: cur.cost + moveCost,
-        step: { type: 'move', from: cur.id, to: otherId, layer: cur.layer, edgeId: edge.id } });
+      if (!exists(byId.get(otherId), arrive)) continue;
+      next.push({ id: otherId, layer: arrive, cost: cur.cost + moveCost,
+        step: { type: 'move', from: cur.id, to: otherId, layer: depart,
+          ...(depart !== arrive ? { toLayer: arrive, ramp: true } : {}), edgeId: edge.id } });
     }
     if (node.anchor) {
       for (let layer = 0; layer < layerCount; layer++) {
@@ -308,6 +327,8 @@ export function describeNextStep(state) {
     const step = plan.walk[0];
     const dest = byId(step.to);
     const goalVerb = sym === '🚪' ? '去🚪' : `点${sym}`;
+    const arriveLayer = step.toLayer ?? state.layer;
+    const rampMeta = step.ramp ? { toLayer: arriveLayer, ramp: true } : {};
     if (sameLayerUnusable(state, dest)) {
       if (goalReachableInCurrentLayer) return sliceRecover(state, sym, goalId);
       if (dest && !dest.anchor) {
@@ -326,17 +347,32 @@ export function describeNextStep(state) {
       const place = anchorHintName(dest);
       const hereName = here?.anchor ? anchorHintName(here) : '';
       const which = hereName && hereName !== place ? `脚下是${hereName}，要去${place}。` : `要去的是${place}。`;
+      if (!plan.shift && plan.walk.some(s => s.ramp)) {
+        return {
+          goalId, action: 'move', banner: `去${place}，走上斜桥${goalVerb}`,
+          detail: `${which}到了${place}就能走上斜桥前往${sym}。`,
+          targetId: step.to, layer: arriveLayer, ...rampMeta,
+        };
+      }
       if (plan.shift) {
         return {
           goalId, action: 'move', banner: `去${place}换层${goalVerb}`,
           detail: `${which}到了${place}再换层，通往${sym}的桥才会出现。${stackNote}`,
-          targetId: step.to, layer: plan.shift.layer,
+          targetId: step.to, layer: plan.shift.layer, ...rampMeta,
         };
       }
       return {
         goalId, action: 'move', banner: `去${place}，再${goalVerb}`,
         detail: `${which}先走到${place}，再前往${sym}。`,
-        targetId: step.to, layer: state.layer,
+        targetId: step.to, layer: arriveLayer, ...rampMeta,
+      };
+    }
+    if (step.ramp) {
+      return {
+        goalId, action: 'move',
+        banner: goalId === 'exit' ? '走上斜桥，走向🚪' : `走上斜桥，点亮${sym}`,
+        detail: `斜桥一头连着脚下、一头通往${roman(arriveLayer)}层的${sym}；走上去边走边滑入目标层。`,
+        targetId: step.to, layer: arriveLayer, ...rampMeta,
       };
     }
     if (step.to !== goalId && activated.has(step.to)) {
@@ -618,7 +654,7 @@ export function resolveScrubReleaseTarget(state, { phase = 'end', w, velocity = 
   if (!state) return 0.5;
   if (!state.wave) {
     if (state.travel) {
-      if (state.travel.risky) return state.w;
+      if (state.travel.risky || state.travel.ramp) return state.w;
       return state.layers?.[state.travel.layer]?.center ?? state.travel.center ?? nearestLayerCenter(state, state.w);
     }
     const currentNode = (state.nodes || []).find(n => n.id === state.node);

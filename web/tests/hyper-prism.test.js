@@ -324,21 +324,26 @@ test('planLayerRoute guides an obedient player through every courtyard template 
 });
 
 test('planLayerRoute walks to the anchor that actually carries the target bridge before asking for a layer change', () => {
-  // Seed 7 starts with 远端折返庭: ② (bell) hangs off the relay on a layer the hub never connects to.
+  // Seed 7 starts with 远端折返庭: ② (bell) uses the Room 0 W-ramp off relay, and ③ (bloom) hangs off relay on its own flat layer.
   const m = new GameModel(7);
   m.chooseRelic('shell');
-  const first = m.snapshot().mechanismOrder[0];
+  const [first, second, third] = m.snapshot().mechanismOrder;
   assert.equal(obedientReach(m, first), null);
   assert.ok(m.interact());
   for (let t = 0; t < 40; t++) m.update(.05);
-  const second = m.snapshot().mechanismOrder[1];
+  assert.equal(obedientReach(m, 'hub'), null);
+  const rampPlan = planLayerRoute(m.snapshot(), second);
+  assert.deepEqual(rampPlan.walk.map(st => st.to), ['relay', 'bell']);
+  assert.equal(rampPlan.shift, null);
+  assert.equal(obedientReach(m, second), null);
+  assert.ok(m.interact());
+  for (let t = 0; t < 40; t++) m.update(.05);
   assert.equal(obedientReach(m, 'hub'), null);
   const s = m.snapshot();
-  const plan = planLayerRoute(s, second);
+  const plan = planLayerRoute(s, third);
   assert.ok(plan.walk.length > 0, 'walks on the current layer first instead of switching at the hub');
   assert.equal(plan.shift.at, 'relay');
   assert.notEqual(plan.shift.layer, s.layer);
-  assert.equal(obedientReach(m, second), null);
 });
 
 test('planLayerRoute honours a required arrival layer and recovers a fading footing first', () => {
