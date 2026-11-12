@@ -4,8 +4,10 @@
 // toggles risk, wheel up / scroll right climbs towards Ⅲ, drags never switch layers, and the stage
 // banner folds while the checklist reports state only.
 import assert from 'node:assert/strict';
-import { chromium } from 'playwright';
+import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
+
+const { chromium } = await import('playwright').catch(() => createRequire(import.meta.url)('playwright'));
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:4173';
 const out = process.env.ARTIFACT_DIR;
@@ -37,6 +39,16 @@ async function open({ firstRunDone = false, seed = 123 } = {}) {
   return { context, page, w: () => page.evaluate(() => window.__w()) };
 }
 const check = (name, ok, detail = {}) => { receipt.checks.push({ name, ok, ...detail }); assert.ok(ok, `${name}: ${JSON.stringify(detail)}`); };
+async function holdUnlockAll(page, holdMs = 800) {
+  const btn = page.locator('#unlock-all-btn');
+  await btn.scrollIntoViewIfNeeded();
+  const box = await btn.boundingBox();
+  assert.ok(box, '#unlock-all-btn has a bounding box');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(holdMs);
+  await page.mouse.up();
+}
 
 try {
   // 1. First run: no picker, starter shell equipped, no mid-run switch button.
@@ -119,7 +131,7 @@ try {
     const { context, page, w } = await open({ seed: 123 });
     await page.locator('[data-mechanism]').first().click();
     await page.waitForFunction(() => window.__w().activated.length === 1, null, { timeout: 15000 });
-    await page.click('#unlock-all-btn');
+    await holdUnlockAll(page);
     await page.waitForSelector('#risk-go-btn:visible');
     const before = await w();
     await page.click('#risk-go-btn');
@@ -147,7 +159,7 @@ try {
   // 9. 4D curiosities and phase rating are authoritative in GameModel, best score, result settlement and restart.
   {
     const { context, page, w } = await open({ seed: 123 });
-    await page.click('#unlock-all-btn');
+    await holdUnlockAll(page);
     await page.waitForSelector('#radar-anomaly-card:visible');
     const s0 = await w();
     const offAnom = s0.anomalies.find(a => a.layer !== s0.layer);

@@ -12,10 +12,13 @@ import { CodexStore } from './codex.js';
 import { GameFeel } from './game-feel.js';
 import { ALL_ROOM_TEMPLATES, HIDDEN_ROUTE_RECIPES } from './rooms.js';
 import { CURIOSITY_CATALOG } from './exploration-radar.js';
+import { bindLongPress, SKIP_HOLD_DURATION_MS } from './long-press.js';
 
 const $ = id => document.getElementById(id);
 const runPanel = $('run-panel');
 const panelToggle = $('panel-toggle');
+const advancedDrawer = document.querySelector('details.advanced-drawer');
+let skipHold = null;
 const isTheater = () => document.documentElement.classList.contains('theater');
 function closeAdvancedDrawers() {
   const openDrawers = document.querySelectorAll('details.advanced-drawer[open]');
@@ -1531,16 +1534,25 @@ function updateUI() {
     setText('onboarding-title', shownHint ? shownHint.banner : stageInfo.title);
     setText('onboarding-desc', shownHint ? shownHint.detail : stageInfo.instruction);
     if ($('unlock-all-btn')) {
-      $('unlock-all-btn').hidden = stageInfo.stage >= 4;
+      const hideUnlockBtn = stageInfo.stage >= 4;
+      $('unlock-all-btn').hidden = hideUnlockBtn;
+      if (hideUnlockBtn) skipHold?.reset();
       if (isTheater()) {
-        $('unlock-all-btn').title = '跳过引导';
-        $('unlock-all-btn').setAttribute('aria-label', '跳过引导');
+        $('unlock-all-btn').title = '长按跳过引导';
+        $('unlock-all-btn').setAttribute('aria-label', '长按跳过引导');
         setHTML('unlock-all-btn', '<span aria-hidden="true">⏭</span><span class="skip-tooltip" aria-hidden="true">跳过引导</span>');
       } else {
-        $('unlock-all-btn').title = '跳过渐进教学，立即展开全部高阶操作与秘境雷达';
-        $('unlock-all-btn').removeAttribute('aria-label');
+        $('unlock-all-btn').title = '长按跳过渐进教学，立即展开全部高阶操作与秘境雷达';
+        $('unlock-all-btn').setAttribute('aria-label', '长按跳过引导，展开全部高阶');
         setText('unlock-all-btn', '🔓 展开全部高阶');
       }
+    }
+    if (advancedDrawer) {
+      const hideDrawerSlot = isTheater() && isFirstRun() && stageInfo.stage === 1;
+      if (hideDrawerSlot && advancedDrawer.open) advancedDrawer.open = false;
+      advancedDrawer.toggleAttribute('inert', hideDrawerSlot);
+      if (hideDrawerSlot) advancedDrawer.setAttribute('aria-hidden', 'true');
+      else advancedDrawer.removeAttribute('aria-hidden');
     }
     if ($('open-hyper-lab')) {
       $('open-hyper-lab').hidden = stageInfo.stage < 2;
@@ -2032,13 +2044,20 @@ $('radar-rift-card')?.addEventListener('click', () => {
   }
   selectFromPanel('rift');
 });
-$('unlock-all-btn')?.addEventListener('click', () => {
-  onboarding.unlockAllOverride = true;
-  transient = isTheater() ? '🔓 已跳过引导，展开全部操作' : '🔓 已展开全部 4 阶四维操控与隐藏秘境图鉴！';
-  transientTime = 2.8;
-  actionFeedback = transient;
-  $('announcement').textContent = transient;
-  updateUI();
+skipHold = bindLongPress($('unlock-all-btn'), {
+  durationMs: SKIP_HOLD_DURATION_MS,
+  canStart: () => {
+    const btn = $('unlock-all-btn');
+    return Boolean(btn && !btn.hidden && !btn.disabled && !isModal());
+  },
+  onComplete: () => {
+    onboarding.unlockAllOverride = true;
+    transient = isTheater() ? '🔓 已跳过引导，展开全部操作' : '🔓 已展开全部 4 阶四维操控与隐藏秘境图鉴！';
+    transientTime = 2.8;
+    actionFeedback = transient;
+    $('announcement').textContent = transient;
+    updateUI();
+  },
 });
 let suppressRulerClickUntil = -Infinity;
 for (const button of document.querySelectorAll('.layer-controls [data-layer]')) {
@@ -2214,6 +2233,7 @@ function restartWithMode(nextMode = currentMode) {
   bannerDescDismissed = false;
   bannerExpandedUntil = 0;
   closeAdvancedDrawers();
+  skipHold?.reset();
   onboarding.resetRun();
   paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';secretKey='';sealKey='';bannerStage=0;
   $('secret-panel').open=false;$('build-list').replaceChildren();$('ability-list').replaceChildren();
