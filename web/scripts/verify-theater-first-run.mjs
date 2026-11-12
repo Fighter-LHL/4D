@@ -462,8 +462,10 @@ try {
     assert.equal(gExit.state.phase, 'interlude', `${vpKey}: reaching exit enters interlude relic choice`);
     assert.equal(await page.locator('#choice-dialog').evaluate(d => d.open), true,
       `${vpKey}: #choice-dialog opens after Room 0 exit`);
-    assert.equal(await page.evaluate(() => localStorage.getItem('wslice-first-run-done')), 'yes',
-      `${vpKey}: completing Room 0 persists wslice-first-run-done='yes'`);
+    assert.equal(await page.evaluate(() => localStorage.getItem('wslice-first-run-done')), null,
+      `${vpKey}: completing Room 0 leaves wslice-first-run-done unset until won`);
+    assert.equal(await page.evaluate(() => document.body.dataset.firstRun), 'true',
+      `${vpKey}: first-run protection remains active in Room 0 interlude`);
     await shot('05-room0-complete-interlude');
 
     await page.locator('#relic-choices button').first().click();
@@ -475,6 +477,24 @@ try {
       null,
       { timeout: 10000 },
     );
+    const room1Hud = await page.evaluate(() => {
+      const b = document.getElementById('onboarding-banner');
+      return {
+        firstRunDone: localStorage.getItem('wslice-first-run-done'),
+        firstRunAttr: document.body.dataset.firstRun,
+        firstRunPending: document.body.classList.contains('first-run-pending'),
+        collapsed: b?.classList.contains('collapsed') ?? true,
+        nextAction: b?.dataset.nextAction || '',
+        title: document.getElementById('onboarding-title')?.textContent?.trim() || '',
+      };
+    });
+    assert.equal(room1Hud.firstRunDone, null, `${vpKey}: entering Room 1 keeps wslice-first-run-done unset`);
+    assert.equal(room1Hud.firstRunAttr, 'true', `${vpKey}: entering Room 1 keeps data-first-run="true"`);
+    assert.equal(room1Hud.firstRunPending, true, `${vpKey}: entering Room 1 keeps first-run-pending`);
+    assert.equal(room1Hud.collapsed, false, `${vpKey}: Room 1 onboarding banner stays expanded`);
+    assert.notEqual(room1Hud.nextAction, '', `${vpKey}: Room 1 onboarding banner exposes describeNextStep action`);
+    assert.ok(room1Hud.title.length > 0 && !/点亮全部/.test(room1Hud.title),
+      `${vpKey}: Room 1 onboarding title shows concrete next step ("${room1Hud.title}")`);
     await shot('06-room1-entered');
 
     // ---- (d) Guarded synthetic PointerEvent check on #scene & #hyper-lab-canvas ---

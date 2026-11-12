@@ -21,8 +21,8 @@ export const ONBOARDING_STAGES = [
     stage: 2,
     id: 'slice_shift',
     badge: '2/4 · 换层',
-    title: '站在 ⚓ 换层台上滚轮，切出隐藏的桥',
-    instruction: '部分桥藏在上下层空间：先走到 ⚓ 换层台，上下滚动鼠标滚轮（或点右侧 Ⅰ/Ⅱ/Ⅲ 层）让桥显形。',
+    title: '站在 ⚓ 归响台上滚轮，切出隐藏的桥',
+    instruction: '部分桥藏在上下层空间：先走到 ⚓ 归响台或 ⚓ 维度锚台，上下滚动鼠标滚轮（或点右侧 Ⅰ/Ⅱ/Ⅲ 层）让桥显形。',
     unlockedFeatures: ['click_move', 'layer_shift', 'anomalies'],
   },
   {

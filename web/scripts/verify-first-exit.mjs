@@ -1,6 +1,6 @@
 // First courtyard completion, earned through real discovery and ordinary UI input only:
 // every mechanism is reached by following the game's own guidance, the exit card opens,
-// choosing it lands in the interlude with an ordinary picker and marks the first run done;
+// choosing it lands in the interlude with an ordinary picker while leaving first-run-done unset until won;
 // no departure instruction is painted while walking; restart and revisit stay ordinary.
 import assert from 'node:assert/strict';
 import { runCourtyardChecks, FIRST_ROOMS, earnFirstDiscovery, enterCourtyard, chooseDiscoveryStarter, readFlow, followGuidance, waitSettled, verifyRestartAndRevisit } from './courtyard-first-beat.mjs';
@@ -50,7 +50,7 @@ await runCourtyardChecks({ name: 'first-exit', cases: FIRST_ROOMS, run: async ({
   assert.equal(await page.locator('#choice-dialog.discovery-choice').count(), 0, 'next-room choice remains ordinary');
   assert.equal(await page.locator('.starter-alternatives').count(), 0);
   assert.equal(await page.locator('#relic-choices button:visible').count(), interlude.state.choices.length);
-  assert.equal(await page.evaluate(() => localStorage.getItem('wslice-first-run-done')), 'yes', 'finishing the first room marks the first run done');
+  assert.equal(await page.evaluate(() => localStorage.getItem('wslice-first-run-done')), null, 'finishing the first room keeps wslice-first-run-done unset until won');
   const elapsedMs = Date.now() - startedAt;
   await shot('interlude');
   await page.locator('#relic-choices button').first().click();
