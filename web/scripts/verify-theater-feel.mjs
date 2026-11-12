@@ -12,8 +12,8 @@ assert.ok(OUT, 'use a fresh explicit artifact directory');
 await mkdir(OUT, { recursive: true });
 
 const VIEWPORTS = (process.env.VIEWPORTS ? process.env.VIEWPORTS.split(',').map(v => v.split('x').map(Number))
-  : [[1440, 900], [1280, 720], [390, 844], [320, 640]])
-  .map(([w, h]) => ({ w, h, desktop: w >= 781, reduce: w === 320, touch: w === 390, target: w >= 781 ? (w >= 1400 ? .55 : .50) : .27 }));
+  : [[1440, 900], [1280, 720], [844, 390], [667, 375]])
+  .map(([w, h]) => ({ w, h, desktop: h > 500 && w >= 781, reduce: w === 667, touch: w === 844, target: h > 500 && w >= 781 ? (w >= 1400 ? .55 : .50) : .27 }));
 
 const observer = `
 window.__feelLog = []; window.__feelLost = 0; window.__frozenSeen = false;
@@ -513,7 +513,7 @@ try {
     await page.waitForFunction(() => !window.__g().ambient, null, { timeout: 1000 });
     check('ambient');
 
-    // ---- 8. touch scroll guard (390x844 only) ------------------------------------------
+    // ---- 8. touch scroll guard (844x390 landscape mobile) ------------------------------
     if (vp.touch) {
       await openGame(page, 'shadow');
       await activateMechanism(page, await firstMechanism(page)); // SETUP: legal cast state

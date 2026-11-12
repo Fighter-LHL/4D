@@ -150,7 +150,7 @@ test('mobile scale keeps canvas labels >=12px screen and distinguishes 归响台
   renderer.height = 640;
   renderer.scale = 0.41;
 
-  // Stage 1: hub is ⚓ 起点, relay is ⚓ 维度锚台
+  // Stage 1: hub is ⚓ 起点, relay is icon-only ⚓
   renderer.onboardingStage = 1;
   calls.length = 0;
   renderer.labelZones = [];
@@ -161,10 +161,10 @@ test('mobile scale keeps canvas labels >=12px screen and distinguishes 归响台
   renderer.drawVisualActionGuide();
   const stage1Texts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
   assert.ok(stage1Texts.includes('⚓ 起点'), `expected ⚓ 起点 in Stage 1, got ${JSON.stringify(stage1Texts)}`);
-  assert.ok(stage1Texts.includes('⚓ 维度锚台'), `expected ⚓ 维度锚台 in Stage 1, got ${JSON.stringify(stage1Texts)}`);
-  assert.ok(!stage1Texts.some(t => t.includes('换层台')), `unexpected 换层台 label in ${JSON.stringify(stage1Texts)}`);
+  assert.ok(stage1Texts.includes('⚓'), `expected ⚓ on relay in Stage 1, got ${JSON.stringify(stage1Texts)}`);
+  assert.ok(!stage1Texts.some(t => t.includes('归响台') || t.includes('维度锚台') || t.includes('换层台')), `unexpected Chinese anchor label in ${JSON.stringify(stage1Texts)}`);
 
-  // Stage 2+: hub becomes ⚓ 归响台, relay stays ⚓ 维度锚台
+  // Stage 2+: non-target anchors use icon-only ⚓; targeted anchor shows short label (e.g. ⚓ 归响) with gold stroke
   renderer.onboardingStage = 2;
   calls.length = 0;
   renderer.labelZones = [];
@@ -172,9 +172,28 @@ test('mobile scale keeps canvas labels >=12px screen and distinguishes 归响台
     if (n.id !== 'exit') renderer.drawIsland(n);
   }
   const stage2Texts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
-  assert.ok(stage2Texts.includes('⚓ 归响台'), `expected ⚓ 归响台 in Stage 2, got ${JSON.stringify(stage2Texts)}`);
-  assert.ok(stage2Texts.includes('⚓ 维度锚台'), `expected ⚓ 维度锚台 in Stage 2, got ${JSON.stringify(stage2Texts)}`);
-  assert.ok(!stage2Texts.some(t => t.includes('换层台')), `unexpected 换层台 label in ${JSON.stringify(stage2Texts)}`);
+  assert.ok(stage2Texts.filter(t => t === '⚓').length >= 2, `expected ⚓ on both non-target anchors in Stage 2, got ${JSON.stringify(stage2Texts)}`);
+  assert.ok(!stage2Texts.some(t => t.includes('起点') || t.includes('归响台') || t.includes('维度锚台') || t.includes('换层台')), `unexpected Chinese anchor label in ${JSON.stringify(stage2Texts)}`);
+
+  renderer.setState({ ...s, node: 'dew' });
+  renderer.nextStepHint = { action: 'move', targetId: 'hub', goalId: 'bell' };
+  calls.length = 0;
+  renderer.labelZones = [];
+  for (const n of renderer.state.nodes) {
+    if (n.id !== 'exit') renderer.drawIsland(n);
+  }
+  const targetedTexts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
+  assert.ok(targetedTexts.includes('⚓ 归响'), `expected target anchor short label ⚓ 归响, got ${JSON.stringify(targetedTexts)}`);
+  assert.ok(targetedTexts.includes('⚓'), `expected non-target anchor to remain pure ⚓, got ${JSON.stringify(targetedTexts)}`);
+  assert.ok(calls.some(c => c.method === 'stroke' && (c.stroke === '#fbbf24' || c.stroke === '#d89a2b')), 'target anchor pill uses guide gold stroke');
+
+  // Theater mode (hudProgressActive) suppresses canvas top-left drawWStack & hitWStackLayer
+  renderer.hudProgressActive = true;
+  calls.length = 0;
+  renderer.render(0.016);
+  const theaterTexts = calls.filter(c => c.method === 'fillText').map(c => String(c.args[0]));
+  assert.ok(!theaterTexts.some(t => /[ⅠⅡⅢ]\s*[▲●▼]/.test(t)), `expected no drawWStack text when W-ruler is active, got ${JSON.stringify(theaterTexts)}`);
+  assert.equal(renderer.hitWStackLayer({ clientX: 80, clientY: 96 }), null, 'WStack hit-test disabled when W-ruler is active');
   renderer.destroy();
 });
 

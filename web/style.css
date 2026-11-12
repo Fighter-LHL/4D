@@ -251,6 +251,7 @@ body[data-theme="astral"] .action-feedback{background:rgba(15,29,41,.94);border-
 @keyframes vstep-pulse{50%{box-shadow:0 0 0 3px rgba(216,154,43,.45),0 6px 22px rgba(216,154,43,.28)}}
 
 .layer-controls button{flex-wrap:wrap;padding:6px 8px;gap:6px}
+.layer-controls .roman-svg,.layer-controls .target-ring-svg{display:none}
 .layer-safety-pill{font-style:normal;font-size:9px;font-weight:600;padding:2px 7px;border-radius:999px;margin-left:auto;white-space:nowrap}
 .layer-safety-pill.pill-safe{background:rgba(43,107,89,.13);color:var(--green)}
 .layer-safety-pill.pill-target{background:#f7e2b0;color:#805110;box-shadow:0 0 10px rgba(221,154,28,.35)}
@@ -548,161 +549,257 @@ body[data-theme="astral"] .codex-section-title{color:#8be8f5}
 
 /* ===== Theater layout 剧场布局 — every rule scoped to html.theater (or unstyled new elements);
    the classic cascade above is untouched, so ?layout=classic renders exactly as before. ===== */
+.rotate-cue{display:none}
 .dock-float{display:contents}
-html:not(.theater) #panel-toggle{display:none}
+html:not(.theater) #panel-toggle,html:not(.theater) .w-ruler-track,html:not(.theater) .w-ruler-thumb{display:none}
 /* The theater icon-row glyphs on the four text controls stay hidden in classic. */
 html:not(.theater) .nav-glyph{display:none}
 html.theater,html.theater body{height:100%}
 html.theater body{min-height:100svh;display:flex;flex-direction:column;overflow:hidden}
-html.theater .topbar{flex:none;height:48px;min-height:48px;max-width:none;padding:0 18px}
-html.theater .topbar nav{gap:6px}
-html.theater .topbar .icon-button{padding:6px 8px;font-size:11px}
+html.theater .topbar{flex:none;height:44px;min-height:44px;max-width:none;padding:0 14px}
+html.theater .topbar nav{gap:4px;flex-wrap:nowrap}
+html.theater .topbar .icon-button{width:34px;height:34px;padding:0;font-size:15px;border-radius:8px;display:inline-grid;place-items:center;white-space:nowrap}
 html.theater .topbar .icon-button kbd{display:none}
-html.theater #sound>span:first-child{font-size:14px}
-html.theater .brand{font-size:14px;gap:8px;letter-spacing:1.4px}
+html.theater .topbar .brand>span:not(.brand-icon),
+html.theater .topbar .nav-label,
+html.theater .topbar .nav-text,
+html.theater #sound-label,
+html.theater .result-sub-actions .result-btn-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+html.theater #sound{justify-content:center}
+html.theater #sound>span:first-child{font-size:16px}
+html.theater #sound[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
+html.theater .brand{gap:0}
 html.theater .brand-icon{font-size:24px}
-html.theater .brand-sub{font-size:8px;letter-spacing:3px;margin-top:2px}
-html.theater .game-layout{flex:1;min-height:0;display:flex;flex-direction:column;max-width:none;margin:0;padding:6px 16px 8px;gap:0}
+html.theater .game-layout{flex:1;min-height:0;display:flex;flex-direction:column;max-width:none;margin:0;padding:4px 16px 6px;gap:0}
 html.theater .play-area{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
-html.theater .stage-heading{flex:none;height:28px;min-height:28px;align-items:center;padding:0 4px;opacity:.78}
-html.theater .stage-heading .eyebrow{font-size:8px;letter-spacing:1.8px}
-html.theater body[data-first-run="true"][data-onboarding-stage="1"] .stage-heading .eyebrow{display:none}
+html.theater .stage-heading{flex:none;height:24px;min-height:24px;align-items:center;padding:0 4px;opacity:.8}
+html.theater .stage-heading .eyebrow{display:none}
 html.theater .stage-heading h1{font-size:13px;font-weight:500;margin-top:0;letter-spacing:1.5px}
 html.theater .stage-heading .chapter>span:first-child{font-size:13px}
-html.theater #room-description,html.theater .footer,html.theater #visual-stepper,html.theater .scene-caption{display:none}
+html.theater #room-description,html.theater .footer,html.theater #visual-stepper,html.theater .scene-caption,html.theater #layer-name,html.theater #stability-label,html.theater .void-rescue-copy{display:none}
 html.theater .layer-badge{left:12px;top:10px;gap:6px;padding:4px 9px;font-size:11px;border-radius:999px;background:rgba(248,250,245,.82);border:1px solid var(--line);backdrop-filter:blur(6px)}
-html.theater .layer-badge>span{font-size:15px;line-height:1;font-weight:600}
-html.theater .layer-badge strong{font-size:11px;letter-spacing:1px}
+html.theater .layer-badge::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--slice-color);box-shadow:0 0 7px var(--slice-color);flex:none}
+html.theater .layer-badge>span{font-size:14px;line-height:1;font-weight:700}
 html.theater #position-readout{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 html.theater body[data-first-run="true"]:is([data-onboarding-stage="1"],[data-onboarding-stage="2"]) :is(#open-chapters,#open-codex,#open-hyper-lab,#theme-toggle,.topbar a[href="flatland.html"],#layout-toggle,#pause){display:none}
 html.theater body[data-first-run="true"][data-onboarding-stage="1"] .advanced-drawer{display:none}
-html.theater body[data-first-run="true"][data-onboarding-stage="1"] #unlock-all-btn{font-size:10.5px;opacity:.72;padding:3px 8px}
 html.theater #chapter-arrival{position:absolute;top:40px;left:50%;transform:translateX(-50%);z-index:4;margin:0;width:max-content;max-width:min(560px,92%);font-size:10px;line-height:1.45;padding:6px 12px}
 html.theater .scene-wrap{flex:1;min-height:0;height:auto;margin:0;display:block}
+@media(min-width:781px) and (min-height:501px){html.theater .scene-wrap{margin-right:48px}}
 html.theater .scene-wrap canvas{width:100%;height:100%;aspect-ratio:auto;min-height:0}
-html.theater .controls{flex:none;position:relative;display:flex;align-items:center;flex-wrap:wrap;gap:7px;padding-top:8px;min-height:58px}
-html.theater .onboarding-banner{flex:1 1 260px;min-width:0;flex-wrap:nowrap;margin-bottom:0;padding:5px 11px;gap:8px;position:static}
-html.theater .onboarding-main{flex-direction:row;align-items:center;gap:9px;flex:1 1 auto;min-width:0}
-html.theater .onboarding-main strong{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-html.theater .onboarding-main{cursor:pointer}
+html.theater .scene-wrap canvas:focus:not(:focus-visible){outline:none}
+html.theater .controls{flex:none;position:relative;display:flex;align-items:center;flex-wrap:nowrap;gap:8px;padding-top:4px;min-height:48px}
+html.theater .onboarding-banner{flex:1 1 240px;min-width:0;flex-wrap:nowrap;margin-bottom:0;padding:2px 6px 2px 12px;gap:8px;position:static}
+html.theater .onboarding-main{flex-direction:row;align-items:center;gap:9px;flex:1 1 auto;min-width:0;cursor:pointer}
+html.theater .onboarding-main strong{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 /* The description popover anchors to .controls and floats at the top of the scene
    column (below the layer-badge row) ONLY when explicitly clicked open. */
 html.theater #onboarding-desc{display:none;position:absolute;left:50%;transform:translateX(-50%);top:calc(44px - var(--scene-h,0px));width:max-content;max-width:min(560px,92vw);margin:0;padding:8px 12px;border-radius:9px;background:rgba(248,250,245,.95);border:1px solid var(--line);box-shadow:0 10px 30px rgba(32,59,48,.16);font-size:11px;line-height:1.5;z-index:8;pointer-events:none}
 html.theater .onboarding-banner.desc-open #onboarding-desc{display:block}
-html.theater .onboarding-actions{flex-wrap:nowrap;gap:5px}
+html.theater .onboarding-actions{flex-wrap:nowrap;gap:6px;align-items:center}
 html.theater .onboarding-actions button{white-space:nowrap}
-html.theater #layer-controls{flex:none;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:min(300px,32%)}
-html.theater .layer-controls button{min-height:38px;padding:4px 8px;font-size:10.5px;gap:5px}
+html.theater #quick-risk-btn,html.theater #auto-next-btn{min-height:28px;height:28px;padding:0 9px;border-radius:999px;font-size:11.5px;display:inline-flex;align-items:center;justify-content:center}
+html.theater #unlock-all-btn{position:relative;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;margin-left:10px;border-radius:9px;display:inline-grid;place-items:center;font-size:14px;line-height:1;opacity:1;border:1px dashed var(--line);background:transparent;color:var(--green)}
+html.theater #unlock-all-btn:hover,html.theater #unlock-all-btn:focus-visible{border-color:var(--green);color:var(--ink);background:rgba(43,107,89,.08)}
+html.theater #unlock-all-btn .skip-tooltip{display:none;position:absolute;bottom:calc(100% + 6px);right:0;padding:3px 8px;border-radius:6px;background:var(--ink);color:#fff;font-size:10.5px;white-space:nowrap;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.22);z-index:12}
+html.theater #unlock-all-btn:hover .skip-tooltip,html.theater #unlock-all-btn:focus-visible .skip-tooltip{display:block}
+
+/* Right-side vertical W-ruler (Ⅰ cyan bottom, Ⅱ purple middle, Ⅲ gold top) */
+@keyframes ruler-target-pulse{0%,100%{box-shadow:0 0 4px 2px rgba(255,123,90,.4)}50%{box-shadow:0 0 7px 3px rgba(255,123,90,.48)}}
+html.theater #layer-controls{--bead:28px;position:fixed;right:8px;top:50%;transform:translateY(-50%);z-index:25;width:44px;min-width:44px;height:188px;padding:0;display:flex;flex-direction:column-reverse;justify-content:space-between;align-items:center;gap:0;border-radius:999px;background:transparent;border:0;backdrop-filter:none;box-shadow:none;touch-action:none;user-select:none;transition:right .24s ease-out}
+html.theater #layer-controls::before{content:'';position:absolute;top:1px;bottom:1px;left:3px;right:3px;border-radius:999px;background:rgba(248,250,245,.82);border:1px solid var(--line);backdrop-filter:blur(8px);box-shadow:0 8px 24px rgba(32,59,48,.12);pointer-events:none;z-index:0;transition:border-color .2s,box-shadow .2s}
+html.theater #layer-controls[hidden]{display:none!important}
+html.theater body:has(#run-panel.panel-open) #layer-controls{right:calc(min(340px,92vw) + 10px)}
+html.theater #layer-controls[data-can-shift="true"]::before{border-color:rgba(42,168,154,.65);box-shadow:0 0 0 1px rgba(42,168,154,.2),0 8px 26px rgba(42,168,154,.2)}
+html.theater .w-ruler-track{position:absolute;left:50%;top:22px;bottom:22px;width:3px;transform:translateX(-50%);border-radius:999px;background:rgba(117,131,122,.28);pointer-events:none;z-index:1;transition:background .2s,box-shadow .2s,width .2s}
+html.theater #layer-controls[data-can-shift="true"] .w-ruler-track{width:4px;background:linear-gradient(to top,#269c90 0%,#7962c9 50%,#cf9322 100%);box-shadow:0 0 10px rgba(94,234,212,.45)}
+html.theater .w-ruler-thumb{position:absolute;left:50%;bottom:calc(22px + var(--w-t,0) * (100% - 44px));width:calc(var(--bead) + 6px);height:calc(var(--bead) + 6px);transform:translate(-50%,50%);border-radius:50%;border:2.5px solid var(--thumb-color,var(--slice-color));background:transparent;box-shadow:0 0 0 2px rgba(255,255,255,.72),0 0 12px var(--thumb-color,rgba(42,168,154,.45));pointer-events:none;z-index:3}
+html.theater #layer-controls[data-off-detent="true"] .w-ruler-thumb{background:rgba(248,250,245,.86)}
+html.theater #layer-controls button{position:relative;z-index:2;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;gap:0;background:transparent;border:0;color:var(--tick-color);box-shadow:none;outline:none}
+html.theater #layer-controls button::before{content:'';position:absolute;left:50%;top:50%;width:var(--bead);height:var(--bead);transform:translate(-50%,-50%);border-radius:50%;background:color-mix(in srgb,var(--tick-color) 16%,var(--card));border:2px solid var(--tick-color);box-shadow:none;pointer-events:none;z-index:1;transition:transform .15s,background .15s,border-color .15s,box-shadow .15s}
+html.theater #layer-0{--tick-color:#269c90;--active-fill:#269c90;--active-ink:#0a1e1c}
+html.theater #layer-1{--tick-color:#836ece;--active-fill:#836ece;--active-ink:#110b1e}
+html.theater #layer-2{--tick-color:#d29b32;--active-fill:#d29b32;--active-ink:#1a1408}
+html.theater #layer-controls button .layer-label-text,html.theater #layer-controls button .layer-safety-pill,html.theater #layer-controls button kbd{display:none!important}
+html.theater #layer-controls button>.layer-num{position:relative;z-index:3;width:13px;height:13px;font-size:0;line-height:0;opacity:1;display:inline-grid;place-items:center;pointer-events:none}
+html.theater #layer-controls button .roman-svg{display:block;width:12px;height:12px;overflow:visible}
+html.theater #layer-controls button .target-ring-svg{display:none;position:absolute;left:50%;top:50%;width:var(--bead);height:var(--bead);transform:translate(-50%,-50%);color:#ff7b5a;pointer-events:none;z-index:2;overflow:visible}
+html.theater #layer-controls button[aria-pressed="true"]{color:var(--active-ink);background:transparent;border:0;box-shadow:none}
+html.theater #layer-controls button[aria-pressed="true"]::before{width:calc(var(--bead) + 1px);height:calc(var(--bead) + 1px);background:var(--active-fill);border-color:var(--active-fill);box-shadow:none}
+html.theater #layer-controls[data-off-detent="true"] button[aria-pressed="true"]{color:var(--tick-color)}
+html.theater #layer-controls[data-off-detent="true"] button[aria-pressed="true"]::before{width:var(--bead);height:var(--bead);background:color-mix(in srgb,var(--tick-color) 16%,var(--card));border-color:var(--tick-color)}
+html.theater #layer-controls button.attention-action:not([aria-pressed="true"]){color:#ff7b5a;background:transparent;border:0;box-shadow:none;animation:none}
+html.theater #layer-controls button.attention-action:not([aria-pressed="true"])::before{background:#242c4c;border-width:0;border-color:#ff7b5a;box-shadow:0 0 4px 2px rgba(255,123,90,.4);animation:ruler-target-pulse 1.6s ease-in-out infinite}
+html.theater #layer-controls button.attention-action:not([aria-pressed="true"]) .target-ring-svg{display:block}
+html.theater #layer-controls button.void-warning-layer{background:transparent;border:0}
+html.theater #layer-controls button.danger-layer:not([aria-pressed="true"]){color:#ff7b5a;background:transparent;border:0}
+html.theater #layer-controls button.danger-layer:not([aria-pressed="true"])::before{border-style:dashed;border-width:2.5px;border-color:#ff7b5a;background:#242c4c}
+html.theater #layer-controls button.danger-layer::after,html.theater #layer-controls button.safe-layer::after{content:none}
+html.theater #layer-controls button.safe-layer:not([aria-pressed="true"])::before{border-color:#25966e;box-shadow:0 0 0 3px rgba(37,150,110,.38)}
+html.theater #layer-controls button.same-xyz-layer:not([aria-pressed="true"]){outline:none}
+
 html.theater .advanced-drawer{flex:none;margin-top:0;padding:0;border:0;background:none;border-radius:0}
-html.theater .advanced-drawer>summary{list-style:none;display:grid;place-items:center;width:44px;min-height:40px;font-size:0;padding:0;border:1px dashed var(--line);border-radius:9px;cursor:pointer}
-html.theater .advanced-drawer>summary::before{content:'🎛️';font-size:16px}
+html.theater .advanced-drawer>summary{list-style:none;display:grid;place-items:center;width:44px;min-height:44px;font-size:0;padding:0;border:1px dashed var(--line);border-radius:9px;cursor:pointer}
+html.theater .advanced-drawer>summary::before{content:'🎛️';font-size:15px}
 html.theater .advanced-drawer>summary::-webkit-details-marker{display:none}
 html.theater .advanced-drawer>summary:hover{border-color:var(--green)}
 html.theater .advanced-drawer[open]>summary{border-color:var(--green);border-style:solid;margin-bottom:0;padding-bottom:0}
+html.theater .advanced-drawer:not([open])>.advanced-drawer-body{display:none}
 html.theater .advanced-drawer-body{position:absolute;bottom:calc(100% + 8px);left:0;right:0;max-height:60svh;overflow-y:auto;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:rgba(248,250,245,.96);box-shadow:0 20px 56px rgba(32,59,48,.26);backdrop-filter:blur(12px);z-index:9}
 
-/* Transient decision chips float over the bottom mist band; the canvas never resizes.
-   The toast chips and the popover stack into the same column via --f0/--af-h/--float-h. */
-html.theater #action-feedback{bottom:calc(38px + var(--f0,0px));z-index:7;font-size:11.5px;padding:5px 12px;font-weight:500}
-html.theater .wave-warning{bottom:calc(36px + var(--f0,0px) + var(--af-h,0px));z-index:7}
-html.theater .dock-float{display:flex;flex-direction:column;align-items:center;gap:6px;position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);width:max-content;max-width:min(760px,96%);pointer-events:none;z-index:7}
+/* Transient decision chips float over the bottom mist band; the canvas never resizes. */
+html.theater #action-feedback{bottom:calc(30px + var(--f0,0px));z-index:7;font-size:11.5px;padding:4px 11px;font-weight:600}
+html.theater .wave-warning{bottom:calc(30px + var(--f0,0px) + var(--af-h,0px));z-index:7;padding:6px 12px;gap:8px;border-radius:999px}
+html.theater .wave-warning .wave-icon{font-size:18px}
+html.theater .wave-warning div{display:flex;align-items:center;gap:6px}
+html.theater .wave-warning div>span{margin-top:0;font-size:11px;font-weight:700}
+html.theater .wave-warning output{font-size:18px;min-width:28px}
+html.theater .void-rescue-banner{padding:4px 8px;gap:6px;border-radius:999px}
+html.theater .dock-float{display:flex;flex-direction:column;align-items:center;gap:5px;position:absolute;left:50%;bottom:calc(100% + 5px);transform:translateX(-50%);width:max-content;max-width:min(760px,96%);pointer-events:none;z-index:7}
 html.theater .dock-float>*{pointer-events:none;margin:0;width:max-content;max-width:100%;backdrop-filter:blur(10px);box-shadow:0 10px 30px rgba(32,59,48,.2)}
 html.theater .dock-float :is(button,a,input,select,textarea,summary,[role="button"]){pointer-events:auto}
-html.theater .dock-float .friend-guide{padding:7px 13px;background:rgba(248,249,242,.88);border:1px solid var(--line);border-radius:10px;font-size:11px}
+html.theater .dock-float .friend-guide{padding:6px 12px;background:rgba(248,249,242,.88);border:1px solid var(--line);border-radius:10px;font-size:11px}
 html.theater .dock-float .relic-hud-bar,html.theater .dock-float .risk-decision-bar,html.theater .dock-float .seal-prompt{margin-bottom:0}
+html.theater .relic-hud-bar{padding:4px 8px;gap:6px;border-radius:999px}
+html.theater .relic-chip{padding:2px 8px;border-radius:999px;gap:5px}
+html.theater .relic-chip strong{font-size:11px;font-variant-numeric:tabular-nums}
+html.theater .risk-decision-copy{display:none}
+html.theater .dock-float .risk-decision-bar,html.theater body[data-theme="astral"] .dock-float .risk-decision-bar{padding:0;border:0;background:transparent;box-shadow:none;backdrop-filter:none}
+html.theater .risk-decision-actions{flex-wrap:nowrap;gap:8px}
+html.theater .risk-decision-actions button{height:32px;min-height:32px;padding:0 13px;border-radius:999px;font-size:12px;line-height:1;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(32,59,48,.22)}
+
+/* Compact interlude relic choice dialog & result sub-actions in theater */
+html.theater .choice-dialog.interlude-choice{width:min(820px,calc(100vw - 24px));max-height:calc(100svh - 16px);padding:20px 22px}
+html.theater .choice-dialog.interlude-choice h2{font-size:24px;line-height:1.25;margin:6px 0 0}
+html.theater .choice-dialog.interlude-choice .choice-route{margin-top:10px;gap:8px}
+html.theater .choice-dialog.interlude-choice .choice-route .route-stop{padding:8px 10px;align-items:center}
+html.theater .choice-dialog.interlude-choice .choice-preview{margin-top:8px;font-size:12px}
+html.theater .choice-dialog.interlude-choice .choice-build{display:inline-block;margin-top:6px;padding:4px 10px;font-size:12px;letter-spacing:1px}
+html.theater .choice-dialog.interlude-choice .relic-choices{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 0}
+html.theater .choice-dialog.interlude-choice .relic-choice{min-height:0;padding:14px;display:flex;flex-direction:column;gap:5px}
+html.theater .choice-dialog.interlude-choice .relic-choice .relic-art{font-size:28px;height:32px}
+html.theater .choice-dialog.interlude-choice .relic-choice h3{font-size:15px;margin:0;display:flex;align-items:baseline;gap:6px}
+html.theater .choice-dialog.interlude-choice .relic-choice h3 .relic-rank-up{font-size:10px;color:var(--green);font-weight:600}
+html.theater .choice-dialog.interlude-choice .relic-choice p{font-size:11px;line-height:1.45;margin:0}
+html.theater .choice-dialog.interlude-choice .choice-synergy{margin-top:auto;padding-top:6px;font-size:11.5px;letter-spacing:.5px}
+html.theater .result-sub-actions{justify-content:center}
+html.theater .result-sub-actions>button{flex:0 0 auto;min-width:44px;min-height:38px;padding:8px 12px;font-size:15px}
 
 /* The run panel is an on-demand, non-modal drawer: the game keeps running behind it. */
-html.theater .run-panel{position:fixed;top:52px;right:0;bottom:calc(var(--dock-h,60px) + 10px);width:min(340px,92vw);z-index:45;display:flex;flex-direction:column;padding:12px 18px 22px;overflow-y:auto;border-left:1px solid var(--line);background:rgba(248,250,245,.92);backdrop-filter:blur(14px);box-shadow:-18px 0 50px rgba(32,59,48,.22);transform:translateX(106%);visibility:hidden;transition:transform .26s ease-out,visibility 0s linear .26s}
+html.theater .run-panel{position:fixed;top:48px;right:0;bottom:calc(var(--dock-h,52px) + 8px);width:min(340px,92vw);z-index:45;display:flex;flex-direction:column;padding:12px 18px 22px;overflow-y:auto;border-left:1px solid var(--line);background:rgba(248,250,245,.92);backdrop-filter:blur(14px);box-shadow:-18px 0 50px rgba(32,59,48,.22);transform:translateX(106%);visibility:hidden;transition:transform .26s ease-out,visibility 0s linear .26s}
 html.theater .run-panel.panel-open{transform:translateX(0);visibility:visible;transition:transform .26s ease-out,visibility 0s}
 html.theater .run-panel .run-tip{display:block}
-@media(orientation:landscape) and (max-height:500px){
-  html.theater .topbar{height:38px;min-height:38px;padding:0 12px}
-  html.theater .topbar nav{gap:3px;flex-wrap:nowrap}
-  html.theater .topbar .icon-button{padding:4px 5px;font-size:10.5px;white-space:nowrap}
-  html.theater .brand{font-size:13px;gap:6px}
-  html.theater .brand-icon{font-size:20px}
-  html.theater .game-layout{padding:2px 12px 4px}
-  html.theater .stage-heading{height:22px;min-height:22px}
-  html.theater .stage-heading>div:first-child{display:flex;align-items:baseline;gap:10px;min-width:0}
-  html.theater .controls{padding-top:4px;min-height:44px;gap:6px}
-  html.theater .onboarding-banner{padding:3px 10px}
-  html.theater #layer-controls{width:min(310px,36%)}
-  html.theater .layer-controls button{min-height:34px;padding:2px 6px;font-size:10px;gap:4px}
-  html.theater .advanced-drawer>summary{width:38px;min-height:34px}
-  html.theater #action-feedback{bottom:calc(10px + var(--f0,0px));padding:3px 10px;font-size:11px}
-  html.theater .dock-float{bottom:calc(100% + 4px);gap:4px}
-  html.theater .run-panel{top:40px}
+
+/* Short-landscape mobile layout (e.g. 844×390, 932×430, 667×375) */
+@media(max-height:500px) and (max-width:1000px){
+  html.theater .topbar{height:34px;min-height:34px;padding:0 10px}
+  html.theater .topbar nav{gap:2px}
+  html.theater .topbar .icon-button{width:28px;height:28px;font-size:13.5px;border-radius:6px}
+  html.theater .brand-icon{font-size:19px}
+  html.theater .game-layout{padding:1px 10px 3px}
+  html.theater .stage-heading{height:19px;min-height:19px}
+  html.theater .stage-heading h1{font-size:11.5px}
+  html.theater .stage-heading .chapter{font-size:10px;gap:6px}
+  html.theater .stage-heading .chapter>span:first-child{font-size:11.5px}
+  html.theater .layer-badge{left:8px;top:6px;padding:2px 7px;gap:5px}
+  html.theater .layer-badge::before{width:6px;height:6px}
+  html.theater .layer-badge>span{font-size:12px}
+  html.theater .controls{padding-top:2px;min-height:36px;gap:6px}
+  html.theater .onboarding-banner{padding:1px 4px 1px 9px;min-height:34px}
+  html.theater .onboarding-main strong{font-size:11.5px}
+  html.theater .onboarding-badge{font-size:9.5px;padding:1px 6px}
+  html.theater #unlock-all-btn{width:44px;min-width:44px;height:34px;min-height:34px;font-size:14px;margin-left:8px}
+  html.theater .advanced-drawer>summary{width:34px;min-height:34px}
+  html.theater .advanced-drawer>summary::before{font-size:13px}
+  html.theater #layer-controls{--bead:24px;right:6px;width:44px;min-width:44px;height:146px}
+  html.theater #layer-controls::before{top:2px;bottom:2px;left:5px;right:5px}
+  html.theater #layer-controls button>.layer-num{width:12px;height:12px;font-size:0}
+  html.theater body:has(#run-panel.panel-open) #layer-controls{right:calc(min(280px,46vw) + 6px)}
+  html.theater #action-feedback{bottom:calc(8px + var(--f0,0px));padding:2px 9px;font-size:10.5px}
+  html.theater .wave-warning{bottom:calc(8px + var(--f0,0px) + var(--af-h,0px));padding:4px 10px}
+  html.theater .dock-float{bottom:calc(100% + 3px);gap:3px}
+  html.theater .risk-decision-actions button{height:28px;min-height:28px;padding:0 11px;font-size:11px}
+  html.theater .relic-hud-bar{padding:2px 6px;gap:4px}
+  html.theater .quick-ability-btn{padding:3px 9px;font-size:10.5px;min-height:24px}
+  html.theater .run-panel{top:36px;bottom:calc(var(--dock-h,38px) + 4px);width:min(280px,46vw);padding:10px 12px 14px}
+  /* Guarantee all 3 relic cards stay 100% above fold on 844×390, 932×430, and 667×375 */
+  html.theater .choice-dialog.interlude-choice{width:min(800px,calc(100vw - 16px));max-height:calc(100svh - 10px);padding:10px 14px}
+  html.theater .choice-dialog.interlude-choice .dialog-kicker{font-size:9px;gap:6px}
+  html.theater .choice-dialog.interlude-choice .dialog-kicker>span:first-child{font-size:16px}
+  html.theater .choice-dialog.interlude-choice h2{font-size:17px;margin:2px 0 0;line-height:1.2}
+  html.theater .choice-dialog.interlude-choice .choice-route{margin-top:5px;gap:5px}
+  html.theater .choice-dialog.interlude-choice .choice-route .route-stop{padding:4px 7px;gap:6px}
+  html.theater .choice-dialog.interlude-choice .choice-route .route-number{width:18px;height:18px;font-size:8px}
+  html.theater .choice-dialog.interlude-choice .choice-route .route-stop strong{font-size:10px}
+  html.theater .choice-dialog.interlude-choice .choice-route .route-stop small{display:none}
+  html.theater .choice-dialog.interlude-choice .choice-preview{display:inline-flex;margin-top:4px;margin-right:8px;font-size:10.5px}
+  html.theater .choice-dialog.interlude-choice .choice-build{display:inline-block;margin-top:4px;padding:2px 7px;font-size:10.5px}
+  html.theater .choice-dialog.interlude-choice .relic-choices{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:6px 0 0}
+  html.theater .choice-dialog.interlude-choice .relic-choice{padding:8px 9px;gap:3px}
+  html.theater .choice-dialog.interlude-choice .relic-choice .relic-art{font-size:20px;height:22px}
+  html.theater .choice-dialog.interlude-choice .relic-choice h3{font-size:12.5px}
+  html.theater .choice-dialog.interlude-choice .relic-choice p{font-size:9.8px;line-height:1.32}
+  html.theater .choice-dialog.interlude-choice .choice-synergy{padding-top:3px;font-size:10px}
+  html.theater .choice-dialog.starter-choice{width:min(820px,calc(100vw - 16px));max-height:calc(100svh - 10px);padding:10px 14px}
+  html.theater .choice-dialog.starter-choice .dialog-kicker{font-size:9px;gap:6px}
+  html.theater .choice-dialog.starter-choice .dialog-kicker>span:first-child{font-size:16px}
+  html.theater .choice-dialog.starter-choice h2{font-size:17px;margin:2px 0 0;line-height:1.2}
+  html.theater .choice-dialog.starter-choice:not(.discovery-choice) .relic-choices{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:8px 0 0}
+  html.theater .choice-dialog.starter-choice:not(.discovery-choice) .relic-choice{display:flex;flex-direction:column;gap:3px;padding:8px 7px;min-height:0}
+  html.theater .choice-dialog.starter-choice:not(.discovery-choice) .relic-art{font-size:19px;height:21px;align-self:flex-start}
+  html.theater .choice-dialog.starter-choice:not(.discovery-choice) .relic-choice h3{font-size:11.5px}
+  html.theater .choice-dialog.starter-choice:not(.discovery-choice) .relic-choice p{font-size:9.2px;line-height:1.3;margin:0}
+  html.theater .hyper-lab-dialog{padding:12px 16px;max-height:calc(100svh - 12px)}
+  html.theater .hyper-lab-dialog h2{font-size:17px;margin:2px 0 4px}
+  html.theater .hyper-lab-desc{font-size:10.5px;margin-bottom:6px;line-height:1.35}
+  html.theater .hyper-lab-canvas{height:168px}
+  html.theater .hyper-lab-controls{margin-top:8px;padding-top:8px;gap:8px}
+  html.theater .small-dialog{padding:12px 16px;max-height:calc(100svh - 10px)}
+  html.theater .small-dialog h2{font-size:16.5px;margin:4px 0}
+  html.theater .small-dialog p{font-size:10.5px;line-height:1.35}
+  html.theater .result-symbol{font-size:24px;margin-bottom:2px}
+  html.theater .result-score{margin:5px 0}
+  html.theater .result-score strong{font-size:32px}
+  html.theater .small-dialog>.primary-button{margin-top:8px;min-height:32px;padding:6px 12px}
+  html.theater .dialog-actions{margin-top:6px}
+  html.theater .result-sub-actions>button{min-height:32px;padding:5px 10px;font-size:13.5px}
 }
-@media(max-width:780px) and (orientation:portrait){
-  html.theater .topbar{min-height:48px;height:auto;padding:2px 12px}
-  html.theater .topbar nav{gap:3px}
-  html.theater .game-layout{padding:4px 6px 4px}
-  html.theater .stage-heading{height:26px;min-height:26px}
-  html.theater .stage-heading h1{font-size:12.5px}
-  html.theater .scene-wrap{margin:0 -6px}
-  html.theater .controls{gap:6px;padding-top:6px;min-height:0}
-  html.theater .onboarding-banner{flex:1 1 100%;padding:5px 9px}
-  html.theater #layer-controls{flex:1 1 auto;width:auto}
-  html.theater .layer-controls button{min-height:42px}
-  html.theater .advanced-drawer>summary{width:46px;min-height:42px}
-  html.theater .run-panel{top:auto;left:0;right:0;bottom:0;width:100%;max-height:70svh;border-left:0;border-top:1px solid var(--line);transform:translateY(106%);transition:transform .26s ease-out,visibility 0s linear .26s}
-  /* One-row icon topbar: four text controls carry glyphs + .nav-text (kept for
-     screen readers via a visually-hidden clip), #sound-label hides the same way. */
-  html.theater .topbar{height:48px;min-height:0;max-height:56px;padding:0 10px;overflow:hidden}
-  html.theater .topbar nav{flex-wrap:nowrap;gap:2px;min-width:0}
-  html.theater .topbar .icon-button{padding:6px 5px;font-size:12px;white-space:nowrap}
-  html.theater .topbar .icon-button .nav-text,html.theater #sound-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
-  /* Slim floating chips: the canvas stays the stage. */
-  html.theater .dock-float{gap:4px;bottom:calc(100% + 4px)}
-  html.theater .dock-float>*{max-width:96%}
-  html.theater #relic-chips{display:none}
-  html.theater .relic-hud-bar{padding:4px 6px;gap:4px;justify-content:center}
-  html.theater .relic-hud-bar:has(#quick-ability-btn[hidden]){display:none}
-  html.theater .relic-hud-bar .relic-hud-actions button{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:70vw;padding:8px 10px}
-  html.theater .risk-decision-bar{flex-wrap:nowrap;gap:6px;padding:5px 7px;justify-content:center}
-  html.theater .risk-decision-copy{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
-  html.theater .risk-decision-actions{flex-wrap:nowrap;gap:6px}
-  html.theater .risk-decision-actions button{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding:7px 12px}
-  html.theater .friend-guide{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:96%}
-  html.theater .seal-prompt{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:96%}
-  html.theater .run-panel.panel-open{transform:translateY(0);transition:transform .26s ease-out,visibility 0s}
+
+@media(max-height:500px) and (max-width:700px){
+  html.theater #layer-controls{right:0}
+  html.theater #layer-controls::before{left:6px;right:4px}
 }
-@media(max-width:480px) and (orientation:portrait){
-  html.theater .topbar{padding:0 6px}
-  html.theater .topbar .brand>span:not(.brand-icon){display:none}
-  html.theater .topbar nav{gap:1px}
-  html.theater .topbar .icon-button{padding:6px 3px;font-size:11px}
-  html.theater .game-layout{padding:3px 4px 8px}
-  html.theater .scene-wrap{margin:0 -4px}
-  html.theater .controls{gap:7px;padding-top:4px;min-height:0}
-  html.theater .onboarding-banner{min-height:40px;margin:0 9px;flex:1 1 calc(100% - 18px);padding:5px 11px}
-  html.theater .onboarding-main strong{font-size:13px;font-weight:700}
-  html.theater body[data-theme="astral"] .onboarding-main strong{color:#e1ce9f}
-  html.theater .controls:has(.onboarding-banner:not([hidden]):not(.collapsed)) .advanced-drawer{display:none}
-  html.theater .onboarding-banner.collapsed{min-height:36px;flex:1 1 auto;margin:0 0 0 9px}
-  html.theater .controls:has(.onboarding-banner.collapsed) .advanced-drawer{margin-right:9px}
-  html.theater #layer-controls{flex:1 1 100%;order:2}
-  html.theater .dock-float{max-width:96%;gap:5px;bottom:calc(100% + 8px)}
-  html.theater #action-feedback{bottom:calc(14px + var(--f0,0px));font-size:11px;padding:4px 10px}
-  html.theater .wave-warning{bottom:calc(14px + var(--f0,0px) + var(--af-h,0px))}
-  html.theater .dock-float .risk-decision-bar,html.theater body[data-theme="astral"] .dock-float .risk-decision-bar{padding:0;border:0;background:transparent;box-shadow:none;backdrop-filter:none}
-  html.theater .risk-decision-actions{gap:8px}
-  html.theater .risk-decision-actions button{height:32px;min-height:32px;padding:0 11px;border-radius:999px;font-size:11px;line-height:1;display:inline-flex;align-items:center;justify-content:center;background:rgba(43,31,13,.92);backdrop-filter:blur(8px);box-shadow:0 4px 14px rgba(0,0,0,.38)}
-  html.theater body[data-theme="astral"] .risk-go-btn{background:rgba(43,31,13,.92);border:1.5px solid #f59e0b;color:#ffe29a}
-  html.theater body[data-theme="astral"] .safe-go-btn{background:rgba(43,31,13,.92);border:1px solid #6b7f90;color:#e6eff5}
+
+/* Mobile portrait: landscape-only rotate prompt (does NOT fire on desktop portrait windows >500px with fine pointer) */
+@media(orientation:portrait) and (hover:none),(orientation:portrait) and (max-width:500px){
+  html.theater .rotate-cue{display:grid;place-items:center;position:fixed;inset:0;z-index:9999;background:var(--paper);color:var(--green)}
+  html.theater body[data-theme="astral"] .rotate-cue{background:#0b1620;color:#5eead4}
+  html.theater .topbar,html.theater .game-layout,html.theater .footer,html.theater dialog[open]{display:none!important}
 }
+
 @media(prefers-reduced-motion:reduce){
   html.theater .run-panel{opacity:0;transition:opacity .15s ease-out,visibility 0s linear .15s}
   html.theater .run-panel.panel-open{opacity:1;transition:opacity .15s ease-out,visibility 0s}
+  html.theater #layer-controls button.attention-action:not([aria-pressed="true"])::before{animation:none}
 }
 @media(prefers-reduced-transparency:reduce){
-  html.theater .dock-float>*:not(.risk-decision-bar),html.theater .run-panel,html.theater .advanced-drawer-body,html.theater #onboarding-desc,html.theater .layer-badge{backdrop-filter:none;background:var(--card)}
+  html.theater .dock-float>*:not(.risk-decision-bar),html.theater .run-panel,html.theater .advanced-drawer-body,html.theater #onboarding-desc,html.theater .layer-badge,html.theater #layer-controls::before{backdrop-filter:none;background:var(--card)}
   html.theater .risk-decision-actions button{backdrop-filter:none}
 }
 @media(prefers-contrast:more){
-  html.theater .dock-float>*:not(.risk-decision-bar),html.theater .run-panel{background:var(--card);border-color:var(--ink)}
+  html.theater .dock-float>*:not(.risk-decision-bar),html.theater .run-panel,html.theater #layer-controls::before{background:var(--card);border-color:var(--ink)}
 }
 html.theater body[data-theme="astral"] .layer-badge{background:rgba(14,27,38,.84);border-color:#26455a}
+html.theater body[data-theme="astral"] #layer-controls::before{background:rgba(13,25,36,.86);border-color:#26445a;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+html.theater body[data-theme="astral"] #layer-controls[data-can-shift="true"]::before{border-color:rgba(42,168,154,.68);box-shadow:0 0 0 1px rgba(42,168,154,.22),0 8px 26px rgba(42,168,154,.24)}
+html.theater body[data-theme="astral"] #layer-controls button:not([aria-pressed="true"]):not(.attention-action):not(.danger-layer)::before,html.theater body[data-theme="astral"] #layer-controls[data-off-detent="true"] button[aria-pressed="true"]::before{background:color-mix(in srgb,var(--tick-color) 20%,#0f1f2d)}
+html.theater body[data-theme="astral"] .w-ruler-thumb{box-shadow:0 0 0 2px rgba(13,25,36,.85),0 0 14px var(--thumb-color,#5eead4)}
+html.theater body[data-theme="astral"] #layer-controls[data-off-detent="true"] .w-ruler-thumb{background:rgba(24,36,44,.84)}
+html.theater body[data-theme="astral"] #unlock-all-btn{color:#9be7f5;border-color:#2a4b63;background:transparent}
+html.theater body[data-theme="astral"] #unlock-all-btn:hover,html.theater body[data-theme="astral"] #unlock-all-btn:focus-visible{color:#9be7f5;border-color:#4dd2ac;background:rgba(42,168,154,.14)}
+html.theater body[data-theme="astral"] #unlock-all-btn .skip-tooltip{background:#e2f1f8;color:#0b1822}
+html.theater body[data-theme="astral"] .risk-go-btn{background:rgba(43,31,13,.94);border:1.5px solid #f59e0b;color:#ffe29a}
+html.theater body[data-theme="astral"] .safe-go-btn{background:rgba(19,35,48,.94);border:1px solid #6b7f90;color:#e6eff5}
 html.theater body[data-theme="astral"] .run-panel{background:rgba(13,25,36,.94);border-color:#26445a;box-shadow:-18px 0 50px rgba(0,0,0,.5)}
 html.theater body[data-theme="astral"] .dock-float>*{box-shadow:0 10px 30px rgba(0,0,0,.42)}
 html.theater body[data-theme="astral"] .dock-float .friend-guide{background:rgba(15,29,41,.9);border-color:#26445a;color:#a8e6cf}

@@ -21,7 +21,7 @@ await mkdir(OUT, { recursive: true });
 
 const VIEWPORTS = [
   { label: 'desktop', width: 1280, height: 800, hasTouch: false, isMobile: false },
-  { label: 'mobile', width: 390, height: 844, hasTouch: true, isMobile: true },
+  { label: 'mobile', width: 844, height: 390, hasTouch: true, isMobile: true },
 ];
 const BADGES = ['①', '②', '③', '④'];
 
@@ -400,17 +400,26 @@ try {
       const onRelay = await hintOf(page);
       assert.equal(onRelay.action, 'move', `${vpKey}: on 维度锚台 the next step is to leave (${onRelay.title})`);
       assert.equal(onRelay.target, 'hub');
-      assert.ok(onRelay.title.includes('归响台'), `${vpKey}: hint names 归响台, got "${onRelay.title}"`);
+      assert.ok(onRelay.title.includes('归响'), `${vpKey}: hint distinguishes 归响, got "${onRelay.title}"`);
+      assert.match(onRelay.desc, /归响台/);
       assert.ok(!onRelay.title.includes('先回⚓台'), onRelay.title);
       assert.ok(onRelay.title.includes('②'), onRelay.title);
       await clickNode(page, 'hub');
       await page.waitForFunction(() => window.__g().state.node === 'hub' && !window.__g().state.travel && !window.__g().autoPilot, null, { timeout: 15000 });
       const onHub = await hintOf(page);
-      assert.equal(onHub.action, 'shift', `${vpKey}: on 归响台 the hint switches layers (${onHub.title})`);
-      assert.match(onHub.title, /上滚|下滚/);
-      assert.ok(onHub.title.includes('②'), onHub.title);
-      assert.match(onHub.desc, /就在归响台/);
-      receipt.checks.push({ viewport: vpKey, check: 'named-anchor-hint', onRelay: onRelay.title, onHub: onHub.title, passed: true });
+      assert.equal(onHub.action, 'move', `${vpKey}: on 归响台 the hint boards the W-ramp (${onHub.title})`);
+      assert.equal(onHub.target, 'bell');
+      assert.equal(onHub.title, '走上斜桥点亮②');
+      await clickNode(page, 'bell');
+      await page.waitForFunction(() => window.__g().state.activated.includes('bell') && !window.__g().state.travel && !window.__g().autoPilot, null, { timeout: 15000 });
+      await clickNode(page, 'relay');
+      await page.waitForFunction(() => window.__g().state.node === 'relay' && !window.__g().state.travel && !window.__g().autoPilot, null, { timeout: 15000 });
+      const onRelayShift = await hintOf(page);
+      assert.equal(onRelayShift.action, 'shift', `${vpKey}: on 维度锚台 for ③ the hint switches layers (${onRelayShift.title})`);
+      assert.match(onRelayShift.title, /上滚|下滚/);
+      assert.ok(onRelayShift.title.includes('③'), onRelayShift.title);
+      assert.match(onRelayShift.desc, /就在维度锚台/);
+      receipt.checks.push({ viewport: vpKey, check: 'named-anchor-hint', onRelay: onRelay.title, onHub: onHub.title, onRelayShift: onRelayShift.title, passed: true });
       await context.close();
     }
 
@@ -534,7 +543,18 @@ try {
       const retStage2 = await hintOf(page);
       assert.equal(retStage2.stage, '2', `${vpKey}: returning run enters Stage 2 after ①`);
       assert.equal(retStage2.action, '', `${vpKey}: returning run Stage 2 shows stage summary instead of tutorial hint`);
-      assert.ok(retStage2.title.includes('⚓ 归响台'), `${vpKey}: Stage 2 fixed title names ⚓ 归响台 ("${retStage2.title}")`);
+      assert.equal(await page.locator('#layer-controls').evaluate(el => el.hidden), false,
+        `${vpKey}: returning run Stage 2 reveals #layer-controls`);
+      for (const layerIdx of [0, 1, 2]) {
+        assert.equal(await page.locator(`#layer-${layerIdx}`).isVisible(), true,
+          `${vpKey}: returning run #layer-${layerIdx} visible`);
+      }
+      assert.ok(!retStage2.title.includes('站在 ⚓ 归响台上滚轮'),
+        `${vpKey}: Stage 2 fixed title no longer says 站在 ⚓ 归响台上滚轮 ("${retStage2.title}")`);
+      assert.ok(retStage2.title.includes('⚓') && retStage2.title.includes('W尺'),
+        `${vpKey}: Stage 2 fixed title names ⚓ and W尺 ("${retStage2.title}")`);
+      assert.ok(retStage2.desc.includes('⚓ 归响台'),
+        `${vpKey}: Stage 2 detail names ⚓ 归响台 ("${retStage2.desc}")`);
       assert.ok(!retStage2.title.includes('换层台') && !retStage2.desc.includes('换层台'),
         `${vpKey}: Stage 2 copy never says 换层台 ("${retStage2.title}" / "${retStage2.desc}")`);
       await page.waitForTimeout(4800);
@@ -603,8 +623,8 @@ try {
         `${vpKey} seed ${spec.seed}: no non-adjacent same_xyz / recover 2-cycle hints`,
       );
       assert.ok(
-        runHints.some(h => h.node === 'dew' && h.action === 'move' && h.target === 'hub' && h.title.includes('归响台')),
-        `${vpKey} seed ${spec.seed}: standing on dew routes via 归响台 before changing layer`,
+        runHints.some(h => h.node === 'dew' && h.action === 'move' && h.target === 'hub' && h.title.includes('归响')),
+        `${vpKey} seed ${spec.seed}: standing on dew routes via 归响 (归响台) before changing layer`,
       );
       receipt.checks.push({
         viewport: vpKey,

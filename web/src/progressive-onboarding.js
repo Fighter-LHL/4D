@@ -12,32 +12,32 @@ export const ONBOARDING_STAGES = [
   {
     stage: 1,
     id: 'walk_and_light',
-    badge: '1/4 · 寻路',
-    title: '点击发光的 ① 号台，走过去点亮',
+    badge: '1/4',
+    title: '点击①上桥点亮',
     instruction: '左键点击 ① 号台即可顺桥走过去点亮；点亮 3 座机关即可打开 🚪 出口过关。',
     unlockedFeatures: ['click_move'],
   },
   {
     stage: 2,
     id: 'slice_shift',
-    badge: '2/4 · 换层',
-    title: '站在 ⚓ 归响台上滚轮，切出隐藏的桥',
-    instruction: '部分桥藏在上下层空间：先走到 ⚓ 归响台或 ⚓ 维度锚台，上下滚动鼠标滚轮（或点右侧 Ⅰ/Ⅱ/Ⅲ 层）让桥显形。',
+    badge: '2/4',
+    title: '在⚓用W尺换层',
+    instruction: '部分桥跨向其他层：走上彩色斜桥可滑入对应层，或在 ⚓ 归响台 / ⚓ 维度锚台用右侧 W 尺（或滚轮）换层显桥。',
     unlockedFeatures: ['click_move', 'layer_shift', 'anomalies'],
   },
   {
     stage: 3,
     id: 'phase_dodge_and_bloom',
-    badge: '3/4 · 推理',
-    title: '点亮全部①②③，开启 🚪 出口过关',
-    instruction: '叠在同一位置的机关要换层才出现（例如站在①上滚轮显现③）；全部点亮后走向 🚪 出口过关。',
+    badge: '3/4',
+    title: '集齐①②③开启🚪',
+    instruction: '叠在同一位置的机关要换层才出现（例如站在①上换层显现③）；全部点亮后走向 🚪 出口过关。',
     unlockedFeatures: ['click_move', 'layer_shift', 'anomalies', 'vault_dodge', 'risk_bloom'],
   },
   {
     stage: 4,
     id: 'dimensional_mastery',
-    badge: '4/4 · 进阶',
-    title: '点亮①②③开门·可试⚡冒险或✨宝箱',
+    badge: '4/4',
+    title: '集齐①②③进🚪',
     instruction: '已解锁全部机制：可尝试 ⚡ 冒险过桥赢取三倍回响，或探索 ✨ 宝箱与隐藏秘境。',
     unlockedFeatures: ['click_move', 'layer_shift', 'anomalies', 'vault_dodge', 'risk_bloom', 'same_xyz', 'secret_rift'],
   },
@@ -48,26 +48,42 @@ export const ONBOARDING_STAGES = [
  * that exist on the player's current W layer (`state.layer`).
  * Never inserts automatic layer-shift steps, preserving the 4D puzzle for the player.
  */
+function edgeStepLayers(edge, nodeId) {
+  if (Number.isInteger(edge.fromLayer) && Number.isInteger(edge.toLayer)) {
+    return edge.from === nodeId
+      ? { depart: edge.fromLayer, arrive: edge.toLayer }
+      : { depart: edge.toLayer, arrive: edge.fromLayer };
+  }
+  return { depart: edge.layer, arrive: edge.layer };
+}
+
 export function findCurrentLayerRoute(state, targetId) {
   if (!state || !targetId) return null;
   if (state.node === targetId) return [];
-  const currentLayer = state.layer;
-  const openCurrentEdges = (state.edges || []).filter(e => e.open && e.layer === currentLayer
+  const openEdges = (state.edges || []).filter(e => e.open
     && (e.kind !== 'ferry' || state.node === 'ferry' || targetId === 'ferry'));
-  const queue = [{ id: state.node, path: [] }];
-  const visited = new Set([state.node]);
+  const queue = [{ id: state.node, layer: state.layer, path: [] }];
+  const visited = new Set([`${state.node}@${state.layer}`]);
 
   while (queue.length) {
-    const { id, path } = queue.shift();
+    const { id, layer, path } = queue.shift();
     if (id === targetId) return path;
-    for (const edge of openCurrentEdges) {
+    for (const edge of openEdges) {
       if (edge.from !== id && edge.to !== id) continue;
+      const { depart, arrive } = edgeStepLayers(edge, id);
+      if (depart !== layer) continue;
       const nextId = edge.from === id ? edge.to : edge.from;
-      if (!visited.has(nextId)) {
-        visited.add(nextId);
+      const k = `${nextId}@${arrive}`;
+      if (!visited.has(k)) {
+        visited.add(k);
         queue.push({
           id: nextId,
-          path: [...path, { type: 'move', to: nextId, layer: edge.layer, edgeId: edge.id }],
+          layer: arrive,
+          path: [...path, {
+            type: 'move', to: nextId, layer: depart,
+            ...(depart !== arrive ? { toLayer: arrive, ramp: true } : {}),
+            edgeId: edge.id,
+          }],
         });
       }
     }
@@ -149,11 +165,14 @@ export function planLayerRoute(state, targetId, { finalLayer = null } = {}) {
     const shifted = cur.steps.some(step => step.type === 'shift');
     const moveCost = shifted ? 1 : WALK_BEFORE_SHIFT;
     for (const edge of edges) {
-      if (edge.layer !== cur.layer || (edge.from !== cur.id && edge.to !== cur.id)) continue;
+      if (edge.from !== cur.id && edge.to !== cur.id) continue;
+      const { depart, arrive } = edgeStepLayers(edge, cur.id);
+      if (depart !== cur.layer) continue;
       const otherId = edge.from === cur.id ? edge.to : edge.from;
-      if (!exists(byId.get(otherId), cur.layer)) continue;
-      next.push({ id: otherId, layer: cur.layer, cost: cur.cost + moveCost,
-        step: { type: 'move', from: cur.id, to: otherId, layer: cur.layer, edgeId: edge.id } });
+      if (!exists(byId.get(otherId), arrive)) continue;
+      next.push({ id: otherId, layer: arrive, cost: cur.cost + moveCost,
+        step: { type: 'move', from: cur.id, to: otherId, layer: depart,
+          ...(depart !== arrive ? { toLayer: arrive, ramp: true } : {}), edgeId: edge.id } });
     }
     if (node.anchor) {
       for (let layer = 0; layer < layerCount; layer++) {
@@ -220,12 +239,12 @@ function sameLayerUnusable(state, node) {
 }
 
 function sliceRecover(state, sym, goalId) {
-  const key = STEP_LAYER_KEYS[state.layer] || '本层键';
+  const key = STEP_LAYER_KEYS[state.layer] || 'Z';
   return {
     goalId,
     action: 'recover',
-    banner: `按${key}回中心见${sym}`,
-    detail: `${sym}还在这一层，只是切片偏了。按 ${key} 或点本层按钮，回到层中心就能看见并点它。`,
+    banner: `按${key}回中心${sym === '🚪' ? '去🚪' : `见${sym}`}`,
+    detail: `${sym}还在这一层，只是切片偏了。按 ${key} 或点右侧 W 尺本层刻度，回到层中心就能看见并点它。`,
     targetId: goalId,
     layer: state.layer,
   };
@@ -245,6 +264,15 @@ function anchorHintName(node) {
   if (node.id === 'vault') return '花匣台';
   if (node.id === 'ferry') return '星舟';
   return node.name || '⚓台';
+}
+
+function anchorShortName(node) {
+  if (!node) return '归响';
+  if (node.id === 'hub') return '归响';
+  if (node.id === 'relay') return '维度';
+  if (node.id === 'vault') return '花匣';
+  if (node.id === 'ferry') return '星舟';
+  return (node.name || '锚台').replace(/(锚台|安全台|台)$/, '').slice(0, 2) || '锚台';
 }
 
 function sharesSpot(a, b) {
@@ -274,7 +302,7 @@ export function describeNextStep(state) {
     const pending = order.find(id => !activated.has(id));
     const sym = pending ? stepBadge(state, pending) : '';
     return pending
-      ? { goalId: pending, action: 'wait', banner: `稍候，${sym}即将供能`, detail: `能量还在路上，${sym}供能后就能前往点亮。`, targetId: pending, layer: byId(pending)?.layer ?? null }
+      ? { goalId: pending, action: 'wait', banner: `稍候，${sym}供能中`, detail: `能量还在路上，${sym}供能后就能前往点亮。`, targetId: pending, layer: byId(pending)?.layer ?? null }
       : blank;
   }
   const goal = byId(goalId);
@@ -288,14 +316,14 @@ export function describeNextStep(state) {
   if (state.node === goalId && goal && (goal.anchor || goal.layer === state.layer)) {
     if (!goal.anchor && goal.present === false) return sliceRecover(state, sym, goalId);
     if (goalId === 'exit') {
-      return { goalId, action: 'done', banner: '已到🚪，点击过关', detail: '三座机关都已点亮，点击出口即可过关。', targetId: goalId, layer: state.layer };
+      return { goalId, action: 'done', banner: '已到🚪点此过关', detail: '三座机关都已点亮，点击出口即可过关。', targetId: goalId, layer: state.layer };
     }
     return { goalId, action: 'activate', banner: `点亮脚下的${sym}`, detail: `已经站在${sym}上，稍候就会点亮。`, targetId: goalId, layer: goal.layer };
   }
 
   const plan = planLayerRoute(state, goalId);
   if (!plan) {
-    return { goalId, action: 'wait', banner: `先供能才能点${sym}`, detail: `${sym}还没有路，先点亮它需要的前序机关。`, targetId: goalId, layer: goal?.layer ?? null };
+    return { goalId, action: 'wait', banner: `先供能再点${sym}`, detail: `${sym}还没有路，先点亮它需要的前序机关。`, targetId: goalId, layer: goal?.layer ?? null };
   }
 
   const stackNote = litTwin
@@ -308,15 +336,17 @@ export function describeNextStep(state) {
     const step = plan.walk[0];
     const dest = byId(step.to);
     const goalVerb = sym === '🚪' ? '去🚪' : `点${sym}`;
+    const arriveLayer = step.toLayer ?? state.layer;
+    const rampMeta = step.ramp ? { toLayer: arriveLayer, ramp: true } : {};
     if (sameLayerUnusable(state, dest)) {
       if (goalReachableInCurrentLayer) return sliceRecover(state, sym, goalId);
       if (dest && !dest.anchor) {
-        const key = STEP_LAYER_KEYS[state.layer] || '本层键';
+        const key = STEP_LAYER_KEYS[state.layer] || 'Z';
         return {
           goalId,
           action: 'recover',
-          banner: `按${key}回中心再去换层${goalVerb}`,
-          detail: `切片偏了，先按 ${key} 或点本层按钮回到本层中心，再前往换层点位${sym === '🚪' ? '走向🚪' : `点亮${sym}`}。${stackNote}`,
+          banner: `按${key}回中心${goalVerb}`,
+          detail: `切片偏了，先按 ${key} 或点右侧 W 尺本层刻度回到层中心，再前往换层点位${sym === '🚪' ? '走向🚪' : `点亮${sym}`}。${stackNote}`,
           targetId: step.to,
           layer: state.layer,
         };
@@ -326,29 +356,52 @@ export function describeNextStep(state) {
       const place = anchorHintName(dest);
       const hereName = here?.anchor ? anchorHintName(here) : '';
       const which = hereName && hereName !== place ? `脚下是${hereName}，要去${place}。` : `要去的是${place}。`;
+      const anchorShort = anchorShortName(dest);
+      if (step.ramp) {
+        return {
+          goalId, action: 'move', banner: `沿斜桥回${anchorShort}${goalVerb}`,
+          detail: `沿脚下的斜桥走回${place}（边走边滑回${roman(arriveLayer)}层），再前往${sym}。${stackNote}`,
+          targetId: step.to, layer: arriveLayer, ...rampMeta,
+        };
+      }
+      if (!plan.shift && plan.walk.some(s => s.ramp)) {
+        return {
+          goalId, action: 'move', banner: `去${anchorShort}走斜桥${goalVerb}`,
+          detail: `${which}到了${place}就能走上斜桥前往${sym}。`,
+          targetId: step.to, layer: arriveLayer, ...rampMeta,
+        };
+      }
       if (plan.shift) {
         return {
-          goalId, action: 'move', banner: `去${place}换层${goalVerb}`,
-          detail: `${which}到了${place}再换层，通往${sym}的桥才会出现。${stackNote}`,
-          targetId: step.to, layer: plan.shift.layer,
+          goalId, action: 'move', banner: `去${anchorShort}换层${goalVerb}`,
+          detail: `${which}到了${place}再用右侧 W 尺（或滚轮）换层，通往${sym}的桥才会出现。${stackNote}`,
+          targetId: step.to, layer: plan.shift.layer, ...rampMeta,
         };
       }
       return {
-        goalId, action: 'move', banner: `去${place}，再${goalVerb}`,
+        goalId, action: 'move', banner: `先到${anchorShort}再${goalVerb}`,
         detail: `${which}先走到${place}，再前往${sym}。`,
-        targetId: step.to, layer: state.layer,
+        targetId: step.to, layer: arriveLayer, ...rampMeta,
+      };
+    }
+    if (step.ramp) {
+      return {
+        goalId, action: 'move',
+        banner: goalId === 'exit' ? '走上斜桥去🚪' : `走上斜桥点亮${sym}`,
+        detail: `斜桥一头连着脚下、一头通往${roman(arriveLayer)}层的${sym}；走上去边走边滑入目标层。`,
+        targetId: step.to, layer: arriveLayer, ...rampMeta,
       };
     }
     if (step.to !== goalId && activated.has(step.to)) {
-      const via = stepBadge(state, step.to) || '前序';
+      const via = stepBadge(state, step.to) || '①';
       return {
-        goalId, action: 'move', banner: `先到${via}再换层点${sym}`,
+        goalId, action: 'move', banner: `到${via}换层点${sym}`,
         detail: `先走到${via}，再换层，${sym}才会出现。${stackNote}`,
         targetId: step.to, layer: plan.shift?.layer ?? state.layer,
       };
     }
     return {
-      goalId, action: 'move', banner: goalId === 'exit' ? '点击🚪，走向出口' : `点击${sym}，走过去点亮`,
+      goalId, action: 'move', banner: goalId === 'exit' ? '点击🚪走去过关' : `点击${sym}走去点亮`,
       detail: goalId === 'exit' ? '三座机关都已点亮，点击出口顺桥过关。' : `点击发光的${sym}，顺着当前层的桥走过去就会点亮。`,
       targetId: step.to, layer: state.layer,
     };
@@ -362,7 +415,7 @@ export function describeNextStep(state) {
       const goalVerb = sym === '🚪' ? '去🚪' : `点${sym}`;
       return {
         goalId, action: 'shift',
-        banner: `${arrow}回${mark}站稳，再${goalVerb}`,
+        banner: `${arrow}回${mark}站稳${goalVerb}`,
         detail: `脚下平台只在${mark}层存在。先${arrow}回${mark}层站稳，再继续换层前往${sym}。${stackNote}`,
         targetId: state.node, layer,
       };
@@ -376,13 +429,13 @@ export function describeNextStep(state) {
         targetId: plan.shift.at, layer,
       };
     }
-    const shiftBanner = sym === '🚪' ? `${arrow}到${mark}，走向🚪` : `${arrow}到${mark}，点亮${sym}`;
+    const shiftBanner = sym === '🚪' ? `${arrow}到${mark}去🚪` : `${arrow}到${mark}点亮${sym}`;
     return {
       goalId, action: 'shift',
       banner: shiftBanner,
       detail: here?.anchor
-        ? `就在${anchorHintName(here)}，${arrow}到${mark}层，或直接点${mark}。通往${sym}的桥会显形。${stackNote}`
-        : `在⚓台${arrow}到${mark}层，或直接点${mark}。通往${sym}的桥会显形。${stackNote}`,
+        ? `就在${anchorHintName(here)}，用右侧 W 尺点${mark}（或${arrow}），通往${sym}的桥会显形。${stackNote}`
+        : `在⚓台用右侧 W 尺点${mark}（或${arrow}），通往${sym}的桥会显形。${stackNote}`,
       targetId: state.node, layer,
     };
   }
@@ -390,7 +443,7 @@ export function describeNextStep(state) {
   if (goalReachableInCurrentLayer && sameLayerUnusable(state, goal)) return sliceRecover(state, sym, goalId);
   return {
     goalId, action: 'move',
-    banner: goalId === 'exit' ? '点击🚪过关' : `点击${sym}，走过去点亮`,
+    banner: goalId === 'exit' ? '点击🚪走去过关' : `点击${sym}走去点亮`,
     detail: goalId === 'exit' ? '点击出口过关。' : `点击${sym}即可点亮。`,
     targetId: goalId, layer: state.layer,
   };
@@ -618,7 +671,7 @@ export function resolveScrubReleaseTarget(state, { phase = 'end', w, velocity = 
   if (!state) return 0.5;
   if (!state.wave) {
     if (state.travel) {
-      if (state.travel.risky) return state.w;
+      if (state.travel.risky || state.travel.ramp) return state.w;
       return state.layers?.[state.travel.layer]?.center ?? state.travel.center ?? nearestLayerCenter(state, state.w);
     }
     const currentNode = (state.nodes || []).find(n => n.id === state.node);
@@ -724,18 +777,24 @@ export function computeRelicHudStatus(state) {
     const available = !!ability?.available;
     let charged = false;
     let statusText = '';
+    let shortText = '';
     if (id === 'prism') {
       charged = (state.charge || 0) > 0;
+      shortText = `${state.charge || 0}/${rank}`;
       statusText = charged
         ? `⚡蓄能 ${state.charge}/${rank}（在 ⚓ 安全台对准目标层释放）`
         : `蓄能 0/${rank}（新桥首次⚡冒险或避波 +1）`;
     } else if (id === 'weave') {
       charged = (state.weaveCharge || 0) > 0;
+      shortText = `${state.weaveCharge || 0}/${rank}`;
       statusText = charged
         ? `🌱桥种 ${state.weaveCharge}/${rank}（在已点亮机关种永久捷径）`
         : `桥种 0/${rank}（新桥首次⚡冒险或避波 +1）`;
     } else if (id === 'shadow') {
       charged = !state.shadowUsed && (state.carried || 0) >= 1;
+      shortText = state.ghost
+        ? `${Math.ceil(state.shadowRemaining || 0)}s`
+        : (state.shadowUsed ? '0/1' : `${(state.carried || 0) >= 1 ? 1 : 0}/1`);
       statusText = state.ghost
         ? `◌ 留影中 ${Math.ceil(state.shadowRemaining || 0)}s`
         : state.shadowUsed
@@ -745,6 +804,7 @@ export function computeRelicHudStatus(state) {
             : '待充能（走1座新桥拿1◇即可留影）';
     } else if (id === 'coil') {
       charged = (state.coilArmed?.length || 0) > 0 && (state.coilRemaining || 0) > 0;
+      shortText = `${state.coilRemaining ?? 0}/${rank}`;
       statusText = (state.coilRemaining || 0) === 0
         ? '本庭接力已用完'
         : charged
@@ -752,6 +812,7 @@ export function computeRelicHudStatus(state) {
           : `剩余 ${state.coilRemaining}/${rank} 次（下游供能后换层触发）`;
     } else if (id === 'shell') {
       charged = (state.shieldUses || 0) > 0;
+      shortText = `${state.shieldUses ?? 0}/${rank}`;
       statusText = `🛡️ 护盾 ${state.shieldUses ?? 0}/${rank} 次`;
     }
     items.push({
@@ -762,6 +823,7 @@ export function computeRelicHudStatus(state) {
       rankSymbol: 'ⅠⅡⅢ'[rank - 1] || 'Ⅰ',
       charged,
       available,
+      shortText,
       statusText,
     });
   }
@@ -774,6 +836,7 @@ export function computeRelicHudStatus(state) {
       readyAbility = {
         id: 'prism',
         icon: '◇',
+        shortCta: '◇ 释放 (Q)',
         ctaText: `◇ 棱镜就绪：点此远程点亮「${target?.name || '本层机关'}」(免过桥 · Q)`,
       };
     } else if (activeAbility.id === 'weave') {
@@ -781,6 +844,7 @@ export function computeRelicHudStatus(state) {
       readyAbility = {
         id: 'weave',
         icon: '❋',
+        shortCta: '❋ 种桥 (Q)',
         ctaText: `❋ 桥种就绪：点此种出通往「${toNode?.name || '安全台'}」的永久捷径 (Q)`,
       };
     } else if (activeAbility.id === 'shadow') {
@@ -788,6 +852,7 @@ export function computeRelicHudStatus(state) {
       readyAbility = {
         id: 'shadow',
         icon: '◌',
+        shortCta: '◌ 留影 (Q)',
         ctaText: `◌ 留影扣就绪：在「${curNode?.name || '当前机关'}」耗1◇留影压桥 (Q)`,
       };
     }
