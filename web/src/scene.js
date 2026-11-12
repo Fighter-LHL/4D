@@ -24,6 +24,16 @@ const LAYER_PALETTES = [
 const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
 const mix = (a, b, t) => a + (b - a) * t;
 const ease = t => 1 - (1 - clamp(t)) ** 3;
+const WSTACK_CORNERS = [[0, 25], [67, -5], [128, 22], [60, 53]];
+
+function inWStackQuad(px, py) {
+  for (let k = 0; k < 4; k++) {
+    const [x0, y0] = WSTACK_CORNERS[k];
+    const [x1, y1] = WSTACK_CORNERS[(k + 1) % 4];
+    if ((x1 - x0) * (py - y0) - (y1 - y0) * (px - x0) < 0) return false;
+  }
+  return true;
+}
 
 function path(ctx, points, close = true) {
   ctx.beginPath();
@@ -605,20 +615,34 @@ export class SceneRenderer {
   }
 
   hitWStackLayer(event) {
-    if (!this.visualGuide || !this.state || this.state.phase !== 'playing') return null;
+    if (!this.visualGuide || !this.state || this.state.phase !== 'playing' || this.disposed) return null;
     if ((this.onboardingStage ?? 4) < 2) return null;
-    const rect = this.canvas.getBoundingClientRect();
-    const x = (event.clientX - rect.left - this.offsetX) / this.scale;
-    const y = (event.clientY - rect.top - this.offsetY) / this.scale;
+    const { x, y } = this.toWorld(event);
     const miniScale = clamp(.45 / this.scale, 1, 1.2);
     const lx = (x - 62) / miniScale;
     const ly = (y - 88) / miniScale;
-    if (lx < -8 || lx > 225) return null;
-    for (let i = 2; i >= 0; i--) {
-      const bandCenterY = (2 - i) * 29 + 24;
-      if (Math.abs(ly - bandCenterY) <= 16) return i;
+    if (lx < -2 || lx > 196) return null;
+    if (!this.state.wave) {
+      const hitNode = this.hitTest(event);
+      if (hitNode && ((x - hitNode.x) / 44) ** 2 + ((y - hitNode.y + 8) / 28) ** 2 <= 1) return null;
+      if (lx > 128 && this.hitVisibleNode(event)) return null;
     }
-    return null;
+    let best = null, bestDist = Infinity;
+    for (let i = 2; i >= 0; i--) {
+      const ry = ly - (2 - i) * 29;
+      const isPrompted = this.isExplicitLayerHint() && this.pendingLayerPrompt?.targetLayer === i && this.state.layer !== i;
+      const maxLabelX = isPrompted ? 196 : 184;
+      const hitDiamond = inWStackQuad(lx, ry);
+      const hitLabel = lx >= 128 && lx <= maxLabelX && (this.state.wave ? (ry >= 11 && ry <= 35) : (ry >= 13 && ry <= 28));
+      if (hitDiamond || hitLabel) {
+        const d = Math.abs(ry - 24);
+        if (d < bestDist) {
+          bestDist = d;
+          best = i;
+        }
+      }
+    }
+    return best;
   }
 
   hitGrab(event) {
@@ -741,15 +765,13 @@ export class SceneRenderer {
     return false;
   }
 
-  hitTest(event) {
+  hitVisibleNode(event) {
     if (!this.state || this.state.phase !== 'playing' || this.disposed) return null;
     if (this.state.wave && this.visualGuide) return null;
     const stage = this.onboardingStage ?? 4;
-    const rect = this.canvas.getBoundingClientRect();
-    const x = (event.clientX - rect.left - this.offsetX) / this.scale;
-    const y = (event.clientY - rect.top - this.offsetY) / this.scale;
+    const { x, y } = this.toWorld(event);
     // Match the painted island top and mechanism, never its generous label box.
-    const visibleHit = [...this.state.nodes].reverse().find(node => {
+    return [...this.state.nodes].reverse().find(node => {
       if (node.kind === 'ferry') return ((x - node.x) / 48) ** 2 + ((y - node.y) / 30) ** 2 <= 1;
       if (node.id === 'bloom' && this.node('crown')?.anchor) return false;
       if (stage < 3 && node.id === 'vault' && node.locked) return false;
@@ -759,8 +781,16 @@ export class SceneRenderer {
       const rx = (node.id === 'hub' ? 112 : 81) * section;
       const ry = (node.id === 'hub' ? 60 : 52) * section;
       return ((x - node.x) / rx) ** 2 + ((y - node.y + 12 * section) / ry) ** 2 <= 1;
-    });
+    }) ?? null;
+  }
+
+  hitTest(event) {
+    if (!this.state || this.state.phase !== 'playing' || this.disposed) return null;
+    if (this.state.wave && this.visualGuide) return null;
+    const visibleHit = this.hitVisibleNode(event);
     if (visibleHit || !this.visualGuide) return visibleHit ?? null;
+    const stage = this.onboardingStage ?? 4;
+    const { x, y } = this.toWorld(event);
     // In visualGuide mode, allow clicking ghosted mechanism/exit/vault/rift islands or their floating badges
     const order = this.state.mechanismOrder || [];
     const candidates = [...this.state.nodes].sort((a, b) => {
@@ -2729,9 +2759,12 @@ export class SceneRenderer {
     if (waitingForShiftHere) {
       const pos = this.playerPosition();
       const dirArrow = (s.layers?.[hint.layer]?.center ?? .5) > this.currentW() ? '▲' : '▼';
-      const shiftPillText = explicitHint
-        ? `🖱️ ${dirArrow} → ${layerRoman[hint.layer]}层`
-        : '🖱️ 滚轮换层寻桥';
+      const guidedShift = this.nextStepHint?.tutorial && this.nextStepHint.action === 'shift' && this.nextStepHint.banner;
+      const shiftPillText = guidedShift
+        ? this.nextStepHint.banner
+        : explicitHint
+          ? `🖱️ ${dirArrow} → ${layerRoman[hint.layer]}层`
+          : '🖱️ 滚轮换层寻桥';
       drawCalloutPill(
         pos.x,
         pos.y - 64,
@@ -2779,12 +2812,18 @@ export class SceneRenderer {
         ellipse(ctx, node.x, node.y, (isPrimary ? 82 : 74) + pulse * 10, (isPrimary ? 44 : 40) + pulse * 5, '#dd9a1c24', COLORS.gold, isPrimary ? 3.4 : 2.4);
         ctx.restore();
         if (this.altarWindow?.node === id && s.node === id && !s.travel) return;
+        const stackedLit = !onCurrentLayer && s.nodes.some(n =>
+          !n.anchor && n.id !== id && s.activated.includes(n.id) && n.world && node.world &&
+          Math.abs(n.world.x - node.world.x) < 1e-4 &&
+          Math.abs(n.world.y - node.world.y) < 1e-4 &&
+          Math.abs(n.world.z - node.world.z) < 1e-4);
+        const nameLayer = explicitHint || stackedLit || (this.nextStepHint?.tutorial && this.nextStepHint.goalId === id);
         const hoverText = onCurrentLayer
           ? (s.node === id ? `点击点亮 ${num}` : `点此走过去点亮 ${num}`)
-          : (explicitHint ? `在${lRom}层 · 先去 ⚓ 换层台` : '在异层 · 先去 ⚓ 换层台');
+          : (nameLayer ? `在${lRom}层 · 换层后出现` : '在异层 · 先去 ⚓ 换层台');
         const badgeText = onCurrentLayer
           ? (isPrimary ? (stage === 1 ? '👆 ①' : `🎯 ${num}`) : num)
-          : (explicitHint ? `${num}·${lRom}层` : `${num}·异层`);
+          : (nameLayer ? `${num}·${lRom}层` : `${num}·异层`);
         drawNodeTag(
           id,
           node.x,
@@ -2811,6 +2850,12 @@ export class SceneRenderer {
     if (stage >= 2) {
       // Anchor labels already carry ⚓; their tags appear only when they are the next step or hovered.
       const anchorFocus = id => focusNodeId === id && hint?.at?.id === id;
+      const guideId = this.nextStepHint?.tutorial && this.nextStepHint.action === 'move' ? this.nextStepHint.targetId : null;
+      const guideAnchor = guideId && guideId !== s.node ? this.node(guideId) : null;
+      if (guideAnchor?.anchor) {
+        const place = guideAnchor.id === 'hub' ? '去归响台' : guideAnchor.id === 'relay' ? '去维度锚台' : `去${guideAnchor.name}`;
+        drawCompactBadge(guideAnchor.x, guideAnchor.y - 66, place, '#152b28ee', '#5eead4', '#ccfbf1');
+      }
       const hubNode = this.node('hub');
       if (hubNode && s.node !== 'hub' && (anchorFocus('hub') || hoverId === 'hub')) {
         const hubText = anchorFocus('hub')
@@ -3053,7 +3098,7 @@ export class SceneRenderer {
     ctx.save(); ctx.translate(62, 88);
     const miniScale = clamp(.45 / this.scale, 1, 1.2);
     ctx.scale(miniScale, miniScale);
-    const corners = [[0, 25], [67, -5], [128, 22], [60, 53]];
+    const corners = WSTACK_CORNERS;
     const at = (point, layer) => ({ x: 63 + (point.x - 500) * .105, y: 24 + (point.y - 340) * .06 + (2 - layer) * 29 });
     const danger = s.wave?.dangerLayers || (s.wave ? [s.wave.layer] : []);
     const activePreview = this.isHyperLensActive() ? this.hyperLens.snappedLayer : (this.hoverWLayer ?? this.previewLayer);

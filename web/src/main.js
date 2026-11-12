@@ -7,7 +7,7 @@ import { FriendGuide } from './friend-guide.js';
 import { CourtyardMomentum } from './courtyard-momentum.js';
 import { STARTER_RELICS, mechanismFeedback, contextualHelp, courtyardActions } from './play-feedback.js';
 import { initThemeToggle, initHyperLab } from './hyper-lab-ui.js';
-import { ProgressiveOnboarding, planLayerRoute, findCurrentLayerRoute, computeRiskDecisionPreview, computeRelicHudStatus, resolveScrubReleaseTarget } from './progressive-onboarding.js';
+import { ProgressiveOnboarding, planLayerRoute, findCurrentLayerRoute, computeRiskDecisionPreview, computeRelicHudStatus, resolveScrubReleaseTarget, describeNextStep, clampIntroductoryW } from './progressive-onboarding.js';
 import { CodexStore } from './codex.js';
 import { GameFeel } from './game-feel.js';
 import { ALL_ROOM_TEMPLATES, HIDDEN_ROUTE_RECIPES } from './rooms.js';
@@ -134,7 +134,7 @@ function handleScrubW(w, { phase = 'move', velocity = 0 } = {}) {
   }
   if (phase === 'move') {
     cancelScrubGlide();
-    action(() => model.scrubW(w));
+    action(() => model.scrubW(clampWToCurrentLayer(w)));
     return;
   }
   const session = scrubSession;
@@ -142,7 +142,7 @@ function handleScrubW(w, { phase = 'move', velocity = 0 } = {}) {
   if (!session) return;
   const s = model.snapshot();
   if (s.travel?.risky) { finishScrubSession(session); return; }
-  if (phase !== 'cancel') action(() => model.scrubW(w));
+  if (phase !== 'cancel') action(() => model.scrubW(clampWToCurrentLayer(w)));
   const after = model.snapshot();
   if (after.travel?.risky) { finishScrubSession(session); return; }
   const target = resolveScrubReleaseTarget(after, {
@@ -152,7 +152,7 @@ function handleScrubW(w, { phase = 'move', velocity = 0 } = {}) {
     beforeW: session.before.w,
   });
   if (scene.reducedMotion) {
-    action(() => model.scrubW(target));
+    action(() => model.scrubW(clampWToCurrentLayer(target)));
     finishScrubSession(session);
   } else {
     scrubGlide = { target, session };
@@ -239,7 +239,9 @@ function promptLayerShift(s, targetId, shift, finalLayer = null) {
     kind: shift.kind,
     finalLayer,
   };
-  const promptMsg = buildLayerShiftPromptMessage(s, promptInfo, revealExplicit);
+  const step = describeNextStep(s);
+  const tutorialCopy = s.room === 0 && step.banner && step.goalId === targetId;
+  const promptMsg = tutorialCopy ? `🌀 ${step.banner}` : buildLayerShiftPromptMessage(s, promptInfo, revealExplicit);
   scene.pendingLayerPrompt = { ...promptInfo, message: promptMsg };
   showTransient(promptMsg, shift.kind === 'recover' ? 3.6 : 4.2, 'prompt');
   updateUI();
@@ -351,11 +353,25 @@ function stepAutoPilot() {
   if (s.interactAvailable && s.node !== 'hub') action(() => model.interact());
 }
 
+function layerSwitchTaught() {
+  return (scene?.onboardingStage ?? 4) >= 2;
+}
+
+// Before layer switching is introduced, A/D, the slider and the dial may drift
+// inside the current slice, but not far enough for ① to vanish or the bridge to close.
+function clampWToCurrentLayer(nextW) {
+  if (layerSwitchTaught()) return nextW;
+  return clampIntroductoryW(model.snapshot(), nextW);
+}
+
 function manualSwitchLayer(layerIdx, source = 'manual') {
   if (!canAct()) return;
   onboarding.recordActivity();
   const s = model.snapshot();
   if (layerIdx < 0 || layerIdx >= s.layers.length) return;
+  // Wheel, Z/X/C, layer buttons, the W stack, the lens and assist all come
+  // through here. None of them may change layer until the lesson starts.
+  if (!layerSwitchTaught() && !s.wave && layerIdx !== s.layer) return;
 
   // During a wave, switch directly to the player's chosen layer (requiring real judgment!)
   if (s.wave) {
@@ -457,6 +473,20 @@ function layerShiftAftermath(before, source = 'manual') {
   }
 }
 
+function unlitSameSpot(s, id) {
+  const node = s.nodes.find(n => n.id === id);
+  if (!node || node.anchor || node.kind !== 'mechanism' || !s.activated.includes(id) || !node.world) return null;
+  const order = s.mechanismOrder || [];
+  return order.find(otherId => {
+    if (otherId === id || s.activated.includes(otherId)) return false;
+    const other = s.nodes.find(n => n.id === otherId);
+    return other?.powered && !other.anchor && other.world &&
+      Math.abs(other.world.x - node.world.x) < 1e-4 &&
+      Math.abs(other.world.y - node.world.y) < 1e-4 &&
+      Math.abs(other.world.z - node.world.z) < 1e-4;
+  }) || null;
+}
+
 function handleCanvasSelect(id) {
   if (!canAct()) return;
   onboarding.recordActivity();
@@ -470,6 +500,10 @@ function handleCanvasSelect(id) {
     updateUI();
     return;
   }
+  // Dew and bell share a screen position. A click on the lit island is really
+  // the unlit twin; routing back to the lit one clears the hint and sticks the run.
+  const stacked = unlitSameSpot(s, id);
+  if (stacked) id = stacked;
   const currentNode = s.nodes.find(n => n.id === s.node);
   const targetNode = s.nodes.find(n => n.id === id);
   if (id === 'rift' && targetNode?.locked) {
@@ -1153,6 +1187,11 @@ function updateUI() {
   const currentNode = state.nodes.find(n=>n.id===state.node);
   const anomProg = scene.explorationRadar.roomProgress(state);
   const stageInfo = onboarding.computeStage(state, anomProg.totalCollected);
+  const roomStep = describeNextStep(state);
+  const tutorialHint = state.room === 0 && stageInfo.stage < 4 && state.phase === 'playing';
+  if (tutorialHint && roomStep.banner) scene.tutorialHint = { ...roomStep, tutorial: true };
+  else if (!tutorialHint || state.phase !== 'playing') scene.tutorialHint = null;
+  scene.nextStepHint = tutorialHint ? (scene.tutorialHint || null) : null;
   document.body.dataset.onboardingStage = String(stageInfo.stage);
   document.body.dataset.firstRun = String(isFirstRun());
   const revealExplicit = onboarding.shouldRevealExplicitLayerHint(state, {
@@ -1201,8 +1240,12 @@ function updateUI() {
     button.disabled=state.phase!=='playing'||paused;
     button.classList.toggle('danger-layer',!!state.wave?.dangerLayers?.includes(i));
     button.classList.toggle('safe-layer',!!state.wave?.safeLayers?.includes(i));
-    const isTargetLayer = revealExplicit && !state.wave && !state.travel && effectiveTargetLayer === i;
-    button.classList.toggle('attention-action', revealExplicit && (!!onwardShift && onward.layer === i || !!isTargetLayer));
+    const tutorialShiftLayer = !state.wave && !state.travel && scene.nextStepHint?.action === 'shift'
+      ? scene.nextStepHint.layer : null;
+    const isTargetLayer = !state.wave && !state.travel && (
+      tutorialShiftLayer === i || (revealExplicit && effectiveTargetLayer === i)
+    );
+    button.classList.toggle('attention-action', !!isTargetLayer || (revealExplicit && !!onwardShift && onward.layer === i));
     const sameSpot = sameSpotNodeOnLayer(i);
     const isVoidHere = !state.wave && !state.travel && currentNode && !currentNode.anchor && currentNode.layer !== i && !sameSpot;
     button.classList.toggle('void-warning-layer', !!isVoidHere);
@@ -1359,16 +1402,23 @@ function updateUI() {
     }
     // Stage 1 is the very first screen, so its single instruction stays until ① is lit.
     // Later stages expand briefly on arrival, then fold to a one-line badge (click to reopen).
-    $('onboarding-banner').classList.toggle('collapsed', stageInfo.stage > 1 && bannerNow > bannerExpandedUntil);
+    // Room 0 keeps the next-step line on screen. The folded badge only says the stage name.
+    const keepRoomHint = state.room === 0 && stageInfo.stage < 4 && state.phase === 'playing';
+    $('onboarding-banner').classList.toggle('collapsed', !keepRoomHint && stageInfo.stage > 1 && bannerNow > bannerExpandedUntil);
     // The theater description popover is tap-only on small screens: .desc-open is
     // set by the banner click and cleared on expiry, stage change or canvas input.
     if (bannerNow > bannerExpandedUntil) bannerDescOpen = false;
     $('onboarding-banner').classList.toggle('desc-open', bannerDescOpen);
     $('onboarding-banner').classList.toggle('desc-dismissed', bannerDescDismissed);
     $('onboarding-banner').dataset.stage = String(stageInfo.stage);
+    const shownHint = scene.nextStepHint?.banner ? scene.nextStepHint : null;
+    $('onboarding-banner').dataset.nextAction = shownHint?.action || '';
+    $('onboarding-banner').dataset.nextGoal = shownHint?.goalId || '';
+    $('onboarding-banner').dataset.nextTarget = shownHint?.targetId || '';
+    $('onboarding-banner').dataset.nextLayer = shownHint && Number.isInteger(shownHint.layer) ? String(shownHint.layer) : '';
     setText('onboarding-badge', stageInfo.badge);
-    setText('onboarding-title', stageInfo.title);
-    setText('onboarding-desc', stageInfo.instruction);
+    setText('onboarding-title', shownHint ? shownHint.banner : stageInfo.title);
+    setText('onboarding-desc', shownHint ? shownHint.detail : stageInfo.instruction);
     if ($('unlock-all-btn')) {
       $('unlock-all-btn').hidden = stageInfo.stage >= 4;
       setText('unlock-all-btn', isTheater() ? '跳过引导' : '🔓 展开全部高阶');
@@ -1617,8 +1667,8 @@ function updateUI() {
   }
 }
 
-$('w-slider').addEventListener('input',e=>{ if(canAct()) { cancelScrubGlide(); action(()=>model.setW(Number(e.target.value))); } });
-$('align').addEventListener('click',()=>{ if(canAct()) { cancelScrubGlide(); action(()=>model.setW(model.snapshot().range?.center ?? .5)); } });
+$('w-slider').addEventListener('input',e=>{ if(canAct()) { cancelScrubGlide(); action(()=>model.setW(clampWToCurrentLayer(Number(e.target.value)))); } });
+$('align').addEventListener('click',()=>{ if(canAct()) { cancelScrubGlide(); action(()=>model.setW(clampWToCurrentLayer(model.snapshot().range?.center ?? .5))); } });
 $('safe-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(false)); if(e.detail>0) focusPlaySurface(); } });
 $('risk-mode').addEventListener('click',e=>{ if(canAct()) { action(()=>model.setRisk(true)); if(e.detail>0) focusPlaySurface(); } });
 $('move').addEventListener('click',()=>{ if(canAct()) { action(()=>model.move()); if(model.snapshot().travel) focusPlaySurface(); } });
@@ -1689,7 +1739,7 @@ $('vstep-move')?.addEventListener('click', () => {
   const g = s.companionGuide;
   if (g && g.kind === 'move') {
     action(() => {
-      if (!g.aligned && currentNode?.anchor) model.setW(g.w);
+      if (!g.aligned && currentNode?.anchor) model.setW(clampWToCurrentLayer(g.w));
       model.select(g.node);
       if (model.snapshot().canMove) model.move();
     });
@@ -1702,7 +1752,7 @@ $('vstep-act')?.addEventListener('click', () => {
   const s = model.snapshot();
   if (s.interactAvailable) action(() => model.interact());
   else if (s.companionGuide?.kind === 'activate' && !s.companionGuide.aligned) {
-    action(() => { model.setW(s.companionGuide.w); if (model.snapshot().interactAvailable) model.interact(); });
+    action(() => { model.setW(clampWToCurrentLayer(s.companionGuide.w)); if (model.snapshot().interactAvailable) model.interact(); });
   }
 });
 $('exit-step-card')?.addEventListener('click', () => {
@@ -1879,10 +1929,28 @@ function selectHelp(topic) {
 }
 for (const button of document.querySelectorAll('[data-help]')) button.addEventListener('click', () => selectHelp(button.dataset.help));
 $('help').addEventListener('click',()=>{ if(!isModal()){paused=true;selectHelp('next');$('help-dialog').showModal();syncAudio();} });
-function closeHelp() {$('help-dialog').close();paused=false;lastFrame=performance.now();syncAudio();}
+function closeHelp() {
+  $('help-dialog').close();
+  paused = false;
+  lastFrame = performance.now();
+  updateUI();
+  syncAudio();
+  // close() restores focus to the opener; put it on the play surface afterwards,
+  // including the task that some browsers use to restore dialog focus.
+  focusPlaySurface();
+  setTimeout(() => { if (!$('help-dialog').open) focusPlaySurface(); }, 0);
+}
 $('close-help').addEventListener('click',closeHelp);$('help-done').addEventListener('click',closeHelp);$('help-dialog').addEventListener('cancel',e=>{e.preventDefault();closeHelp();});
 $('restart').addEventListener('click',()=>{if(!isModal()){paused=true;$('restart-dialog').showModal();syncAudio();}});
-function cancelRestart() {$('restart-dialog').close();paused=false;lastFrame=performance.now();syncAudio();}
+function cancelRestart() {
+  $('restart-dialog').close();
+  paused = false;
+  lastFrame = performance.now();
+  updateUI();
+  syncAudio();
+  focusPlaySurface();
+  setTimeout(() => { if (!$('restart-dialog').open) focusPlaySurface(); }, 0);
+}
 $('cancel-restart').addEventListener('click',cancelRestart);$('restart-dialog').addEventListener('cancel',e=>{e.preventDefault();cancelRestart();});
 function restartWithMode(nextMode = currentMode) {
   currentMode = nextMode === 'expedition' ? 'expedition' : 'intro';
@@ -2163,7 +2231,7 @@ initHyperLab({
   syncButton: $('hyper-lab-sync'),
   closeButtons: document.querySelectorAll('[data-close-hyper-lab]'),
   getW: () => model.snapshot().w,
-  setW: w => { if (model.snapshot().phase === 'playing') { model.setW(w); consumeEvents(); updateUI(); } },
+  setW: w => { if (model.snapshot().phase === 'playing') { model.setW(clampWToCurrentLayer(w)); consumeEvents(); updateUI(); } },
   onOpen: () => { paused = true; syncAudio(); },
   onClose: () => { paused = false; lastFrame = performance.now(); syncAudio(); },
 });
@@ -2200,6 +2268,10 @@ window.addEventListener('scroll', () => { lastPageScrollAt = performance.now(); 
     if (Math.abs(delta) > 1e-4) action(() => model.setW(s.w + delta));
     return;
   }
+  // Layer switching is taught at Stage 2. Until then a wheel must not change W
+  // (the player starts on an anchor, so the old outer-platform guard does not apply)
+  // and must not count as the skill that skips ahead to the layer-switch step.
+  if ((scene.onboardingStage ?? 4) < 2 && !s.wave) return;
   // Holding the 4D Hyper-Lens (drag / right-click) and rolling the wheel dives straight into the previewed slice!
   if (!s.wave && !s.travel && scene.hyperLens.active && (scene.hyperLens.mode === 'drag' || scene.hyperLens.mode === 'rmb')) {
     let diveLayer = scene.hyperLens.snappedLayer;
@@ -2256,7 +2328,7 @@ window.addEventListener('pointermove', e => {
   if (sceneDrag.moved && model.snapshot().travel?.risky) {
     const rect = $('scene').getBoundingClientRect();
     const nextW = sceneDrag.w + (dx / Math.max(180, rect.width)) * 0.65;
-    action(() => model.setW(nextW));
+    action(() => model.setW(clampWToCurrentLayer(nextW)));
   }
 });
 window.addEventListener('pointerup', () => {
@@ -2391,7 +2463,7 @@ document.addEventListener('keydown',e=>{
   }
   const activeModeToggle = (e.target === $('risk-mode') && model.snapshot().riskMode) || (e.target === $('safe-mode') && !model.snapshot().riskMode);
   if(e.target.matches('button,a')&&[' ','enter'].includes(key)&&!(key===' '&&activeModeToggle))return;
-  if(['a','d','arrowleft','arrowright'].includes(key)){e.preventDefault();cancelScrubGlide();action(()=>model.setW(model.snapshot().w+(['a','arrowleft'].includes(key)?-.015:.015)));}
+  if(['a','d','arrowleft','arrowright'].includes(key)){e.preventDefault();cancelScrubGlide();action(()=>model.setW(clampWToCurrentLayer(model.snapshot().w+(['a','arrowleft'].includes(key)?-.015:.015))));}
   else if(key===' '||key==='enter'){
     e.preventDefault();
     if (e.repeat) return;
@@ -2458,7 +2530,7 @@ function frame(now) {
       } else {
         const w = cur.w, target = scrubGlide.target;
         const next = Math.abs(target - w) < 1e-3 ? target : w + (target - w) * Math.min(1, dt * 14);
-        action(() => model.scrubW(next));
+        action(() => model.scrubW(clampWToCurrentLayer(next)));
         const applied = model.snapshot().w;
         const progressed = applied === target || Math.abs(applied - target) < Math.abs(w - target) - 1e-6;
         if (applied === target || !progressed) {

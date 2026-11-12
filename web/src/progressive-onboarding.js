@@ -30,7 +30,7 @@ export const ONBOARDING_STAGES = [
     id: 'phase_dodge_and_bloom',
     badge: '3/4 · 推理',
     title: '点亮全部①②③，开启 🚪 出口过关',
-    instruction: '看虚线桥颜色推理换层方向（按 H 可看提示）；全部点亮后走向 🚪 出口过关。',
+    instruction: '叠在同一位置的机关要换层才出现（例如站在①上滚轮显现③）；全部点亮后走向 🚪 出口过关。',
     unlockedFeatures: ['click_move', 'layer_shift', 'anomalies', 'vault_dodge', 'risk_bloom'],
   },
   {
@@ -122,6 +122,10 @@ export function planLayerRoute(state, targetId, { finalLayer = null } = {}) {
     && (e.kind !== 'ferry' || state.node === 'ferry' || targetId === 'ferry'));
   const key = (id, layer) => `${id}@${layer}`;
   const SHIFT_COST = 1000;
+  // A walk taken before the first layer change is a detour. Prefer switching at the
+  // anchor the player is already on (then crossing the real bridge) over walking to an
+  // already-lit same-XYZ island and only then changing layer.
+  const WALK_BEFORE_SHIFT = 10;
 
   const best = new Map([[key(start.id, state.layer), 0]]);
   const frontier = [{ id: start.id, layer: state.layer, cost: 0, steps: [] }];
@@ -142,11 +146,13 @@ export function planLayerRoute(state, targetId, { finalLayer = null } = {}) {
     }
     const node = byId.get(cur.id);
     const next = [];
+    const shifted = cur.steps.some(step => step.type === 'shift');
+    const moveCost = shifted ? 1 : WALK_BEFORE_SHIFT;
     for (const edge of edges) {
       if (edge.layer !== cur.layer || (edge.from !== cur.id && edge.to !== cur.id)) continue;
       const otherId = edge.from === cur.id ? edge.to : edge.from;
       if (!exists(byId.get(otherId), cur.layer)) continue;
-      next.push({ id: otherId, layer: cur.layer, cost: cur.cost + 1,
+      next.push({ id: otherId, layer: cur.layer, cost: cur.cost + moveCost,
         step: { type: 'move', from: cur.id, to: otherId, layer: cur.layer, edgeId: edge.id } });
     }
     if (node.anchor) {
@@ -170,6 +176,222 @@ export function planLayerRoute(state, targetId, { finalLayer = null } = {}) {
     }
   }
   return null;
+}
+
+const STEP_BADGES = ['①', '②', '③', '④'];
+const STEP_ROMAN = ['Ⅰ', 'Ⅱ', 'Ⅲ'];
+const STEP_LAYER_KEYS = ['Z', 'X', 'C'];
+// Matches model.js section(): a platform is present while |W − center| is inside this.
+const PRESENT_HALF = 0.16 * Math.sqrt(0.75);
+
+/**
+ * Stage 1 continuous W (A/D, slider, dial) may drift inside the current slice,
+ * but not so far that the glowing ① leaves the screen or the bridge stops being walkable.
+ * Returns the clamped W. Callers skip this once layer switching has been introduced.
+ */
+export function clampIntroductoryW(state, nextW) {
+  if (!state || !Number.isFinite(nextW)) return nextW;
+  const center = state.layers?.[state.layer]?.center;
+  if (!Number.isFinite(center)) return nextW;
+  let half = PRESENT_HALF - 1e-3;
+  for (const edge of state.edges || []) {
+    if (!edge.open || edge.layer !== state.layer) continue;
+    if (edge.from !== state.node && edge.to !== state.node) continue;
+    const edgeHalf = Math.min(center - edge.min, edge.max - center);
+    if (edgeHalf > 0.02) half = Math.min(half, edgeHalf - 1e-3);
+  }
+  return Math.min(center + half, Math.max(center - half, nextW));
+}
+
+function bridgeOutOfRange(state, destId) {
+  const edges = (state.edges || []).filter(edge => edge.open && edge.layer === state.layer
+    && ((edge.from === state.node && edge.to === destId) || (edge.to === state.node && edge.from === destId)));
+  if (!edges.length) return false;
+  return edges.every(edge => state.w < edge.min - 1e-9 || state.w > edge.max + 1e-9);
+}
+
+function sameLayerUnusable(state, node) {
+  if (!node) return false;
+  if (!node.anchor && node.layer === state.layer && node.present === false) return true;
+  if (node.anchor || node.layer === state.layer) return bridgeOutOfRange(state, node.id);
+  return false;
+}
+
+function sliceRecover(state, sym, goalId) {
+  const key = STEP_LAYER_KEYS[state.layer] || '本层键';
+  return {
+    goalId,
+    action: 'recover',
+    banner: `按${key}回中心见${sym}`,
+    detail: `${sym}还在这一层，只是切片偏了。按 ${key} 或点本层按钮，回到层中心就能看见并点它。`,
+    targetId: goalId,
+    layer: state.layer,
+  };
+}
+
+function stepBadge(state, id) {
+  if (id === 'exit') return '🚪';
+  const order = state.mechanismOrder || [];
+  const index = order.indexOf(id);
+  return index >= 0 ? (STEP_BADGES[index] || String(index + 1)) : '';
+}
+
+function anchorHintName(node) {
+  if (!node) return '⚓台';
+  if (node.id === 'hub') return '归响台';
+  if (node.id === 'relay') return '维度锚台';
+  if (node.id === 'vault') return '花匣台';
+  if (node.id === 'ferry') return '星舟';
+  return node.name || '⚓台';
+}
+
+function sharesSpot(a, b) {
+  return !!(a?.world && b?.world &&
+    Math.abs(a.world.x - b.world.x) < 1e-4 &&
+    Math.abs(a.world.y - b.world.y) < 1e-4 &&
+    Math.abs(a.world.z - b.world.z) < 1e-4);
+}
+
+/**
+ * The single next action a newcomer can follow. The goal is always an unlit
+ * mechanism (or the exit once they are all lit) — never an already-lit island.
+ * Banners stay within 20 characters so the theater onboarding line can show them.
+ */
+export function describeNextStep(state) {
+  const blank = { goalId: null, action: 'wait', banner: '', detail: '', targetId: null, layer: null };
+  if (!state || state.phase !== 'playing' || state.travel || state.wave) return blank;
+  const nodes = state.nodes || [];
+  const byId = id => nodes.find(node => node.id === id);
+  const order = state.mechanismOrder || nodes.filter(node => node.kind === 'mechanism').map(node => node.id);
+  const activated = new Set(state.activated || []);
+  const powered = new Set(state.powered || []);
+  const goalId = activated.size >= order.length
+    ? 'exit'
+    : order.find(id => powered.has(id) && !activated.has(id));
+  if (!goalId) {
+    const pending = order.find(id => !activated.has(id));
+    const sym = pending ? stepBadge(state, pending) : '';
+    return pending
+      ? { goalId: pending, action: 'wait', banner: `稍候，${sym}即将供能`, detail: `能量还在路上，${sym}供能后就能前往点亮。`, targetId: pending, layer: byId(pending)?.layer ?? null }
+      : blank;
+  }
+  const goal = byId(goalId);
+  const sym = stepBadge(state, goalId);
+  const here = byId(state.node);
+  const dir = layer => (layer > state.layer ? '上滚' : '下滚');
+  const roman = layer => STEP_ROMAN[layer] || '';
+  const litTwin = goal && nodes.find(node => node.id !== goalId && activated.has(node.id) && sharesSpot(node, goal));
+  const twinSym = litTwin ? stepBadge(state, litTwin.id) : '';
+
+  if (state.node === goalId && goal && (goal.anchor || goal.layer === state.layer)) {
+    if (!goal.anchor && goal.present === false) return sliceRecover(state, sym, goalId);
+    if (goalId === 'exit') {
+      return { goalId, action: 'done', banner: '已到🚪，点击过关', detail: '三座机关都已点亮，点击出口即可过关。', targetId: goalId, layer: state.layer };
+    }
+    return { goalId, action: 'activate', banner: `点亮脚下的${sym}`, detail: `已经站在${sym}上，稍候就会点亮。`, targetId: goalId, layer: goal.layer };
+  }
+
+  const plan = planLayerRoute(state, goalId);
+  if (!plan) {
+    return { goalId, action: 'wait', banner: `先供能才能点${sym}`, detail: `${sym}还没有路，先点亮它需要的前序机关。`, targetId: goalId, layer: goal?.layer ?? null };
+  }
+
+  const stackNote = litTwin
+    ? `${sym}和${twinSym}叠在同一位置的不同层，换层后${sym}才会出现。`
+    : '';
+  const goalReachableInCurrentLayer = !plan.shift && Boolean(goal && !goal.anchor && goal.layer === state.layer);
+
+  const onShiftAnchor = plan.shift && plan.shift.at === state.node;
+  if (plan.walk.length && !onShiftAnchor) {
+    const step = plan.walk[0];
+    const dest = byId(step.to);
+    const goalVerb = sym === '🚪' ? '去🚪' : `点${sym}`;
+    if (sameLayerUnusable(state, dest)) {
+      if (goalReachableInCurrentLayer) return sliceRecover(state, sym, goalId);
+      if (dest && !dest.anchor) {
+        const key = STEP_LAYER_KEYS[state.layer] || '本层键';
+        return {
+          goalId,
+          action: 'recover',
+          banner: `按${key}回中心再去换层${goalVerb}`,
+          detail: `切片偏了，先按 ${key} 或点本层按钮回到本层中心，再前往换层点位${sym === '🚪' ? '走向🚪' : `点亮${sym}`}。${stackNote}`,
+          targetId: step.to,
+          layer: state.layer,
+        };
+      }
+    }
+    if (dest?.anchor && dest.id !== state.node) {
+      const place = anchorHintName(dest);
+      const hereName = here?.anchor ? anchorHintName(here) : '';
+      const which = hereName && hereName !== place ? `脚下是${hereName}，要去${place}。` : `要去的是${place}。`;
+      if (plan.shift) {
+        return {
+          goalId, action: 'move', banner: `去${place}换层${goalVerb}`,
+          detail: `${which}到了${place}再换层，通往${sym}的桥才会出现。${stackNote}`,
+          targetId: step.to, layer: plan.shift.layer,
+        };
+      }
+      return {
+        goalId, action: 'move', banner: `去${place}，再${goalVerb}`,
+        detail: `${which}先走到${place}，再前往${sym}。`,
+        targetId: step.to, layer: state.layer,
+      };
+    }
+    if (step.to !== goalId && activated.has(step.to)) {
+      const via = stepBadge(state, step.to) || '前序';
+      return {
+        goalId, action: 'move', banner: `先到${via}再换层点${sym}`,
+        detail: `先走到${via}，再换层，${sym}才会出现。${stackNote}`,
+        targetId: step.to, layer: plan.shift?.layer ?? state.layer,
+      };
+    }
+    return {
+      goalId, action: 'move', banner: goalId === 'exit' ? '点击🚪，走向出口' : `点击${sym}，走过去点亮`,
+      detail: goalId === 'exit' ? '三座机关都已点亮，点击出口顺桥过关。' : `点击发光的${sym}，顺着当前层的桥走过去就会点亮。`,
+      targetId: step.to, layer: state.layer,
+    };
+  }
+
+  if (plan.shift) {
+    const layer = plan.shift.layer;
+    const arrow = dir(layer);
+    const mark = roman(layer);
+    if (plan.shift.kind === 'recover') {
+      const goalVerb = sym === '🚪' ? '去🚪' : `点${sym}`;
+      return {
+        goalId, action: 'shift',
+        banner: `${arrow}回${mark}站稳，再${goalVerb}`,
+        detail: `脚下平台只在${mark}层存在。先${arrow}回${mark}层站稳，再继续换层前往${sym}。${stackNote}`,
+        targetId: state.node, layer,
+      };
+    }
+    if (plan.shift.kind === 'same_xyz') {
+      const fromSym = stepBadge(state, plan.shift.at) || twinSym || '①';
+      return {
+        goalId, action: 'shift',
+        banner: `站${fromSym}${arrow}显现${sym}`,
+        detail: `${sym}和${fromSym}叠在同一位置。站在${fromSym}，${arrow}到${mark}层，${sym}才会出现。`,
+        targetId: plan.shift.at, layer,
+      };
+    }
+    const shiftBanner = sym === '🚪' ? `${arrow}到${mark}，走向🚪` : `${arrow}到${mark}，点亮${sym}`;
+    return {
+      goalId, action: 'shift',
+      banner: shiftBanner,
+      detail: here?.anchor
+        ? `就在${anchorHintName(here)}，${arrow}到${mark}层，或直接点${mark}。通往${sym}的桥会显形。${stackNote}`
+        : `在⚓台${arrow}到${mark}层，或直接点${mark}。通往${sym}的桥会显形。${stackNote}`,
+      targetId: state.node, layer,
+    };
+  }
+
+  if (goalReachableInCurrentLayer && sameLayerUnusable(state, goal)) return sliceRecover(state, sym, goalId);
+  return {
+    goalId, action: 'move',
+    banner: goalId === 'exit' ? '点击🚪过关' : `点击${sym}，走过去点亮`,
+    detail: goalId === 'exit' ? '点击出口过关。' : `点击${sym}即可点亮。`,
+    targetId: goalId, layer: state.layer,
+  };
 }
 
 export class ProgressiveOnboarding {
