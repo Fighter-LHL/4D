@@ -76,14 +76,22 @@ test('seed 2 next-step hint stays non-empty and never aims at a lit mechanism', 
 
   reach(model, 'dew');
   record('2/3 standing on lit dew');
+  // In seed 2, dew is on layer 2 (Ⅲ) and bell is on layer 0 (Ⅰ) with no platform at that XYZ on
+  // layer 1 (Ⅱ), so rolling down from dew would strand the player on unsupported dew@1 and loop
+  // with recover; the safe route walks back to 归响台 first and shifts there.
+  const onDewPlan = planLayerRoute(model.snapshot(), 'bell');
+  assert.equal(onDewPlan.walk[0]?.to, 'hub');
+  assert.equal(onDewPlan.shift.kind, 'anchor');
+  assert.equal(onDewPlan.shift.at, 'hub');
+  assert.equal(onDewPlan.shift.layer, bell.layer);
   const onDew = describeNextStep(model.snapshot());
-  assert.equal(onDew.action, 'shift');
+  assert.equal(onDew.action, 'move');
+  assert.equal(onDew.targetId, 'hub');
   assert.equal(onDew.goalId, 'bell');
   assert.equal(onDew.layer, bell.layer);
-  assert.equal(planLayerRoute(model.snapshot(), 'bell').shift.kind, 'same_xyz');
+  assert.equal(onDew.banner, '去归响台换层点③');
   assert.match(onDew.detail, /同一位置/);
   assert.match(onDew.banner, /③/);
-  assert.ok(onDew.banner.includes('①'), `standing on ① should say so: ${onDew.banner}`);
 
   light(model, 'bell');
   record('3/3');
@@ -351,5 +359,177 @@ test('seed 4097396765 mobile canvas tap on ③ (bloom) selects bloom instead of 
   } finally {
     renderer.destroy();
     globalThis.window = prevWindow;
+  }
+});
+
+function followHintsFromAfterFirstLight(model, { discreteShift = false, maxStepsToSecond = 30, maxRoomSteps = 40 } = {}) {
+  const initial = model.snapshot();
+  const [, secondId, thirdId] = initial.mechanismOrder;
+  assert.equal(initial.activated.length, 1, 'starts immediately after lighting ①');
+  const visited = [];
+  let stepsToSecond = null;
+
+  for (let stepIdx = 1; stepIdx <= maxRoomSteps; stepIdx++) {
+    const state = model.snapshot();
+    if (state.phase === 'interlude' || state.room >= 1) break;
+    const hint = describeNextStep(state);
+    assert.ok(hint.banner && hint.banner.length <= 20, `step ${stepIdx} invalid banner: "${hint.banner}"`);
+    assert.equal(
+      hint.goalId === 'exit' || !state.activated.includes(hint.goalId),
+      true,
+      `step ${stepIdx} targets already-lit ${hint.goalId}: "${hint.banner}"`,
+    );
+    assert.ok(
+      hint.banner.includes(badgeOf(state, hint.goalId)),
+      `step ${stepIdx} "${hint.banner}" must name ${badgeOf(state, hint.goalId)}`,
+    );
+
+    const sig = `${state.node}@${state.layer}|${state.activated.join(',')}|${hint.action}:${hint.banner}`;
+    if (visited.length >= 2) {
+      assert.notEqual(
+        sig,
+        visited[visited.length - 2],
+        `2-cycle detected: ${visited.slice(-2).join(' -> ')} -> ${sig}`,
+      );
+    }
+    visited.push(sig);
+
+    if (hint.action === 'move' || hint.action === 'done') {
+      const dest = hint.targetId || hint.goalId;
+      const beforeLayer = state.layer;
+      reach(model, dest);
+      if (model.snapshot().phase === 'playing') {
+        assert.equal(model.snapshot().layer, beforeLayer, `move hint "${hint.banner}" stays on layer ${beforeLayer}`);
+      }
+    } else if (hint.action === 'shift') {
+      assert.ok(Number.isInteger(hint.layer) && hint.layer !== state.layer, `valid target layer on "${hint.banner}"`);
+      const nextLayer = discreteShift
+        ? state.layer + Math.sign(hint.layer - state.layer)
+        : hint.layer;
+      model.setW(state.layers[nextLayer].center);
+      advance(model, 0.05);
+      const after = model.snapshot();
+      const footing = after.nodes.find(node => node.id === after.node);
+      assert.equal(
+        Boolean(footing && (footing.anchor || footing.layer === after.layer)),
+        true,
+        `shift "${hint.banner}" landed on unsupported ${after.node}@${after.layer}`,
+      );
+      assert.ok(after.phaseStability >= 0.99, `shift "${hint.banner}" decayed phaseStability (${after.phaseStability})`);
+    } else if (hint.action === 'activate') {
+      light(model, hint.goalId);
+    } else if (hint.action === 'recover') {
+      model.setW(state.layers[hint.layer].center);
+      advance(model, 0.05);
+    } else {
+      advance(model, 0.35);
+    }
+
+    if (stepsToSecond === null && model.snapshot().activated.includes(secondId)) {
+      stepsToSecond = stepIdx;
+      assert.ok(stepsToSecond <= maxStepsToSecond, `lit ② in ${stepsToSecond} steps (limit ${maxStepsToSecond})`);
+    }
+  }
+
+  assert.notEqual(stepsToSecond, null, `must light ② (${secondId}) within ${maxStepsToSecond} steps: ${visited.join(' -> ')}`);
+  const done = model.snapshot();
+  assert.ok(done.activated.includes(secondId), 'lit ②');
+  assert.ok(done.activated.includes(thirdId), 'lit ③');
+  assert.equal(done.phase, 'interlude', `cleared Room 0 to interlude: ${visited.join(' -> ')}`);
+  assert.equal(done.stats.failures, 0, 'zero falls while following hints');
+  return { stepsToSecond, totalSteps: visited.length };
+}
+
+test('seeds 42, 90210, 2026111 route via anchor instead of void same_xyz on dew and clear Room 0 without 2-cycle', () => {
+  for (const seed of [42, 90210, 2026111]) {
+    const model = start('shell', seed);
+    const [firstId, secondId] = model.snapshot().mechanismOrder;
+    assert.equal(firstId, 'dew');
+    assert.equal(secondId, 'bell');
+
+    light(model, 'dew');
+    const atDew = model.snapshot();
+    const dew = atDew.nodes.find(node => node.id === 'dew');
+    const bell = atDew.nodes.find(node => node.id === 'bell');
+    assert.equal(atDew.node, 'dew');
+    assert.equal(atDew.layer, dew.layer);
+    assert.ok(Math.hypot(dew.world.x - bell.world.x, dew.world.y - bell.world.y, dew.world.z - bell.world.z) < 1e-4);
+    assert.equal(Math.abs(bell.layer - dew.layer), 2, `seed ${seed}: dew and bell sit on non-adjacent layers`);
+
+    // Standing on dew in dew's own layer: next hint must NOT be a same_xyz shift across an empty middle slice.
+    const plan = planLayerRoute(atDew, 'bell');
+    assert.notEqual(plan.shift?.kind, 'same_xyz', `seed ${seed}: must not emit non-adjacent same_xyz from dew`);
+    assert.equal(plan.walk[0]?.to, 'hub', `seed ${seed}: walks to 归响台 first`);
+    assert.equal(plan.shift?.kind, 'anchor');
+    assert.equal(plan.shift?.at, 'hub');
+    assert.equal(plan.shift?.layer, bell.layer);
+
+    const nextHint = describeNextStep(atDew);
+    assert.equal(nextHint.action, 'move', `seed ${seed}: standing on dew moves to anchor, got ${nextHint.banner}`);
+    assert.equal(nextHint.targetId, 'hub');
+    assert.equal(nextHint.goalId, 'bell');
+    assert.equal(nextHint.banner, '去归响台换层点②');
+    assert.doesNotMatch(nextHint.banner, /显现②/);
+
+    // If the player is already stranded on the unsupported middle layer, recover returns to dew's layer,
+    // and the step after stabilizing moves to 归响台 rather than sending them back into the void.
+    const midLayer = (dew.layer + bell.layer) / 2;
+    model.setW(atDew.layers[midLayer].center);
+    const stranded = model.snapshot();
+    assert.equal(stranded.node, 'dew');
+    assert.equal(stranded.layer, midLayer);
+    const recoverHint = describeNextStep(stranded);
+    assert.equal(recoverHint.action, 'shift');
+    assert.equal(recoverHint.layer, dew.layer);
+    assert.match(recoverHint.banner, /回Ⅲ站稳/);
+    model.setW(stranded.layers[recoverHint.layer].center);
+    const stabilizedHint = describeNextStep(model.snapshot());
+    assert.equal(stabilizedHint.action, 'move');
+    assert.equal(stabilizedHint.targetId, 'hub');
+    assert.equal(stabilizedHint.banner, '去归响台换层点②');
+
+    // Repeatedly executing describeNextStep clears ② within <= 30 steps, then ③ and exit (both setW and 1-layer steps).
+    const directRun = followHintsFromAfterFirstLight(model, { discreteShift: false, maxStepsToSecond: 30 });
+    assert.ok(directRun.stepsToSecond <= 30);
+
+    const discreteModel = start('shell', seed);
+    light(discreteModel, 'dew');
+    const discreteRun = followHintsFromAfterFirstLight(discreteModel, { discreteShift: true, maxStepsToSecond: 30 });
+    assert.ok(discreteRun.stepsToSecond <= 30);
+  }
+});
+
+test('adjacent completable same_xyz seeds keep in-place transfer and all established seeds clear Room 0 by hints', () => {
+  for (const seed of [401491695, 4097396765, 31337, 123456789]) {
+    const model = start('shell', seed);
+    light(model, 'dew');
+    const atDew = model.snapshot();
+    const dew = atDew.nodes.find(node => node.id === 'dew');
+    const bell = atDew.nodes.find(node => node.id === 'bell');
+    assert.equal(Math.abs(bell.layer - dew.layer), 1, `seed ${seed}: dew and bell are on adjacent layers`);
+
+    const plan = planLayerRoute(atDew, 'bell');
+    assert.equal(plan.walk.length, 0);
+    assert.equal(plan.shift?.kind, 'same_xyz', `seed ${seed}: adjacent same_xyz stays enabled`);
+    assert.equal(plan.shift?.layer, bell.layer);
+
+    const hint = describeNextStep(atDew);
+    assert.equal(hint.action, 'shift');
+    assert.equal(hint.layer, bell.layer);
+    assert.match(hint.banner, /^站①(上滚|下滚)显现②$/);
+
+    model.setW(atDew.layers[hint.layer].center);
+    const transferred = model.snapshot();
+    assert.equal(transferred.node, 'bell', `seed ${seed}: 1-layer shift transfers footing directly onto bell`);
+    assert.equal(transferred.layer, bell.layer);
+    assert.equal(transferred.phaseStability, 1);
+  }
+
+  for (const seed of [2, 401491695, 4097396765, 5, 777, 31337, 123456789]) {
+    for (const discreteShift of [false, true]) {
+      const model = start('shell', seed);
+      light(model, model.snapshot().mechanismOrder[0]);
+      followHintsFromAfterFirstLight(model, { discreteShift, maxStepsToSecond: 30 });
+    }
   }
 });

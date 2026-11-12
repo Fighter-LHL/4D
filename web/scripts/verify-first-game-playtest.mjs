@@ -465,6 +465,39 @@ try {
       });
       await context.close();
     }
+
+    // Seeds 42, 90210 (同位接力庭, cascade) and 2026111 (分源架桥庭, split): ① dew (Ⅲ) and ② bell (Ⅰ)
+    // share XYZ across non-adjacent layers; hints must route via 归响台 instead of looping at 1/3.
+    for (const spec of [
+      { seed: 42, roomId: 'cascade' },
+      { seed: 90210, roomId: 'cascade' },
+      { seed: 2026111, roomId: 'split' },
+    ]) {
+      const { context, page } = await openCold(vp, spec.seed);
+      const initial = await read(page);
+      assert.equal(initial.state.roomId, spec.roomId, `${vpKey}: seed ${spec.seed} room is ${spec.roomId}`);
+      const hintStart = receipt.hints.length;
+      await clearByHints(page, vp, { tap: vp.hasTouch });
+      const runHints = receipt.hints.slice(hintStart);
+      assert.ok(
+        !runHints.some(h => /站①.*显现②/.test(h.title) || /回Ⅲ站稳/.test(h.title)),
+        `${vpKey} seed ${spec.seed}: no non-adjacent same_xyz / recover 2-cycle hints`,
+      );
+      assert.ok(
+        runHints.some(h => h.node === 'dew' && h.action === 'move' && h.target === 'hub' && h.title.includes('归响台')),
+        `${vpKey} seed ${spec.seed}: standing on dew routes via 归响台 before changing layer`,
+      );
+      receipt.checks.push({
+        viewport: vpKey,
+        check: `seed-${spec.seed}-${spec.roomId}-hint-clear`,
+        seed: spec.seed,
+        roomId: spec.roomId,
+        turns: runHints.length,
+        tap: vp.hasTouch,
+        passed: true,
+      });
+      await context.close();
+    }
   }
 
   assert.deepEqual(receipt.consoleErrors, [], '0 console errors');

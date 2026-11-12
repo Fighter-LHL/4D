@@ -162,8 +162,10 @@ export function planLayerRoute(state, targetId, { finalLayer = null } = {}) {
           step: { type: 'shift', at: cur.id, to: cur.id, layer, kind: 'anchor' } });
       }
     } else {
+      // Discrete wheel / layer-step controls move one slice at a time; only offer in-place
+      // same_xyz transfers to an adjacent layer so the player never steps onto a vanishing slice.
       for (const other of nodes) {
-        if (other.anchor || other.id === cur.id || !Number.isInteger(other.layer) || other.layer === cur.layer || !sameSpot(node, other)) continue;
+        if (other.anchor || other.id === cur.id || !Number.isInteger(other.layer) || Math.abs(other.layer - cur.layer) !== 1 || !sameSpot(node, other)) continue;
         next.push({ id: other.id, layer: other.layer, cost: cur.cost + SHIFT_COST,
           step: { type: 'shift', at: cur.id, to: other.id, layer: other.layer, kind: 'same_xyz' } });
       }
