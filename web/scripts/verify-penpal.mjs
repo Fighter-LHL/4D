@@ -8,20 +8,28 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { courtyardFlowObserver, discoveryObserver, readFlow, chooseTarget, followGuidance, waitSettled, earnFirstDiscovery, chooseDiscoveryStarter, verifyRestartAndRevisit, fitsViewport } from './courtyard-first-beat.mjs';
-const require = createRequire(import.meta.url);
-const { chromium } = require('playwright');
+import { courtyardFlowObserver, discoveryObserver, readFlow, chooseTarget, followGuidance, waitSettled, earnFirstDiscovery, chooseDiscoveryStarter, verifyRestartAndRevisit, fitsViewport, resolveCourtyardViewports } from './courtyard-first-beat.mjs';
+
+const { chromium } = await import('playwright').catch(() => createRequire(import.meta.url)('playwright'));
 const baseURL = process.env.BASE_URL || 'http://127.0.0.1:4173';
 const out = process.env.ARTIFACT_DIR || fileURLToPath(new URL(`../artifacts/play-fun-20261027/browser-${Date.now()}/`, import.meta.url));
 await mkdir(out, { recursive: true });
-const receipt = { status: 'started', baseURL, checks: [], errors: [] };
+const viewports = resolveCourtyardViewports().map(vp => ({
+  ...vp,
+  starterRelic: vp.key === '844x390' ? 'shadow' : 'shell',
+}));
+const receipt = { status: 'started', baseURL, viewports, checks: [], errors: [] };
 let browser;
 try {
   browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   receipt.browserVersion = browser.version();
-  const widths = process.env.VERIFY_WIDTHS ? process.env.VERIFY_WIDTHS.split(',').map(Number) : [1280, 390, 320];
-  for (const width of widths) {
-    const context = await browser.newContext({ viewport: { width, height: width > 700 ? 900 : 844 }, reducedMotion: width === 320 ? 'reduce' : 'no-preference' });
+  for (const vp of viewports) {
+    const context = await browser.newContext({
+      viewport: { width: vp.width, height: vp.height },
+      hasTouch: vp.hasTouch,
+      isMobile: vp.isMobile,
+      reducedMotion: vp.reducedMotion ? 'reduce' : 'no-preference',
+    });
     await context.addInitScript(() => { try { localStorage.setItem('wslice-theater', 'classic'); } catch {} });
     const page = await context.newPage();
     await context.route('**/src/main.js', async route => {
@@ -32,8 +40,8 @@ try {
       const response = await route.fetch();
       await route.fulfill({ response, body: await response.text() + discoveryObserver });
     });
-    page.on('pageerror', error => receipt.errors.push(error.message));
-    page.on('console', message => { if (['error', 'warning'].includes(message.type())) receipt.errors.push(message.text()); });
+    page.on('pageerror', error => receipt.errors.push({ viewport: vp.key, message: error.message }));
+    page.on('console', message => { if (['error', 'warning'].includes(message.type())) receipt.errors.push({ viewport: vp.key, message: message.text() }); });
 
     // A bare discovery URL cannot fabricate an earned entry or spend the welcome.
     await page.goto(`${baseURL}/?seed=2&from=discovery`);
@@ -60,17 +68,24 @@ try {
     await page.locator('#run-details>summary').click();
     assert.equal(await page.locator('.relic-panel').isVisible(), true, 'build remains available on demand');
     await page.locator('#run-details>summary').click();
-    if (width <= 480) {
+    if (vp.phone || vp.height <= 500) {
       const heading = await page.locator('.mechanism-heading').first().boundingBox();
       const list = await page.locator('#mechanisms').boundingBox();
-      assert.ok(heading.y + heading.height <= list.y, 'mechanism title stays above the first item');
+      assert.ok(heading && list && heading.y + heading.height <= list.y + 1, 'mechanism title stays above the first item');
       await page.evaluate(() => scrollTo(0, 0));
-      for (const selector of ['#scene', '#onboarding-banner']) {
-        const rect = await page.locator(selector).boundingBox();
-        assert.ok(rect.y >= 0 && rect.y + rect.height <= 844, `${selector} fits the phone first screen: ${JSON.stringify(rect)}`);
+      for (const selector of ['#scene', '.mechanism-heading', '#mechanisms [data-mechanism]:first-child']) {
+        const rect = await page.locator(selector).first().boundingBox();
+        assert.ok(
+          rect && rect.x >= -1 && rect.x + rect.width <= vp.width + 1 && rect.y >= -1 && rect.y + rect.height <= vp.height + 1,
+          `${selector} fits the landscape phone first screen (${vp.width}x${vp.height}): ${JSON.stringify(rect)}`
+        );
       }
+      await page.locator('#onboarding-banner').scrollIntoViewIfNeeded();
+      await fitsViewport(page, page.locator('#onboarding-banner'), 'onboarding banner on landscape phone');
+      await page.evaluate(() => scrollTo(0, 0));
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no horizontal overflow on landscape phone courtyard');
     }
-    await page.screenshot({ path: `${out}/courtyard-first-step-${width}.png`, fullPage: true });
+    await page.screenshot({ path: `${out}/courtyard-first-step-${vp.key}.png`, fullPage: true });
 
     // Keyboard E with nothing to bank still answers locally, and the popup never blocks the canvas.
     await page.locator('#scene').focus();
@@ -96,7 +111,7 @@ try {
       assert.doesNotMatch(await page.locator('#action-feedback').innerText(), /供能 1\/2|还差一路/);
       assert.equal(partial.pills.some(t => /供能/.test(t)), false, 'no canvas note repeats partial supply');
     }
-    await page.screenshot({ path: `${out}/courtyard-after-first-${width}.png`, fullPage: true });
+    await page.screenshot({ path: `${out}/courtyard-after-first-${vp.key}.png`, fullPage: true });
 
     // H speaks the current controls (click / wheel), never the retired ones.
     await page.locator('#scene').focus();
@@ -115,7 +130,7 @@ try {
     assert.ok(complete.every(f => /点它前往点亮/.test(f.text)), `completion names the next action neutrally: ${JSON.stringify(complete)}`);
     assert.equal(remote.pills.some(t => /供能到齐/.test(t)), false, 'the canvas does not repeat the completion');
     assert.ok(remote.maxFullPills <= 2, `at most two full canvas pills at once (saw ${remote.maxFullPills})`);
-    await page.screenshot({ path: `${out}/courtyard-power-complete-remote-${width}.png`, fullPage: true });
+    await page.screenshot({ path: `${out}/courtyard-power-complete-remote-${vp.key}.png`, fullPage: true });
 
     // Help topics stay short and answer the current state.
     await page.locator('#help').click();
@@ -129,14 +144,14 @@ try {
       assert.doesNotMatch(tips[topic], /点平台预览|再点稳行/);
     }
     await fitsViewport(page, page.locator('#help-tip'), 'help tip');
-    await page.screenshot({ path: `${out}/courtyard-help-${width}.png` });
+    await page.screenshot({ path: `${out}/courtyard-help-${vp.key}.png` });
     await page.locator('#help-done').click();
 
     await page.goto(`${baseURL}/flatland.html?level=visitor&play=explore&seed=7`);
     await page.locator('#visitor-goal').waitFor();
     assert.match(await page.locator('#visitor-goal').innerText(), /拖 S.*按 E/);
     assert.equal(await page.locator('#collection-dialog').isVisible(), false);
-    await page.screenshot({ path: `${out}/visitor-first-step-${width}.png` });
+    await page.screenshot({ path: `${out}/visitor-first-step-${vp.key}.png` });
     // Use native range keyboard input; never assign model state or a saved collection.
     await page.locator('#s-slider').focus();
     await page.keyboard.press('Home');
@@ -151,10 +166,10 @@ try {
     await page.locator('#resume').click();
     await page.waitForFunction(() => document.querySelector('#visitor-goal').textContent === '走到光环边找访客');
     assert.equal(await page.locator('#collection-dialog').isVisible(), false);
-    await page.screenshot({ path: `${out}/visitor-next-beat-${width}.png` });
+    await page.screenshot({ path: `${out}/visitor-next-beat-${vp.key}.png` });
     await page.locator('[data-level="2"]').click();
     assert.equal(await page.locator('#visitor-goal').innerText(), '墙那边有动静 · 换个切片看看');
-    await page.screenshot({ path: `${out}/escape-arrival-${width}.png` });
+    await page.screenshot({ path: `${out}/escape-arrival-${vp.key}.png` });
     await page.waitForFunction(() => document.querySelector('#visitor-goal').hidden);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no horizontal overflow');
 
@@ -162,10 +177,25 @@ try {
     await earnFirstDiscovery(page, baseURL, 'level=escape&play=explore&seed=42');
     await page.getByRole('link', { name: '去庭院 ↗', exact: true }).first().click();
     await page.waitForFunction(() => window.__flow?.());
-    const entry = await chooseDiscoveryStarter(page, out, width, { starterRelic: width === 390 ? 'shadow' : 'shell' });
+    const entry = await chooseDiscoveryStarter(page, out, vp.key, { starterRelic: vp.starterRelic });
     await followGuidance(page, (await readFlow(page)).state.mechanismOrder[0]);
     const restart = await verifyRestartAndRevisit(page);
-    receipt.checks.push({ width, height: width > 700 ? 900 : 844, firstActivationMs, helpText, tips, remoteCompletion: complete.map(f => f.text), entry, ...restart, passed: true });
+    receipt.checks.push({
+      viewport: vp.key,
+      width: vp.width,
+      height: vp.height,
+      phone: vp.phone,
+      hasTouch: vp.hasTouch,
+      reducedMotion: vp.reducedMotion,
+      starterRelic: vp.starterRelic,
+      firstActivationMs,
+      helpText,
+      tips,
+      remoteCompletion: complete.map(f => f.text),
+      entry,
+      ...restart,
+      passed: true,
+    });
     await context.close();
   }
   assert.deepEqual(receipt.errors, []);

@@ -5,10 +5,10 @@
 import assert from 'node:assert/strict';
 import { runCourtyardChecks, FIRST_ROOMS, earnFirstDiscovery, enterCourtyard, chooseDiscoveryStarter, readFlow, chooseTarget, fitsViewport, waitSettled } from './courtyard-first-beat.mjs';
 
-await runCourtyardChecks({ name: 'first-feedback', cases: FIRST_ROOMS, run: async ({ page, base, width, out, shot, seed, room }) => {
+await runCourtyardChecks({ name: 'first-feedback', cases: FIRST_ROOMS, run: async ({ page, base, viewport, out, shot, seed, room }) => {
   await earnFirstDiscovery(page, base);
   await enterCourtyard(page, seed);
-  await chooseDiscoveryStarter(page, out, width);
+  await chooseDiscoveryStarter(page, out, viewport.key);
   await page.waitForFunction(() => window.__flow().momentum.cue?.beat === 'arrival');
   const start = await readFlow(page);
   assert.equal(start.state.roomId, room);
@@ -19,7 +19,7 @@ await runCourtyardChecks({ name: 'first-feedback', cases: FIRST_ROOMS, run: asyn
   assert.match(await page.locator('#onboarding-title').innerText(), /①/);
   assert.equal(await page.locator('#onboarding-banner').evaluate(el => el.classList.contains('collapsed')), false);
   assert.equal(await page.locator('#layer-controls').isVisible(), false, 'stage 1 does not show layer controls yet');
-  assert.ok(start.pills.some(t => t.includes('第一步')), `the first target carries its canvas instruction: ${JSON.stringify(start.pills)}`);
+  assert.ok(start.pills.some(t => t.includes('①')), `the first target carries its canvas badge: ${JSON.stringify(start.pills)}`);
   assert.equal(await page.locator('#action-feedback').isVisible(), false, 'arrival starts without a popup');
 
   // A refused action: the locked ③ explains why, in one fitted popup.

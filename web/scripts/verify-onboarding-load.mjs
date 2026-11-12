@@ -1,8 +1,8 @@
 // Onboarding / cognitive-load regressions found in the 2026-11-10 review, checked through real UI input.
 // Each check pins one fix: risky crossings are not auto-steered, the starter relic is auto-equipped
 // only on the first run, there is no mid-run relic switch, theme and 4D-lab wiring work, R (not Tab)
-// toggles risk, wheel up / scroll right climbs towards Ⅲ, drags never switch layers, and the stage
-// banner folds while the checklist reports state only.
+// toggles risk, Stage 1 ignores wheel while Stage 2+ wheel up / scroll right climbs towards Ⅲ (and
+// touch switches via Ⅰ/Ⅱ/Ⅲ buttons), drags never switch layers, and checklist rows report state only.
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -18,8 +18,8 @@ const observer = '\nwindow.__w = () => structuredClone(model.snapshot());';
 const browser = await chromium.launch({ headless: true });
 receipt.browserVersion = browser.version();
 
-async function open({ firstRunDone = false, seed = 123 } = {}) {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+async function open({ firstRunDone = false, seed = 123, viewport = { width: 1280, height: 800 }, hasTouch = false, isMobile = false } = {}) {
+  const context = await browser.newContext({ viewport, hasTouch, isMobile });
   await context.route('**/src/main.js', async route => {
     const response = await route.fetch();
     await route.fulfill({ response, body: await response.text() + observer });
@@ -60,16 +60,24 @@ try {
     check('choice dialog stays closed on the first run', !(await page.$eval('#choice-dialog', d => d.open)));
     check('no mid-run relic switch button', !(await page.$('#switch-relic-btn')));
 
-    // 2. Wheel direction on the hub: up climbs, down descends, right = up, left = down.
+    // 2. Stage 1 (before ① is lit): wheel up/down and left/right must NOT switch layers or drift W.
     const box = await page.locator('#scene').boundingBox();
     await page.mouse.move(box.x + box.width * .95, box.y + box.height * .9);
-    const layers = [(await w()).layer];
-    for (const [dx, dy] of [[0, -120], [0, -120], [0, -120], [0, 120], [120, 0], [-120, 0], [-120, 0]]) {
+    const initialSnap = await w();
+    const stage1Layers = [initialSnap.layer];
+    const stage1Ws = [initialSnap.w];
+    check('stage 1 hides layer controls before ① is lit',
+      await page.$eval('#layer-controls', el => el.hidden || getComputedStyle(el).display === 'none'));
+    for (const [dx, dy] of [[0, -120], [0, 120], [120, 0], [-120, 0]]) {
       await page.mouse.wheel(dx, dy);
-      await page.waitForTimeout(450);
-      layers.push((await w()).layer);
+      await page.waitForTimeout(280);
+      const cur = await w();
+      stage1Layers.push(cur.layer);
+      stage1Ws.push(cur.w);
     }
-    check('wheel up climbs towards Ⅲ and scroll right matches it', JSON.stringify(layers) === JSON.stringify([0, 1, 2, 2, 1, 2, 1, 0]), { layers });
+    check('stage 1 wheel up/down and left/right neither changes layer nor changes W',
+      stage1Layers.every(l => l === initialSnap.layer) && stage1Ws.every(val => Math.abs(val - initialSnap.w) < 1e-6),
+      { initialLayer: initialSnap.layer, stage1Layers, initialW: initialSnap.w, stage1Ws });
 
     // 3. A horizontal drag never switches layers.
     await page.mouse.move(box.x + box.width * .6, box.y + box.height * .92);
@@ -79,22 +87,37 @@ try {
     await page.waitForTimeout(300);
     check('drag does not change layer', (await w()).layer === 0, { layer: (await w()).layer });
 
-    // 4. Stage 1 banner stays expanded; after ① the checklist is status-only and the banner folds.
+    // 4. First-run banner stays expanded across Stage 1 -> Stage 2; checklist is status-only;
+    // once Stage 2 unlocks #layer-controls, desktop wheel on ⚓ hub climbs towards Ⅲ and scroll right matches it.
     check('stage 1 banner stays expanded', !(await page.$eval('#onboarding-banner', b => b.classList.contains('collapsed'))));
     await page.locator('[data-mechanism]').first().click();
     await page.waitForFunction(() => window.__w().activated.length === 1, null, { timeout: 15000 });
+    await page.waitForFunction(() => !document.getElementById('layer-controls').hidden, null, { timeout: 5000 });
     await page.waitForTimeout(5200);
     const settled = await page.evaluate(() => ({
+      stage: document.body.dataset.onboardingStage,
+      layerControlsVisible: !document.getElementById('layer-controls').hidden,
       collapsed: document.getElementById('onboarding-banner').classList.contains('collapsed'),
       checklist: [...document.querySelectorAll('[data-mechanism] small')].map(el => el.textContent),
       description: document.getElementById('room-description').textContent,
     }));
-    check('later stage banner folds after the announcement', settled.collapsed, settled);
+    check('stage 2 reveals layer controls and keeps first-run banner expanded',
+      Number(settled.stage) >= 2 && settled.layerControlsVisible && !settled.collapsed, settled);
     check('checklist reports state without instructions', settled.checklist.every(t => !/点我|前往/.test(t)), settled);
     check('room description is the template description', !settled.description.includes('核心玩法'), settled);
-    await page.click('#onboarding-badge');
-    check('clicking the folded badge reopens the stage instruction',
-      !(await page.$eval('#onboarding-banner', b => b.classList.contains('collapsed'))));
+
+    await page.click('#vstep-move');
+    await page.waitForFunction(() => window.__w().node === 'hub' && !window.__w().travel, null, { timeout: 10000 });
+    const stage2Box = await page.locator('#scene').boundingBox();
+    await page.mouse.move(stage2Box.x + stage2Box.width * .95, stage2Box.y + stage2Box.height * .9);
+    const layers = [(await w()).layer];
+    for (const [dx, dy] of [[0, -120], [0, -120], [0, -120], [0, 120], [120, 0], [-120, 0], [-120, 0]]) {
+      await page.mouse.wheel(dx, dy);
+      await page.waitForTimeout(450);
+      layers.push((await w()).layer);
+    }
+    check('stage 2 wheel up climbs towards Ⅲ and scroll right matches it',
+      JSON.stringify(layers) === JSON.stringify([0, 1, 2, 2, 1, 2, 1, 0]), { layers });
 
     // 5. R toggles risk; Tab only moves focus.
     await page.locator('#scene').focus();
@@ -144,11 +167,19 @@ try {
     await context.close();
   }
 
-  // 8. Returning player: the relic picker opens on load and again for a new run.
+  // 8. Returning player: the relic picker opens on load, later stage banner folds and reopens on badge click, and restart reopens picker.
   {
     const { context, page } = await open({ firstRunDone: true, seed: 456 });
     check('returning player sees the relic picker', await page.$eval('#choice-dialog', d => d.open));
     await page.locator('#choice-dialog .relic-choice').first().click();
+    await page.locator('[data-mechanism]').first().click();
+    await page.waitForFunction(() => window.__w().activated.length === 1, null, { timeout: 15000 });
+    await page.waitForTimeout(5200);
+    check('returning player stage banner folds after the announcement',
+      await page.$eval('#onboarding-banner', b => b.classList.contains('collapsed')));
+    await page.click('#onboarding-badge');
+    check('clicking the folded badge reopens the stage instruction',
+      !(await page.$eval('#onboarding-banner', b => b.classList.contains('collapsed'))));
     await page.click('#restart');
     await page.click('#confirm-restart');
     await page.waitForTimeout(400);
@@ -212,6 +243,46 @@ try {
       resetState.banked === 0 && resetState.stats.anomalies === 0 &&
       resetState.anomalyProgress.done === 0 && resetState.phaseResonance.rank === 'B' && loreHiddenAfterRestart,
       { banked: resetState.banked, anomalies: resetState.stats.anomalies, rank: resetState.phaseResonance.rank, loreHiddenAfterRestart });
+    await context.close();
+  }
+
+  // 10. Landscape phone touch path (844x390, hasTouch): Stage 1 blocks wheel; Stage 2 switches layers via Ⅰ/Ⅱ/Ⅲ buttons.
+  {
+    const { context, page, w } = await open({
+      seed: 123,
+      viewport: { width: 844, height: 390 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    const init = await w();
+    const box = await page.locator('#scene').boundingBox();
+    await page.mouse.move(box.x + box.width * .95, box.y + box.height * .9);
+    await page.mouse.wheel(0, -120);
+    await page.waitForTimeout(280);
+    const afterStage1Wheel = await w();
+    const noOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
+    check('landscape phone (844x390) hides Stage 1 layer buttons, ignores wheel and has no horizontal overflow',
+      (await page.$eval('#layer-controls', el => el.hidden)) &&
+      afterStage1Wheel.layer === init.layer &&
+      Math.abs(afterStage1Wheel.w - init.w) < 1e-6 &&
+      noOverflow,
+      { initLayer: init.layer, afterLayer: afterStage1Wheel.layer, noOverflow });
+
+    await page.locator('[data-mechanism]').first().click();
+    await page.waitForFunction(() => window.__w().activated.length === 1, null, { timeout: 15000 });
+    await page.waitForFunction(() => !document.getElementById('layer-controls').hidden, null, { timeout: 5000 });
+    await page.click('#vstep-move');
+    await page.waitForFunction(() => window.__w().node === 'hub' && !window.__w().travel, null, { timeout: 10000 });
+    const tappedLayers = [];
+    for (const targetLayer of [1, 2, 0]) {
+      const btn = page.locator(`.layer-controls [data-layer="${targetLayer}"]`);
+      await btn.scrollIntoViewIfNeeded();
+      await btn.click();
+      await page.waitForTimeout(300);
+      tappedLayers.push((await w()).layer);
+    }
+    check('landscape phone Stage 2 switches layers via Ⅰ/Ⅱ/Ⅲ buttons',
+      JSON.stringify(tappedLayers) === JSON.stringify([1, 2, 0]), { tappedLayers });
     await context.close();
   }
 
