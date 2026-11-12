@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PROJECT="${PROJECT_PATH:-$ROOT/WSliceProto}"
+PROJECT="${PROJECT_PATH:-}"
 UNITY="${UNITY_PATH:-/Applications/Unity/Hub/Editor/6000.0.77f1/Unity.app/Contents/MacOS/Unity}"
 PYTHON="${PYTHON_PATH:-python3}"
 RUN_TESTS=false
@@ -14,7 +14,7 @@ Usage: validate-local.sh [--tests]
 
 Default: compile + validate all six levels and catalog, with a checked receipt.
 --tests: also require fresh, complete EditMode and PlayMode NUnit XML.
-Environment: UNITY_PATH, PROJECT_PATH, PYTHON_PATH (default python3).
+Environment: PROJECT_PATH (required), UNITY_PATH, PYTHON_PATH (default python3).
 Artifacts: <project>/TestResults/run-<UTC timestamp>-<unique suffix>/
 Missing Unity/license/results is not a pass. No credentials are requested.
 USAGE
@@ -33,8 +33,8 @@ if [[ ! -x "$UNITY" ]]; then
   echo "Set UNITY_PATH to an installed Unity 6000.0.77f1 executable." >&2
   exit 1
 fi
-if [[ ! -f "$PROJECT/ProjectSettings/ProjectVersion.txt" ]]; then
-  echo "ERROR: Not a Unity project: $PROJECT" >&2
+if [[ -z "$PROJECT" || ! -f "$PROJECT/ProjectSettings/ProjectVersion.txt" ]]; then
+  echo "ERROR: PROJECT_PATH must point to a Unity project: ${PROJECT:-<unset>}" >&2
   exit 1
 fi
 command -v "$PYTHON" >/dev/null

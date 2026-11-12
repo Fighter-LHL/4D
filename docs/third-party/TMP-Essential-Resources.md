@@ -14,5 +14,6 @@ The archive supplies the default TMP Settings, LiberationSans font and materials
 ## Licenses and attribution
 
 - The official package's [Unity UI license notice](Unity-UI-LICENSE.md) is preserved unchanged.
-- The bundled LiberationSans font's complete SIL Open Font License is preserved at `WSliceProto/Assets/TextMesh Pro/Fonts/LiberationSans - OFL.txt`.
-- The package's EmojiOne attribution is preserved at `WSliceProto/Assets/TextMesh Pro/Sprites/EmojiOne Attribution.txt`.
+- The bundled LiberationSans font's complete SIL Open Font License was preserved at `WSliceProto/Assets/TextMesh Pro/Fonts/LiberationSans - OFL.txt`.
+- The package's EmojiOne attribution was preserved at `WSliceProto/Assets/TextMesh Pro/Sprites/EmojiOne Attribution.txt`.
+- Both files, and the imported assets above, were removed with the Unity prototype `WSliceProto` in PR #56.

@@ -2,6 +2,8 @@
 
 基线：`79c1d0d`，分支 `codex/courtyard-risk-feedback`。接续[回响风险反馈](courtyard-resonance-candidate.md)，加强冒险成功后角色、机关与环境的共同回应。
 
+> Unity 原型 `WSliceProto` 已在 PR #56 移出仓库；下文 `WSliceProto/` 路径只记录当时的本机位置，仓库中已不存在。
+
 ## 玩家能看到的变化
 
 - 启动机关时，青色能量沿机关、上层平台、坡脚、庭院、桥头、出口平台、终点依次传播；七个晶体节点展开花瓣。桥侧灯随真实桥体升降，光效不改变图路线、碰撞或机关解锁规则。
@@ -25,9 +27,9 @@
 
 应用与本次编译/native 证据位于 `candidate-20261023T115801024390Z/`。590 个 Assets/Packages/ProjectSettings 文件与冻结快照哈希一致，编译、native、GUI 使用同一候选。实验包已通过本机 ad-hoc 签名检查，不代表分发签名或公证。旧 Mono 退出阶段的线程提示保留在原始日志中。
 
-- [本机实验应用](../../WSliceProto/TestResults/chainreaction-20261023T114906472097Z/candidate-20261023T115801024390Z/W-Slice%20Experimental.app)
-- [验证汇总](../../WSliceProto/TestResults/chainreaction-20261023T114906472097Z/validation-summary.json)
-- [GUI 操作记录](../../WSliceProto/TestResults/chainreaction-20261023T114906472097Z/gui-review.json)
+- 本机实验应用：`WSliceProto/TestResults/chainreaction-20261023T114906472097Z/candidate-20261023T115801024390Z/W-Slice Experimental.app`
+- 验证汇总：`WSliceProto/TestResults/chainreaction-20261023T114906472097Z/validation-summary.json`
+- GUI 操作记录：`WSliceProto/TestResults/chainreaction-20261023T114906472097Z/gui-review.json`
 
 ## 实际窗口检查
 
