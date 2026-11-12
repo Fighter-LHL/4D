@@ -2,6 +2,8 @@
 
 基线为 PR #22 / `ae80f6fb196b0090a4443668e150da5dac389f14`。本次源码提交为 `6fe8ac9aa16db4357c42bfe559abaea5e504521b`，不调整谜题区间、场景或美术。
 
+> Unity 原型 `WSliceProto` 已在 PR #56 移出仓库；下文 `WSliceProto/` 路径只记录当时的本机位置，仓库中已不存在。
+
 重复点击已接受目标不会重新起步。途中接受的新目标在当前路段终点重算路线，连续修改以最后一次可接受请求为准；后续路线关闭则停在安全节点。不可达点击只更新提示目标，不覆盖移动/恢复目标。W 切断当前路段时沿用返回安全起点的规则；重开清除待处理请求。
 
 ## 本次验证
@@ -20,7 +22,7 @@
 
 构建从 clean `6fe8ac9` 执行，前后源码摘要一致，`status: passed`。
 
-- 本机应用：[W-Slice.app](../../WSliceProto/builds/macos/run-20260921T044109Z-lesn_zdu/W-Slice.app)
+- 本机应用：`WSliceProto/builds/macos/run-20260921T044109Z-lesn_zdu/W-Slice.app`
 - 证据目录：`WSliceProto/builds/macos/run-20260921T044109Z-lesn_zdu/`
 - 源码 SHA-256：`f1daa86caaaeefb3c5889143de1ad89d82ca527cbf97d73f8f64f8492d64a565`
 - 应用包 SHA-256：`822d3a87ec04414f2d8ca26ee7b75d0652eee8886e0bc3a2b98530fca15e280e`

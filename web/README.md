@@ -11,7 +11,7 @@ npm start
 npm test
 ```
 
-需要 Node.js 18+。`PORT=4174 npm start` 可改端口；服务仅监听本机。整个 `web/` 可部署为静态站点，本轮未发布公网。自动化覆盖模型、种子生成、遗物联动、隐藏路线、场景和声音事件；测试数量见[本轮验证记录](artifacts/theater-feel-20261111/validation.md)，规则测试不能替代真实玩家体验验证。
+需要 Node.js 18+。`PORT=4174 npm start` 可改端口；服务仅监听本机。整个 `web/` 可部署为静态站点，本轮未发布公网。自动化覆盖模型、种子生成、遗物联动、隐藏路线、场景和声音事件；测试数量以 `npm test` 实际输出为准，规则测试不能替代真实玩家体验验证。
 
 打开 `http://127.0.0.1:4173/?seed=123` 可复玩指定旅程。种子是 0–4294967295 的十进制整数；首次打开未指定种子时随机生成并写入 URL，刷新会保留相同旅程，“新一局”生成新种子。它复现房间与规则，不恢复半局进度，也不固定玩家的遗物选择。
 
@@ -53,9 +53,7 @@ npm test
 
 庭院画布支持“点平台预览，再点已选平台稳行”。自动推荐的平台也需要先预览一次；第二次点击走稳行，不沿用冒险模式，不自动换 W，也不能越过未开启的桥。键盘 Space 与底部穿越按钮保留原有风险选择。
 
-首次从伙伴发现页进入庭院时，完成三处机关后，操作区会继续指明到庭门的下一步：桥在另一层时强调对应换层按钮，换层后显示“到归响台”等具名稳行动作。抵达庭门仍按原规则自动存入回响，再选择遗物进入下一庭。H 提示、主动选路、冒险和暂停会让出这段首次提示；下一庭与回访使用普通界面。见 [2026-10-30 首庭离场验证](artifacts/first-courtyard-exit-20261030/VALIDATION.md)。
-
-本轮快捷键、花冠、提示和点击穿越的验证见 [2026-10-26 伙伴 QoL 验证](artifacts/companion-qol-20261026/validation.md)。上一轮 [体验细化验证](artifacts/play-refinement-20261026/validation.md) 保留。此前 [伙伴能力](artifacts/companions-20261026/validation.md)、[发现与探索](artifacts/discovery-20261026/validation.md)、[暂停复玩和风暴](artifacts/playability-20261026/validation.md) 的记录保留为对应版本证据。
+首次从伙伴发现页进入庭院时，完成三处机关后，操作区会继续指明到庭门的下一步：桥在另一层时强调对应换层按钮，换层后显示“到归响台”等具名稳行动作。抵达庭门仍按原规则自动存入回响，再选择遗物进入下一庭。H 提示、主动选路、冒险和暂停会让出这段首次提示；下一庭与回访使用普通界面。
 
 代码在 `src/flatland/`：`levels.js`（关卡数据与每局变体 `build(rng)`）、`model.js`（规则、计分、连击、危险物、各模式）、`hazards.js`（移动立体与风暴生成）、`geometry.js`（截面、多面体、形状匹配）、`perception.js`、`mirror.js`、`ascend.js`、`random.js`、`discoveries.js`（伙伴发现与收藏）、`companions.js`（探索能力与花垫机关）、`friends-scene.js`（伙伴与线索绘制）、`scene.js`（画面、HUD、粒子、飘字）、`ascend-scene.js`、`audio.js`、`progress.js`、`handoff.js`。测试为 `tests/flatland-*.test.js`，共用机器人在 `tests/flatland-helpers.js`，覆盖每种变体都能三星通关、风暴的确定性与生命规则。星级阈值来自机器人校准，尚未经过真实玩家试玩。
 
@@ -158,4 +156,4 @@ Z / X / C 快速换层；拖 W 或 A / D 连续调切片；1–6 选择邻接目
 
 当前是“三层空间解谜 + 随机机关组合 + 可选风险 + 跨庭构筑”的三庭短局。随机化来自手工模板、层排列、合法空间变换和风险规则，可能在不同种子间遇到相同组合；没有自由生成地图、局外成长、战斗系统或完整十二元素。它使用预设四维实体的切片规则，尚不是任意四维几何物理引擎。
 
-当前隐藏路线与试炼规则见 [HIDDEN-ROUTES-CONTRACT.md](HIDDEN-ROUTES-CONTRACT.md)，本轮结果见[隐藏路线验证记录](artifacts/hidden-routes-20261023/validation.md)。[遗物联动契约](SYNERGY-CONTRACT.md)与[遗物联动验证](artifacts/synergies-20261023/validation.md)保留上一轮基线；[随机房间契约](RANDOM-ROOMS-CONTRACT.md)的模板、生成、支撑与风险基线继续适用。历史 [SLICE-CONTRACT.md](SLICE-CONTRACT.md)、[CONTRACT.md](CONTRACT.md)及[随机房间验证](artifacts/random-rooms-20261023/validation.md)、[切片迭代](artifacts/slices-20261023/validation.md)、[首版验证](artifacts/validation.md)保留，不替代本轮证据。自动化和代理浏览器操作不证明主观听感、玩家理解度或趣味性。
+当前隐藏路线与试炼规则见 [HIDDEN-ROUTES-CONTRACT.md](HIDDEN-ROUTES-CONTRACT.md)。[遗物联动契约](SYNERGY-CONTRACT.md)保留上一轮基线；[随机房间契约](RANDOM-ROOMS-CONTRACT.md)的模板、生成、支撑与风险基线继续适用。历史 [SLICE-CONTRACT.md](SLICE-CONTRACT.md)、[CONTRACT.md](CONTRACT.md) 保留，不替代当前规则。自动化和代理浏览器操作不证明主观听感、玩家理解度或趣味性。

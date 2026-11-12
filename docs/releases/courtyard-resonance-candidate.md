@@ -2,6 +2,8 @@
 
 基线：`1bc513c`，接续 `6fe8ac9` 的移动连续性修改。分支 `codex/courtyard-risk-feedback`。这一轮将庭院推进成可选择的风险奖励玩法；没有更改六关的图路线、场景资产、W 可通行区间或旧版本产物。
 
+> Unity 原型 `WSliceProto` 已在 PR #56 移出仓库；下文 `WSliceProto/` 路径只记录当时的本机位置，仓库中已不存在。
+
 ## 本轮玩法
 
 - 真正走完入口、阶梯或桥的一段，收集一枚回响。接受点击、原地重复点击和反复走同一方向都不重复发奖。每条切片边的两个方向分别结算。
@@ -35,8 +37,8 @@
 
 最终实验版及证据：
 
-- [W-Slice Experimental.app](../../WSliceProto/TestResults/resonance-20261023-104552698837Z/W-Slice%20Experimental.app)
-- [完整本机证据目录](../../WSliceProto/TestResults/resonance-20261023-104552698837Z/)
+- 实验应用：`WSliceProto/TestResults/resonance-20261023-104552698837Z/W-Slice Experimental.app`
+- 完整本机证据目录：`WSliceProto/TestResults/resonance-20261023-104552698837Z/`
 - 编译与源码哈希：`result.json`；实验分类与替换程序集摘要：`experimental-manifest.json`。
 - native 与模型证据：`native-baseline-final2/`。临时 harness 与便携工具链随证据保存。
 - 当前实验 bundle id：`local.wslice.resonance20261023final3`。
