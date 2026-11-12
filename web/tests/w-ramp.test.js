@@ -54,7 +54,8 @@ test('W-ramp appears only after lighting dew in intro Room 0 across all 10 stand
     const planFromDew = planLayerRoute(afterDew, secondId);
     assert.equal(planFromDew.shift, null, `seed ${seed}: 0 shifts needed from dew to ②`);
     assert.equal(planFromDew.walk.at(-1)?.ramp, true);
-    assert.equal(describeNextStep(afterDew).banner, '去⚓走斜桥点②');
+    const firstAnchorShort = planFromDew.walk[0]?.to === 'relay' ? '维度' : '归响';
+    assert.equal(describeNextStep(afterDew).banner, `去${firstAnchorShort}走斜桥点②`);
 
     reach(model, anchorId);
     const atAnchor = model.snapshot();
@@ -64,12 +65,13 @@ test('W-ramp appears only after lighting dew in intro Room 0 across all 10 stand
     assert.equal(currentRoute[0].ramp, true);
     assert.equal(currentRoute[0].toLayer, second.layer);
 
-    // Lighting ② and ③ never spawns a second ramp; return along W-ramp uses '沿斜桥回⚓'
+    // Lighting ② and ③ never spawns a second ramp; return along W-ramp names the anchor short name
     reach(model, secondId);
     assert.equal(model.interact(), true);
     advance(model, 0.6);
     if (planLayerRoute(model.snapshot(), thirdId)?.walk[0]?.ramp) {
-      assert.equal(describeNextStep(model.snapshot()).banner, '沿斜桥回⚓点③');
+      const returnAnchorShort = anchorId === 'relay' ? '维度' : '归响';
+      assert.equal(describeNextStep(model.snapshot()).banner, `沿斜桥回${returnAnchorShort}点③`);
     }
     assert.deepEqual(model.snapshot().edges.filter(e => e.ramp).map(e => e.id), [ramp.id]);
     reach(model, thirdId);

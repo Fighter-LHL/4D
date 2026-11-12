@@ -400,7 +400,7 @@ try {
       const onRelay = await hintOf(page);
       assert.equal(onRelay.action, 'move', `${vpKey}: on 维度锚台 the next step is to leave (${onRelay.title})`);
       assert.equal(onRelay.target, 'hub');
-      assert.ok(onRelay.title.includes('主⚓'), `${vpKey}: hint distinguishes 主⚓, got "${onRelay.title}"`);
+      assert.ok(onRelay.title.includes('归响'), `${vpKey}: hint distinguishes 归响, got "${onRelay.title}"`);
       assert.match(onRelay.desc, /归响台/);
       assert.ok(!onRelay.title.includes('先回⚓台'), onRelay.title);
       assert.ok(onRelay.title.includes('②'), onRelay.title);
@@ -623,8 +623,8 @@ try {
         `${vpKey} seed ${spec.seed}: no non-adjacent same_xyz / recover 2-cycle hints`,
       );
       assert.ok(
-        runHints.some(h => h.node === 'dew' && h.action === 'move' && h.target === 'hub' && h.title.includes('⚓')),
-        `${vpKey} seed ${spec.seed}: standing on dew routes via ⚓ (归响台) before changing layer`,
+        runHints.some(h => h.node === 'dew' && h.action === 'move' && h.target === 'hub' && h.title.includes('归响')),
+        `${vpKey} seed ${spec.seed}: standing on dew routes via 归响 (归响台) before changing layer`,
       );
       receipt.checks.push({
         viewport: vpKey,

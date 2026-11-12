@@ -266,6 +266,15 @@ function anchorHintName(node) {
   return node.name || '⚓台';
 }
 
+function anchorShortName(node) {
+  if (!node) return '归响';
+  if (node.id === 'hub') return '归响';
+  if (node.id === 'relay') return '维度';
+  if (node.id === 'vault') return '花匣';
+  if (node.id === 'ferry') return '星舟';
+  return (node.name || '锚台').replace(/(锚台|安全台|台)$/, '').slice(0, 2) || '锚台';
+}
+
 function sharesSpot(a, b) {
   return !!(a?.world && b?.world &&
     Math.abs(a.world.x - b.world.x) < 1e-4 &&
@@ -347,9 +356,7 @@ export function describeNextStep(state) {
       const place = anchorHintName(dest);
       const hereName = here?.anchor ? anchorHintName(here) : '';
       const which = hereName && hereName !== place ? `脚下是${hereName}，要去${place}。` : `要去的是${place}。`;
-      const anchorShort = (here?.anchor && here.id !== dest.id)
-        ? (dest.id === 'hub' ? '主⚓' : dest.id === 'relay' ? '远⚓' : '另一⚓')
-        : '⚓';
+      const anchorShort = anchorShortName(dest);
       if (step.ramp) {
         return {
           goalId, action: 'move', banner: `沿斜桥回${anchorShort}${goalVerb}`,

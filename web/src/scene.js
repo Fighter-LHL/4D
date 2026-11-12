@@ -629,7 +629,7 @@ export class SceneRenderer {
 
   hitWStackLayer(event) {
     if (!this.visualGuide || !this.state || this.state.phase !== 'playing' || this.disposed) return null;
-    if ((this.onboardingStage ?? 4) < 2) return null;
+    if ((this.onboardingStage ?? 4) < 2 || this.hudProgressActive) return null;
     const { x, y } = this.toWorld(event);
     const miniScale = clamp(.45 / this.scale, 1, 1.2);
     const lx = (x - 62) / miniScale;
@@ -1376,7 +1376,7 @@ export class SceneRenderer {
       this.drawAtmosphere();
       toys.drawRelicCast(this);
       if (this.visualGuide) this.drawHyperLens();
-      if (stage >= 2) this.drawWStack();
+      if (stage >= 2 && !this.hudProgressActive) this.drawWStack();
     }
     ctx.restore();
     if (this.flash && !this.reducedMotion) {
@@ -2694,7 +2694,7 @@ export class SceneRenderer {
       // Avoid overlapping the top-left 4D W-stack when visible in Stage 2+
       const edgeMinX = w / 2 + 8;
       const edgeMaxX = WORLD_W - w / 2 - 8;
-      const wStackMinX = (stage >= 2 && y < 238) ? Math.min(edgeMaxX, Math.max(edgeMinX, 236 + w / 2)) : edgeMinX;
+      const wStackMinX = (stage >= 2 && !this.hudProgressActive && y < 238) ? Math.min(edgeMaxX, Math.max(edgeMinX, 236 + w / 2)) : edgeMinX;
       const loX = Math.min(wStackMinX, edgeMaxX), hiX = Math.max(edgeMinX, edgeMaxX);
       const x = clamp(cx, Math.min(loX, hiX), Math.max(loX, hiX));
       const tipPad = Math.min(w / 2 - 2, 12 / sScale);
@@ -3501,7 +3501,24 @@ export class SceneRenderer {
     ctx.restore();
     if (!node.present) { ctx.restore(); return; }
     const isHovered = this.hover === node.id;
-    const anchorTitle = hub && stage < 2 ? '⚓ 起点' : '⚓';
+    const isTargetAnchor = Boolean(
+      node.anchor &&
+      stage >= 2 &&
+      !s.travel &&
+      s.node !== node.id &&
+      (
+        (this.nextStepHint?.action === 'move' && this.nextStepHint.targetId === node.id) ||
+        (!this.nextStepHint && this.liveGuide?.kind === 'move' && this.liveGuide.node === node.id)
+      )
+    );
+    const shortAnchor = node.id === 'hub' ? '归响'
+      : node.id === 'relay' ? '维度'
+      : node.id === 'vault' ? '花匣'
+      : node.id === 'ferry' ? '星舟'
+      : '去';
+    const anchorTitle = hub && stage < 2
+      ? '⚓ 起点'
+      : (isTargetAnchor ? `⚓ ${shortAnchor}` : '⚓');
     let name = '';
     if (exit) name = '🚪';
     else if (node.anchor) name = anchorTitle;
@@ -3513,25 +3530,31 @@ export class SceneRenderer {
     const labelHeight = labelSize + 8 / sScale;
     const padX = 7 / sScale;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = `${isHovered || selected ? 600 : 500} ${labelSize}px system-ui, -apple-system, sans-serif`;
+    ctx.font = `${isTargetAnchor ? 700 : (isHovered || selected ? 600 : 500)} ${labelSize}px system-ui, -apple-system, sans-serif`;
     const textWidth = ctx.measureText(name).width;
     const loX = textWidth / 2 + padX + 4 - node.x;
     const hiX = WORLD_W - textWidth / 2 - padX - 4 - node.x;
     const labelX = clamp(0, Math.min(loX, hiX), Math.max(loX, hiX));
     const labelY = Math.min((height + thickness) * section + 8 + labelHeight / 2, WORLD_H - node.y - labelHeight / 2 - 4);
-    ctx.fillStyle = this.astralMode ? '#0c1925eb' : '#edf2e9dd';
+    ctx.fillStyle = isTargetAnchor
+      ? (this.astralMode ? '#33230bee' : '#fffaf0ee')
+      : (this.astralMode ? '#0c1925eb' : '#edf2e9dd');
     this.labelZones?.push({ left: node.x + labelX - textWidth / 2 - padX, right: node.x + labelX + textWidth / 2 + padX, top: node.y + labelY - labelHeight / 2, bottom: node.y + labelY + labelHeight / 2 });
     ctx.beginPath(); ctx.roundRect?.(labelX - textWidth / 2 - padX, labelY - labelHeight / 2, textWidth + padX * 2, labelHeight, 6 / sScale);
     if (!ctx.roundRect) ctx.rect(labelX - textWidth / 2 - padX, labelY - labelHeight / 2, textWidth + padX * 2, labelHeight);
     ctx.fill();
-    if (this.astralMode || isHovered) {
-      ctx.strokeStyle = selected || isHovered ? '#f0b85aa8' : '#2c5068b8';
-      ctx.lineWidth = 1.2 / sScale;
+    if (isTargetAnchor || this.astralMode || isHovered) {
+      ctx.strokeStyle = isTargetAnchor
+        ? (this.astralMode ? '#fbbf24' : '#d89a2b')
+        : (selected || isHovered ? '#f0b85aa8' : '#2c5068b8');
+      ctx.lineWidth = (isTargetAnchor ? 1.8 : 1.2) / sScale;
       ctx.stroke();
     }
-    ctx.fillStyle = this.astralMode
-      ? (selected || isHovered ? '#ffd982' : '#e8f6f2')
-      : (selected || isHovered ? '#936125' : COLORS.ink);
+    ctx.fillStyle = isTargetAnchor
+      ? (this.astralMode ? '#fff7d6' : '#6e450c')
+      : (this.astralMode
+        ? (selected || isHovered ? '#ffd982' : '#e8f6f2')
+        : (selected || isHovered ? '#936125' : COLORS.ink));
     ctx.fillText(name, labelX, labelY);
     ctx.restore();
   }

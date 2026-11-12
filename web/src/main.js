@@ -136,6 +136,8 @@ function syncWRulerThumb(w, state) {
   const mid = centers[1] ?? 0.5;
   const thumbColor = wVal < (c0 + mid) / 2 ? '#2aa89a' : wVal > (mid + c2) / 2 ? '#d69d2a' : '#7b66d0';
   ruler.style.setProperty('--thumb-color', thumbColor);
+  const nearestDist = Math.min(...centers.map(c => Math.abs(wVal - c)));
+  ruler.dataset.offDetent = String(Boolean(state?.travel?.ramp || nearestDist > 0.045));
   if (state) {
     const cur = state.nodes?.find(n => n.id === state.node);
     const sameAny = cur && !cur.anchor && state.nodes?.some(n =>
@@ -1303,17 +1305,33 @@ function updateUI() {
         Math.abs(n.world.y - currentNode.world.y) < 1e-4 &&
         Math.abs(n.world.z - currentNode.world.z) < 1e-4)
     : null;
+  let tutorialTargetLayer = null;
+  if (!state.wave && !state.travel && scene.nextStepHint) {
+    const h = scene.nextStepHint;
+    if ((h.action === 'shift' || h.action === 'recover') && Number.isInteger(h.layer) && h.layer !== state.layer) {
+      tutorialTargetLayer = h.layer;
+    } else if (h.ramp && Number.isInteger(h.toLayer) && h.toLayer !== state.layer) {
+      tutorialTargetLayer = h.toLayer;
+    } else if (Number.isInteger(h.layer) && h.layer !== state.layer) {
+      tutorialTargetLayer = h.layer;
+    } else if (h.goalId) {
+      const gNode = state.nodes.find(n => n.id === h.goalId);
+      if (gNode && !gNode.anchor && Number.isInteger(gNode.layer) && gNode.layer !== state.layer) {
+        tutorialTargetLayer = gNode.layer;
+      }
+    }
+  }
   for(const [i,button] of [...document.querySelectorAll('.layer-controls [data-layer]')].entries()){
     button.setAttribute('aria-pressed',String(i===state.layer));
     button.disabled=state.phase!=='playing'||paused;
     button.classList.toggle('danger-layer',!!state.wave?.dangerLayers?.includes(i));
     button.classList.toggle('safe-layer',!!state.wave?.safeLayers?.includes(i));
-    const tutorialShiftLayer = !state.wave && !state.travel && scene.nextStepHint?.action === 'shift'
-      ? scene.nextStepHint.layer : null;
-    const isTargetLayer = !state.wave && !state.travel && (
-      tutorialShiftLayer === i || (revealExplicit && effectiveTargetLayer === i)
+    const isTargetLayer = !state.wave && !state.travel && i !== state.layer && (
+      scene.nextStepHint
+        ? tutorialTargetLayer === i
+        : ((revealExplicit && effectiveTargetLayer === i) || (revealExplicit && !!onwardShift && onward.layer === i))
     );
-    button.classList.toggle('attention-action', !!isTargetLayer || (revealExplicit && !!onwardShift && onward.layer === i));
+    button.classList.toggle('attention-action', !!isTargetLayer);
     const sameSpot = sameSpotNodeOnLayer(i);
     const isVoidHere = !state.wave && !state.travel && currentNode && !currentNode.anchor && currentNode.layer !== i && !sameSpot;
     button.classList.toggle('void-warning-layer', !!isVoidHere);

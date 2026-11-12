@@ -513,7 +513,7 @@ try {
     await page.waitForFunction(() => !window.__g().ambient, null, { timeout: 1000 });
     check('ambient');
 
-    // ---- 8. touch scroll guard (390x844 only) ------------------------------------------
+    // ---- 8. touch scroll guard (844x390 landscape mobile) ------------------------------
     if (vp.touch) {
       await openGame(page, 'shadow');
       await activateMechanism(page, await firstMechanism(page)); // SETUP: legal cast state
