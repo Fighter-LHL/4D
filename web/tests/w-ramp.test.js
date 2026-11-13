@@ -50,12 +50,19 @@ test('W-ramp appears only after lighting dew in intro Room 0 across all 10 stand
     assert.notEqual(ramp.fromLayer, ramp.toLayer);
     assert.equal(ramp.open, true);
 
-    // Route and onboarding hints prioritize the 0-shift W-ramp
+    // Route and onboarding hints prioritize the 0-shift W-ramp with single-step honest waypoint copy
     const planFromDew = planLayerRoute(afterDew, secondId);
     assert.equal(planFromDew.shift, null, `seed ${seed}: 0 shifts needed from dew to ②`);
     assert.equal(planFromDew.walk.at(-1)?.ramp, true);
     const firstAnchorShort = planFromDew.walk[0]?.to === 'relay' ? '维度' : '归响';
-    assert.equal(describeNextStep(afterDew).banner, `去${firstAnchorShort}走斜桥点②`);
+    if (planFromDew.walk[1]?.ramp) {
+      assert.equal(describeNextStep(afterDew).banner, `去${firstAnchorShort}走斜桥`);
+    } else {
+      assert.equal(describeNextStep(afterDew).banner, `先去${firstAnchorShort}`);
+      reach(model, planFromDew.walk[0].to);
+      const nextAnchorShort = anchorId === 'relay' ? '维度' : '归响';
+      assert.equal(describeNextStep(model.snapshot()).banner, `去${nextAnchorShort}走斜桥`);
+    }
 
     reach(model, anchorId);
     const atAnchor = model.snapshot();
@@ -65,13 +72,13 @@ test('W-ramp appears only after lighting dew in intro Room 0 across all 10 stand
     assert.equal(currentRoute[0].ramp, true);
     assert.equal(currentRoute[0].toLayer, second.layer);
 
-    // Lighting ② and ③ never spawns a second ramp; return along W-ramp names the anchor short name
+    // Lighting ② and ③ never spawns a second ramp; return along W-ramp names the anchor short name honestly
     reach(model, secondId);
     assert.equal(model.interact(), true);
     advance(model, 0.6);
     if (planLayerRoute(model.snapshot(), thirdId)?.walk[0]?.ramp) {
       const returnAnchorShort = anchorId === 'relay' ? '维度' : '归响';
-      assert.equal(describeNextStep(model.snapshot()).banner, `沿斜桥回${returnAnchorShort}点③`);
+      assert.equal(describeNextStep(model.snapshot()).banner, `沿斜桥回${returnAnchorShort}`);
     }
     assert.deepEqual(model.snapshot().edges.filter(e => e.ramp).map(e => e.id), [ramp.id]);
     reach(model, thirdId);

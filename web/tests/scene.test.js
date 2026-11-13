@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { SceneRenderer } from '../src/scene.js';
 import { GameModel } from '../src/model.js';
+import { describeNextStep } from '../src/progressive-onboarding.js';
 import { courtyardFriends } from '../src/courtyard-friends.js';
 import { FriendGuide } from '../src/friend-guide.js';
 import { FLATLAND_LEVELS } from '../src/flatland/levels.js';
@@ -695,4 +699,292 @@ test('astral mode renders holographic palette and risky crossing shows scroll di
     );
   }
   renderer.destroy();
+});
+
+test('P2-2: W-ruler non-verbal 3-slice SVG cap has zero copy and couples with courtyard slice rims, anchor rings, and reduced motion', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const indexHtml = readFileSync(join(here, '..', 'index.html'), 'utf8');
+  const styleCss = readFileSync(join(here, '..', 'style.css'), 'utf8');
+
+  const capMatch = indexHtml.match(/<span id="w-ruler-cap"[\s\S]*?<\/span>/);
+  assert.ok(capMatch, '#w-ruler-cap exists inside #layer-controls');
+  const capHtml = capMatch[0];
+  assert.match(capHtml, /aria-hidden="true"/, 'cap is decorative aria-hidden');
+  assert.equal(/<text\b/i.test(capHtml), false, 'cap SVG contains zero <text> nodes');
+  assert.equal(/<button\b/i.test(capHtml), false, 'cap adds no extra focusable button');
+  assert.equal(capHtml.replace(/<[^>]+>/g, '').trim(), '', 'cap adds strictly zero visible copy');
+  assert.equal((capHtml.match(/class="w-glyph-slice w-slice-[012]"/g) || []).length, 3, 'cap renders 3 stacked slice planes');
+
+  assert.match(styleCss, /html:not\(\.theater\)\s*\.w-ruler-cap\{display:none\}/, 'hidden outside theater mode');
+  assert.match(styleCss, /--cap-h:40px/, 'desktop cap height 40px');
+  assert.match(styleCss, /--cap-h:32px/, 'mobile landscape cap height 32px');
+  assert.match(styleCss, /prefers-reduced-motion:reduce[\s\S]*?\.w-slice-2\{animation:none\}/, 'reduced motion disables cap slice pulse');
+
+  const m = start('shell', 2);
+  travel(m, 'dew');
+  m.interact();
+  travel(m, 'hub');
+  const snap = m.snapshot();
+  const offLayer = [0, 1, 2].find(l => l !== snap.layer && snap.nodes.some(n => !n.anchor && n.layer === l)) ?? ((snap.layer + 1) % 3);
+
+  const { renderer, calls } = scene(false);
+  renderer.onboardingStage = 2;
+  renderer.setState(snap);
+
+  calls.length = 0;
+  renderer.drawSliceVolumes();
+  const idleSliceStrokes = calls.filter(c => c.method === 'stroke').length;
+
+  renderer.setRulerInteraction({ active: true, scrubbing: false, hoverLayer: offLayer, bumpPulse: .8 });
+  assert.equal(renderer.rulerInteraction.active, true);
+  assert.equal(renderer.rulerInteraction.hoverLayer, offLayer);
+  assert.ok(renderer.rulerInteraction.pulse > .7, 'bumpPulse arms coupling pulse');
+
+  calls.length = 0;
+  renderer.drawSliceVolumes();
+  const coupledSliceStrokes = calls.filter(c => c.method === 'stroke').length;
+  assert.ok(coupledSliceStrokes >= idleSliceStrokes + 3, 'coupled W-ruler strokes all 3 courtyard slice rims');
+
+  // Anchor ring coupling on focused slice
+  calls.length = 0;
+  renderer.setRulerInteraction({ active: false, scrubbing: false, hoverLayer: null });
+  renderer.rulerInteraction.pulse = 0;
+  renderer.drawAnchor();
+  const idleAnchorEllipses = calls.filter(c => c.method === 'ellipse').map(c => ({ lw: c.lineWidth, fill: c.fill }));
+
+  calls.length = 0;
+  renderer.setRulerInteraction({ active: true, hoverLayer: offLayer, bumpPulse: .9 });
+  renderer.drawAnchor();
+  const coupledAnchorEllipses = calls.filter(c => c.method === 'ellipse').map(c => ({ lw: c.lineWidth, fill: c.fill }));
+  assert.ok(
+    coupledAnchorEllipses.some((e, idx) => e.lw > (idleAnchorEllipses[idx]?.lw ?? 0)),
+    'drawAnchor boosts ring stroke width on ruler-focused slice'
+  );
+
+  // Pulse freezes on render(0) and decays on render(dt)
+  const pBeforePause = renderer.rulerInteraction.pulse;
+  renderer.render(0);
+  assert.equal(renderer.rulerInteraction.pulse, pBeforePause, 'paused render(0) freezes ruler coupling pulse');
+  for (let i = 0; i < 8; i++) renderer.render(.1);
+  assert.equal(renderer.rulerInteraction.pulse, 0, 'ruler coupling pulse decays cleanly to 0');
+  renderer.destroy();
+
+  // Reduced motion suppresses pulse completely while keeping direct hover coupling
+  const { renderer: rmRenderer } = scene(true);
+  rmRenderer.setState(snap);
+  rmRenderer.setRulerInteraction({ active: true, hoverLayer: offLayer, bumpPulse: 1 });
+  assert.equal(rmRenderer.rulerInteraction.pulse, 0, 'reducedMotion keeps ruler pulse at 0');
+  rmRenderer.destroy();
+});
+
+test('P2-4: unified badge collision-repulsion solver yields 0 overlaps across all 10 seeds at 1280x800 and 844x390 and preserves hitTest', () => {
+  const SEEDS = [2, 401491695, 4097396765, 5, 777, 31337, 123456789, 42, 90210, 2026111];
+  const VIEWPORTS = [
+    { label: '1280x800', width: 1200, height: 667 },
+    { label: '844x390', width: 824, height: 292 },
+  ];
+
+  function createViewportRenderer(vpWidth, vpHeight) {
+    const calls = [];
+    const ctxTarget = { font: '500 12.5px sans-serif' };
+    const context = new Proxy(ctxTarget, {
+      get(target, key) {
+        if (key in target) return target[key];
+        if (key === 'measureText') {
+          return text => {
+            const m = String(target.font || '').match(/([\d.]+)px/);
+            const px = m ? parseFloat(m[1]) : 12.5;
+            let units = 0;
+            for (const ch of [...String(text)]) {
+              units += ch.codePointAt(0) > 0x7f ? 1.02 : (ch === ' ' ? 0.34 : 0.62);
+            }
+            return { width: units * px };
+          };
+        }
+        if (key === 'createLinearGradient' || key === 'createRadialGradient') {
+          return () => ({ addColorStop() {} });
+        }
+        return (...args) => {
+          calls.push({ method: key, args, stroke: target.strokeStyle, fill: target.fillStyle });
+        };
+      },
+      set(target, key, value) {
+        target[key] = value;
+        return true;
+      },
+    });
+    globalThis.window = {
+      devicePixelRatio: 1,
+      addEventListener() {},
+      removeEventListener() {},
+      matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }),
+    };
+    const canvas = {
+      style: {},
+      getContext: () => context,
+      getBoundingClientRect: () => ({ width: vpWidth, height: vpHeight, left: 0, top: 0 }),
+      addEventListener() {},
+      removeEventListener() {},
+    };
+    const renderer = new SceneRenderer(canvas);
+    renderer.width = vpWidth;
+    renderer.height = vpHeight;
+    renderer.scale = Math.min(vpWidth / 1000, vpHeight / 650);
+    renderer.offsetX = (vpWidth - 1000 * renderer.scale) / 2;
+    renderer.offsetY = (vpHeight - 650 * renderer.scale) / 2;
+    renderer.hudProgressActive = true;
+    renderer.visualGuide = true;
+    return { renderer, calls };
+  }
+
+  function stepRoomState(model, renderer, { seed, mode, roomIdx, firstRun, stage, act, curId, layerIdx }) {
+    model.restart(seed, { mode });
+    model.chooseRelic('shell');
+    model.room = roomIdx;
+    model._setupRoom();
+    model.phase = 'playing';
+    model.events = [];
+    const order = model._mechanisms();
+    model.activated = new Set();
+    model.received = Object.fromEntries(order.map(id => [id, new Set()]));
+    for (const id of act) {
+      if (!order.includes(id)) continue;
+      model.activated.add(id);
+      for (const downId of order) {
+        if (model.roomConfig.requires[downId]?.includes(id)) {
+          model.received[downId].add(id);
+        }
+      }
+    }
+    model.powered = new Set(order.filter(id =>
+      !model.activated.has(id) &&
+      (model.roomConfig.requires[id] || []).every(req => model.activated.has(req))
+    ));
+    const targetNode = model._node(curId) || model._node('hub');
+    model.node = targetNode.id;
+    model.w = [0.18, 0.50, 0.82][layerIdx] ?? targetNode.center ?? 0.5;
+    model.lastActualLayer = layerIdx;
+    if (targetNode.anchor) {
+      model.lastAnchor = targetNode.id;
+      model.anchorW = model.w;
+    }
+    model.phaseStability = 1;
+    model.wave = null;
+    model.travel = null;
+
+    const snap = model.snapshot();
+    renderer.onboardingStage = stage;
+    renderer.explicitLayerHint = firstRun;
+    const step = firstRun ? describeNextStep(snap, { coarsePointer: vpIsTouch(renderer) }) : null;
+    renderer.nextStepHint = (firstRun && step?.banner) ? { ...step, tutorial: true } : null;
+    renderer.liveGuide = snap.companionGuide || (!firstRun && describeNextStep(snap)?.action === 'move'
+      ? { kind: 'move', node: describeNextStep(snap).targetId, layer: snap.layer, aligned: true }
+      : null);
+    renderer.setState(snap);
+    renderer.displayW = snap.w;
+    renderer.wTween = null;
+    renderer.render(0);
+    return snap;
+  }
+
+  const vpIsTouch = r => r.height < 450;
+
+  for (const vp of VIEWPORTS) {
+    const { renderer, calls } = createViewportRenderer(vp.width, vp.height);
+    const model = new GameModel(2);
+
+    for (const seed of SEEDS) {
+      for (const mode of ['intro', 'expedition']) {
+        const rooms = mode === 'intro' ? [0, 1, 2] : [2, 3, 4];
+        for (const roomIdx of rooms) {
+          model.restart(seed, { mode });
+          model.chooseRelic('shell');
+          model.room = roomIdx;
+          model._setupRoom();
+          const order = model._mechanisms();
+          const reqs = model.roomConfig?.requires || {};
+          const prefixes = [];
+          for (let mask = 0; mask < (1 << order.length); mask++) {
+            const sub = order.filter((_, idx) => (mask & (1 << idx)) !== 0);
+            const subSet = new Set(sub);
+            if (sub.every(id => (reqs[id] || []).every(r => subSet.has(r)))) prefixes.push(sub);
+          }
+
+          const firstRunVariants = mode === 'intro' ? [true, false] : [false];
+          for (const firstRun of firstRunVariants) {
+            const stage = firstRun ? 3 : 4;
+            for (const act of prefixes) {
+              for (const curId of ['hub', 'relay', ...order]) {
+                const curNode = model._node(curId);
+                if (!curNode) continue;
+                const layers = curNode.anchor ? [0, 1, 2] : [curNode.layer ?? 0];
+                for (const layerIdx of layers) {
+                  const snap = stepRoomState(model, renderer, { seed, mode, roomIdx, firstRun, stage, act, curId, layerIdx });
+                  const badges = renderer.lastResolvedBadges;
+                  assert.ok(badges.length >= 3, 'renders multiple courtyard badges');
+                  for (let i = 0; i < badges.length; i++) {
+                    const a = badges[i].screenRect;
+                    assert.ok(a.left >= 5.5 && a.right <= vp.width - 5.5, `${vp.label} badge ${badges[i].text} stays inside horizontal safe bounds`);
+                    assert.ok(a.top >= 5.5 && a.bottom <= vp.height - 5.5, `${vp.label} badge ${badges[i].text} stays inside vertical safe bounds`);
+                    for (let j = i + 1; j < badges.length; j++) {
+                      const b = badges[j].screenRect;
+                      const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+                      const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+                      assert.equal(
+                        ox > 0.05 && oy > 0.05,
+                        false,
+                        `[${vp.label}] seed=${seed} ${mode} r=${roomIdx} act=${act.join(',')} cur=${curId}@L${layerIdx}: "${badges[i].text}" overlaps "${badges[j].text}" by ${ox.toFixed(2)}x${oy.toFixed(2)}px`
+                      );
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          // Verify node center hitTest remains 100% intact for every room (including on each node's own W slice)
+          for (const checkLayer of [0, 1, 2]) {
+            const snapCheck = stepRoomState(model, renderer, { seed, mode, roomIdx, firstRun: false, stage: 4, act: [], curId: 'hub', layerIdx: checkLayer });
+            for (const n of snapCheck.nodes) {
+              if (n.id === 'ferry' || (n.id === 'rift' && n.locked)) continue;
+              if (n.id === 'bloom' && snapCheck.nodes.find(x => x.id === 'crown')?.anchor) continue;
+              const clientX = renderer.offsetX + n.x * renderer.scale;
+              const clientY = renderer.offsetY + n.y * renderer.scale;
+              const hit = renderer.hitTest({ clientX, clientY });
+              assert.ok(hit, `[${vp.label}] seed=${seed} r=${roomIdx} L${checkLayer} hitTest(${n.id}) returns a node`);
+              if (n.anchor || n.layer === checkLayer) {
+                assert.equal(hit.id, n.id, `[${vp.label}] seed=${seed} r=${roomIdx} L${checkLayer} present node ${n.id} hits itself`);
+              } else {
+                assert.ok(Math.hypot(hit.x - n.x, hit.y - n.y) < 4, `[${vp.label}] seed=${seed} r=${roomIdx} L${checkLayer} off-slice node ${n.id} hits itself or co-located same-XYZ sibling`);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Specific regression check on seed 401491695 Room 0 at 844x390: ⚓ 维度 + ✓③ + 🌺
+    if (vp.label === '844x390') {
+      calls.length = 0;
+      stepRoomState(model, renderer, {
+        seed: 401491695, mode: 'intro', roomIdx: 0, firstRun: true, stage: 3, act: ['dew', 'bell', 'bloom'], curId: 'hub', layerIdx: 0,
+      });
+      const badges = renderer.lastResolvedBadges;
+      const relayBadge = badges.find(b => b.nodeId === 'relay');
+      const bloomBadge = badges.find(b => b.nodeId === 'bloom');
+      assert.ok(relayBadge && relayBadge.text.includes('维度'), 'relay shows ⚓ 维度');
+      assert.ok(bloomBadge && bloomBadge.text.includes('✓③'), 'bloom shows ✓③');
+      const displacedHit = badges.find(b => b.displacedPx > 13.5 && b.nodeId);
+      if (displacedHit) {
+        assert.ok(
+          calls.some(c => c.method === 'lineTo'),
+          'displaced badge > 13.5px emits hairline leader tether'
+        );
+        const hit = renderer.hitTest({ clientX: displacedHit.screenRect.cx, clientY: displacedHit.screenRect.cy });
+        assert.equal(hit?.id, displacedHit.nodeId, 'clicking displaced badge hits its owner node');
+      }
+    }
+
+    renderer.destroy();
+  }
 });
