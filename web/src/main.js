@@ -12,13 +12,14 @@ import { CodexStore } from './codex.js';
 import { GameFeel } from './game-feel.js';
 import { ALL_ROOM_TEMPLATES, HIDDEN_ROUTE_RECIPES } from './rooms.js';
 import { CURIOSITY_CATALOG } from './exploration-radar.js';
-import { bindLongPress, SKIP_HOLD_DURATION_MS } from './long-press.js';
+import { bindLongPress, SKIP_HOLD_DURATION_MS, syncRiskDecisionHud, formatResultStats } from './long-press.js';
 
 const $ = id => document.getElementById(id);
 const runPanel = $('run-panel');
 const panelToggle = $('panel-toggle');
 const advancedDrawer = document.querySelector('details.advanced-drawer');
 let skipHold = null;
+let riskHold = null;
 const isTheater = () => document.documentElement.classList.contains('theater');
 function closeAdvancedDrawers() {
   const openDrawers = document.querySelectorAll('details.advanced-drawer[open]');
@@ -1069,14 +1070,7 @@ function showResult(state) {
       : '你让回响穿过了三层空间，也把这一路的能力组合带到了终点。可继续开启第二幕「深层五庭巡礼」！')
     : '回程结已用完，之前存下的回响仍计入本次成绩。');
   $('result-score').textContent = state.banked;
-  if (theater) {
-    $('result-stats').textContent = `⚡${state.stats.risks}  ·  ✓${state.stats.chains}  ·  ✦${state.stats.anomalies || 0}  ·  ${pr.rank}`;
-  } else {
-    const tactileSummary = (state.stats.harmonicLocks || state.stats.perfectDashes)
-      ? ` · 超频锁 ${state.stats.harmonicLocks || 0} 次 · 踏浪冲刺 ${state.stats.perfectDashes || 0} 次`
-      : '';
-    $('result-stats').textContent = `冒险成功 ${state.stats.risks} 次 · 点亮机关 ${state.stats.chains} 次 · 收录奇物 ${state.stats.anomalies || 0} 件${tactileSummary} · 完美同频 ${pr.perfectBeats} 次 · 刹那折光 ${pr.grazes} 次 · 共鸣评级 ${pr.rank}`;
-  }
+  $('result-stats').textContent = formatResultStats(state, pr, { theater });
   if ($('next-expedition')) {
     $('next-expedition').hidden = !(won && !isExpedition);
   }
@@ -1187,6 +1181,7 @@ function updateRoom(state) {
   const key=`${state.seed}:${state.room}:${state.roomSignature}`;
   if(roomKey===key)return;
   roomKey=key;destinationKey='';
+  riskHold?.reset();
   scene.pendingLayerPrompt = null;
   scene.tutorialHint = null;
   scene.nextStepHint = null;
@@ -1618,24 +1613,22 @@ function updateUI() {
       riskPreview.available && riskPreview.isNovel &&
       (!activePrompt || activePrompt.kind === 'anomaly') &&
       relicHud.readyAbility?.id !== 'prism';
-    $('risk-decision-bar').hidden = !showRiskDecision;
-    if (showRiskDecision) {
-      if (isTheater()) {
-        setText('risk-decision-title', '');
-        setText('risk-decision-sub', '');
-        const riskMark = riskPreview.chargesPrism ? ' ◇' : riskPreview.chargesWeave ? ' ❋' : '';
-        setText('risk-go-btn', `⚡+3${riskMark}`);
-        setText('safe-go-btn', '🛡+1');
-        $('risk-go-btn').title = `冒险过桥 (+3◆${riskPreview.bonusLabel ? ` · ${riskPreview.bonusLabel}` : ''})`;
-        $('safe-go-btn').title = '稳妥过桥 (+1◆)';
-      } else {
-        setText('risk-decision-title', `通往「${riskPreview.toName}」新桥 · 首通⚡冒险 ${riskPreview.bonusLabel}`);
-        setText('risk-decision-sub', `首次⚡冒险过桥可获：${riskPreview.bonusLabel}（过桥时顺着金色波浪微调滚轮）`);
-        const extraTag = riskPreview.chargesPrism ? ' · ◇蓄能+1' : riskPreview.chargesWeave ? ' · ❋桥种+1' : riskPreview.awakensFlowerBridge ? ' · 🌺唤醒花桥' : '';
-        setText('risk-go-btn', `⚡ 冒险冲过去 (+3◆${extraTag})`);
-        setText('safe-go-btn', '🛡️ 稳妥走 (+1◆)');
-      }
-    }
+    if (!canAct()) riskHold?.reset();
+    syncRiskDecisionHud(
+      {
+        bar: $('risk-decision-bar'),
+        title: $('risk-decision-title'),
+        sub: $('risk-decision-sub'),
+        riskBtn: $('risk-go-btn'),
+        safeBtn: $('safe-go-btn'),
+      },
+      {
+        visible: showRiskDecision,
+        theater: isTheater(),
+        riskPreview,
+        riskHold,
+      },
+    );
   }
   if ($('relic-hud-bar')) {
     const theater = isTheater();
@@ -1969,7 +1962,7 @@ const toggleRiskExploration = () => {
 };
 $('quick-risk-btn')?.addEventListener('click', toggleRiskExploration);
 $('radar-flower-card')?.addEventListener('click', toggleRiskExploration);
-$('risk-go-btn')?.addEventListener('click', () => {
+const triggerRiskCrossing = () => {
   if (!canAct()) return;
   const s = model.snapshot();
   const preview = computeRiskDecisionPreview(s);
@@ -1986,6 +1979,17 @@ $('risk-go-btn')?.addEventListener('click', () => {
     showTransient(`⚡ 黄金冒险出发！顺着金色光带微调滚轮，冲向「${preview.toName}」赢取 ${preview.bonusLabel}！`, 3.4);
   }
   updateUI();
+};
+riskHold = bindLongPress($('risk-go-btn'), {
+  durationMs: SKIP_HOLD_DURATION_MS,
+  isEnabled: () => isTheater(),
+  canStart: () => {
+    const bar = $('risk-decision-bar');
+    const btn = $('risk-go-btn');
+    return Boolean(isTheater() && bar && !bar.hidden && btn && !btn.hidden && !btn.disabled && canAct());
+  },
+  onComplete: () => triggerRiskCrossing(),
+  onShortActivate: () => triggerRiskCrossing(),
 });
 $('safe-go-btn')?.addEventListener('click', () => {
   if (!canAct()) return;
@@ -2158,7 +2162,7 @@ for (const button of document.querySelectorAll('.layer-controls [data-layer]')) 
   }, { passive: false });
 }
 $('sound').addEventListener('click',()=>{ soundEnabled = !soundEnabled; audio.setEnabled(soundEnabled); unlockAudio(); savePreference('wslice-sound',soundEnabled?'on':'off'); updateSoundButton(); });
-function pauseGame() { if(model.snapshot().phase!=='playing'||isModal())return; paused=true; $('pause-dialog').showModal(); syncAudio(); }
+function pauseGame() { if(model.snapshot().phase!=='playing'||isModal())return; riskHold?.reset(); paused=true; $('pause-dialog').showModal(); syncAudio(); }
 function resumeGame() { $('pause-dialog').close(); paused=false; lastFrame=performance.now(); updateUI(); syncAudio(); focusPlaySurface(); }
 $('pause').addEventListener('click',pauseGame); $('resume').addEventListener('click',resumeGame);
 $('pause-dialog').addEventListener('cancel',e=>{e.preventDefault();resumeGame();});
@@ -2234,6 +2238,7 @@ function restartWithMode(nextMode = currentMode) {
   bannerExpandedUntil = 0;
   closeAdvancedDrawers();
   skipHold?.reset();
+  riskHold?.reset();
   onboarding.resetRun();
   paused=false;lastPhase='';destinationKey='';buildKey='';roomKey='';secretKey='';sealKey='';bannerStage=0;
   $('secret-panel').open=false;$('build-list').replaceChildren();$('ability-list').replaceChildren();
@@ -2621,6 +2626,7 @@ function closePanel({ focus = 'toggle' } = {}) {
 }
 function syncLayoutMode() {
   const theater = isTheater();
+  riskHold?.reset();
   $('layout-toggle')?.setAttribute('aria-pressed', String(theater));
   panelOpen = false;
   if (!runPanel) return;

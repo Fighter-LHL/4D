@@ -157,10 +157,12 @@ export function bindLongPress(element, {
   requestFrame = typeof requestAnimationFrame === 'function' ? fn => requestAnimationFrame(fn) : null,
   cancelFrame = typeof cancelAnimationFrame === 'function' ? id => cancelAnimationFrame(id) : null,
   isReducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches,
+  isEnabled = () => true,
   canStart = () => Boolean(element && !element.hidden && !element.disabled),
   onProgress = null,
   onComplete = null,
   onCancel = null,
+  onShortActivate = null,
   slopPx = 12,
   targetWindow = typeof window !== 'undefined' ? window : null,
   targetDocument = typeof document !== 'undefined' ? document : null,
@@ -278,6 +280,7 @@ export function bindLongPress(element, {
   };
 
   const onPointerDown = e => {
+    if (!isEnabled()) return;
     if (!canStart()) return;
     if (e.button !== undefined && e.button !== 0) return;
     if (controller.holding) return;
@@ -361,6 +364,7 @@ export function bindLongPress(element, {
   };
 
   const onKeyDown = e => {
+    if (!isEnabled()) return;
     if (!isLongPressKey(e.key)) return;
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     // Block native Enter/Space button click synthesis and global Space shortcuts.
@@ -377,6 +381,7 @@ export function bindLongPress(element, {
   };
 
   const onKeyUp = e => {
+    if (!isEnabled()) return;
     if (!isLongPressKey(e.key)) return;
     e.preventDefault?.();
     e.stopPropagation?.();
@@ -386,12 +391,19 @@ export function bindLongPress(element, {
   };
 
   const onClick = e => {
+    if (!isEnabled()) {
+      if (element && !element.hidden && !element.disabled) {
+        onShortActivate?.(e);
+      }
+      return;
+    }
     // Single click, tap, or synthesized keyboard click must never trigger skip.
     e.preventDefault?.();
     e.stopPropagation?.();
   };
 
   const onContextMenu = e => {
+    if (!isEnabled()) return;
     e.preventDefault?.();
   };
 
@@ -447,4 +459,75 @@ export function bindLongPress(element, {
   };
 
   return { controller, reset, dispose };
+}
+
+function setNodeText(el, text) {
+  if (!el) return;
+  const value = String(text);
+  if (el.textContent !== value) el.textContent = value;
+}
+
+export function syncRiskDecisionHud(
+  { bar, title, sub, riskBtn, safeBtn } = {},
+  { visible = false, theater = true, riskPreview = {}, riskHold = null } = {},
+) {
+  if (bar) bar.hidden = !visible;
+  if (safeBtn) safeBtn.hidden = Boolean(theater);
+  if (!visible || !theater) {
+    riskHold?.reset?.();
+  }
+  if (!visible) return;
+
+  if (theater) {
+    setNodeText(title, '');
+    setNodeText(sub, '');
+    const riskMark = riskPreview.chargesPrism ? ' ◇' : riskPreview.chargesWeave ? ' ❋' : '';
+    setNodeText(riskBtn, `⚡+3${riskMark}`);
+    if (riskBtn) {
+      const aria = `长按冒险过桥 +3${riskMark}`;
+      if (typeof riskBtn.setAttribute === 'function') riskBtn.setAttribute('aria-label', aria);
+      else riskBtn.ariaLabel = aria;
+      riskBtn.title = `按住冒险过桥 (+3◆${riskPreview.bonusLabel ? ` · ${riskPreview.bonusLabel}` : ''})`;
+    }
+    return;
+  }
+
+  setNodeText(title, `通往「${riskPreview.toName || '目标'}」新桥 · 首通⚡冒险 ${riskPreview.bonusLabel || ''}`);
+  setNodeText(sub, `首次⚡冒险过桥可获：${riskPreview.bonusLabel || ''}（过桥时顺着金色波浪微调滚轮）`);
+  const extraTag = riskPreview.chargesPrism
+    ? ' · ◇蓄能+1'
+    : riskPreview.chargesWeave
+      ? ' · ❋桥种+1'
+      : riskPreview.awakensFlowerBridge
+        ? ' · 🌺唤醒花桥'
+        : '';
+  setNodeText(riskBtn, `⚡ 冒险冲过去 (+3◆${extraTag})`);
+  if (riskBtn) {
+    if (typeof riskBtn.removeAttribute === 'function') riskBtn.removeAttribute('aria-label');
+    else delete riskBtn.ariaLabel;
+    riskBtn.title = `冒险过桥 (+3◆${riskPreview.bonusLabel ? ` · ${riskPreview.bonusLabel}` : ''})`;
+  }
+  setNodeText(safeBtn, '🛡️ 稳妥走 (+1◆)');
+  if (safeBtn) safeBtn.title = '稳妥过桥 (+1◆)';
+}
+
+export function formatResultStats(state, pr, { theater = true } = {}) {
+  const stats = state?.stats || {};
+  const chains = stats.chains ?? 0;
+  const risks = stats.risks ?? 0;
+  const anomalies = stats.anomalies || 0;
+  const rank = pr?.rank ?? 'B';
+
+  if (theater) {
+    const parts = [`✓点亮 ${chains}`];
+    if (risks > 0) parts.push(`⚡冒险 ${risks}`);
+    if (anomalies > 0) parts.push(`✦奇物 ${anomalies}`);
+    parts.push(`评级 ${rank}`);
+    return parts.join('  ·  ');
+  }
+
+  const tactileSummary = (stats.harmonicLocks || stats.perfectDashes)
+    ? ` · 超频锁 ${stats.harmonicLocks || 0} 次 · 踏浪冲刺 ${stats.perfectDashes || 0} 次`
+    : '';
+  return `冒险成功 ${risks} 次 · 点亮机关 ${chains} 次 · 收录奇物 ${anomalies} 件${tactileSummary} · 完美同频 ${pr?.perfectBeats ?? 0} 次 · 刹那折光 ${pr?.grazes ?? 0} 次 · 共鸣评级 ${rank}`;
 }

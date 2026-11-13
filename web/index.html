@@ -70,6 +70,19 @@
             <button type="button" id="unlock-all-btn" class="unlock-all-btn" aria-label="长按跳过引导，展开全部高阶" title="长按跳过渐进教学，立即展开全部高阶操作与秘境雷达">🔓 展开全部高阶</button>
           </div>
         </div>
+        <div id="risk-decision-bar" class="risk-decision-bar" hidden aria-live="polite">
+          <div class="risk-decision-copy">
+            <div class="risk-decision-head">
+              <span class="risk-decision-tag">⚡ 首通决策</span>
+              <strong id="risk-decision-title">通往「目标」的新桥已连通</strong>
+            </div>
+            <small id="risk-decision-sub">首次冒险过桥可获 3 倍回响 (+3◆) 并唤醒沉睡花桥 / 为遗物蓄能</small>
+          </div>
+          <div class="risk-decision-actions">
+            <button type="button" id="risk-go-btn" class="risk-go-btn" aria-label="长按冒险过桥 +3">⚡ 冒险冲过去 (+3◆)</button>
+            <button type="button" id="safe-go-btn" class="safe-go-btn">🛡️ 稳妥走 (+1◆)</button>
+          </div>
+        </div>
         <div class="dock-float">
         <p id="friend-guide" class="friend-guide" hidden aria-live="polite"></p>
         <div id="visual-stepper" class="visual-stepper" role="group" aria-label="三步可视化行动罗盘（点击可直接执行）" hidden>
@@ -95,19 +108,6 @@
           <div id="relic-chips" class="relic-chips"></div>
           <div class="relic-hud-actions">
             <button type="button" id="quick-ability-btn" class="quick-ability-btn" hidden>✨ 释放遗物能力 (Q)</button>
-          </div>
-        </div>
-        <div id="risk-decision-bar" class="risk-decision-bar" hidden aria-live="polite">
-          <div class="risk-decision-copy">
-            <div class="risk-decision-head">
-              <span class="risk-decision-tag">⚡ 首通决策</span>
-              <strong id="risk-decision-title">通往「目标」的新桥已连通</strong>
-            </div>
-            <small id="risk-decision-sub">首次冒险过桥可获 3 倍回响 (+3◆) 并唤醒沉睡花桥 / 为遗物蓄能</small>
-          </div>
-          <div class="risk-decision-actions">
-            <button type="button" id="risk-go-btn" class="risk-go-btn">⚡ 冒险冲过去 (+3◆)</button>
-            <button type="button" id="safe-go-btn" class="safe-go-btn">🛡️ 稳妥走 (+1◆)</button>
           </div>
         </div>
         <div id="seal-prompt" class="seal-prompt" hidden aria-live="polite"></div>
