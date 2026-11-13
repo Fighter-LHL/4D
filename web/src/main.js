@@ -2068,22 +2068,35 @@ for (const button of document.querySelectorAll('.layer-controls [data-layer]')) 
   const idx = Number(button.dataset.layer);
   button.addEventListener('click', () => {
     if (performance.now() < suppressRulerClickUntil) return;
-    if (canAct()) manualSwitchLayer(idx, 'button');
+    if (canAct()) {
+      scene.setRulerInteraction?.({ bumpPulse: .85, hoverLayer: idx });
+      manualSwitchLayer(idx, 'button');
+    }
   });
   button.addEventListener('pointerenter', () => {
     if (!button.disabled) {
       scene.previewLayer = idx;
+      scene.setRulerInteraction?.({ active: true, hoverLayer: idx });
       button.classList.add('preview-hover');
     }
   });
   button.addEventListener('pointerleave', () => {
     if (scene.previewLayer === idx) scene.previewLayer = null;
+    scene.setRulerInteraction?.({ hoverLayer: null });
     button.classList.remove('preview-hover');
   });
 }
 {
   const rulerEl = $('layer-controls');
   let rulerDrag = null;
+  const nearestLayerIdxForW = wVal => {
+    const layers = model.snapshot()?.layers || [{ center: .18 }, { center: .5 }, { center: .82 }];
+    let best = 0;
+    for (let i = 1; i < layers.length; i++) {
+      if (Math.abs(wVal - layers[i].center) < Math.abs(wVal - layers[best].center)) best = i;
+    }
+    return best;
+  };
   const wFromRulerClientY = clientY => {
     const b0 = $('layer-0')?.getBoundingClientRect();
     const b2 = $('layer-2')?.getBoundingClientRect();
@@ -2097,6 +2110,15 @@ for (const button of document.querySelectorAll('.layer-controls [data-layer]')) 
     const c2 = s.layers?.[s.layers.length - 1]?.center ?? 0.82;
     return Math.max(0, Math.min(1, c0 + u * (c2 - c0)));
   };
+  rulerEl?.addEventListener('pointerenter', e => {
+    if (!isTheater() || !layerSwitchTaught()) return;
+    const btn = e.target?.closest?.('button[data-layer]');
+    const hoverLayer = btn ? Number(btn.dataset.layer) : nearestLayerIdxForW(wFromRulerClientY(e.clientY));
+    scene.setRulerInteraction?.({ active: true, hoverLayer });
+  });
+  rulerEl?.addEventListener('pointerleave', () => {
+    if (!rulerDrag) scene.setRulerInteraction?.({ active: false, scrubbing: false, hoverLayer: null });
+  });
   rulerEl?.addEventListener('pointerdown', e => {
     if (!isTheater() || !canAct() || !layerSwitchTaught() || e.button > 0) return;
     const s = model.snapshot();
@@ -2114,17 +2136,32 @@ for (const button of document.querySelectorAll('.layer-controls [data-layer]')) 
     };
     if (!onTick) {
       e.preventDefault();
+      rulerEl.classList.add('is-scrubbing');
+      scene.setRulerInteraction?.({ active: true, scrubbing: true, hoverLayer: nearestLayerIdxForW(w), bumpPulse: .7 });
       try { rulerEl.setPointerCapture(e.pointerId); } catch {}
       handleScrubW(w, { phase: 'start' });
       handleScrubW(w, { phase: 'move', velocity: 0 });
     }
   });
   rulerEl?.addEventListener('pointermove', e => {
-    if (!rulerDrag || e.pointerId !== rulerDrag.pointerId) return;
-    if (!canAct()) { rulerDrag = null; return; }
+    if (!rulerDrag || e.pointerId !== rulerDrag.pointerId) {
+      if (!rulerDrag && isTheater() && layerSwitchTaught()) {
+        const btn = e.target?.closest?.('button[data-layer]');
+        const hoverLayer = btn ? Number(btn.dataset.layer) : nearestLayerIdxForW(wFromRulerClientY(e.clientY));
+        scene.setRulerInteraction?.({ active: true, hoverLayer });
+      }
+      return;
+    }
+    if (!canAct()) {
+      rulerDrag = null;
+      rulerEl.classList.remove('is-scrubbing');
+      scene.setRulerInteraction?.({ active: false, scrubbing: false, hoverLayer: null });
+      return;
+    }
     if (!rulerDrag.scrubbing) {
       if (Math.abs(e.clientY - rulerDrag.startY) < 6) return;
       rulerDrag.scrubbing = true;
+      rulerEl.classList.add('is-scrubbing');
       try { rulerEl.setPointerCapture(e.pointerId); } catch {}
       handleScrubW(rulerDrag.lastW, { phase: 'start' });
     }
@@ -2134,12 +2171,16 @@ for (const button of document.querySelectorAll('.layer-controls [data-layer]')) 
     rulerDrag.vel = (w - rulerDrag.lastW) / dt;
     rulerDrag.lastW = w;
     rulerDrag.lastT = now;
+    scene.setRulerInteraction?.({ active: true, scrubbing: true, hoverLayer: nearestLayerIdxForW(w), bumpPulse: .7 });
     handleScrubW(w, { phase: 'move', velocity: rulerDrag.vel });
   });
   const endRulerDrag = (e, cancelled = false) => {
     if (!rulerDrag || (e && e.pointerId !== undefined && e.pointerId !== rulerDrag.pointerId)) return;
     const stateDrag = rulerDrag;
     rulerDrag = null;
+    rulerEl.classList.remove('is-scrubbing');
+    const stillHovering = Boolean(!cancelled && e?.pointerType === 'mouse' && rulerEl.matches?.(':hover'));
+    scene.setRulerInteraction?.({ active: stillHovering, scrubbing: false, hoverLayer: null, bumpPulse: stateDrag.scrubbing ? .7 : 0 });
     try { if (rulerEl.hasPointerCapture?.(stateDrag.pointerId)) rulerEl.releasePointerCapture(stateDrag.pointerId); } catch {}
     if (!stateDrag.scrubbing) return;
     suppressRulerClickUntil = performance.now() + 180;
@@ -2158,7 +2199,10 @@ for (const button of document.querySelectorAll('.layer-controls [data-layer]')) 
       metaKey: e.metaKey,
       deltaMode: e.deltaMode,
     });
-    if (nextLayer !== null) manualSwitchLayer(nextLayer, 'wheel');
+    if (nextLayer !== null) {
+      scene.setRulerInteraction?.({ bumpPulse: .85, hoverLayer: nextLayer });
+      manualSwitchLayer(nextLayer, 'wheel');
+    }
   }, { passive: false });
 }
 $('sound').addEventListener('click',()=>{ soundEnabled = !soundEnabled; audio.setEnabled(soundEnabled); unlockAudio(); savePreference('wslice-sound',soundEnabled?'on':'off'); updateSoundButton(); });

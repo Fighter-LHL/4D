@@ -102,6 +102,12 @@ export class SceneRenderer {
     this.hoverLensToggle = false;
     this.hoverPolyLock = null;
     this.previewLayer = null;
+    this.rulerInteraction = { active: false, scrubbing: false, hoverLayer: null, pulse: 0 };
+    this.badgeQueue = [];
+    this.resolvedNodeBadges = new Map();
+    this.lastResolvedBadges = [];
+    this._inRenderBadgePass = false;
+    this._standalonePlacedPx = [];
     this.shake = 0;
     this.flash = 0;
     this.flashColor = COLORS.mint;
@@ -801,7 +807,7 @@ export class SceneRenderer {
     if (!this.state || this.state.phase !== 'playing' || this.disposed) return null;
     if (this.state.wave && this.visualGuide) return null;
     const visibleHit = this.hitVisibleNode(event);
-    if (visibleHit || !this.visualGuide) return visibleHit ?? null;
+    if (!this.visualGuide) return visibleHit ?? null;
     const stage = this.onboardingStage ?? 4;
     const { x, y } = this.toWorld(event);
     // In visualGuide mode, allow clicking ghosted mechanism/exit/vault/rift islands or their floating badges
@@ -811,19 +817,46 @@ export class SceneRenderer {
       const bGuide = this.liveGuide?.node === b.id ? 2 : (b.powered && !this.state.activated.includes(b.id) ? 1 : 0);
       return bGuide - aGuide;
     });
-    return candidates.find(node => {
+    const padHit = 6 / Math.max(.25, this.scale || 1);
+    const eligible = candidates.filter(node => {
       if (node.id === 'bloom' && this.node('crown')?.anchor) return false;
       if (stage < 3 && node.id === 'vault' && node.locked) return false;
       if (stage < 2 && !node.present && node.id !== 'exit') return false;
       if (!order.includes(node.id) && !['exit', 'vault', 'rift'].includes(node.id) && !node.anchor) return false;
+      return true;
+    });
+    // Foreground badge pills paint over island rims; direct clicks on a pill hit its owner unless at an island center
+    const sScaleHit = Math.max(.25, this.scale || 1);
+    const atAnyNodeCenter = this.state.nodes.some(n =>
+      (n.anchor || n.present || eligible.includes(n)) && Math.hypot(x - n.x, y - n.y) * sScaleHit <= 6
+    );
+    if (!atAnyNodeCenter && this.resolvedNodeBadges?.size) {
+      const fgBadgeOwner = eligible.find(node => {
+        const rbs = this.resolvedNodeBadges.get(node.id);
+        return Array.isArray(rbs)
+          ? rbs.some(rb => x >= rb.left && x <= rb.right && y >= rb.top && y <= rb.bottom)
+          : (rbs ? (x >= rbs.left && x <= rbs.right && y >= rbs.top && y <= rbs.bottom) : false);
+      });
+      if (fgBadgeOwner) return fgBadgeOwner;
+    }
+    if (visibleHit) return visibleHit;
+    const primaryHit = eligible.find(node => {
       const rx = node.id === 'hub' ? 112 : 84;
       const ry = node.id === 'hub' ? 60 : 56;
       const onIsland = ((x - node.x) / rx) ** 2 + ((y - node.y + 12) / ry) ** 2 <= 1;
-      const onBadge = Math.abs(x - node.x) <= 95 && y >= node.y - 154 && y <= node.y - 50;
+      const rbs = this.resolvedNodeBadges?.get(node.id);
+      const onResolvedBadge = Array.isArray(rbs)
+        ? rbs.some(rb => x >= rb.left - padHit && x <= rb.right + padHit && y >= rb.top - padHit && y <= rb.bottom + padHit)
+        : (rbs ? (x >= rbs.left - padHit && x <= rbs.right + padHit && y >= rbs.top - padHit && y <= rbs.bottom + padHit) : false);
       const liftY = node.y - ((node.world?.w ?? node.center ?? this.currentW()) - this.currentW()) * 95;
       const onRampEnd = !node.anchor && !node.present && this.state.edges?.some(e => e.open && e.ramp && (e.from === node.id || e.to === node.id))
         && (((x - node.x) / rx) ** 2 + ((y - liftY + 12) / ry) ** 2 <= 1 || (Math.abs(x - node.x) <= 95 && y >= liftY - 154 && y <= liftY - 50));
-      return onIsland || onBadge || onRampEnd;
+      return onIsland || onResolvedBadge || onRampEnd;
+    });
+    if (primaryHit) return primaryHit;
+    return eligible.find(node => {
+      if (this.resolvedNodeBadges?.has(node.id)) return false;
+      return Math.abs(x - node.x) <= 95 && y >= node.y - 154 && y <= node.y - 50;
     }) ?? null;
   }
 
@@ -838,6 +871,10 @@ export class SceneRenderer {
       this.polyLocks.clear();
       this.polyLockDrag = null;
       this.altarWindow = null;
+      this.badgeQueue = [];
+      this.resolvedNodeBadges?.clear();
+      this.lastResolvedBadges = [];
+      this._standalonePlacedPx = [];
       this.grab = null;
       this.cast = null;
       this.downPoint = null;
@@ -1214,12 +1251,480 @@ export class SceneRenderer {
       duration: 1.25, color, celebration: true });
   }
 
+  setRulerInteraction(next = {}) {
+    if (!this.rulerInteraction) {
+      this.rulerInteraction = { active: false, scrubbing: false, hoverLayer: null, pulse: 0 };
+    }
+    const prev = this.rulerInteraction;
+    if (typeof next.active === 'boolean') prev.active = next.active;
+    if (typeof next.scrubbing === 'boolean') prev.scrubbing = next.scrubbing;
+    if ('hoverLayer' in next) prev.hoverLayer = next.hoverLayer;
+    if (next.bumpPulse) {
+      const amt = typeof next.bumpPulse === 'number' ? next.bumpPulse : .7;
+      prev.pulse = this.reducedMotion ? 0 : Math.max(prev.pulse || 0, clamp(amt, 0, 1));
+    } else if (this.reducedMotion) {
+      prev.pulse = 0;
+    }
+  }
+
+  enqueueBadge(desc) {
+    if (!this.badgeQueue) this.badgeQueue = [];
+    if (!this._inRenderBadgePass && !this.labelZones?.length) {
+      this._standalonePlacedPx = [];
+      this.resolvedNodeBadges = new Map();
+      this.lastResolvedBadges = [];
+    }
+    // Provisional zone so foreground note avoidance (drawEffects(true)) stays informed pre-flush
+    if (this.ctx && desc.text) {
+      this.ctx.save();
+      this.ctx.font = desc.font;
+      const tw = this.ctx.measureText(desc.text).width;
+      this.ctx.restore();
+      const halfW = Math.max((desc.minWWorld || 0) / 2, tw / 2 + desc.padXWorld);
+      const halfH = desc.hWorld / 2;
+      this.labelZones?.push({
+        left: desc.naturalWorld.x - halfW,
+        right: desc.naturalWorld.x + halfW,
+        top: desc.naturalWorld.y - halfH,
+        bottom: desc.naturalWorld.y + halfH,
+      });
+    }
+    this.badgeQueue.push(desc);
+    if (!this._inRenderBadgePass) {
+      this.flushBadges({ incremental: true });
+    }
+  }
+
+  flushBadges({ incremental = false } = {}) {
+    const queue = this.badgeQueue || [];
+    this.badgeQueue = [];
+    if (!queue.length || !this.state || !this.ctx) return;
+    const ctx = this.ctx;
+    const s = this.state;
+    const stage = this.onboardingStage ?? 4;
+    const sScale = Math.max(.25, this.scale || 1);
+    const ox = Number.isFinite(this.offsetX) ? this.offsetX : 0;
+    const oy = Number.isFinite(this.offsetY) ? this.offsetY : 0;
+    const toSx = wx => ox + wx * sScale;
+    const toSy = wy => oy + wy * sScale;
+    const toWx = sx => (sx - ox) / sScale;
+    const toWy = sy => (sy - oy) / sScale;
+
+    if (!incremental) {
+      this.resolvedNodeBadges = new Map();
+      this.lastResolvedBadges = [];
+      this.labelZones = [];
+      this._standalonePlacedPx = [];
+    }
+
+    const worldMinSx = toSx(6), worldMaxSx = toSx(WORLD_W - 6);
+    const worldMinSy = toSy(6), worldMaxSy = toSy(WORLD_H - 6);
+    const fitsCanvas = this.width >= WORLD_W * sScale - 2 && this.height >= WORLD_H * sScale - 2;
+    const padLeft = 8;
+    const padTop = this.hudProgressActive ? 8 : 6;
+    const padRight = (this.hudProgressActive && stage >= 2) ? 54 : 8;
+    const padBottom = 8;
+    const safeMinSx = fitsCanvas ? Math.max(padLeft, worldMinSx) : worldMinSx;
+    const safeMaxSx = fitsCanvas ? Math.max(safeMinSx + 40, Math.min(this.width - padRight, worldMaxSx)) : worldMaxSx;
+    const safeMinSy = fitsCanvas ? Math.max(padTop, worldMinSy) : worldMinSy;
+    const safeMaxSy = fitsCanvas ? Math.max(safeMinSy + 32, Math.min(this.height - padBottom, worldMaxSy)) : worldMaxSy;
+
+    const fixedObstaclesPx = [];
+    if (fitsCanvas && this.hudProgressActive && this.width >= 360) {
+      fixedObstaclesPx.push({ left: 0, top: 0, right: 148, bottom: 38 });
+    } else if (!this.hudProgressActive && stage >= 2) {
+      fixedObstaclesPx.push({ left: ox, top: oy, right: ox + Math.min(180, 236 * sScale), bottom: oy + Math.min(172, 238 * sScale) });
+    }
+
+    const playerPos = !s.travel ? this.playerPosition() : null;
+    const playerHeadTopWorld = playerPos
+      ? playerPos.y - Math.max(34 * clamp(.48 / (this.scale || 1), 1, 1.5), s.combo > 0 ? 52 : s.shield ? 42 : 34)
+      : null;
+    const playerBoxPx = playerPos ? {
+      ownerId: s.node,
+      left: toSx(playerPos.x) - 16,
+      right: toSx(playerPos.x) + 16,
+      top: Math.min(toSy(playerPos.y) - 46, toSy(playerHeadTopWorld ?? (playerPos.y - 40))),
+      bottom: toSy(playerPos.y) + 5,
+      torsoTop: toSy(playerPos.y) - 33,
+      torsoBottom: toSy(playerPos.y) + 4,
+    } : null;
+
+    // Soft obstacles around anchor spires, island centers & visible mechanism cores so displaced badges stay legible
+    const spireBoxesPx = [];
+    for (const n of s.nodes || []) {
+      if (!n) continue;
+      spireBoxesPx.push({ nodeId: n.id, left: toSx(n.x) - 18, right: toSx(n.x) + 18, top: toSy(n.y) - 14, bottom: toSy(n.y) + 14, penalty: 45 });
+      if (n.id === 'ferry') continue;
+      if (n.anchor && n.id !== 'hub') {
+        spireBoxesPx.push({ nodeId: n.id, left: toSx(n.x) - 15, right: toSx(n.x) + 15, top: toSy(n.y - 68), bottom: toSy(n.y + 8), penalty: 36 });
+      } else if (!n.anchor && n.present) {
+        spireBoxesPx.push({ nodeId: n.id, left: toSx(n.x) - 14, right: toSx(n.x) + 14, top: toSy(n.y - 38), bottom: toSy(n.y + 6), penalty: 12 });
+      }
+    }
+
+    const items = queue.map((item, idx) => {
+      ctx.save();
+      ctx.font = item.font;
+      const tw = ctx.measureText(item.text).width;
+      ctx.restore();
+      const wWorld = Math.min(WORLD_W - 12, Math.max(item.minWWorld || 0, tw + item.padXWorld * 2));
+      const hWorld = item.hWorld;
+      const wPx = wWorld * sScale;
+      const hPx = hWorld * sScale;
+      const pScale = Math.max(1, item.pulseScale || 1);
+      const bobAmpPx = (item.bob && !this.reducedMotion) ? Math.min(1.6, 1.35 * sScale) : 0;
+      const wPxEff = wPx * pScale;
+      const hPxEff = hPx * pScale + bobAmpPx * 2;
+      const axSx = toSx(item.anchorWorld.x);
+      const aySy = toSy(item.anchorWorld.y);
+      const natCxSx = toSx(item.naturalWorld.x);
+      const natCySy = toSy(item.naturalWorld.y);
+      return {
+        ...item,
+        id: item.id || `${item.kind || 'badge'}:${item.nodeId || idx}`,
+        idx,
+        wWorld,
+        hWorld,
+        wPx,
+        hPx,
+        wPxEff,
+        hPxEff,
+        bobAmpPx,
+        axSx,
+        aySy,
+        natCxSx,
+        natCySy,
+      };
+    });
+
+    items.sort((a, b) =>
+      (b.priority - a.priority) ||
+      ((a.stackIdx || 0) - (b.stackIdx || 0)) ||
+      String(a.id).localeCompare(String(b.id)) ||
+      (a.idx - b.idx)
+    );
+
+    const allNodeCentersPx = (s.nodes || []).filter(Boolean).map(n => ({
+      id: n.id,
+      sx: toSx(n.x),
+      sy: toSy(n.y),
+    }));
+    const nodePtsPx = allNodeCentersPx.filter(n => n.id !== 'ferry');
+
+    const placed = incremental ? this._standalonePlacedPx : [];
+
+    const clampCenterSx = (cx, cy, wEff, hEff) => {
+      const loX = safeMinSx + wEff / 2;
+      const hiX = Math.max(loX, safeMaxSx - wEff / 2);
+      const loY = safeMinSy + hEff / 2;
+      const hiY = Math.max(loY, safeMaxSy - hEff / 2);
+      return {
+        cx: clamp(cx, loX, hiX),
+        cy: clamp(cy, loY, hiY),
+      };
+    };
+
+    const hitsHardObstacle = (cx, cy, wEff, hEff, gapPx, item) => {
+      const l = cx - wEff / 2 - gapPx;
+      const r = cx + wEff / 2 + gapPx;
+      const t = cy - hEff / 2 - gapPx;
+      const b = cy + hEff / 2 + gapPx;
+      for (const p of placed) {
+        if (r > p.left && l < p.right && b > p.top && t < p.bottom) return true;
+      }
+      for (const fo of fixedObstaclesPx) {
+        if (r - gapPx > fo.left && l + gapPx < fo.right && b - gapPx > fo.top && t + gapPx < fo.bottom) return true;
+      }
+      for (const nc of allNodeCentersPx) {
+        if (nc.id === item.nodeId) continue;
+        if (r - gapPx > nc.sx - 6 && l + gapPx < nc.sx + 6 && b - gapPx > nc.sy - 6 && t + gapPx < nc.sy + 6) return true;
+      }
+      if (playerBoxPx) {
+        if (item.nodeId !== playerBoxPx.ownerId) {
+          if (r - gapPx > playerBoxPx.left && l + gapPx < playerBoxPx.right && b - gapPx > playerBoxPx.top && t + gapPx < playerBoxPx.bottom) {
+            return true;
+          }
+        } else if (r - gapPx > playerBoxPx.left + 2 && l + gapPx < playerBoxPx.right - 2 && b - gapPx > playerBoxPx.torsoTop && t + gapPx < playerBoxPx.torsoBottom) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const softSpirePenalty = (cx, cy, wPx, hPx, item) => {
+      const l = cx - wPx / 2, r = cx + wPx / 2, t = cy - hPx / 2, b = cy + hPx / 2;
+      let pen = 0;
+      for (const sb of spireBoxesPx) {
+        if (sb.nodeId === item.nodeId) continue;
+        if (item.priority >= 70 && sb.penalty <= 15) continue;
+        if (r > sb.left && l < sb.right && b > sb.top && t < sb.bottom) pen += sb.penalty;
+      }
+      return pen;
+    };
+
+    const resolvedList = [];
+    for (const item of items) {
+      let repelX = 0, repelY = 0;
+      for (const p of placed) {
+        const dx = item.natCxSx - p.cx;
+        const dy = item.natCySy - p.cy;
+        const d = Math.hypot(dx, dy);
+        if (d < 96) {
+          const w = (96 - d) / 96;
+          repelX += (d > .5 ? dx / d : (item.idx % 2 ? 1 : -1)) * w * 1.45;
+          repelY += (d > .5 ? dy / d : (item.placement === 'below' ? 1 : -1)) * w * 1.45;
+        }
+      }
+      for (const np of nodePtsPx) {
+        if (np.id === item.nodeId) continue;
+        const dx = item.axSx - np.sx;
+        const dy = item.aySy - np.sy;
+        const d = Math.hypot(dx, dy);
+        if (d < 94) {
+          const w = (94 - d) / 94;
+          repelX += (d > .5 ? dx / d : 1) * w * .75;
+          repelY += (d > .5 ? dy / d : 1) * w * .75;
+        }
+      }
+      const repelLen = Math.hypot(repelX, repelY);
+      const awayX = repelLen > .02 ? repelX / repelLen : 0;
+      const awayY = repelLen > .02 ? repelY / repelLen : (item.placement === 'below' ? 1 : -1);
+      const prefDirX = awayX >= 0 ? 1 : -1;
+
+      const hw = item.wPxEff / 2;
+      const hh = item.hPxEff / 2;
+      const stepW = hw * .95 + 10;
+      const stepH = hh * 2 + 5;
+      const rxPx = (item.islandRxWorld || 68) * sScale;
+      const aboveCy = item.aySy - (item.aboveOffsetWorld || 70) * sScale;
+      const belowCy = item.aySy + (item.belowOffsetWorld || 78) * sScale + hh;
+
+      const cands = [];
+      const pushCand = (cx, cy, penalty = 0) => cands.push({ cx, cy, penalty });
+
+      pushCand(item.natCxSx, item.natCySy, 0);
+      if (repelLen > .02) {
+        pushCand(item.natCxSx + awayX * 16, item.natCySy + awayY * 10, 3);
+        pushCand(item.natCxSx + awayX * 28, item.natCySy + awayY * 18, 6);
+      }
+
+      if (item.placement === 'below') {
+        for (const dxAbs of [14, 26, 38, 52]) {
+          pushCand(item.natCxSx + prefDirX * dxAbs, item.natCySy, dxAbs * .36);
+          pushCand(item.natCxSx - prefDirX * dxAbs, item.natCySy, dxAbs * .52 + 3);
+        }
+        pushCand(item.natCxSx, item.natCySy + stepH * .58, 10);
+        pushCand(item.natCxSx + prefDirX * stepW, item.natCySy, 9);
+        pushCand(item.natCxSx - prefDirX * stepW, item.natCySy, 12);
+        pushCand(item.natCxSx + prefDirX * stepW * 1.35, item.natCySy + 6, 13);
+        pushCand(item.natCxSx - prefDirX * stepW * 1.35, item.natCySy + 6, 16);
+        pushCand(item.natCxSx, item.natCySy + stepH, 16);
+        pushCand(item.natCxSx + prefDirX * stepW * 1.75, item.natCySy, 18);
+        pushCand(item.natCxSx - prefDirX * stepW * 1.75, item.natCySy, 21);
+        pushCand(item.natCxSx + prefDirX * stepW * 1.2, item.natCySy - stepH * .7, 22);
+        pushCand(item.natCxSx - prefDirX * stepW * 1.2, item.natCySy - stepH * .7, 24);
+        pushCand(item.axSx + prefDirX * (rxPx + hw + 6), item.aySy + 4, 25);
+        pushCand(item.axSx - prefDirX * (rxPx + hw + 6), item.aySy + 4, 28);
+        pushCand(item.axSx, aboveCy, 26);
+        pushCand(item.natCxSx + prefDirX * stepW * 2.2, item.natCySy, 26);
+        pushCand(item.natCxSx - prefDirX * stepW * 2.2, item.natCySy, 29);
+        pushCand(item.natCxSx, item.natCySy + stepH * 2.2, 30);
+      } else {
+        pushCand(item.natCxSx, item.natCySy - stepH, 6);
+        pushCand(item.natCxSx, item.natCySy - stepH * 1.95, 14);
+        for (const dxAbs of [16, 30, 44]) {
+          pushCand(item.natCxSx + prefDirX * dxAbs, item.natCySy, dxAbs * .4 + 2);
+          pushCand(item.natCxSx - prefDirX * dxAbs, item.natCySy, dxAbs * .55 + 5);
+        }
+        pushCand(item.natCxSx + prefDirX * stepW * 1.15, item.natCySy, 9);
+        pushCand(item.natCxSx - prefDirX * stepW * 1.15, item.natCySy, 12);
+        pushCand(item.natCxSx + prefDirX * stepW * 1.15, item.natCySy - stepH * .65, 13);
+        pushCand(item.natCxSx - prefDirX * stepW * 1.15, item.natCySy - stepH * .65, 16);
+        pushCand(item.natCxSx + prefDirX * stepW * 1.15, item.natCySy + stepH * .55, 14);
+        pushCand(item.natCxSx - prefDirX * stepW * 1.15, item.natCySy + stepH * .55, 17);
+        pushCand(item.natCxSx, item.natCySy + stepH * .85, 16);
+        pushCand(item.natCxSx + prefDirX * stepW * 1.75, item.natCySy - stepH * .35, 18);
+        pushCand(item.natCxSx - prefDirX * stepW * 1.75, item.natCySy - stepH * .35, 21);
+        pushCand(item.axSx + prefDirX * (rxPx * .78 + hw + 5), item.aySy - 8, 22);
+        pushCand(item.axSx - prefDirX * (rxPx * .78 + hw + 5), item.aySy - 8, 25);
+        pushCand(item.axSx, belowCy, 25);
+        pushCand(item.axSx + prefDirX * 22, belowCy, 28);
+        pushCand(item.natCxSx + prefDirX * stepW * 2.2, item.natCySy, 26);
+        pushCand(item.natCxSx - prefDirX * stepW * 2.2, item.natCySy, 29);
+        pushCand(item.natCxSx, item.natCySy - stepH * 2.7, 28);
+      }
+
+      const evalScore = (cx, cy, basePenalty) => {
+        const dist = Math.hypot(cx - item.natCxSx, (cy - item.natCySy) * 1.12);
+        const anchorDist = Math.hypot(cx - item.axSx, cy - item.aySy);
+        const tetherPen = Math.max(0, anchorDist - 84) * .8;
+        const spirePen = softSpirePenalty(cx, cy, item.wPx, item.hPx, item);
+        const dirBonus = repelLen > .02
+          ? clamp(((cx - item.natCxSx) * awayX + (cy - item.natCySy) * awayY) * .12, -5, 5)
+          : 0;
+        return dist * .82 + basePenalty + tetherPen + spirePen - dirBonus;
+      };
+
+      let chosen = null;
+      for (const gapPx of [4.2, 2.2, 0.6]) {
+        let bestScore = Infinity;
+        for (const c of cands) {
+          const cl = clampCenterSx(c.cx, c.cy, item.wPxEff, item.hPxEff);
+          if (hitsHardObstacle(cl.cx, cl.cy, item.wPxEff, item.hPxEff, gapPx, item)) continue;
+          const sc = evalScore(cl.cx, cl.cy, c.penalty);
+          if (sc < bestScore) {
+            bestScore = sc;
+            chosen = cl;
+          }
+        }
+        if (chosen) break;
+
+        // Deterministic 16-angle x 6-ring polar spiral fallback around natural slot
+        const baseAngle = repelLen > .02 ? Math.atan2(awayY, awayX) : (item.placement === 'below' ? Math.PI / 2 : -Math.PI / 2);
+        let bestSpiralScore = Infinity;
+        for (const radius of [20, 32, 44, 58, 74, 94]) {
+          for (let k = 0; k < 16; k++) {
+            const sign = k % 2 === 0 ? 1 : -1;
+            const step = Math.ceil(k / 2);
+            const ang = baseAngle + sign * step * (Math.PI / 8);
+            const cl = clampCenterSx(item.natCxSx + Math.cos(ang) * radius, item.natCySy + Math.sin(ang) * radius, item.wPxEff, item.hPxEff);
+            if (hitsHardObstacle(cl.cx, cl.cy, item.wPxEff, item.hPxEff, gapPx, item)) continue;
+            const sc = evalScore(cl.cx, cl.cy, radius * .22);
+            if (sc < bestSpiralScore) {
+              bestSpiralScore = sc;
+              chosen = cl;
+            }
+          }
+          if (chosen) break;
+        }
+        if (chosen) break;
+      }
+
+      if (!chosen) chosen = clampCenterSx(item.natCxSx, item.natCySy, item.wPxEff, item.hPxEff);
+
+      const placedRect = {
+        left: chosen.cx - item.wPxEff / 2,
+        right: chosen.cx + item.wPxEff / 2,
+        top: chosen.cy - item.hPxEff / 2,
+        bottom: chosen.cy + item.hPxEff / 2,
+        cx: chosen.cx,
+        cy: chosen.cy,
+        nodeId: item.nodeId,
+        kind: item.kind,
+      };
+      placed.push(placedRect);
+
+      const bobShiftSy = item.bobAmpPx > 0 ? Math.sin(this.time * 4.2) * item.bobAmpPx : 0;
+      const drawCySy = chosen.cy + bobShiftSy;
+      const screenRect = {
+        left: chosen.cx - item.wPx / 2,
+        right: chosen.cx + item.wPx / 2,
+        top: drawCySy - item.hPx / 2,
+        bottom: drawCySy + item.hPx / 2,
+        width: item.wPx,
+        height: item.hPx,
+        cx: chosen.cx,
+        cy: drawCySy,
+      };
+      const worldRect = {
+        left: toWx(screenRect.left),
+        right: toWx(screenRect.right),
+        top: toWy(screenRect.top),
+        bottom: toWy(screenRect.bottom),
+        cx: toWx(screenRect.cx),
+        cy: toWy(screenRect.cy),
+        w: item.wWorld,
+        h: item.hWorld,
+      };
+      const dispPx = Math.hypot(chosen.cx - item.natCxSx, chosen.cy - item.natCySy);
+
+      this.labelZones?.push({
+        left: worldRect.left,
+        right: worldRect.right,
+        top: worldRect.top,
+        bottom: worldRect.bottom,
+      });
+      if (item.isNodeHitBadge && item.nodeId) {
+        const list = this.resolvedNodeBadges.get(item.nodeId) || [];
+        list.push(worldRect);
+        this.resolvedNodeBadges.set(item.nodeId, list);
+      }
+      resolvedList.push({ item, worldRect, screenRect, dispPx });
+    }
+
+    // Pass 1: Subtle hairline leader/tether lines underneath all badge pills
+    const baseTetherStroke = this.astralMode ? 'rgba(196,210,255,.46)' : 'rgba(92,73,56,.44)';
+    for (const { item, worldRect, dispPx } of resolvedList) {
+      if (dispPx <= 13.5 || !item.tetherWorld) continue;
+      const tx = item.tetherWorld.x;
+      const ty = item.tetherWorld.y;
+      const nearX = clamp(tx, worldRect.left + 5 / sScale, worldRect.right - 5 / sScale);
+      const nearY = clamp(ty, worldRect.top, worldRect.bottom);
+      if (Math.hypot(tx - nearX, ty - nearY) * sScale <= 4.5) continue;
+      const tetherCol = item.isTargetAnchor ? (this.astralMode ? '#fbbf24aa' : '#c68a22aa') : baseTetherStroke;
+      ctx.save();
+      ctx.strokeStyle = tetherCol;
+      ctx.lineWidth = 1.35 / sScale;
+      if (item.priority < 80) ctx.setLineDash([2.5 / sScale, 2.5 / sScale]);
+      ctx.beginPath();
+      ctx.moveTo(nearX, nearY);
+      ctx.lineTo(tx, ty);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ellipse(ctx, tx, ty, 2.1 / sScale, 2.1 / sScale, tetherCol);
+      ctx.restore();
+    }
+
+    // Pass 2: Crisp badge pills & glyphs
+    for (const { item, worldRect, screenRect, dispPx } of resolvedList) {
+      ctx.save();
+      ctx.globalAlpha = item.alpha ?? 1;
+      ctx.beginPath();
+      const rWorld = item.radiusWorld ?? (item.hWorld / 2);
+      if (ctx.roundRect) ctx.roundRect(worldRect.left, worldRect.top, worldRect.w, worldRect.h, rWorld);
+      else ctx.rect(worldRect.left, worldRect.top, worldRect.w, worldRect.h);
+      ctx.fillStyle = item.bgColor;
+      ctx.fill();
+      if (item.borderColor) {
+        if (item.dashed) ctx.setLineDash([4.5 / sScale, 3.2 / sScale]);
+        ctx.lineWidth = item.borderWidthWorld ?? (1.6 / sScale);
+        ctx.strokeStyle = item.borderColor;
+        ctx.stroke();
+        if (item.dashed) ctx.setLineDash([]);
+      }
+      ctx.font = item.font;
+      ctx.fillStyle = item.textColor;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(item.text, worldRect.cx, worldRect.cy);
+      ctx.restore();
+
+      this.lastResolvedBadges.push({
+        id: item.id,
+        kind: item.kind,
+        nodeId: item.nodeId || null,
+        isTargetAnchor: Boolean(item.isTargetAnchor),
+        priority: item.priority,
+        text: item.text,
+        displacedPx: +dispPx.toFixed(2),
+        worldRect,
+        screenRect,
+      });
+    }
+  }
+
   render(dtSeconds = 0) {
     if (this.disposed || !this.ctx) return;
     const dt = clamp(Number.isFinite(dtSeconds) ? dtSeconds : 0, 0, .1);
     this.time += dt;
     this.shake = Math.max(0, this.shake - dt);
     this.flash = Math.max(0, this.flash - dt * .35);
+    if (this.rulerInteraction) {
+      this.rulerInteraction.pulse = this.reducedMotion
+        ? 0
+        : Math.max(0, (this.rulerInteraction.pulse || 0) - dt / .55);
+    }
     if (this.reducedMotion) {
       this.parallaxX = 0;
       this.parallaxY = 0;
@@ -1357,21 +1862,31 @@ export class SceneRenderer {
       this.drawRiskCorridor();
       if (this.visualGuide) this.drawBridgeSurfCue();
       this.labelZones = [];
-      const nodes = [...this.state.nodes].sort((a, b) => a.y - b.y);
-      for (const node of nodes) this.drawIsland(node);
-      if (stage >= 2) this.drawAnchorSliceBridges();
-      this.drawMomentum();
-      this.drawSceneCues();
-      toys.drawFireflies(this);
-      this.drawEffects(false);
-      if (this.visualGuide) this.drawPolytopeLocks();
-      this.drawGhost();
-      this.drawWave();
-      this.drawPlayer();
-      drawCourtyardFriends(this);
-      this.drawEffects(true);
-      this.drawPhaseBeats();
-      if (this.visualGuide) this.drawVisualActionGuide();
+      this.badgeQueue = [];
+      this.resolvedNodeBadges = new Map();
+      this.lastResolvedBadges = [];
+      this._standalonePlacedPx = [];
+      this._inRenderBadgePass = true;
+      try {
+        const nodes = [...this.state.nodes].sort((a, b) => a.y - b.y);
+        for (const node of nodes) this.drawIsland(node);
+        if (stage >= 2) this.drawAnchorSliceBridges();
+        this.drawMomentum();
+        this.drawSceneCues();
+        toys.drawFireflies(this);
+        this.drawEffects(false);
+        if (this.visualGuide) this.drawPolytopeLocks();
+        this.drawGhost();
+        this.drawWave();
+        this.drawPlayer();
+        drawCourtyardFriends(this);
+        this.drawEffects(true);
+        this.drawPhaseBeats();
+        if (this.visualGuide) this.drawVisualActionGuide();
+        if (this.badgeQueue.length) this.flushBadges();
+      } finally {
+        this._inRenderBadgePass = false;
+      }
       this.drawParticles();
       this.drawAtmosphere();
       toys.drawRelicCast(this);
@@ -1899,7 +2414,11 @@ export class SceneRenderer {
     const currentNode = this.node(s.node);
     const onAnchor = !!currentNode?.anchor;
     const stage = this.onboardingStage ?? 4;
-    const activePreviewLayer = this.isHyperLensActive() ? this.hyperLens.snappedLayer : (this.hoverWLayer ?? this.previewLayer);
+    const ri = this.rulerInteraction || { active: false, scrubbing: false, hoverLayer: null, pulse: 0 };
+    const rulerPreview = (ri.active && Number.isInteger(ri.hoverLayer) && ri.hoverLayer !== s.layer) ? ri.hoverLayer : null;
+    const activePreviewLayer = this.isHyperLensActive()
+      ? this.hyperLens.snappedLayer
+      : (this.hoverWLayer ?? this.previewLayer ?? rulerPreview);
     // 1. Neighboring W-volume bridge silhouettes: vertical offset (delta * 95) shows whether
     // the invisible bridge lies in a higher or lower W slice, brightened when standing on an anchor
     // or hovering a layer button / W-Stack plane.
@@ -1968,12 +2487,52 @@ export class SceneRenderer {
       }
       ctx.restore();
     }
-    ctx.save(); ctx.globalAlpha = this.astralMode ? .19 : .12;
+    ctx.save();
+    const sScale = Math.max(.25, this.scale || 1);
+    const rulerCoupling = clamp((ri.active ? .82 : 0) + (ri.scrubbing ? .18 : 0) + (this.reducedMotion ? 0 : (ri.pulse || 0) * .75), 0, 1);
+    const rulerFocusLayer = Number.isInteger(ri.hoverLayer) ? ri.hoverLayer : (activePreviewLayer ?? s.layer ?? Math.round(clamp(w, 0, 1) * 2));
+    if (rulerCoupling > .01 && stage >= 2) {
+      const targetShiftLayer = (this.pendingLayerPrompt && Number.isInteger(this.pendingLayerPrompt.targetLayer) && this.pendingLayerPrompt.targetLayer !== s.layer)
+        ? this.pendingLayerPrompt.targetLayer
+        : null;
+      for (let li = 0; li < (s.layers?.length || 3); li++) {
+        const lc = s.layers?.[li]?.center ?? (.18 + li * .32);
+        const ly = 395 - lc * 75;
+        const lCorners = [[95, ly - 60], [475, ly - 235], [925, ly - 25], [540, ly + 210]];
+        const lPal = this.palette(li);
+        const isTargetShift = targetShiftLayer === li && this.isExplicitLayerHint?.();
+        const lCol = isTargetShift ? '#ff7b5a' : (this.astralMode ? (lPal.astralColor || lPal.color) : lPal.color);
+        const isFocus = li === rulerFocusLayer;
+        ctx.save();
+        ctx.globalAlpha = rulerCoupling * (isFocus ? (this.astralMode ? .52 : .44) : .16);
+        ctx.setLineDash((isFocus && li === s.layer) ? [] : [7 / sScale, 5 / sScale]);
+        path(ctx, lCorners);
+        if (isFocus) {
+          ctx.fillStyle = isTargetShift ? '#ff7b5a1e' : (lCol + (this.astralMode ? '22' : '18'));
+          ctx.fill();
+        }
+        ctx.strokeStyle = lCol;
+        ctx.lineWidth = (isFocus ? 2.1 : 1.05) / sScale;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (isFocus) {
+          const dR = 3.4 / sScale;
+          for (const [vx, vy] of lCorners) {
+            diamond(ctx, vx, vy, dR, isTargetShift ? '#fed7aa' : lPal.glow, lCol);
+          }
+        }
+        ctx.restore();
+      }
+    }
+    ctx.globalAlpha = (this.astralMode ? .19 : .12) + rulerCoupling * .07;
     const y = 395 - w * 75;
     const corners = [[95, y - 60], [475, y - 235], [925, y - 25], [540, y + 210]];
     path(ctx, corners);
     ctx.fillStyle = this.palette().color; ctx.fill();
-    ctx.globalAlpha = this.astralMode ? .35 : .2; ctx.strokeStyle = this.palette().color; ctx.lineWidth = 1; ctx.stroke();
+    ctx.globalAlpha = (this.astralMode ? .35 : .2) + rulerCoupling * .24;
+    ctx.strokeStyle = this.palette().color;
+    ctx.lineWidth = 1 + rulerCoupling * (.9 / sScale);
+    ctx.stroke();
     // Holographic slice subdivision grid lines
     ctx.globalAlpha = this.astralMode ? .16 : .08;
     for (const frac of [.25, .5, .75]) {
@@ -2721,34 +3280,36 @@ export class SceneRenderer {
     };
 
     const drawCompactBadge = (cx, cy, badgeText, bgColor, borderColor, textColor, opts = {}) => {
-      ctx.save();
       const badgePx = 12.5 / sScale;
-      ctx.font = `700 ${badgePx}px system-ui, -apple-system, sans-serif`;
-      const padX = 7 / sScale;
-      const w = Math.min(WORLD_W - 12, Math.max(24 / sScale, ctx.measureText(badgeText).width + padX * 2));
       const h = 22 / sScale;
-      const x = clamp(cx, w / 2 + 6, WORLD_W - w / 2 - 6);
-      let y = clamp(cy + bounce * .45, h / 2 + 6, WORLD_H - h / 2 - 6);
-      for (const rect of pillRects) {
-        if (x + w / 2 > rect.x1 && x - w / 2 < rect.x2 && y + h / 2 > rect.y1 && y - h / 2 < rect.y2) {
-          y = Math.max(h / 2 + 6, rect.y1 - h / 2 - 4 / sScale);
-        }
-      }
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(x - w / 2, y - h / 2, w, h, h / 2);
-      else ctx.rect(x - w / 2, y - h / 2, w, h);
-      ctx.fillStyle = bgColor;
-      ctx.fill();
-      if (opts.dashed) ctx.setLineDash([4.5 / sScale, 3.2 / sScale]);
-      ctx.lineWidth = (opts.borderWidth ?? (opts.dashed ? 2 : 1.6)) / sScale;
-      ctx.strokeStyle = borderColor;
-      ctx.stroke();
-      if (opts.dashed) ctx.setLineDash([]);
-      ctx.fillStyle = textColor;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(badgeText, x, y);
-      ctx.restore();
+      this.enqueueBadge({
+        id: opts.id || `${opts.kind || 'compact'}:${opts.nodeId || badgeText}`,
+        kind: opts.kind || 'compact-badge',
+        nodeId: opts.nodeId || null,
+        isNodeHitBadge: Boolean(opts.isNodeHitBadge),
+        priority: opts.priority ?? 50,
+        stackIdx: opts.stackIdx ?? 0,
+        placement: 'above',
+        bob: true,
+        pulseScale: opts.pulseScale ?? 1,
+        text: badgeText,
+        font: `700 ${badgePx}px system-ui, -apple-system, sans-serif`,
+        padXWorld: 7 / sScale,
+        hWorld: h,
+        minWWorld: 24 / sScale,
+        radiusWorld: h / 2,
+        anchorWorld: opts.anchorWorld || { x: cx, y: cy + 28 },
+        naturalWorld: { x: cx, y: cy },
+        tetherWorld: opts.tetherWorld || opts.anchorWorld || { x: cx, y: cy + 18 },
+        islandRxWorld: opts.islandRxWorld ?? 42,
+        aboveOffsetWorld: opts.aboveOffsetWorld ?? 68,
+        belowOffsetWorld: opts.belowOffsetWorld ?? 32,
+        bgColor,
+        borderColor,
+        borderWidthWorld: (opts.borderWidth ?? (opts.dashed ? 2 : 1.6)) / sScale,
+        dashed: Boolean(opts.dashed),
+        textColor,
+      });
     };
 
     // 1. Emergency Void Rescue visual alert if standing on disappearing floor
@@ -2768,16 +3329,27 @@ export class SceneRenderer {
 
     if (s.travel) return;
 
-    // Draw crystal-clear numbered badges (① / ② / ③ / ④ / 🚪), causal energy wires, and role tags
-    const order = s.mechanismOrder || s.nodes.filter(n => n.kind === 'mechanism').map(n => n.id);
-    const mechTotal = order.length || 3;
-    const numSymbols = ['①', '②', '③', '④'];
-    const layerRoman = ['Ⅰ', 'Ⅱ', 'Ⅲ'];
-    const guideId = stage >= 2 && this.nextStepHint?.tutorial && this.nextStepHint.action === 'move' ? this.nextStepHint.targetId : null;
-    const guideAnchor = guideId && guideId !== s.node ? this.node(guideId) : null;
-    const anchorBadgePos = guideAnchor?.anchor
-      ? { x: guideAnchor.x, y: guideAnchor.y - (guideAnchor.id === 'relay' ? 76 : 66) }
-      : null;
+    const ownBadgePass = !this._inRenderBadgePass;
+    if (ownBadgePass) {
+      if (!this.labelZones?.length) {
+        this._standalonePlacedPx = [];
+        this.resolvedNodeBadges = new Map();
+        this.lastResolvedBadges = [];
+      }
+      this._inRenderBadgePass = true;
+    }
+
+    try {
+      // Draw crystal-clear numbered badges (① / ② / ③ / ④ / 🚪), causal energy wires, and role tags
+      const order = s.mechanismOrder || s.nodes.filter(n => n.kind === 'mechanism').map(n => n.id);
+      const mechTotal = order.length || 3;
+      const numSymbols = ['①', '②', '③', '④'];
+      const layerRoman = ['Ⅰ', 'Ⅱ', 'Ⅲ'];
+      const guideId = stage >= 2 && this.nextStepHint?.tutorial && this.nextStepHint.action === 'move' ? this.nextStepHint.targetId : null;
+      const guideAnchor = guideId && guideId !== s.node ? this.node(guideId) : null;
+      const anchorBadgePos = guideAnchor?.anchor
+        ? { x: guideAnchor.x, y: guideAnchor.y + (guideAnchor.id === 'hub' ? 105 : 89) }
+        : null;
 
     // 2A. Draw explicit causal energy wires between mechanisms from Stage 2+
     if (stage >= 2) {
@@ -2924,13 +3496,38 @@ export class SceneRenderer {
         hint.kind === 'anomaly' ? '#36240bee' : '#152b34ee',
         shiftAccent,
         explicitHint ? '#ffffff' : '#ccfbf1',
-        { borderWidth: 2 }
+        {
+          id: `shift-here:${s.node}`,
+          kind: 'shift-here',
+          nodeId: s.node,
+          isNodeHitBadge: true,
+          priority: 100,
+          anchorWorld: { x: pos.x, y: pos.y },
+          tetherWorld: { x: pos.x, y: pos.y - 24 },
+          islandRxWorld: currentNode?.id === 'hub' ? 112 : 84,
+          borderWidth: 2,
+        }
       );
     }
 
     const drawNodeBadge = (id, cx, cy, badgeText, bgColor, borderColor, textColor, badgeOpts = {}) => {
-      const y = id === s.node && cy < (playerPos?.y ?? -Infinity) ? clearPlayerY(cy, 13) : cy;
-      drawCompactBadge(cx, y, badgeText, bgColor, borderColor, textColor, badgeOpts);
+      const nObj = this.node(id);
+      const playerAtSameSpot = Boolean(playerPos && nObj && Math.hypot(nObj.x - playerPos.x, nObj.y - playerPos.y) < 4);
+      const y = (id === s.node || playerAtSameSpot) && cy < (playerPos?.y ?? -Infinity) ? clearPlayerY(cy, 13) : cy;
+      const kind = id === 'vault' ? 'vault' : (id === 'rift' ? 'rift' : 'mech');
+      const isPrimaryAction = badgeText.startsWith('🎯') || badgeText.startsWith('👆');
+      const priority = badgeOpts.priority ?? (isPrimaryAction ? 92 : (kind === 'mech' ? 82 : 72));
+      drawCompactBadge(cx, y, badgeText, bgColor, borderColor, textColor, {
+        ...badgeOpts,
+        id: `${kind}:${id}`,
+        kind,
+        nodeId: id,
+        isNodeHitBadge: true,
+        priority,
+        anchorWorld: { x: nObj?.x ?? cx, y: nObj?.y ?? (cy + 70) },
+        tetherWorld: { x: nObj?.x ?? cx, y: (nObj?.y ?? (cy + 70)) - 22 },
+        islandRxWorld: id === 'hub' ? 112 : 84,
+      });
     };
 
     // 2C. Detect overlapping mechanisms so badges don't stack on the exact same pixel
@@ -2947,10 +3544,10 @@ export class SceneRenderer {
       const coordKey = `${Math.round(node.x)},${Math.round(node.y)}`;
       const stackIdx = seenCoords.get(coordKey) || 0;
       seenCoords.set(coordKey, stackIdx + 1);
-      const yOffset = stackIdx * (26 / sScale);
+      const yOffset = stackIdx * (27 / sScale);
       const num = numSymbols[idx] || `${idx + 1}`;
       if (isLit) {
-        drawNodeBadge(id, node.x, node.y - 70 - yOffset, `✓${num}`, '#133127dd', '#45c4a0', '#b8f5dc', { borderWidth: 2 });
+        drawNodeBadge(id, node.x, node.y - 72 - yOffset, `✓${num}`, '#133127dd', '#45c4a0', '#b8f5dc', { borderWidth: 2, stackIdx });
       } else if (isPowered) {
         const isPrimary = primaryMechId === id;
         const pulse = this.reducedMotion ? .7 : .5 + .5 * Math.sin(this.time * 5);
@@ -2963,25 +3560,27 @@ export class SceneRenderer {
           Math.abs(n.world.x - node.world.x) < 1e-4 &&
           Math.abs(n.world.y - node.world.y) < 1e-4 &&
           Math.abs(n.world.z - node.world.z) < 1e-4);
+        const hasSameSpotSibling = s.nodes.some(n =>
+          !n.anchor && n.id !== id && Math.hypot(n.x - node.x, n.y - node.y) < 4);
         const nameLayer = explicitHint || stackedLit || (this.nextStepHint?.tutorial && this.nextStepHint.goalId === id);
         const targetPal = this.palette(node.layer);
         const targetAccent = this.astralMode ? (targetPal.astralColor || targetPal.color) : targetPal.color;
-        const layerShiftY = (!onCurrentLayer && nameLayer) ? clamp((s.layer - node.layer) * 7, -14, 14) : 0;
+        const layerShiftY = (!onCurrentLayer && nameLayer && !hasSameSpotSibling) ? clamp((s.layer - node.layer) * 7, -14, 14) : 0;
         const badgeText = onCurrentLayer
           ? (isPrimary ? (stage === 1 ? '👆 ①' : `🎯 ${num}`) : num)
           : num;
         drawNodeBadge(
           id,
           node.x,
-          node.y - 76 - yOffset + layerShiftY,
+          node.y - 74 - yOffset + layerShiftY,
           badgeText,
           onCurrentLayer ? '#33230bee' : '#162532ee',
           onCurrentLayer ? '#fbbf24' : (nameLayer ? targetAccent : '#94a3b8'),
           onCurrentLayer ? '#fff7d6' : (nameLayer ? '#f8fafc' : '#cbd5e1'),
-          onCurrentLayer ? { borderWidth: isPrimary ? 2 : 1.5 } : { dashed: true, borderWidth: 2 }
+          onCurrentLayer ? { borderWidth: isPrimary ? 2 : 1.5, stackIdx } : { dashed: true, borderWidth: 2, stackIdx }
         );
       } else {
-        drawNodeBadge(id, node.x, node.y - 70 - yOffset, `🔒${num}`, '#18242ccc', '#64748b', '#cbd5e1', { borderWidth: 1.5 });
+        drawNodeBadge(id, node.x, node.y - 72 - yOffset, `🔒${num}`, '#18242ccc', '#64748b', '#cbd5e1', { borderWidth: 1.5, stackIdx });
       }
     });
 
@@ -3025,7 +3624,16 @@ export class SceneRenderer {
         const fa = this.node(edge.from), fb = this.node(edge.to);
         if (!fa || !fb) continue;
         const mx = mix(fa.x, fb.x, .5), my = mix(fa.y, fb.y, .5);
-        drawCompactBadge(mx, my - 22, '⇄', '#38250bdd', '#fbbf24', '#fff7d6');
+        drawCompactBadge(mx, my - 22, '⇄', '#38250bdd', '#fbbf24', '#fff7d6', {
+          id: `swap:${edge.id || `${edge.from}-${edge.to}`}`,
+          kind: 'swap',
+          priority: 50,
+          anchorWorld: { x: mx, y: my },
+          tetherWorld: { x: mx, y: my - 4 },
+          islandRxWorld: 30,
+          aboveOffsetWorld: 26,
+          belowOffsetWorld: 24,
+        });
       }
     }
 
@@ -3062,7 +3670,16 @@ export class SceneRenderer {
           ellipse(ctx, mx, my - 4, 22 + pulse * 6, 12 + pulse * 3, '#348d7025', '#45c4a0', 1.8);
           diamond(ctx, mx, my - 6, 7, '#fef3c7', '#f59e0b');
           ctx.restore();
-          drawCompactBadge(mx, my - 28, '🌺', '#162d26dd', '#45c4a0', '#d1fae5');
+          drawCompactBadge(mx, my - 28, '🌺', '#162d26dd', '#45c4a0', '#d1fae5', {
+            id: `flower:${s.resonance.edge.from}-${s.resonance.edge.to}`,
+            kind: 'flower',
+            priority: 50,
+            anchorWorld: { x: mx, y: my - 6 },
+            tetherWorld: { x: mx, y: my - 6 },
+            islandRxWorld: 28,
+            aboveOffsetWorld: 28,
+            belowOffsetWorld: 22,
+          });
         }
       }
     }
@@ -3115,7 +3732,16 @@ export class SceneRenderer {
           }
           diamond(ctx, 0, 0, 6 + pulse * 2, '#fffbeb', '#f59e0b');
           ctx.restore();
-          drawCompactBadge(item.x, item.y - 34, `✦+${item.bonus}`, '#3b2609f2', '#fbbf24', '#fffbeb');
+          drawCompactBadge(item.x, item.y - 34, `✦+${item.bonus}`, '#3b2609f2', '#fbbf24', '#fffbeb', {
+            id: `anomaly:${item.id}`,
+            kind: 'anomaly',
+            priority: 52,
+            anchorWorld: { x: item.x, y: item.y },
+            tetherWorld: { x: item.x, y: item.y - 8 },
+            islandRxWorld: 34,
+            aboveOffsetWorld: 34,
+            belowOffsetWorld: 26,
+          });
         } else {
           ctx.globalAlpha = (isHovered ? .82 : .55) + pulse * .22;
           ctx.setLineDash([4, 5]);
@@ -3128,7 +3754,16 @@ export class SceneRenderer {
           }
           diamond(ctx, 0, 0, 4.4, itemPalette.glow, itemColor);
           ctx.restore();
-          drawCompactBadge(item.x, item.y - 30, '◌', '#16222ecc', itemColor, '#e2e8f0');
+          drawCompactBadge(item.x, item.y - 30, '◌', '#16222ecc', itemColor, '#e2e8f0', {
+            id: `anomaly:${item.id}`,
+            kind: 'anomaly',
+            priority: 48,
+            anchorWorld: { x: item.x, y: item.y },
+            tetherWorld: { x: item.x, y: item.y - 6 },
+            islandRxWorld: 28,
+            aboveOffsetWorld: 30,
+            belowOffsetWorld: 24,
+          });
         }
       }
     }
@@ -3139,6 +3774,10 @@ export class SceneRenderer {
       ctx.save();
       ellipse(ctx, exitNode.x, exitNode.y, 82 + pulse * 10, 44 + pulse * 5, '#45c4a028', '#45c4a0', 3.2);
       ctx.restore();
+    }
+    this.flushBadges({ incremental: ownBadgePass && this._standalonePlacedPx.length > 0 });
+    } finally {
+      if (ownBadgePass) this._inRenderBadgePass = false;
     }
   }
 
@@ -3499,7 +4138,8 @@ export class SceneRenderer {
       diamond(ctx, 0, height + thickness + 14, 3.5, selected ? COLORS.gold : '#739d88');
     }
     ctx.restore();
-    if (!node.present) { ctx.restore(); return; }
+    ctx.restore();
+    if (!node.present) return;
     const isHovered = this.hover === node.id;
     const isTargetAnchor = Boolean(
       node.anchor &&
@@ -3524,39 +4164,53 @@ export class SceneRenderer {
     else if (node.anchor) name = anchorTitle;
     else if (node.id === 'vault' && !this.visualGuide) name = '✨';
     else if (node.id === 'rift' && !this.visualGuide) name = '🌌';
-    if (!name) { ctx.restore(); return; }
+    if (!name) return;
     const sScale = Math.max(.25, this.scale || 1);
     const labelSize = 12.5 / sScale;
     const labelHeight = labelSize + 8 / sScale;
     const padX = 7 / sScale;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = `${isTargetAnchor ? 700 : (isHovered || selected ? 600 : 500)} ${labelSize}px system-ui, -apple-system, sans-serif`;
-    const textWidth = ctx.measureText(name).width;
-    const loX = textWidth / 2 + padX + 4 - node.x;
-    const hiX = WORLD_W - textWidth / 2 - padX - 4 - node.x;
-    const labelX = clamp(0, Math.min(loX, hiX), Math.max(loX, hiX));
-    const labelY = Math.min((height + thickness) * section + 8 + labelHeight / 2, WORLD_H - node.y - labelHeight / 2 - 4);
-    ctx.fillStyle = isTargetAnchor
+    const naturalBelow = (height + thickness) * section + 8;
+    const naturalCy = Math.min(node.y + naturalBelow + labelHeight / 2, WORLD_H - labelHeight / 2 - 4);
+    const bgColor = isTargetAnchor
       ? (this.astralMode ? '#33230bee' : '#fffaf0ee')
       : (this.astralMode ? '#0c1925eb' : '#edf2e9dd');
-    this.labelZones?.push({ left: node.x + labelX - textWidth / 2 - padX, right: node.x + labelX + textWidth / 2 + padX, top: node.y + labelY - labelHeight / 2, bottom: node.y + labelY + labelHeight / 2 });
-    ctx.beginPath(); ctx.roundRect?.(labelX - textWidth / 2 - padX, labelY - labelHeight / 2, textWidth + padX * 2, labelHeight, 6 / sScale);
-    if (!ctx.roundRect) ctx.rect(labelX - textWidth / 2 - padX, labelY - labelHeight / 2, textWidth + padX * 2, labelHeight);
-    ctx.fill();
-    if (isTargetAnchor || this.astralMode || isHovered) {
-      ctx.strokeStyle = isTargetAnchor
+    const hasBorder = Boolean(isTargetAnchor || this.astralMode || isHovered);
+    const borderColor = hasBorder
+      ? (isTargetAnchor
         ? (this.astralMode ? '#fbbf24' : '#d89a2b')
-        : (selected || isHovered ? '#f0b85aa8' : '#2c5068b8');
-      ctx.lineWidth = (isTargetAnchor ? 1.8 : 1.2) / sScale;
-      ctx.stroke();
-    }
-    ctx.fillStyle = isTargetAnchor
+        : (selected || isHovered ? '#f0b85aa8' : '#2c5068b8'))
+      : null;
+    const textColor = isTargetAnchor
       ? (this.astralMode ? '#fff7d6' : '#6e450c')
       : (this.astralMode
         ? (selected || isHovered ? '#ffd982' : '#e8f6f2')
         : (selected || isHovered ? '#936125' : COLORS.ink));
-    ctx.fillText(name, labelX, labelY);
-    ctx.restore();
+    this.enqueueBadge({
+      id: `island:${node.id}`,
+      kind: exit ? 'exit' : (node.anchor ? 'anchor' : node.id),
+      nodeId: node.id,
+      isNodeHitBadge: true,
+      isTargetAnchor,
+      priority: isTargetAnchor ? 90 : (exit && !node.locked ? 88 : exit ? 72 : 60),
+      placement: 'below',
+      bob: false,
+      text: name,
+      font: `${isTargetAnchor ? 700 : (isHovered || selected ? 600 : 500)} ${labelSize}px system-ui, -apple-system, sans-serif`,
+      padXWorld: padX,
+      hWorld: labelHeight,
+      minWWorld: 24 / sScale,
+      radiusWorld: 6 / sScale,
+      anchorWorld: { x: node.x, y: node.y },
+      naturalWorld: { x: node.x, y: naturalCy },
+      tetherWorld: { x: node.x, y: node.y + Math.min(54, (height + thickness) * section * .82) },
+      islandRxWorld: width,
+      belowOffsetWorld: naturalBelow,
+      aboveOffsetWorld: exit ? 92 : 68,
+      bgColor,
+      borderColor,
+      borderWidthWorld: (isTargetAnchor ? 1.8 : 1.2) / sScale,
+      textColor,
+    });
   }
 
   drawCoilMark(x, y, radius, color) {
@@ -3659,10 +4313,25 @@ export class SceneRenderer {
     ctx.fillStyle = this.astralMode ? '#224257' : '#c5d6c2'; ctx.fill();
     ctx.strokeStyle = this.astralMode ? '#5596b0' : '#90aa94'; ctx.lineWidth = 1.5; ctx.stroke();
     line(ctx, 0, -56, 0, 8, this.astralMode ? '#9be8f5' : '#f9fff0', 2);
+    const ri = this.rulerInteraction;
+    const anchorCoupling = ri
+      ? clamp((ri.active ? .85 : 0) + (ri.scrubbing ? .15 : 0) + (this.reducedMotion ? 0 : (ri.pulse || 0) * .75), 0, 1)
+      : 0;
+    const focusRing = Number.isInteger(ri?.hoverLayer) ? ri.hoverLayer : (this.state?.layer ?? 0);
     for (let i = 0; i < 3; i++) {
       const ringColor = this.astralMode ? (this.palette(i).astralColor || this.palette(i).color) : this.palette(i).color;
-      ellipse(ctx, 0, -7 - i * 18, 27 - i * 3, 12, null, ringColor, i === this.state.layer ? 3 : 1.3);
-      diamond(ctx, 27 - i * 3, -7 - i * 18, 3.2, this.palette(i).glow, ringColor);
+      const isRulerRing = anchorCoupling > .05 && i === focusRing;
+      ellipse(
+        ctx,
+        0,
+        -7 - i * 18,
+        27 - i * 3,
+        12,
+        isRulerRing ? `${ringColor}28` : null,
+        ringColor,
+        (i === this.state.layer ? 3 : 1.3) + (isRulerRing ? 1.1 * anchorCoupling : 0)
+      );
+      diamond(ctx, 27 - i * 3, -7 - i * 18, isRulerRing ? 3.2 + 1.2 * anchorCoupling : 3.2, this.palette(i).glow, ringColor);
     }
     const topColor = this.astralMode ? (this.palette().astralColor || this.palette().color) : this.palette().color;
     diamond(ctx, 0, -65, 6, this.palette().glow, topColor);
@@ -3986,35 +4655,42 @@ export class SceneRenderer {
     const lampY = -74 - Math.max(0, 4 / sScale - 4);
     this.drawExitLampPips(mechTotal, litCount, lampY, allLit);
 
+    ctx.restore();
+
     // Compact icon-only glyph below the ghosted gate (layer shown by color + height, progress by 3 pips)
     const label = '🚪';
     const labelSize = 12.5 / sScale;
     const lh = labelSize + 8 / sScale;
     const padX = 7 / sScale;
-    ctx.font = `${isHovered || allLit ? 600 : 500} ${labelSize}px system-ui, -apple-system, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const tw = ctx.measureText(label).width;
-    const loX = tw / 2 + padX + 4 - node.x;
-    const hiX = WORLD_W - tw / 2 - padX - 4 - node.x;
-    const labelX = clamp(0, Math.min(loX, hiX), Math.max(loX, hiX));
-    const labelY = Math.min(36 + lh / 2, WORLD_H - node.y - layerOffset - lh / 2 - 4);
-    this.labelZones?.push({ left: node.x + labelX - tw / 2 - padX, right: node.x + labelX + tw / 2 + padX, top: node.y + layerOffset + labelY - lh / 2, bottom: node.y + layerOffset + labelY + lh / 2 });
-    ctx.globalAlpha = .94;
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(labelX - tw / 2 - padX, labelY - lh / 2, tw + padX * 2, lh, 6 / sScale);
-    else ctx.rect(labelX - tw / 2 - padX, labelY - lh / 2, tw + padX * 2, lh);
-    ctx.fillStyle = this.astralMode ? '#0c1925eb' : '#edf2e9e6';
-    ctx.fill();
-    ctx.strokeStyle = allLit ? '#45c4a0aa' : `${gateColor}99`;
-    ctx.lineWidth = 1.2 / sScale;
-    ctx.stroke();
-    ctx.fillStyle = allLit
-      ? (this.astralMode ? '#a7f3d0' : '#166534')
-      : (this.astralMode ? '#d8f3ee' : COLORS.ink);
-    ctx.fillText(label, labelX, labelY);
-
-    ctx.restore();
+    const naturalCy = Math.min(node.y + layerOffset + 36 + lh / 2, WORLD_H - lh / 2 - 4);
+    this.enqueueBadge({
+      id: `exit-sil:${node.id}`,
+      kind: 'exit',
+      nodeId: node.id,
+      isNodeHitBadge: true,
+      priority: allLit ? 88 : 72,
+      placement: 'below',
+      bob: false,
+      alpha: .94,
+      text: label,
+      font: `${isHovered || allLit ? 600 : 500} ${labelSize}px system-ui, -apple-system, sans-serif`,
+      padXWorld: padX,
+      hWorld: lh,
+      minWWorld: 24 / sScale,
+      radiusWorld: 6 / sScale,
+      anchorWorld: { x: node.x, y: node.y + layerOffset },
+      naturalWorld: { x: node.x, y: naturalCy },
+      tetherWorld: { x: node.x, y: node.y + layerOffset + 30 },
+      islandRxWorld: 72,
+      belowOffsetWorld: 36,
+      aboveOffsetWorld: 88,
+      bgColor: this.astralMode ? '#0c1925eb' : '#edf2e9e6',
+      borderColor: allLit ? '#45c4a0aa' : `${gateColor}99`,
+      borderWidthWorld: 1.2 / sScale,
+      textColor: allLit
+        ? (this.astralMode ? '#a7f3d0' : '#166534')
+        : (this.astralMode ? '#d8f3ee' : COLORS.ink),
+    });
   }
 
   playerPosition() {
