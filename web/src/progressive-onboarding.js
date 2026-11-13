@@ -348,23 +348,29 @@ export function describeNextStep(state, options = {}) {
     ? `${sym}和${twinSym}叠在同一位置的不同层，换层后${sym}才会出现。`
     : '';
   const goalReachableInCurrentLayer = !plan.shift && Boolean(goal && !goal.anchor && goal.layer === state.layer);
+  const firstShiftIdx = plan.steps.findIndex(s => s.type === 'shift');
+  const afterFirstShift = firstShiftIdx >= 0 ? plan.steps.slice(firstShiftIdx + 1) : [];
+  const goalReachableAfterFirstShift = firstShiftIdx >= 0 && !afterFirstShift.some(s => s.type === 'shift');
+  const singleBridgeAfterFirstShift = goalReachableAfterFirstShift
+    && afterFirstShift.length === 1
+    && afterFirstShift[0]?.type === 'move'
+    && afterFirstShift[0]?.to === goalId;
 
   const onShiftAnchor = plan.shift && plan.shift.at === state.node;
   if (plan.walk.length && !onShiftAnchor) {
     const step = plan.walk[0];
     const dest = byId(step.to);
-    const goalVerb = sym === '🚪' ? '去🚪' : `点${sym}`;
     const arriveLayer = step.toLayer ?? state.layer;
     const rampMeta = step.ramp ? { toLayer: arriveLayer, ramp: true } : {};
     if (sameLayerUnusable(state, dest)) {
-      if (goalReachableInCurrentLayer) return sliceRecover(state, sym, goalId);
+      if (goalReachableInCurrentLayer && step.to === goalId) return sliceRecover(state, sym, goalId);
       if (dest && !dest.anchor) {
         const key = STEP_LAYER_KEYS[state.layer] || 'Z';
         return {
           goalId,
           action: 'recover',
-          banner: `按${key}回中心${goalVerb}`,
-          detail: `切片偏了，先按 ${key} 或点右侧 W 尺本层刻度回到层中心，再前往换层点位${sym === '🚪' ? '走向🚪' : `点亮${sym}`}。${stackNote}`,
+          banner: `按${key}回中心`,
+          detail: `切片偏了，先按 ${key} 或点右侧 W 尺本层刻度回到层中心，再继续前往${sym}。${stackNote}`,
           targetId: step.to,
           layer: state.layer,
         };
@@ -376,33 +382,71 @@ export function describeNextStep(state, options = {}) {
       const which = hereName && hereName !== place ? `脚下是${hereName}，要去${place}。` : `要去的是${place}。`;
       const anchorShort = anchorShortName(dest);
       if (step.ramp) {
+        const arriveMark = roman(arriveLayer);
+        const shiftMark = plan.shift ? roman(plan.shift.layer) : '';
+        const afterRampDetail = plan.shift?.at === dest.id
+          ? (coarsePointer
+            ? `到站后再点右侧 W 尺${shiftMark}珠换层继续前往${sym}。${stackNote}`
+            : `到站后再换到${shiftMark}层继续前往${sym}。${stackNote}`)
+          : `到站后再继续前往${sym}。${stackNote}`;
         return {
-          goalId, action: 'move', banner: `沿斜桥回${anchorShort}${goalVerb}`,
-          detail: `沿脚下的斜桥走回${place}（边走边滑回${roman(arriveLayer)}层），再前往${sym}。${stackNote}`,
+          goalId, action: 'move', banner: `沿斜桥回${anchorShort}`,
+          detail: `沿脚下的斜桥走回${place}（边走边滑回${arriveMark}层），${afterRampDetail}`,
           targetId: step.to, layer: arriveLayer, ...rampMeta,
         };
       }
       if (!plan.shift && plan.walk.some(s => s.ramp)) {
+        const rampAtDest = Boolean(plan.walk[1]?.ramp && plan.walk[0]?.to === dest.id);
         return {
-          goalId, action: 'move', banner: `去${anchorShort}走斜桥${goalVerb}`,
-          detail: `${which}到了${place}就能走上斜桥前往${sym}。`,
+          goalId, action: 'move',
+          banner: rampAtDest ? `去${anchorShort}走斜桥` : `先去${anchorShort}`,
+          detail: rampAtDest
+            ? `${which}先走到${place}，再从那里走上斜桥前往${sym}。`
+            : `${which}先走到${place}，到站后再继续前往${sym}。`,
           targetId: step.to, layer: arriveLayer, ...rampMeta,
         };
       }
       if (plan.shift) {
+        if (plan.shift.at !== dest.id) {
+          return {
+            goalId, action: 'move', banner: `先去${anchorShort}`,
+            detail: `${which}先走到${place}，到站后再继续前往${sym}。${stackNote}`,
+            targetId: step.to, layer: arriveLayer, ...rampMeta,
+          };
+        }
         const shiftMark = roman(plan.shift.layer);
+        const afterShiftOutcome = singleBridgeAfterFirstShift
+          ? `通往${sym}的桥才会出现`
+          : (goalReachableAfterFirstShift ? `通往${sym}的路才会接通` : `再继续前往${sym}`);
         return {
-          goalId, action: 'move', banner: `去${anchorShort}换层${goalVerb}`,
+          goalId, action: 'move', banner: `去${anchorShort}换层`,
           detail: coarsePointer
-            ? `${which}到了${place}再点右侧 W 尺${shiftMark}珠换层，通往${sym}的桥才会出现。${stackNote}`
-            : `${which}到了${place}再用右侧 W 尺（或滚轮）换层，通往${sym}的桥才会出现。${stackNote}`,
+            ? `${which}到了${place}再点右侧 W 尺${shiftMark}珠换到${shiftMark}层，${afterShiftOutcome}。${stackNote}`
+            : `${which}到了${place}再用右侧 W 尺（或滚轮）换到${shiftMark}层，${afterShiftOutcome}。${stackNote}`,
           targetId: step.to, layer: plan.shift.layer, ...rampMeta,
         };
       }
       return {
-        goalId, action: 'move', banner: `先到${anchorShort}再${goalVerb}`,
-        detail: `${which}先走到${place}，再前往${sym}。`,
+        goalId, action: 'move', banner: `先到${anchorShort}`,
+        detail: `${which}先走到${place}，到站后再继续前往${sym}。`,
         targetId: step.to, layer: arriveLayer, ...rampMeta,
+      };
+    }
+    if (step.to !== goalId) {
+      const via = stepBadge(state, step.to) || '①';
+      const shiftHere = plan.shift?.at === step.to;
+      const directTwin = shiftHere && plan.shifts === 1 && plan.shift.to === goalId && afterFirstShift.length === 0;
+      return {
+        goalId, action: 'move',
+        banner: shiftHere && !step.ramp ? `先到${via}换层` : `先到${via}`,
+        detail: shiftHere
+          ? (directTwin
+            ? `先走到${via}，到站后再换层，${sym}才会出现。${stackNote}`
+            : `先走到${via}，到站后再换层继续前往${sym}。${stackNote}`)
+          : `先走到${via}，到站后再继续前往${sym}。`,
+        targetId: step.to,
+        layer: shiftHere ? plan.shift.layer : arriveLayer,
+        ...rampMeta,
       };
     }
     if (step.ramp) {
@@ -411,14 +455,6 @@ export function describeNextStep(state, options = {}) {
         banner: goalId === 'exit' ? '走上斜桥去🚪' : `走上斜桥点亮${sym}`,
         detail: `斜桥一头连着脚下、一头通往${roman(arriveLayer)}层的${sym}；走上去边走边滑入目标层。`,
         targetId: step.to, layer: arriveLayer, ...rampMeta,
-      };
-    }
-    if (step.to !== goalId && activated.has(step.to)) {
-      const via = stepBadge(state, step.to) || '①';
-      return {
-        goalId, action: 'move', banner: `到${via}换层点${sym}`,
-        detail: `先走到${via}，再换层，${sym}才会出现。${stackNote}`,
-        targetId: step.to, layer: plan.shift?.layer ?? state.layer,
       };
     }
     return {
@@ -433,18 +469,28 @@ export function describeNextStep(state, options = {}) {
     const arrow = dir(layer);
     const mark = roman(layer);
     if (plan.shift.kind === 'recover') {
-      const goalVerb = sym === '🚪' ? '去🚪' : `点${sym}`;
       return {
         goalId, action: 'shift',
-        banner: coarsePointer ? `点${mark}站稳${goalVerb}` : `${arrow}回${mark}站稳${goalVerb}`,
+        banner: coarsePointer ? `点${mark}回层站稳` : `${arrow}回${mark}站稳`,
         detail: coarsePointer
-          ? `脚下平台只在${mark}层存在。先点右侧 W 尺${mark}珠回${mark}层站稳，再继续换层前往${sym}。${stackNote}`
-          : `脚下平台只在${mark}层存在。先${arrow}回${mark}层站稳，再继续换层前往${sym}。${stackNote}`,
+          ? `脚下平台只在${mark}层存在。先点右侧 W 尺${mark}珠回${mark}层站稳，再继续前往${sym}。${stackNote}`
+          : `脚下平台只在${mark}层存在。先${arrow}回${mark}层站稳，再继续前往${sym}。${stackNote}`,
         targetId: state.node, layer,
       };
     }
     if (plan.shift.kind === 'same_xyz') {
       const fromSym = stepBadge(state, plan.shift.at) || twinSym || '①';
+      const directSameXyzGoal = plan.shift.to === goalId && afterFirstShift.length === 0;
+      if (!directSameXyzGoal) {
+        return {
+          goalId, action: 'shift',
+          banner: coarsePointer ? `站${fromSym}点${mark}换层` : `站${fromSym}${arrow}到${mark}`,
+          detail: coarsePointer
+            ? `站在${fromSym}先点右侧 W 尺${mark}珠切到${mark}层过渡，再继续前往${sym}。`
+            : `站在${fromSym}先${arrow}到${mark}层过渡，再继续前往${sym}。`,
+          targetId: plan.shift.at, layer,
+        };
+      }
       return {
         goalId, action: 'shift',
         banner: coarsePointer ? `站${fromSym}点${mark}显现${sym}` : `站${fromSym}${arrow}显现${sym}`,
@@ -454,19 +500,36 @@ export function describeNextStep(state, options = {}) {
         targetId: plan.shift.at, layer,
       };
     }
+    if (!goalReachableAfterFirstShift) {
+      const nextHop = byId(afterFirstShift[0]?.to);
+      const nextPlace = nextHop?.anchor ? anchorHintName(nextHop) : (stepBadge(state, nextHop?.id) || '下一站');
+      return {
+        goalId, action: 'shift',
+        banner: coarsePointer ? `点${mark}换层` : `${arrow}到${mark}层`,
+        detail: coarsePointer
+          ? (here?.anchor
+            ? `就在${anchorHintName(here)}，先点右侧 W 尺${mark}珠换到${mark}层，接通前往${nextPlace}的桥，再继续前往${sym}。${stackNote}`
+            : `在⚓台先点右侧 W 尺${mark}珠换到${mark}层，接通前往${nextPlace}的桥，再继续前往${sym}。${stackNote}`)
+          : (here?.anchor
+            ? `就在${anchorHintName(here)}，先用右侧 W 尺点${mark}（或${arrow}）换到${mark}层，接通前往${nextPlace}的桥，再继续前往${sym}。${stackNote}`
+            : `在⚓台先用右侧 W 尺点${mark}（或${arrow}）换到${mark}层，接通前往${nextPlace}的桥，再继续前往${sym}。${stackNote}`),
+        targetId: state.node, layer,
+      };
+    }
     const shiftBanner = coarsePointer
       ? (sym === '🚪' ? `点${mark}去🚪` : `点${mark}点亮${sym}`)
       : (sym === '🚪' ? `${arrow}到${mark}去🚪` : `${arrow}到${mark}点亮${sym}`);
+    const connectedCopy = singleBridgeAfterFirstShift ? `通往${sym}的桥会显形` : `通往${sym}的路会接通`;
     return {
       goalId, action: 'shift',
       banner: shiftBanner,
       detail: coarsePointer
         ? (here?.anchor
-          ? `就在${anchorHintName(here)}，点右侧 W 尺${mark}珠，通往${sym}的桥会显形。${stackNote}`
-          : `在⚓台点右侧 W 尺${mark}珠，通往${sym}的桥会显形。${stackNote}`)
+          ? `就在${anchorHintName(here)}，点右侧 W 尺${mark}珠，${connectedCopy}。${stackNote}`
+          : `在⚓台点右侧 W 尺${mark}珠，${connectedCopy}。${stackNote}`)
         : (here?.anchor
-          ? `就在${anchorHintName(here)}，用右侧 W 尺点${mark}（或${arrow}），通往${sym}的桥会显形。${stackNote}`
-          : `在⚓台用右侧 W 尺点${mark}（或${arrow}），通往${sym}的桥会显形。${stackNote}`),
+          ? `就在${anchorHintName(here)}，用右侧 W 尺点${mark}（或${arrow}），${connectedCopy}。${stackNote}`
+          : `在⚓台用右侧 W 尺点${mark}（或${arrow}），${connectedCopy}。${stackNote}`),
       targetId: state.node, layer,
     };
   }

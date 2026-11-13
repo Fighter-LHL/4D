@@ -211,10 +211,20 @@ async function clearByHints(page, vp, { shot = false, tap = false, expectedRoom 
     if (hint.goal && hint.goal !== 'exit') {
       assert.ok(!g.state.activated.includes(hint.goal), `${vpKey} room ${expectedRoom} turn ${turn}: hint targets lit ${hint.goal}`);
       const badge = BADGES[g.state.mechanismOrder.indexOf(hint.goal)];
-      assert.ok(hint.title.includes(badge), `${vpKey} room ${expectedRoom} turn ${turn}: "${hint.title}" does not name ${badge}`);
+      if (hint.target === hint.goal && hint.action !== 'shift') {
+        assert.ok(hint.title.includes(badge), `${vpKey} room ${expectedRoom} turn ${turn}: direct "${hint.title}" must name ${badge}`);
+      } else if (hint.target !== hint.goal && (hint.action === 'move' || hint.action === 'recover')) {
+        assert.ok(!hint.title.includes(badge), `${vpKey} room ${expectedRoom} turn ${turn}: waypoint "${hint.title}" must not over-promise ${badge}`);
+        assert.ok(hint.desc.includes(badge), `${vpKey} room ${expectedRoom} turn ${turn}: detail "${hint.desc}" preserves goal ${badge}`);
+      }
     }
     if (hint.goal === 'exit') {
-      assert.ok(hint.title.includes('🚪') || hint.title.includes('出口'), `${vpKey} room ${expectedRoom} turn ${turn}: exit hint missing ("${hint.title}")`);
+      if (hint.target === 'exit') {
+        assert.ok(hint.title.includes('🚪') || hint.title.includes('出口'), `${vpKey} room ${expectedRoom} turn ${turn}: direct exit hint missing ("${hint.title}")`);
+      } else if (hint.action === 'move' || hint.action === 'recover') {
+        assert.ok(!hint.title.includes('🚪'), `${vpKey} room ${expectedRoom} turn ${turn}: waypoint "${hint.title}" must not promise 🚪`);
+        assert.ok(hint.desc.includes('🚪') || hint.desc.includes('出口'), `${vpKey} room ${expectedRoom} turn ${turn}: detail "${hint.desc}" preserves exit goal`);
+      }
     }
     if (hint.action === 'move') {
       const target = g.state.nodes.find(node => node.id === hint.target);
@@ -223,15 +233,18 @@ async function clearByHints(page, vp, { shot = false, tap = false, expectedRoom 
       }
     }
     if (expectedRoom === 0 && g.state.activated.length === 2 && hint.goal === 'bell') {
-      assert.ok(hint.title.includes('③'), `${vpKey}: 2/3 hint must name ③ ("${hint.title}")`);
       assert.ok(!/点亮全部/.test(hint.title), `${vpKey}: 2/3 hint is still the generic stage line ("${hint.title}")`);
       if (hint.action === 'shift') {
+        assert.ok(hint.title.includes('③'), `${vpKey}: 2/3 direct shift hint must name ③ ("${hint.title}")`);
         if (vp.hasTouch) {
           assert.ok(/点[ⅠⅡⅢ]/.test(hint.title), `${vpKey}: 2/3 touch shift hint names target layer bead ("${hint.title}")`);
         } else {
           assert.ok(/上滚|下滚/.test(hint.title), `${vpKey}: 2/3 shift hint names a direction ("${hint.title}")`);
         }
         assert.equal(hint.desc.includes('同一位置'), true, `${vpKey}: 2/3 explanation says ③ shares a position`);
+      } else if (hint.action === 'move' && hint.target !== 'bell') {
+        assert.ok(!hint.title.includes('③') && hint.desc.includes('③'),
+          `${vpKey}: 2/3 waypoint move "${hint.title}" stays single-step while desc names ③`);
       }
       if (shot && g.state.node === 'hub' && hint.action === 'shift') {
         await page.screenshot({ path: path.join(OUT, `${vpKey}-after-2of3-hint.png`) });
@@ -413,7 +426,7 @@ try {
       assert.ok(onRelay.title.includes('归响'), `${vpKey}: hint distinguishes 归响, got "${onRelay.title}"`);
       assert.match(onRelay.desc, /归响台/);
       assert.ok(!onRelay.title.includes('先回⚓台'), onRelay.title);
-      assert.ok(onRelay.title.includes('②'), onRelay.title);
+      assert.ok(!onRelay.title.includes('②') && onRelay.desc.includes('②'), onRelay.title);
       await clickNode(page, 'hub');
       await page.waitForFunction(() => window.__g().state.node === 'hub' && !window.__g().state.travel && !window.__g().autoPilot, null, { timeout: 15000 });
       const onHub = await hintOf(page);
@@ -464,7 +477,8 @@ try {
       assert.notEqual(driftedHint.action, 'recover', `${vpKey}: must not emit recover for off-layer ② ("${driftedHint.title}")`);
       assert.doesNotMatch(driftedHint.title, /回中心见②/, `${vpKey}: title must not say 回中心见② ("${driftedHint.title}")`);
       assert.doesNotMatch(driftedHint.desc, /②还在这一层|还在这一层/, `${vpKey}: desc must not claim ②还在这一层 ("${driftedHint.desc}")`);
-      assert.ok(driftedHint.title.includes('②'), `${vpKey}: hint still names ② ("${driftedHint.title}")`);
+      assert.ok(!driftedHint.title.includes('②') && driftedHint.desc.includes('②'),
+        `${vpKey}: waypoint hint stays single-step ("${driftedHint.title}") while desc names ②`);
       assert.ok(driftedHint.title.length <= 20, `${vpKey}: banner <= 20 chars ("${driftedHint.title}")`);
       receipt.checks.push({
         viewport: vpKey,

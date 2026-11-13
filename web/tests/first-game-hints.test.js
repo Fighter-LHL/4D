@@ -10,6 +10,7 @@ import {
   planLayerRoute,
   clampIntroductoryW,
 } from '../src/progressive-onboarding.js';
+import { GameModel } from '../src/model.js';
 import { SceneRenderer } from '../src/scene.js';
 import { start, reach, advance } from './model-helpers.js';
 
@@ -18,6 +19,43 @@ const badgeOf = (state, id) => {
   const index = state.mechanismOrder.indexOf(id);
   return ['①', '②', '③', '④'][index];
 };
+
+function assertSingleStepHonest(state, step, label = '') {
+  const prefix = label ? `${label}: ` : '';
+  const goalBadge = badgeOf(state, step.goalId);
+  assert.ok(step.banner && step.banner.length <= 10,
+    `${prefix}banner must be 1..10 chars, got "${step.banner}" (${step.banner?.length})`);
+  assert.doesNotMatch(step.banner, /再点|再去/,
+    `${prefix}banner must never chain two actions ("${step.banner}")`);
+  if (step.targetId !== step.goalId) {
+    if (step.action === 'move' || step.action === 'recover') {
+      assert.ok(!step.banner.includes(goalBadge),
+        `${prefix}waypoint ${step.action} to ${step.targetId} must not promise ${goalBadge} in banner "${step.banner}"`);
+      assert.doesNotMatch(step.banner, /点亮|过关|去🚪|点[①②③④]/,
+        `${prefix}waypoint ${step.action} must only state current step: "${step.banner}"`);
+      assert.ok(step.detail.includes(goalBadge),
+        `${prefix}detail should still preserve overall goal context ${goalBadge}: "${step.detail}"`);
+    } else if (step.action === 'shift') {
+      const plan = planLayerRoute(state, step.goalId);
+      const firstShiftIdx = plan ? plan.steps.findIndex(s => s.type === 'shift') : -1;
+      const afterFirstShift = firstShiftIdx >= 0 ? plan.steps.slice(firstShiftIdx + 1) : [];
+      const directSameXyz = plan?.shift?.kind === 'same_xyz' && plan.shift.to === step.goalId && afterFirstShift.length === 0;
+      const directAnchorWalk = plan?.shift?.kind === 'anchor' && firstShiftIdx >= 0 && !afterFirstShift.some(s => s.type === 'shift');
+      if (!directSameXyz && !directAnchorWalk) {
+        assert.ok(!step.banner.includes(goalBadge),
+          `${prefix}indirect shift on ${state.node} must not promise ${goalBadge} in banner "${step.banner}"`);
+        assert.doesNotMatch(step.banner, /点亮|显现|去🚪|点[①②③④]/,
+          `${prefix}indirect shift must not over-promise immediate goal action: "${step.banner}"`);
+      } else {
+        assert.ok(step.banner.includes(goalBadge),
+          `${prefix}direct shift "${step.banner}" names ${goalBadge}`);
+      }
+    }
+  } else if (step.action !== 'shift') {
+    assert.ok(step.banner.includes(goalBadge),
+      `${prefix}direct step "${step.banner}" names ${goalBadge}`);
+  }
+}
 
 function light(model, id) {
   reach(model, id);
@@ -35,9 +73,8 @@ test('seed 2 next-step hint stays non-empty and never aims at a lit mechanism', 
     const step = describeNextStep(state);
     seen.push({ label, step, node: state.node, layer: state.layer, activated: [...state.activated] });
     assert.ok(step.banner, `${label} hint is empty`);
-    assert.ok(step.banner.length <= 20, `${label} banner longer than 20: ${step.banner} (${step.banner.length})`);
     assert.equal(step.goalId === 'exit' || !state.activated.includes(step.goalId), true, `${label} goal ${step.goalId} is already lit`);
-    assert.ok(step.banner.includes(badgeOf(state, step.goalId)), `${label} banner "${step.banner}" does not name ${step.goalId}`);
+    assertSingleStepHonest(state, step, label);
     if (step.action === 'move' && state.activated.includes(step.targetId)) {
       assert.fail(`${label} tells the player to walk to already-lit ${step.targetId}: ${step.banner}`);
     }
@@ -50,7 +87,7 @@ test('seed 2 next-step hint stays non-empty and never aims at a lit mechanism', 
   light(model, 'dew');
   record('1/3 on dew');
   assert.equal(describeNextStep(model.snapshot()).goalId, 'bloom');
-  assert.equal(describeNextStep(model.snapshot()).banner, '去归响走斜桥点②');
+  assert.equal(describeNextStep(model.snapshot()).banner, '去归响走斜桥');
   reach(model, 'hub');
   record('1/3 at hub');
   const bloomLayer = model.snapshot().nodes.find(n => n.id === 'bloom').layer;
@@ -65,7 +102,7 @@ test('seed 2 next-step hint stays non-empty and never aims at a lit mechanism', 
   light(model, 'bloom');
   record('2/3 on bloom');
   assert.equal(describeNextStep(model.snapshot()).goalId, 'bell');
-  assert.equal(describeNextStep(model.snapshot()).banner, '沿斜桥回归响点③');
+  assert.equal(describeNextStep(model.snapshot()).banner, '沿斜桥回归响');
   reach(model, 'hub');
   record('2/3 at hub on bloom layer');
 
@@ -104,9 +141,10 @@ test('seed 2 next-step hint stays non-empty and never aims at a lit mechanism', 
   assert.equal(onDew.targetId, 'hub');
   assert.equal(onDew.goalId, 'bell');
   assert.equal(onDew.layer, bell.layer);
-  assert.equal(onDew.banner, '去归响换层点③');
+  assert.equal(onDew.banner, '去归响换层');
   assert.match(onDew.detail, /同一位置/);
-  assert.match(onDew.banner, /③/);
+  assert.doesNotMatch(onDew.banner, /③/);
+  assert.match(onDew.detail, /③/);
 
   light(model, 'bell');
   record('3/3');
@@ -190,18 +228,21 @@ test('planLayerRoute still walks to the anchor that actually holds the bridge', 
   const model = start('shell', 7);
   const [first, second, third] = model.snapshot().mechanismOrder;
   light(model, first);
+  // On dew in return room, the W-ramp starts at relay (2 hops away via hub), so hub is an intermediate hop
+  assert.equal(describeNextStep(model.snapshot()).banner, '先去归响');
   reach(model, 'hub');
   const rampPlan = planLayerRoute(model.snapshot(), second);
   assert.deepEqual(rampPlan.walk.map(s => s.to), ['relay', 'bell'], 'walks via relay onto the W-ramp to ②');
   assert.equal(rampPlan.walk[1].ramp, true);
   assert.equal(rampPlan.shift, null);
-  assert.equal(describeNextStep(model.snapshot()).banner, '去维度走斜桥点②');
+  assert.equal(describeNextStep(model.snapshot()).banner, '去维度走斜桥');
 
   light(model, second);
   reach(model, 'hub');
   const plan = planLayerRoute(model.snapshot(), third);
   assert.ok(plan.walk.length > 0, 'walks on the current layer before switching at the wrong anchor');
   assert.equal(plan.shift.at, 'relay');
+  assert.equal(describeNextStep(model.snapshot()).banner, '去维度换层');
 });
 
 test('drifting W after lighting ① never claims an off-layer ② is still on the current layer', () => {
@@ -209,7 +250,7 @@ test('drifting W after lighting ① never claims an off-layer ② is still on th
   light(model, 'dew');
   const baseline = describeNextStep(model.snapshot());
   assert.equal(baseline.goalId, 'bloom');
-  assert.equal(baseline.banner, '去归响走斜桥点②');
+  assert.equal(baseline.banner, '去归响走斜桥');
 
   for (const driftedW of [0.93, 0.99, 1.0, 0.70]) {
     model.setW(driftedW);
@@ -223,17 +264,17 @@ test('drifting W after lighting ① never claims an off-layer ② is still on th
     assert.notEqual(step.action, 'recover', `w=${driftedW} must not emit same-layer recover for off-layer ②: ${step.banner}`);
     assert.doesNotMatch(step.banner, /回中心见②/);
     assert.doesNotMatch(step.detail, /还在这一层/);
-    assert.equal(step.banner, '去归响走斜桥点②');
+    assert.equal(step.banner, '去归响走斜桥');
     assert.equal(step.targetId, 'hub');
     assert.equal(step.layer, state.layer);
-    assert.ok(step.banner.length <= 20, step.banner);
+    assertSingleStepHonest(state, step, `seed 2 w=${driftedW}`);
     assert.ok(!step.banner.includes('①'), step.banner);
   }
 
   const centerW = model.snapshot().layers[model.snapshot().layer].center;
   model.setW(centerW);
   const centered = describeNextStep(model.snapshot());
-  assert.equal(centered.banner, '去归响走斜桥点②');
+  assert.equal(centered.banner, '去归响走斜桥');
   assert.equal(centered.action, 'move');
   assert.equal(centered.targetId, 'hub');
 
@@ -261,7 +302,7 @@ test('seed 5 drifting W after lighting ① never claims an off-layer goal is on 
   light(model, first);
   const originW = model.snapshot().w;
   assert.equal(model.snapshot().layer, 0);
-  assert.equal(describeNextStep(model.snapshot()).banner, '去归响走斜桥点②');
+  assert.equal(describeNextStep(model.snapshot()).banner, '去归响走斜桥');
 
   for (const driftedW of [0, 0.01, 0.07, 0.30, 0.339, 0.35, 0.70, 0.93, 1.0]) {
     model.setW(originW);
@@ -269,24 +310,22 @@ test('seed 5 drifting W after lighting ① never claims an off-layer goal is on 
     const state = model.snapshot();
     const step = describeNextStep(state);
     const goal = state.nodes.find(node => node.id === step.goalId);
-    const sym = badgeOf(state, step.goalId);
-    assert.ok(step.banner && step.banner.length <= 20, `w=${driftedW}: ${step.banner}`);
     assert.equal(state.activated.includes(step.goalId), false);
-    assert.ok(step.banner.includes(sym), `w=${driftedW}: "${step.banner}" names ${sym}`);
+    assertSingleStepHonest(state, step, `seed 5 w=${driftedW}`);
     if (goal.layer !== state.layer) {
       assert.doesNotMatch(step.banner, /回中心见/, `w=${driftedW}: off-layer goal claimed at center (${step.banner})`);
       assert.doesNotMatch(step.detail, /还在这一层/, `w=${driftedW}: off-layer goal claimed on current layer (${step.detail})`);
     }
     if (driftedW < 0.34) {
       assert.equal(state.layer, 0);
-      assert.equal(step.banner, '去归响走斜桥点②');
+      assert.equal(step.banner, '去归响走斜桥');
       assert.equal(step.action, 'move');
       assert.equal(step.targetId, 'hub');
     }
   }
 
   model.setW(originW);
-  assert.equal(describeNextStep(model.snapshot()).banner, '去归响走斜桥点②');
+  assert.equal(describeNextStep(model.snapshot()).banner, '去归响走斜桥');
 });
 
 test('seed 4097396765 mobile canvas tap on ③ (bloom) selects bloom instead of hitting WStack layer 0', () => {
@@ -401,16 +440,12 @@ function followHintsFromAfterFirstLight(model, { discreteShift = false, maxSteps
     const state = model.snapshot();
     if (state.phase === 'interlude' || state.room >= 1) break;
     const hint = describeNextStep(state);
-    assert.ok(hint.banner && hint.banner.length <= 20, `step ${stepIdx} invalid banner: "${hint.banner}"`);
     assert.equal(
       hint.goalId === 'exit' || !state.activated.includes(hint.goalId),
       true,
       `step ${stepIdx} targets already-lit ${hint.goalId}: "${hint.banner}"`,
     );
-    assert.ok(
-      hint.banner.includes(badgeOf(state, hint.goalId)),
-      `step ${stepIdx} "${hint.banner}" must name ${badgeOf(state, hint.goalId)}`,
-    );
+    assertSingleStepHonest(state, hint, `step ${stepIdx}`);
 
     const sig = `${state.node}@${state.layer}|${state.activated.join(',')}|${hint.action}:${hint.banner}`;
     if (visited.length >= 2) {
@@ -498,7 +533,7 @@ test('seeds 42, 90210, 2026111 route via anchor instead of void same_xyz on dew 
     assert.equal(nextHint.action, 'move', `seed ${seed}: standing on dew moves to anchor, got ${nextHint.banner}`);
     assert.equal(nextHint.targetId, 'hub');
     assert.equal(nextHint.goalId, 'bell');
-    assert.equal(nextHint.banner, '去归响走斜桥点②');
+    assert.equal(nextHint.banner, '去归响走斜桥');
     assert.doesNotMatch(nextHint.banner, /显现②/);
 
     // If the player is already stranded on the unsupported middle layer, recover returns to dew's layer,
@@ -511,12 +546,12 @@ test('seeds 42, 90210, 2026111 route via anchor instead of void same_xyz on dew 
     const recoverHint = describeNextStep(stranded);
     assert.equal(recoverHint.action, 'shift');
     assert.equal(recoverHint.layer, dew.layer);
-    assert.match(recoverHint.banner, /回Ⅲ站稳/);
+    assert.equal(recoverHint.banner, '上滚回Ⅲ站稳');
     model.setW(stranded.layers[recoverHint.layer].center);
     const stabilizedHint = describeNextStep(model.snapshot());
     assert.equal(stabilizedHint.action, 'move');
     assert.equal(stabilizedHint.targetId, 'hub');
-    assert.equal(stabilizedHint.banner, '去归响走斜桥点②');
+    assert.equal(stabilizedHint.banner, '去归响走斜桥');
 
     // Repeatedly executing describeNextStep clears ② within <= 30 steps, then ③ and exit (both setW and 1-layer steps).
     const directRun = followHintsFromAfterFirstLight(model, { discreteShift: false, maxStepsToSecond: 30 });
@@ -548,7 +583,7 @@ test('adjacent completable same_xyz seeds keep in-place transfer and all establi
     const hint = describeNextStep(atDew);
     assert.equal(hint.action, 'move');
     assert.equal(hint.targetId, 'hub');
-    assert.equal(hint.banner, '去归响走斜桥点②');
+    assert.equal(hint.banner, '去归响走斜桥');
 
     model.setW(atDew.layers[bell.layer].center);
     const transferred = model.snapshot();
@@ -603,12 +638,9 @@ test('following describeNextStep clears all 3 courtyards (rooms 0, 1, 2) to won 
         }
         const stageInfo = onboarding.computeStage(state, 0);
         const hint = describeNextStep(state);
-        assert.ok(hint.banner && hint.banner.length <= 20,
-          `seed ${seed} room ${expectedRoom} step ${stepIdx}: valid banner "${hint.banner}"`);
         assert.notEqual(hint.banner, stageInfo.title,
           `seed ${seed} room ${expectedRoom} step ${stepIdx}: hint must be concrete next step, not stage summary "${stageInfo.title}"`);
-        assert.ok(hint.banner.includes(badgeOf(state, hint.goalId)),
-          `seed ${seed} room ${expectedRoom} step ${stepIdx}: "${hint.banner}" names ${badgeOf(state, hint.goalId)}`);
+        assertSingleStepHonest(state, hint, `seed ${seed} room ${expectedRoom} step ${stepIdx}`);
         if (expectedRoom === 1 && stageInfo.stage === 4) sawStage4HintInRoom1 = true;
         if (expectedRoom === 2) {
           assert.equal(stageInfo.stage, 4, `seed ${seed} room 2 is at stage 4 from entry`);
@@ -669,14 +701,14 @@ test('touch / coarsePointer hints replace wheel copy across shift, same_xyz, and
   reach(mShift, 'dew');
   const walkBeforeShiftDesktop = describeNextStep(mShift.snapshot());
   const walkBeforeShiftTouch = describeNextStep(mShift.snapshot(), { coarsePointer: true });
-  assert.equal(walkBeforeShiftDesktop.banner, '去归响换层点③');
+  assert.equal(walkBeforeShiftDesktop.banner, '去归响换层');
   assert.match(walkBeforeShiftDesktop.detail, /滚轮/);
-  assert.equal(walkBeforeShiftTouch.banner, '去归响换层点③');
+  assert.equal(walkBeforeShiftTouch.banner, '去归响换层');
   assert.doesNotMatch(walkBeforeShiftTouch.banner, WHEEL_RE);
   assert.doesNotMatch(walkBeforeShiftTouch.detail, WHEEL_RE);
   assert.match(walkBeforeShiftTouch.detail, /右侧 W 尺Ⅰ珠/);
 
-  // 2. Anchor shift to exit: 下滚到Ⅱ去🚪 -> 点Ⅱ去🚪
+  // 2. Anchor shift toward exit: indirect multi-shift at hub (下滚到Ⅱ层 -> 点Ⅱ换层) & direct shift at relay (去🚪)
   const mExit = start('shell', 31337);
   for (const id of mExit.snapshot().mechanismOrder) light(mExit, id);
   reach(mExit, 'hub');
@@ -685,13 +717,25 @@ test('touch / coarsePointer hints replace wheel copy across shift, same_xyz, and
   const desktopExitShift = describeNextStep(exitShiftState);
   const touchExitShift = describeNextStep(exitShiftState, { coarsePointer: true });
   assert.equal(desktopExitShift.action, 'shift');
-  assert.equal(desktopExitShift.banner, '下滚到Ⅱ去🚪');
+  assert.equal(desktopExitShift.banner, '下滚到Ⅱ层');
   assert.equal(touchExitShift.action, 'shift');
   assert.equal(touchExitShift.layer, 1);
-  assert.equal(touchExitShift.banner, '点Ⅱ去🚪');
+  assert.equal(touchExitShift.banner, '点Ⅱ换层');
   assert.doesNotMatch(touchExitShift.banner, WHEEL_RE);
   assert.doesNotMatch(touchExitShift.detail, WHEEL_RE);
   assert.match(touchExitShift.detail, /右侧 W 尺Ⅱ珠/);
+
+  reach(mExit, 'relay');
+  mExit.setW(mExit.snapshot().layers[1].center);
+  const directExitState = mExit.snapshot();
+  const directDesktopExit = describeNextStep(directExitState);
+  const directTouchExit = describeNextStep(directExitState, { coarsePointer: true });
+  assert.equal(directDesktopExit.action, 'shift');
+  assert.match(directDesktopExit.banner, /^(上滚|下滚)到[ⅠⅡⅢ]去🚪$/);
+  assert.equal(directTouchExit.action, 'shift');
+  assert.match(directTouchExit.banner, /^点[ⅠⅡⅢ]去🚪$/);
+  assert.doesNotMatch(directTouchExit.banner, WHEEL_RE);
+  assert.doesNotMatch(directTouchExit.detail, WHEEL_RE);
 
   // 3. same_xyz shift (must include target layer Roman numeral): 站①下滚显现② -> 站①点Ⅱ显现②
   const mSame = start('shell', 42);
@@ -712,7 +756,7 @@ test('touch / coarsePointer hints replace wheel copy across shift, same_xyz, and
   assert.match(touchSame.detail, /同一位置/);
   assert.match(touchSame.detail, /右侧 W 尺Ⅱ珠/);
 
-  // 4. recover shift (both downward to Ⅰ and upward to Ⅲ): 下滚回Ⅰ站稳点③ -> 点Ⅰ站稳点③
+  // 4. recover shift (both downward to Ⅰ and upward to Ⅲ): 下滚回Ⅰ站稳 -> 点Ⅰ回层站稳
   const mRecoverDown = start('shell', 5);
   light(mRecoverDown, 'dew');
   light(mRecoverDown, 'bloom');
@@ -722,10 +766,10 @@ test('touch / coarsePointer hints replace wheel copy across shift, same_xyz, and
   const desktopRecoverDown = describeNextStep(recoverDownState);
   const touchRecoverDown = describeNextStep(recoverDownState, { coarsePointer: true });
   assert.equal(desktopRecoverDown.action, 'shift');
-  assert.equal(desktopRecoverDown.banner, '下滚回Ⅰ站稳点③');
+  assert.equal(desktopRecoverDown.banner, '下滚回Ⅰ站稳');
   assert.equal(touchRecoverDown.action, 'shift');
   assert.equal(touchRecoverDown.layer, 0);
-  assert.equal(touchRecoverDown.banner, '点Ⅰ站稳点③');
+  assert.equal(touchRecoverDown.banner, '点Ⅰ回层站稳');
   assert.doesNotMatch(touchRecoverDown.banner, WHEEL_RE);
   assert.doesNotMatch(touchRecoverDown.detail, WHEEL_RE);
   assert.match(touchRecoverDown.detail, /右侧 W 尺Ⅰ珠/);
@@ -734,9 +778,9 @@ test('touch / coarsePointer hints replace wheel copy across shift, same_xyz, and
   light(mRecoverUp, 'dew');
   mRecoverUp.setW(mRecoverUp.snapshot().layers[1].center);
   const recoverUpState = mRecoverUp.snapshot();
-  assert.equal(describeNextStep(recoverUpState).banner, '上滚回Ⅲ站稳点②');
+  assert.equal(describeNextStep(recoverUpState).banner, '上滚回Ⅲ站稳');
   const touchRecoverUp = describeNextStep(recoverUpState, { coarsePointer: true });
-  assert.equal(touchRecoverUp.banner, '点Ⅲ站稳点②');
+  assert.equal(touchRecoverUp.banner, '点Ⅲ回层站稳');
   assert.doesNotMatch(touchRecoverUp.banner, WHEEL_RE);
   assert.doesNotMatch(touchRecoverUp.detail, WHEEL_RE);
 
@@ -794,7 +838,7 @@ test('isCoarsePointer defaults to desktop without window and detects pointer:coa
 test('coarsePointer hints clear all 3 courtyards across standard seeds without any wheel words', () => {
   const WHEEL_RE = /上滚|下滚|滚轮/;
   const ROMAN_BY_LAYER = ['Ⅰ', 'Ⅱ', 'Ⅲ'];
-  for (const seed of [2, 42, 401491695, 4097396765, 5, 777, 31337, 123456789]) {
+  for (const seed of [2, 42, 401491695, 4097396765, 5, 777, 31337, 123456789, 90210, 2026111]) {
     const model = start('shell', seed);
     for (const expectedRoom of [0, 1, 2]) {
       assert.equal(model.snapshot().room, expectedRoom);
@@ -802,7 +846,7 @@ test('coarsePointer hints clear all 3 courtyards across standard seeds without a
         const state = model.snapshot();
         if (state.phase !== 'playing') break;
         const hint = describeNextStep(state, { coarsePointer: true });
-        assert.ok(hint.banner && hint.banner.length <= 20, `seed ${seed} r${expectedRoom}: "${hint.banner}"`);
+        assertSingleStepHonest(state, hint, `touch seed ${seed} r${expectedRoom} s${stepIdx}`);
         assert.doesNotMatch(hint.banner, WHEEL_RE, `seed ${seed} r${expectedRoom} banner has wheel word: "${hint.banner}"`);
         assert.doesNotMatch(hint.detail, WHEEL_RE, `seed ${seed} r${expectedRoom} detail has wheel word: "${hint.detail}"`);
         if (hint.action === 'shift') {
@@ -849,4 +893,195 @@ test('target W-ruler bead CSS defines visible #ff7b5a pulse, solid target ring, 
     css,
     /@media\(prefers-reduced-motion:reduce\)\{[\s\S]*?button\.attention-action:not\(\[aria-pressed="true"\]\)::before,html\.theater #layer-controls button\.attention-action:not\(\[aria-pressed="true"\]\) \.target-ring-svg\{animation:none\}/,
   );
+});
+
+test('P2-5 single-step honest waypoint & multi-hop banners never promise a second action across exit, multi-anchor, multi-shift, and triad cases', () => {
+  const ANCHOR_RE = /(?:到|去|回)\s*「?⚓?\s*(归响|维度|花匣|星舟)/;
+  const VIA_RE = /^(?:先)?到([①②③④])/;
+
+  // 1. Seed 2 (confluence): after lighting all 3 mechanisms, walking bell -> hub -> relay -> exit on bell's layer
+  // uses flat multi-hop waypoints ("先到归响" -> "先到维度" -> "点击🚪走去过关"), NEVER "先到归响再去🚪" or "先到维度再去🚪".
+  {
+    const m = start('shell', 2);
+    for (const id of m.snapshot().mechanismOrder) light(m, id);
+    assert.equal(m.snapshot().node, 'bell');
+    const fromBell = describeNextStep(m.snapshot());
+    assert.equal(fromBell.goalId, 'exit');
+    assert.equal(fromBell.targetId, 'hub');
+    assert.equal(fromBell.banner, '先到归响');
+    assert.match(fromBell.banner, ANCHOR_RE);
+    assertSingleStepHonest(m.snapshot(), fromBell, 'seed 2 bell -> hub toward exit');
+
+    reach(m, 'hub');
+    const fromHub = describeNextStep(m.snapshot());
+    assert.equal(fromHub.goalId, 'exit');
+    assert.equal(fromHub.targetId, 'relay');
+    assert.equal(fromHub.banner, '先到维度');
+    assert.match(fromHub.banner, ANCHOR_RE);
+    assertSingleStepHonest(m.snapshot(), fromHub, 'seed 2 hub -> relay toward exit');
+
+    reach(m, 'relay');
+    const fromRelay = describeNextStep(m.snapshot());
+    assert.equal(fromRelay.goalId, 'exit');
+    assert.equal(fromRelay.targetId, 'exit');
+    assert.equal(fromRelay.banner, '点击🚪走去过关');
+    assertSingleStepHonest(m.snapshot(), fromRelay, 'seed 2 relay -> exit');
+  }
+
+  // 2. Multi-anchor pass-through before shifting (`plan.shift.at !== dest.id`):
+  // In split room (seed 401491695), standing on dew after lighting dew & bell:
+  // route to bloom (③) walks dew -> hub -> relay on dew's layer, then shifts at relay!
+  // On dew, hub is ONLY a pass-through (NOT where the player shifts), so banner must be "先去归响", NOT "去归响换层"!
+  {
+    const m = start('shell', 401491695);
+    light(m, 'dew');
+    light(m, 'bell');
+    reach(m, 'hub'); // reverse W-ramp lands on dew's layer
+    reach(m, 'dew');
+    const snap = m.snapshot();
+    const plan = planLayerRoute(snap, 'bloom');
+    assert.equal(plan.walk[0]?.to, 'hub');
+    assert.equal(plan.walk[1]?.to, 'relay');
+    assert.equal(plan.shift?.at, 'relay');
+    const onDew = describeNextStep(snap);
+    assert.equal(onDew.targetId, 'hub');
+    assert.equal(onDew.banner, '先去归响');
+    assert.doesNotMatch(onDew.banner, /换层/);
+    assert.match(onDew.banner, ANCHOR_RE);
+    assertSingleStepHonest(snap, onDew, 'split dew -> hub -> relay(shift)');
+
+    reach(m, 'hub');
+    const onHub = describeNextStep(m.snapshot());
+    assert.equal(onHub.targetId, 'relay');
+    assert.equal(onHub.banner, '去维度换层');
+    assert.match(onHub.banner, ANCHOR_RE);
+    assertSingleStepHonest(m.snapshot(), onHub, 'split hub -> relay(shift)');
+  }
+
+  // 3. Indirect anchor shift (`!directGoalAfterFirstShift`):
+  // In cascade room (seed 4097396765), after lighting dew & bell and returning to hub on dew's layer:
+  // shifting on hub to bell's layer only opens hub -> relay (still must walk to relay and shift again to layer Ⅲ for ③ / 🚪).
+  // Banner must NOT falsely claim "点亮③" or "去🚪" or "通往③的桥会显形"!
+  {
+    const m = start('shell', 4097396765);
+    light(m, 'dew');
+    light(m, 'bell');
+    reach(m, 'hub');
+    const snap = m.snapshot();
+    const desktopHint = describeNextStep(snap);
+    const touchHint = describeNextStep(snap, { coarsePointer: true });
+    assert.equal(desktopHint.action, 'shift');
+    assert.match(desktopHint.banner, /^(上滚|下滚)到[ⅠⅡⅢ]层$/);
+    assert.doesNotMatch(desktopHint.banner, /③|点亮/);
+    assert.doesNotMatch(desktopHint.detail, /通往③的桥会显形/);
+    assert.match(desktopHint.detail, /维度锚台/);
+    assert.match(touchHint.banner, /^点[ⅠⅡⅢ]换层$/);
+    assert.doesNotMatch(touchHint.banner, /③|点亮/);
+    assertSingleStepHonest(snap, desktopHint, 'cascade indirect shift desktop');
+    assertSingleStepHonest(snap, touchHint, 'cascade indirect shift touch');
+
+    // Same when all 3 are lit and player stands on hub on wrong layer for cascade exit:
+    light(m, 'bloom');
+    reach(m, 'hub');
+    const wrongLayer = [0, 1, 2].find(l => l !== m.snapshot().nodes.find(n => n.id === 'bell').layer);
+    m.setW(m.snapshot().layers[wrongLayer].center);
+    const exitSnap = m.snapshot();
+    const exitDesktop = describeNextStep(exitSnap);
+    const exitTouch = describeNextStep(exitSnap, { coarsePointer: true });
+    assert.equal(exitDesktop.goalId, 'exit');
+    assert.equal(exitDesktop.action, 'shift');
+    assert.doesNotMatch(exitDesktop.banner, /去🚪/);
+    assert.doesNotMatch(exitTouch.banner, /去🚪/);
+    assertSingleStepHonest(exitSnap, exitDesktop, 'cascade indirect exit shift desktop');
+    assertSingleStepHonest(exitSnap, exitTouch, 'cascade indirect exit shift touch');
+  }
+
+  // 4. Intermediate lit-mechanism waypoint (`先到①换层` / `先到①`) & multi-step same_xyz (`triad` expedition room):
+  {
+    let triadModel = null;
+    for (let s = 1; s <= 200 && !triadModel; s++) {
+      const exp = new GameModel(s, { mode: 'expedition' });
+      exp.chooseRelic('shell');
+      for (let r = 0; r < 4; r++) {
+        if (exp.snapshot().roomId === 'triad') {
+          const snap = exp.snapshot();
+          const dew = snap.nodes.find(n => n.id === 'dew');
+          const bloom = snap.nodes.find(n => n.id === 'bloom');
+          if (Math.abs(dew.layer - bloom.layer) === 2) {
+            triadModel = exp;
+            break;
+          }
+        }
+        if (r === 3) break;
+        for (const id of exp.snapshot().mechanismOrder) light(exp, id);
+        reach(exp, 'exit');
+        if (exp.snapshot().phase === 'interlude') exp.chooseRelic(exp.snapshot().choices[0].id);
+        else break;
+      }
+    }
+    assert.ok(triadModel, 'found triad room with 2-slice span between ① (dew) and ② (bloom)');
+    // At hub on dew's layer after lighting ①: only open bridge from hub is hub-dew (lit ①), where player shifts!
+    light(triadModel, 'dew');
+    // Standing on dew, shifting 1 slice lands on intermediate bell (unpowered ③), NOT bloom (②)!
+    const onDewDesktop = describeNextStep(triadModel.snapshot());
+    const onDewTouch = describeNextStep(triadModel.snapshot(), { coarsePointer: true });
+    assert.equal(onDewDesktop.action, 'shift');
+    assert.match(onDewDesktop.banner, /^站①(上滚|下滚)到Ⅱ$/);
+    assert.doesNotMatch(onDewDesktop.banner, /显现②/);
+    assert.equal(onDewTouch.banner, '站①点Ⅱ换层');
+    assertSingleStepHonest(triadModel.snapshot(), onDewDesktop, 'triad intermediate same_xyz desktop');
+    assertSingleStepHonest(triadModel.snapshot(), onDewTouch, 'triad intermediate same_xyz touch');
+
+    // Unsupported-layer recover (`plan.shift.kind === 'recover'`) never over-promises immediate goal action:
+    const mRecover = start('shell', 42);
+    light(mRecover, 'dew');
+    mRecover.setW(mRecover.snapshot().layers[1].center);
+    const recoverDesktop = describeNextStep(mRecover.snapshot());
+    const recoverTouch = describeNextStep(mRecover.snapshot(), { coarsePointer: true });
+    assert.equal(recoverDesktop.action, 'shift');
+    assert.match(recoverDesktop.banner, /^(上滚|下滚)回[ⅠⅡⅢ]站稳$/);
+    assert.match(recoverTouch.banner, /^点[ⅠⅡⅢ]回层站稳$/);
+    assertSingleStepHonest(mRecover.snapshot(), recoverDesktop, 'unsupported layer recover desktop');
+    assertSingleStepHonest(mRecover.snapshot(), recoverTouch, 'unsupported layer recover touch');
+
+    // Walk back to hub on dew's layer: route to ② goes hub -> dew (lit ①) -> shift!
+    reach(triadModel, 'hub');
+    const fromHubViaDew = describeNextStep(triadModel.snapshot());
+    assert.equal(fromHubViaDew.action, 'move');
+    assert.equal(fromHubViaDew.targetId, 'dew');
+    assert.equal(fromHubViaDew.banner, '先到①换层');
+    assert.match(fromHubViaDew.banner, VIA_RE);
+    assertSingleStepHonest(triadModel.snapshot(), fromHubViaDew, 'triad hub -> lit ① waypoint');
+
+    // Drifting W on hub so lit ① is not present triggers off-center recover for waypoint (`targetId !== goalId`)
+    const dewLayer = triadModel.snapshot().layer;
+    triadModel.setW(dewLayer === 0 ? 0.33 : 0.67);
+    const offCenterWaypoint = describeNextStep(triadModel.snapshot());
+    assert.equal(offCenterWaypoint.action, 'recover');
+    assert.equal(offCenterWaypoint.targetId, 'dew');
+    assert.match(offCenterWaypoint.banner, /^按[ZXC]回中心$/);
+    assertSingleStepHonest(triadModel.snapshot(), offCenterWaypoint, 'triad off-center waypoint recover');
+  }
+
+  // 5. Sweep all 10 standard seeds + seed 7 across all 3 intro courtyards (desktop + coarsePointer):
+  // every generated step satisfies assertSingleStepHonest (<= 10 chars, zero over-promising).
+  for (const seed of [2, 401491695, 4097396765, 5, 777, 31337, 123456789, 42, 90210, 2026111, 7]) {
+    for (const coarsePointer of [false, true]) {
+      const m = start('shell', seed);
+      for (const roomIdx of [0, 1, 2]) {
+        assert.equal(m.snapshot().room, roomIdx);
+        for (let turn = 0; turn < 45 && m.snapshot().phase === 'playing'; turn++) {
+          const s = m.snapshot();
+          const h = describeNextStep(s, { coarsePointer });
+          assertSingleStepHonest(s, h, `seed=${seed} coarse=${coarsePointer} r=${roomIdx} t=${turn}`);
+          if (h.action === 'move' || h.action === 'done') reach(m, h.targetId || h.goalId);
+          else if (h.action === 'shift' || h.action === 'recover') { m.setW(s.layers[h.layer].center); advance(m, 0.05); }
+          else if (h.action === 'activate') light(m, h.goalId);
+          else advance(m, 0.35);
+        }
+        if (roomIdx < 2) m.chooseRelic(m.snapshot().choices[0].id);
+        else assert.equal(m.snapshot().phase, 'won');
+      }
+    }
+  }
 });
