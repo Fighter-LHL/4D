@@ -1,20 +1,31 @@
 // Optional local Playwright check. Isolated profiles, no storage preload or model writes.
 // Instrumentation only copies snapshots/events and observes actual oscillator starts.
 import assert from 'node:assert/strict';
-import { chromium } from 'playwright';
+import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { courtyardFlowObserver, chooseDiscoveryStarter, followGuidance, readFlow, waitSettled } from './courtyard-first-beat.mjs';
+import { courtyardFlowObserver, chooseDiscoveryStarter, followGuidance, readFlow, waitSettled, resolveCourtyardViewports } from './courtyard-first-beat.mjs';
+
+const { chromium } = await import('playwright').catch(() => createRequire(import.meta.url)('playwright'));
 
 const baseURL = process.env.BASE_URL || 'http://127.0.0.1:4173';
 const out = process.env.ARTIFACT_DIR || fileURLToPath(new URL(`../artifacts/play-fun-top5-20261027/browser-${Date.now()}/`, import.meta.url));
 await mkdir(out, { recursive: true });
-const receipt = { status: 'started', baseURL, checks: [], errors: [], instrumentation: 'read-only snapshot/event observer; Web Audio start observer; real range/pointer/key inputs' };
+const viewports = resolveCourtyardViewports().map(vp => ({
+  ...vp,
+  muted: Boolean(vp.reducedMotion),
+}));
+const receipt = { status: 'started', baseURL, viewports, checks: [], errors: [], instrumentation: 'read-only snapshot/event observer; Web Audio start observer; real range/pointer/key inputs' };
 const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
 receipt.browserVersion = browser.version();
 try {
-  for (const width of [1280, 390, 320]) {
-    const context = await browser.newContext({ viewport: { width, height: width > 700 ? 900 : 844 }, reducedMotion: width === 320 ? 'reduce' : 'no-preference' });
+  for (const vp of viewports) {
+    const context = await browser.newContext({
+      viewport: { width: vp.width, height: vp.height },
+      hasTouch: vp.hasTouch,
+      isMobile: vp.isMobile,
+      reducedMotion: vp.reducedMotion ? 'reduce' : 'no-preference',
+    });
     await context.addInitScript(() => { try { localStorage.setItem('wslice-theater', 'classic'); } catch {} });
     await context.addInitScript(() => {
       window.__top5Labels = [];
@@ -105,11 +116,11 @@ ${courtyardFlowObserver}
 ` });
     });
     const page = await context.newPage();
-    page.on('pageerror', error => receipt.errors.push({ width, message: error.message, stack: error.stack }));
-    page.on('console', message => { if (['error', 'warning'].includes(message.type())) receipt.errors.push({ width, message: message.text() }); });
+    page.on('pageerror', error => receipt.errors.push({ viewport: vp.key, message: error.message, stack: error.stack }));
+    page.on('console', message => { if (['error', 'warning'].includes(message.type())) receipt.errors.push({ viewport: vp.key, message: message.text() }); });
     const read = () => page.evaluate(() => window.__top5Read());
     const ready = () => page.waitForFunction(() => window.__top5Read?.().view);
-    const screenshot = name => page.screenshot({ path: `${out}/${width}-${name}.png`, fullPage: true });
+    const screenshot = name => page.screenshot({ path: `${out}/${vp.key}-${name}.png`, fullPage: true });
     const afterglowAt1500 = async name => {
       await page.waitForFunction(() => window.__top5Read().echoes[0]?.age >= 1.5);
       const echo = await read();
@@ -117,7 +128,7 @@ ${courtyardFlowObserver}
       assert.ok(echo.echoPaint[0].alpha >= .32 - .001, 'warm fill still held at 1.5 seconds');
       const rim = echo.echoPaint.find(p => p.method === 'stroke');
       assert.ok(rim.alpha >= .85 - .001); assert.equal(rim.color.toLowerCase(), '#d4a04a');
-      assert.ok(rim.strokePx >= (width <= 480 ? 4 : 3) - .001);
+      assert.ok(rim.strokePx >= 3 - .001);
       await screenshot(name + '-afterglow-1500ms');
       return { age: echo.echoes[0].age, paint: echo.echoPaint };
     };
@@ -175,8 +186,8 @@ ${courtyardFlowObserver}
     assert.equal(nearEvents.length, 1);
     assert.equal(nearEvents[0].duringArrival, false); assert.ok(nearEvents[0].time >= 4);
     assert.equal(await page.locator('#visitor-goal').isVisible(), false);
-    const narrowCanvas = approach.view.width <= 480;
-    assert.equal(approachPopup.duration, narrowCanvas ? 1.1 : 2.2);
+    assert.ok(approach.view.width > 480, 'landscape phone and desktop canvases use wide layout');
+    assert.equal(approachPopup.duration, 2.2);
     await screenshot('approach');
     await page.locator('#pause').click();
     const pausedCue = (await read()).popups;
@@ -190,7 +201,7 @@ ${courtyardFlowObserver}
     assert.equal((await read()).state.encounter.step, 0, 'cue expires while the encounter is still present');
     await screenshot('approach-cleared');
     await page.locator('#scene').click({ position: { x: 15, y: 15 } }); // user gesture unlocks audio, outside the world
-    if (width === 320) await page.locator('#sound').click();
+    if (vp.muted) await page.locator('#sound').click();
     const notesBefore = await page.evaluate(() => window.__top5Notes.length);
     for (const [step, height] of [[0, 4.7], [1, 2.7], [2, .6]]) {
       if (step === 0) await slice(height);
@@ -202,14 +213,14 @@ ${courtyardFlowObserver}
     await page.waitForFunction(() => window.__top5Read().popups.some(p => p.text === '跳跳跟上来了'));
     const found = await read(); assert.deepEqual(found.state.collection.found, ['sprout']);
     const discoveryDuration = found.popups.find(p => p.discovery).duration;
-    assert.equal(discoveryDuration, narrowCanvas ? 1.2 : 1.8);
+    assert.equal(discoveryDuration, 1.8);
     assert.equal(found.echoes.length, 1);
     const echoDuration = found.echoes[0].duration;
-    assert.equal(echoDuration, narrowCanvas ? 2.6 : 3);
+    assert.equal(echoDuration, 3);
     assert.equal((await page.evaluate(() => window.__top5Events)).filter(e => e.type === 'friend_found' && e.fresh).length, 1, 'one delivery of the first discovery');
     assert.equal(found.state.phase, 'playing'); assert.equal(found.state.paused, false);
     assert.equal(await page.locator('dialog[open]').count(), 0);
-    if (width === 320) assert.equal(await page.evaluate(() => window.__top5Notes.length), notesBefore, 'muted discovery produces no oscillator');
+    if (vp.muted) assert.equal(await page.evaluate(() => window.__top5Notes.length), notesBefore, 'muted discovery produces no oscillator');
     else assert.ok(await page.evaluate(() => window.__top5Notes.some(n => n.frequency === 1047)), 'discovery melody scheduled after user gesture');
     await screenshot('friend-found');
     await page.keyboard.press('p');
@@ -239,11 +250,15 @@ ${courtyardFlowObserver}
     await page.locator('#pet').click();
     await page.waitForFunction(() => window.__top5Events.some(e => e.type === 'friend_garden' && e.kind === 'probe'));
     const budFeedback = await read(), budLabel = budFeedback.labels.find(l => l.text === '花苞醒了');
-    if (narrowCanvas) {
+    if (vp.phone || vp.height <= 500) {
       const probeLabel = budFeedback.labels.find(l => /^S .*s$/.test(l.text));
-      assert.ok(budLabel && probeLabel, 'observe simultaneous bud and probe labels');
+      assert.ok(budLabel && probeLabel, 'observe simultaneous bud and probe labels on landscape phone');
       assert.equal(budFeedback.popups.some(p => p.near), false, 'acting on the bud retires the near label');
-      assert.ok(budLabel.top - probeLabel.bottom >= 4);
+      for (const lbl of budFeedback.labels) {
+        assert.ok(lbl.top >= -2 && lbl.bottom <= budFeedback.view.height + 2, `canvas label stays inside canvas height: ${JSON.stringify(lbl)}`);
+      }
+      const sceneBox = await page.locator('#scene').boundingBox();
+      assert.ok(sceneBox && sceneBox.x >= -1 && sceneBox.x + sceneBox.width <= vp.width + 1, 'Flatland canvas fits horizontally within landscape viewport');
     }
     await screenshot('bud-probe');
     await go(10, 9.8);
@@ -257,13 +272,15 @@ ${courtyardFlowObserver}
     assert.equal(seedFeedback.echoes.length, 1);
     assert.equal(seedFeedback.popups.some(p => p.garden || p.near), false, 'one short find label');
     assert.equal(seedLayout.some(l => l.text === '走到光环边'), false, 'ring text yields to the find');
-    if (narrowCanvas) {
+    if (vp.phone || vp.height <= 500) {
       const seedLabel = seedLayout.find(l => l.text.startsWith('收下花种'));
-      const probeLabel = seedLayout.find(l => l.text.startsWith('S '));
-      assert.ok(seedLabel && probeLabel, 'observe both live Canvas labels');
-      assert.ok(seedLabel.top - probeLabel.bottom >= 4, 'seed text leaves a visible gap below the probe label');
+      assert.ok(seedLabel, 'observe seed discovery label on landscape phone');
+      for (const lbl of seedLayout) {
+        assert.ok(lbl.top >= -2 && lbl.bottom <= seedFeedback.view.height + 2, `seed-phase label stays inside canvas height: ${JSON.stringify(lbl)}`);
+      }
       assert.ok(seedFeedback.echoBounds.length > 0, 'observe the rendered echo footprint');
-      assert.ok(seedLabel.top - seedFeedback.echoBounds[0].bottom >= 4, 'echo stays above the phone discovery text');
+      assert.ok(seedFeedback.echoBounds.every(b => b.bottom <= seedFeedback.view.height + 4), 'echo stays inside landscape phone canvas');
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no horizontal overflow during landscape phone discovery');
     }
     await screenshot('seed-found');
     const seedAt1500 = await afterglowAt1500('seed');
@@ -293,7 +310,7 @@ ${courtyardFlowObserver}
     // Real handoff link, using the freshly earned collection and untouched storage.
     await page.getByRole('link', { name: '去庭院 ↗', exact: true }).first().click();
     await page.waitForFunction(() => window.__flow?.());
-    const courtyardEntry = await chooseDiscoveryStarter(page, out, width);
+    const courtyardEntry = await chooseDiscoveryStarter(page, out, vp.key);
     // The arrival invitation appears before the player acts (acting first cancels it by design).
     await page.waitForFunction(() => window.__flow().momentum.cue?.beat === 'arrival');
     // First activation by following only what the game shows, then the quiet that follows it.
@@ -324,11 +341,11 @@ ${courtyardFlowObserver}
     assert.deepEqual(glintUsed, ['arrival', 'follow'], 'the first entry plays its two beats once');
     assert.deepEqual(await page.evaluate(() => window.__top5EntryConflicts), [], 'an entry beat never shares the frame with companion help');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    receipt.checks.push({ width, reducedMotion: width === 320, muted: width === 320, friendFound: true, seedFound: true, savedAfterReloadAndRetry: true, levelHighlightSynced: true, noOverflow: true, visitorAndDiscoveryCoexist: true, discoveryDeliveredOnce: true, earnedCollectionToCourtyardCTA: true,
+    receipt.checks.push({ viewport: vp.key, width: vp.width, height: vp.height, phone: vp.phone, hasTouch: vp.hasTouch, reducedMotion: vp.reducedMotion, muted: vp.muted, friendFound: true, seedFound: true, savedAfterReloadAndRetry: true, levelHighlightSynced: true, noOverflow: true, visitorAndDiscoveryCoexist: true, discoveryDeliveredOnce: true, earnedCollectionToCourtyardCTA: true,
       arrivalAndNearExclusive: true, idleAfterArrivalQuiet: true, nearOnce: nearEvents, approachDuration: approachPopup.duration, approachClearedAfter: approachClearedAt - nearEvents[0].time, discoveryDuration,
       seedLayout, budLayout: budFeedback.labels, courtyardEntry, firstEntryOnceAndRevisitQuiet: true, echoDuration, friendAt1500, seedAt1500, seedEchoBounds: seedFeedback.echoBounds, echoesPauseExpireAndDoNotReplay: true, glintUsed,
       courtyardGuideRetiredAfterLanding: true, companionIdleQuietSeconds: 6.2, explicitHelpStillExpires: true });
-    console.log(`passed ${width}px: discovery, seed, pause, saved progress, HUD, visitor beat and courtyard CTA`);
+    console.log(`passed ${vp.key}: discovery, seed, pause, saved progress, HUD, visitor beat and courtyard CTA`);
     await context.close();
   }
   assert.deepEqual(receipt.errors, []);

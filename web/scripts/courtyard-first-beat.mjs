@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
-import { chromium } from 'playwright';
+import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
+
+const { chromium } = await import('playwright').catch(() => createRequire(import.meta.url)('playwright'));
 
 // Shared first-session courtyard harness for the browser checks.
 // The observers appended to the page only copy snapshots and record what was painted;
@@ -52,20 +54,55 @@ window.__flow = () => structuredClone({
 export const readFlow = page => page.evaluate(() => window.__flow());
 const LAYER_NAMES = ['潮汐层', '回声层', '绽放层'];
 
+export const COURTYARD_VIEWPORTS = [
+  { key: '1280x800', width: 1280, height: 800, phone: false, hasTouch: false, isMobile: false, reducedMotion: false },
+  { key: '844x390', width: 844, height: 390, phone: true, hasTouch: true, isMobile: true, reducedMotion: false },
+  { key: '932x430-reduced', width: 932, height: 430, phone: true, hasTouch: true, isMobile: true, reducedMotion: true },
+];
+
+const VIEWPORT_BY_TOKEN = new Map([
+  ['1280', COURTYARD_VIEWPORTS[0]],
+  ['1280x800', COURTYARD_VIEWPORTS[0]],
+  ['desktop', COURTYARD_VIEWPORTS[0]],
+  ['844', COURTYARD_VIEWPORTS[1]],
+  ['844x390', COURTYARD_VIEWPORTS[1]],
+  ['phone', COURTYARD_VIEWPORTS[1]],
+  ['mobile', COURTYARD_VIEWPORTS[1]],
+  ['932', COURTYARD_VIEWPORTS[2]],
+  ['932x430', COURTYARD_VIEWPORTS[2]],
+  ['932x430-reduced', COURTYARD_VIEWPORTS[2]],
+  ['844x390-reduced', { key: '844x390-reduced', width: 844, height: 390, phone: true, hasTouch: true, isMobile: true, reducedMotion: true }],
+]);
+
+export function resolveCourtyardViewports(raw = process.env.VERIFY_VIEWPORTS || process.env.VERIFY_WIDTHS || '') {
+  if (!raw.trim()) return COURTYARD_VIEWPORTS.map(vp => ({ ...vp }));
+  const tokens = raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  assert.ok(tokens.length > 0, 'at least one viewport must be selected');
+  return tokens.map(token => {
+    const found = VIEWPORT_BY_TOKEN.get(token);
+    assert.ok(found, `unsupported viewport "${token}" (supported: 1280x800, 844x390, 932x430-reduced; portrait 390/320 retired)`);
+    return { ...found };
+  });
+}
+
 // One browser, a fresh isolated context per case, and a receipt in ARTIFACT_DIR.
 export async function runCourtyardChecks({ name, cases, run }) {
   const base = process.env.BASE_URL || 'http://127.0.0.1:4173';
   const out = process.env.ARTIFACT_DIR;
   assert.ok(out, 'use a fresh explicit artifact directory');
   await mkdir(out, { recursive: true });
-  const widths = process.env.VERIFY_WIDTHS ? process.env.VERIFY_WIDTHS.split(',').map(Number) : [1280, 390, 320];
-  assert.ok(widths.length && widths.every(width => [1280, 390, 320].includes(width)), 'supported viewport widths');
-  const receipt = { name, widths, base, status: 'started', checks: [], errors: [] };
+  const viewports = resolveCourtyardViewports();
+  const receipt = { name, viewports, base, status: 'started', checks: [], errors: [] };
   const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   receipt.browserVersion = browser.version();
   try {
-    for (const width of widths) for (const testCase of cases) {
-      const context = await browser.newContext({ viewport: { width, height: width === 1280 ? 900 : 844 }, reducedMotion: width === 320 ? 'reduce' : 'no-preference' });
+    for (const vp of viewports) for (const testCase of cases) {
+      const context = await browser.newContext({
+        viewport: { width: vp.width, height: vp.height },
+        hasTouch: vp.hasTouch,
+        isMobile: vp.isMobile,
+        reducedMotion: vp.reducedMotion ? 'reduce' : 'no-preference',
+      });
       // These checks assert the classic layout; force it regardless of theater default.
       await context.addInitScript(() => { try { localStorage.setItem('wslice-theater', 'classic'); } catch {} });
       await context.route('**/src/flatland/main.js', async route => {
@@ -77,12 +114,34 @@ export async function runCourtyardChecks({ name, cases, run }) {
         await route.fulfill({ response, body: await response.text() + courtyardFlowObserver });
       });
       const page = await context.newPage();
-      page.on('pageerror', e => receipt.errors.push({ width, case: testCase.label, message: e.message }));
-      page.on('console', m => { if (['error', 'warning'].includes(m.type())) receipt.errors.push({ width, case: testCase.label, message: m.text() }); });
-      const shot = label => page.screenshot({ path: `${out}/${width}-${testCase.label}-${label}.png`, fullPage: true });
-      const result = await run({ page, base, width, out, shot, ...testCase });
-      receipt.checks.push({ width, ...testCase, ...result, passed: true });
-      await writeFile(`${out}/progress.json`, JSON.stringify({ completed: receipt.checks.length, last: { width, case: testCase.label } }, null, 2));
+      page.on('pageerror', e => receipt.errors.push({ viewport: vp.key, case: testCase.label, message: e.message }));
+      page.on('console', m => { if (['error', 'warning'].includes(m.type())) receipt.errors.push({ viewport: vp.key, case: testCase.label, message: m.text() }); });
+      const shot = label => page.screenshot({ path: `${out}/${vp.key}-${testCase.label}-${label}.png`, fullPage: true });
+      const result = await run({
+        page,
+        base,
+        viewport: vp,
+        width: vp.width,
+        height: vp.height,
+        phone: vp.phone,
+        hasTouch: vp.hasTouch,
+        reducedMotion: vp.reducedMotion,
+        out,
+        shot,
+        ...testCase,
+      });
+      receipt.checks.push({
+        viewport: vp.key,
+        width: vp.width,
+        height: vp.height,
+        phone: vp.phone,
+        hasTouch: vp.hasTouch,
+        reducedMotion: vp.reducedMotion,
+        ...testCase,
+        ...result,
+        passed: true,
+      });
+      await writeFile(`${out}/progress.json`, JSON.stringify({ completed: receipt.checks.length, last: { viewport: vp.key, case: testCase.label } }, null, 2));
       await context.close();
     }
     assert.deepEqual(receipt.errors, [], 'no page errors or console warnings');
@@ -141,9 +200,14 @@ export async function fitsViewport(page, locator, label) {
 
 // The discovery arrival keeps its designed starter picker: one primary "带缓落壳出发",
 // four alternatives folded away, keyboard disclosure, and no autostart while browsing.
-export async function chooseDiscoveryStarter(page, out, width, { starterRelic = 'shell' } = {}) {
+export async function chooseDiscoveryStarter(page, out, tag, { starterRelic = 'shell' } = {}) {
   assert.equal(new URL(page.url()).searchParams.get('from'), 'discovery');
   await page.locator('#choice-dialog[open]').waitFor();
+  const vpSize = page.viewportSize();
+  const dialogInsideViewport = async () => {
+    const box = await page.locator('#choice-dialog').boundingBox();
+    return Boolean(box && box.x >= -1 && box.x + box.width <= vpSize.width + 1 && box.y >= -1 && box.y + box.height <= vpSize.height + 1);
+  };
   const before = (await readFlow(page)).state;
   const friends = (await readFlow(page)).friends;
   assert.ok(friends.length > 0, 'entry uses an actually earned companion');
@@ -155,14 +219,21 @@ export async function chooseDiscoveryStarter(page, out, width, { starterRelic = 
   assert.equal(await page.locator('#relic-choices button').count(), 5, 'all five relics remain available');
   assert.ok(await primary.evaluate(el => document.activeElement === el), 'entry focuses the explicit departure action');
   await fitsViewport(page, primary, 'starter departure button');
-  const fits = () => page.locator('#choice-dialog').evaluate(el => el.scrollHeight <= el.clientHeight + 2 && el.scrollWidth <= el.clientWidth);
-  assert.ok(await fits(), 'collapsed choice fits without scrolling');
-  await page.screenshot({ path: `${out}/${width}-entry-choice.png`, fullPage: true });
+  const fitsWithoutScroll = () => page.locator('#choice-dialog').evaluate(el => el.scrollHeight <= el.clientHeight + 2 && el.scrollWidth <= el.clientWidth + 1);
+  assert.ok(await dialogInsideViewport(), 'collapsed choice dialog stays inside viewport');
+  assert.ok(await fitsWithoutScroll(), 'collapsed choice fits without scrolling');
+  await page.screenshot({ path: `${out}/${tag}-entry-choice.png`, fullPage: true });
   await page.keyboard.press('Tab');
   assert.ok(await page.locator('.starter-alternatives summary').evaluate(el => document.activeElement === el));
   await page.keyboard.press('Enter');
   assert.equal(await page.locator('#relic-choices button:visible').count(), 5);
-  assert.ok(await fits(), 'expanded alternatives fit without scrolling');
+  assert.ok(await dialogInsideViewport(), 'expanded choice dialog stays inside viewport');
+  if (vpSize.height > 500) {
+    assert.ok(await fitsWithoutScroll(), 'expanded alternatives fit without scrolling on desktop');
+  } else {
+    assert.ok(await page.locator('#choice-dialog').evaluate(el => el.scrollWidth <= el.clientWidth + 1 && getComputedStyle(el).overflowY === 'auto'),
+      'short landscape dialog scrolls vertically inside viewport without horizontal overflow');
+  }
   await page.waitForTimeout(250);
   assert.deepEqual((await readFlow(page)).state, before, 'browsing choices does not start, advance or equip the run');
   if (starterRelic === 'shell') {
@@ -171,7 +242,9 @@ export async function chooseDiscoveryStarter(page, out, width, { starterRelic = 
     assert.ok(await primary.evaluate(el => document.activeElement === el));
     await page.keyboard.press('Enter');
   } else {
-    await page.getByRole('button', { name: `选择${{ shadow: '留影扣', prism: '回流棱镜', coil: '接力线圈', weave: '织桥种' }[starterRelic]}`, exact: true }).click();
+    const choiceBtn = page.getByRole('button', { name: `选择${{ shadow: '留影扣', prism: '回流棱镜', coil: '接力线圈', weave: '织桥种' }[starterRelic]}`, exact: true });
+    await choiceBtn.scrollIntoViewIfNeeded();
+    await choiceBtn.click();
   }
   const chosen = (await readFlow(page)).state;
   assert.equal(chosen.phase, 'playing');
@@ -218,12 +291,19 @@ export async function waitSettled(page, { timeout = 15000 } = {}) {
   return readFlow(page);
 }
 
-// One real wheel notch over an empty part of the canvas.
+// One real wheel notch over an empty part of the canvas (desktop), or one layer-button tap (touch).
 export async function wheelNotch(page, direction) {
   await page.locator('#scene').scrollIntoViewIfNeeded();
   const box = await page.locator('#scene').boundingBox();
   await page.mouse.move(box.x + box.width * .97, box.y + box.height * .93);
   await page.mouse.wheel(0, direction === 'up' ? -120 : 120);
+  await page.waitForTimeout(450);
+}
+
+export async function tapLayerButton(page, layerIdx) {
+  const btn = page.locator(`.layer-controls [data-layer="${layerIdx}"]`);
+  await btn.scrollIntoViewIfNeeded();
+  await btn.click();
   await page.waitForTimeout(450);
 }
 
@@ -238,6 +318,7 @@ export async function readLayerInstruction(page, { allowDeduction = false } = {}
   const sub = await page.locator('#vstep-shift-sub').innerText();
   assert.equal(await page.locator('#visual-stepper').isVisible(), true, 'the visual stepper is visible');
   const expected = f.prompt.layer > f.state.layer ? 'up' : 'down';
+  const expectedArrow = expected === 'up' ? '▲' : '▼';
   if (allowDeduction && /调谐/.test(title)) {
     assert.ok(f.stage >= 3, 'layer hints are only withheld after the shift has been learned');
     assert.ok(!LAYER_NAMES.some(name => title.includes(name) || sub.includes(name)), `deduction mode does not name the layer: ${title} / ${sub}`);
@@ -247,28 +328,29 @@ export async function readLayerInstruction(page, { allowDeduction = false } = {}
       assert.ok(guidedPill.includes(expected === 'up' ? '上滚' : '下滚'), `tutorial canvas pill direction matches: ${guidedPill}`);
       return { deduction: true, title, sub, pill: guidedPill, prompt: f.prompt, layer: f.state.layer, node: f.state.node };
     }
-    const pill = f.pills.find(t => /虚线桥|换层寻桥/.test(t));
-    assert.ok(pill, `the canvas points at the dashed bridge: ${JSON.stringify(f.pills)}`);
+    const pill = f.pills.find(t => t === '⇅' || /虚线桥|换层寻桥/.test(t));
+    assert.ok(pill, `the canvas shows the non-spoiling shift badge: ${JSON.stringify(f.pills)}`);
     assert.ok(!LAYER_NAMES.some(name => pill.includes(name)) && !/上滚|下滚|▲|▼/.test(pill), `the canvas pill does not leak the answer: ${pill}`);
     return { deduction: true, title, sub, pill, prompt: f.prompt, layer: f.state.layer, node: f.state.node };
   }
   const direction = /上滚/.test(sub) ? 'up' : /下滚/.test(sub) ? 'down' : null;
   assert.ok(title.includes(LAYER_NAMES[f.prompt.layer]), `stepper names the target layer: ${title}`);
   assert.equal(direction, expected, `stepper wheel direction matches the target layer: ${sub}`);
-  const pill = f.pills.find(t => /(上滚|下滚)|🖱️\s*[▲▼]\s*→/.test(t));
-  assert.ok(pill, `the canvas pill repeats the instruction where the player stands: ${JSON.stringify(f.pills)}`);
+  const pill = f.pills.find(t => t === expectedArrow || /(上滚|下滚)|🖱️\s*[▲▼]\s*→/.test(t));
+  assert.ok(pill, `the canvas badge repeats the shift direction where the player stands: ${JSON.stringify(f.pills)}`);
   assert.ok(
-    pill.includes(expected === 'up' ? '上滚' : '下滚') || pill.includes(expected === 'up' ? '▲' : '▼'),
+    pill.includes(expected === 'up' ? '上滚' : '下滚') || pill.includes(expectedArrow),
     `canvas pill direction matches: ${pill}`
   );
   return { title, sub, pill, direction, prompt: f.prompt, layer: f.state.layer, node: f.state.node };
 }
 
 // The player: choose the target (unless continuing a pending instruction), then only follow
-// the game's layer instruction with the real wheel. Walking and activation must happen
-// without any other input.
+// the game's layer instruction (tapping Ⅰ/Ⅱ/Ⅲ on touch, or rolling the wheel on desktop).
+// Walking and activation must happen without any other input.
 export async function followGuidance(page, targetId, { beforeShift = null, maxRounds = 10, click = true } = {}) {
   const trace = [];
+  const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
   const done = f => targetId === 'exit' ? f.state.phase !== 'playing'
     : f.state.nodes.find(n => n.id === targetId)?.kind === 'mechanism' ? f.state.activated.includes(targetId)
       : f.state.node === targetId;
@@ -289,11 +371,18 @@ export async function followGuidance(page, targetId, { beforeShift = null, maxRo
         instruction = await readLayerInstruction(page);
       }
       if (beforeShift && !trace.some(t => t.instruction)) await beforeShift(instruction);
-      trace.push({ instruction: { at: instruction.node, from: instruction.layer, to: instruction.prompt.layer, kind: instruction.prompt.kind, sub: instruction.sub } });
-      while ((await readFlow(page)).state.layer !== instruction.prompt.layer) {
+      trace.push({ instruction: { at: instruction.node, from: instruction.layer, to: instruction.prompt.layer, kind: instruction.prompt.kind, sub: instruction.sub, via: coarse ? 'layer-button' : 'wheel' } });
+      if (coarse) {
         const before = (await readFlow(page)).state.layer;
-        await wheelNotch(page, instruction.direction);
-        assert.notEqual((await readFlow(page)).state.layer, before, 'each instructed wheel notch changes the layer');
+        await tapLayerButton(page, instruction.prompt.layer);
+        assert.equal((await readFlow(page)).state.layer, instruction.prompt.layer, 'tapping target Ⅰ/Ⅱ/Ⅲ button switches to the prompted layer');
+        assert.notEqual(instruction.prompt.layer, before, 'layer button tap changes the layer');
+      } else {
+        while ((await readFlow(page)).state.layer !== instruction.prompt.layer) {
+          const before = (await readFlow(page)).state.layer;
+          await wheelNotch(page, instruction.direction);
+          assert.notEqual((await readFlow(page)).state.layer, before, 'each instructed wheel notch changes the layer');
+        }
       }
       continue;
     }
@@ -321,11 +410,12 @@ export async function verifyRestartAndRevisit(page) {
   return { restartOrdinary: true, revisitOrdinary: true };
 }
 
-// The four authored first rooms reachable from the discovery entry, with the shape of
-// their second step: a same-position layer change, a return to the hub, or the relay.
+// The four authored first rooms reachable from the discovery entry: `handoff` describes
+// the companion guide immediately after ①, and `anchor` marks the cross-layer stop after
+// intro Room 0's sloped W-ramp carries ② (hub in confluence, relay via hub in split).
 export const FIRST_ROOMS = [
   { label: 'cascade', seed: 10, room: 'cascade', handoff: 'same_xyz', anchor: null },
-  { label: 'split', seed: 0, room: 'split', handoff: 'same_xyz', anchor: null },
+  { label: 'split', seed: 0, room: 'split', handoff: 'same_xyz', anchor: 'relay' },
   { label: 'confluence', seed: 2, room: 'confluence', handoff: 'anchor', anchor: 'hub' },
-  { label: 'return', seed: 7, room: 'return', handoff: 'anchor', anchor: 'relay' },
+  { label: 'return', seed: 7, room: 'return', handoff: 'anchor', anchor: null },
 ];

@@ -1,7 +1,7 @@
-// The first anchor after crossing the named hub (return room: the bridge to ② leaves
-// ⚓ 维度锚台). The walk passes through ⚓ 归响台 without stopping there — the planner hands
-// over at the anchor that actually carries the bridge — then behaves like the hub return:
-// waiting or a wrong slice never moves on, the instructed slice resumes the walk to ②.
+// The first anchor stop after crossing the named hub (split room: after ① and ②'s sloped
+// W-ramp, the bridge to ③ leaves ⚓ 维度锚台). The walk passes through ⚓ 归响台 without stopping
+// there — the planner hands over at the anchor that actually carries the bridge — then
+// behaves like the hub stop: waiting or a non-target slice never moves on, the instructed slice resumes to ③.
 import assert from 'node:assert/strict';
 import { runCourtyardChecks, FIRST_ROOMS } from './courtyard-first-beat.mjs';
 import { verifyAnchorStop } from './verify-first-return.mjs';

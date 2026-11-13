@@ -5,10 +5,10 @@
 import assert from 'node:assert/strict';
 import { runCourtyardChecks, FIRST_ROOMS, earnFirstDiscovery, enterCourtyard, chooseDiscoveryStarter, readFlow, followGuidance, waitSettled, verifyRestartAndRevisit } from './courtyard-first-beat.mjs';
 
-await runCourtyardChecks({ name: 'first-exit', cases: FIRST_ROOMS, run: async ({ page, base, width, out, shot, seed, room }) => {
+await runCourtyardChecks({ name: 'first-exit', cases: FIRST_ROOMS, run: async ({ page, base, viewport, out, shot, seed, room }) => {
   await earnFirstDiscovery(page, base);
   await enterCourtyard(page, seed);
-  await chooseDiscoveryStarter(page, out, width);
+  await chooseDiscoveryStarter(page, out, viewport.key);
   const startedAt = Date.now();
   assert.equal((await readFlow(page)).state.roomId, room);
 
